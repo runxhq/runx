@@ -519,18 +519,15 @@ fn routes_canonical_skill_run_to_native_plan() {
             diagnostics: false,
             trusted_command_execution: false,
             full_operator_context: false,
-            inputs: [
-                (
-                    "thread_title".to_owned(),
-                    runx_contracts::JsonValue::String("Docs bug".to_owned()),
-                ),
-                (
-                    "severity".to_owned(),
-                    runx_contracts::JsonValue::String("low".to_owned()),
-                )
-            ]
-            .into_iter()
-            .collect(),
+            inputs: runx_cli::skill::CliInputs {
+                texts: [
+                    ("thread_title".to_owned(), "Docs bug".to_owned()),
+                    ("severity".to_owned(), "low".to_owned()),
+                ]
+                .into_iter()
+                .collect(),
+                json: Default::default(),
+            },
             input_document: None,
             act: None,
             managed_agent: Default::default(),

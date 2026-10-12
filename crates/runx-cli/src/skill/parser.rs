@@ -1,6 +1,5 @@
 // Module rationale: skill CLI parsing keeps shared state and
 // option finalization in one module until the native parser surface stabilizes.
-use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -8,7 +7,8 @@ use runx_contracts::JsonValue;
 use runx_runtime::WorkspaceEnv;
 
 use super::inputs::{
-    parse_direct_input_arg, parse_input_arg, parse_input_document_arg, parse_json_input_arg,
+    CliInputs, parse_direct_input_arg, parse_input_arg, parse_input_document_arg,
+    parse_json_input_arg,
 };
 use super::{SkillAction, SkillPlan};
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
@@ -116,7 +116,7 @@ struct SkillParseState {
     full_operator_context: bool,
     inspect: bool,
     force_run: bool,
-    inputs: BTreeMap<String, JsonValue>,
+    inputs: CliInputs,
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
     managed_agent: bool,
@@ -396,8 +396,8 @@ mod tests {
             index += 1;
         }
         assert_eq!(
-            state.inputs.get("claim"),
-            Some(&runx_contracts::JsonValue::String("abc".to_owned()))
+            state.inputs.texts.get("claim").map(String::as_str),
+            Some("abc")
         );
         assert_eq!(
             state.receipt_dir.as_deref(),
@@ -425,6 +425,7 @@ mod tests {
 
         assert_eq!(
             plan.inputs
+                .json
                 .get("event")
                 .and_then(runx_contracts::JsonValue::as_object)
                 .and_then(|event| event.get("type"))
@@ -433,6 +434,7 @@ mod tests {
         );
         let rows = plan
             .inputs
+            .json
             .get("limits")
             .and_then(runx_contracts::JsonValue::as_object)
             .and_then(|limits| limits.get("rows"))
@@ -508,8 +510,8 @@ mod tests {
         assert_eq!(plan.action, SkillAction::Run);
         assert_eq!(plan.runner.as_deref(), Some("normalize"));
         assert_eq!(
-            plan.inputs.get("location"),
-            Some(&runx_contracts::JsonValue::String("hello".to_owned()))
+            plan.inputs.texts.get("location").map(String::as_str),
+            Some("hello")
         );
         Ok(())
     }
@@ -563,8 +565,8 @@ mod tests {
         let plan = super::parse_skill_plan(&args)?;
 
         assert!(plan.full_operator_context);
-        assert_eq!(plan.inputs.len(), 1);
-        assert!(plan.inputs.contains_key("location"));
+        assert_eq!(plan.inputs.texts.len(), 1);
+        assert!(plan.inputs.texts.contains_key("location"));
         Ok(())
     }
 
@@ -583,8 +585,8 @@ mod tests {
         let plan = super::parse_skill_plan(&args)?;
 
         assert!(plan.full_operator_context);
-        assert_eq!(plan.inputs.len(), 1);
-        assert!(plan.inputs.contains_key("location"));
+        assert_eq!(plan.inputs.texts.len(), 1);
+        assert!(plan.inputs.texts.contains_key("location"));
         Ok(())
     }
 

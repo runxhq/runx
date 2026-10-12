@@ -6,21 +6,81 @@ use runx_contracts::JsonValue;
 
 use crate::document_input::{DocumentInputSource, read_document_input};
 
+/// The inputs a command line gives a skill: texts, which the runner reads by
+/// each input's declared type, and values written as JSON. A name is given
+/// once across both.
+#[derive(Debug, Default, PartialEq)]
+pub struct CliInputs {
+    pub texts: BTreeMap<String, String>,
+    pub json: BTreeMap<String, JsonValue>,
+}
+
+impl CliInputs {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.texts.is_empty() && self.json.is_empty()
+    }
+
+    /// The inputs the runner `runner` of `skill_path` reads from these: each
+    /// text by its input's declared type, never guessed.
+    pub(super) fn typed(
+        &self,
+        skill_path: &Path,
+        runner: Option<&str>,
+    ) -> Result<BTreeMap<String, JsonValue>, String> {
+        let mut inputs = self.json.clone();
+        if !self.texts.is_empty() {
+            inputs.extend(
+                runx_runtime::skill_front::runner_inputs_from_text(skill_path, runner, &self.texts)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
+        Ok(inputs)
+    }
+
+    fn insert_text(&mut self, raw_key: &str, value: String) -> Result<(), String> {
+        let key = self.unique_key(raw_key)?;
+        self.texts.insert(key, value);
+        Ok(())
+    }
+
+    fn insert_json(&mut self, raw_key: &str, raw_value: &str) -> Result<(), String> {
+        let key = self.unique_key(raw_key)?;
+        let value = serde_json::from_str(raw_value)
+            .map_err(|error| format!("runx skill --input-json {key} is invalid JSON: {error}"))?;
+        self.json.insert(key, value);
+        Ok(())
+    }
+
+    fn unique_key(&self, raw_key: &str) -> Result<String, String> {
+        let key = normalize_input_key(raw_key);
+        if key.is_empty() {
+            return Err("runx skill input key must be non-empty".to_owned());
+        }
+        if self.texts.contains_key(&key) || self.json.contains_key(&key) {
+            return Err(format!(
+                "runx skill input {key:?} was supplied more than once"
+            ));
+        }
+        Ok(key)
+    }
+}
+
 pub(super) fn parse_direct_input_arg(
     args: &[OsString],
     mut index: usize,
     token: &str,
-    inputs: &mut BTreeMap<String, JsonValue>,
+    inputs: &mut CliInputs,
 ) -> Result<usize, String> {
     if token.contains('=') {
         let (key, value) = token.split_once('=').ok_or_else(|| {
             "runx skill argument must use --name value or --name=value".to_owned()
         })?;
-        insert_input(inputs, key, value.to_owned())?;
+        inputs.insert_text(key, value.to_owned())?;
     } else {
         let key = token.trim_start_matches("--");
         index += 1;
-        insert_input(inputs, key, string_arg(args, index)?)?;
+        inputs.insert_text(key, string_arg(args, index)?)?;
     }
     Ok(index)
 }
@@ -29,7 +89,7 @@ pub(super) fn parse_input_arg(
     args: &[OsString],
     mut index: usize,
     inline_value: Option<&str>,
-    inputs: &mut BTreeMap<String, JsonValue>,
+    inputs: &mut CliInputs,
 ) -> Result<usize, String> {
     if let Some(value) = inline_value {
         parse_input_assignment(value, None, inputs)?;
@@ -51,7 +111,7 @@ pub(super) fn parse_json_input_arg(
     args: &[OsString],
     mut index: usize,
     inline_value: Option<&str>,
-    inputs: &mut BTreeMap<String, JsonValue>,
+    inputs: &mut CliInputs,
 ) -> Result<usize, String> {
     if let Some(value) = inline_value {
         parse_json_input_assignment(value, None, inputs)?;
@@ -114,15 +174,15 @@ pub(super) fn read_input_document(
 fn parse_input_assignment(
     key_or_assignment: &str,
     explicit_value: Option<String>,
-    inputs: &mut BTreeMap<String, JsonValue>,
+    inputs: &mut CliInputs,
 ) -> Result<(), String> {
     match explicit_value {
-        Some(value) => insert_input(inputs, key_or_assignment, value),
+        Some(value) => inputs.insert_text(key_or_assignment, value),
         None => {
             let (key, value) = key_or_assignment
                 .split_once('=')
                 .ok_or_else(|| "runx skill --input requires key=value or key value".to_owned())?;
-            insert_input(inputs, key, value.to_owned())
+            inputs.insert_text(key, value.to_owned())
         }
     }
 }
@@ -130,57 +190,17 @@ fn parse_input_assignment(
 fn parse_json_input_assignment(
     key_or_assignment: &str,
     explicit_value: Option<String>,
-    inputs: &mut BTreeMap<String, JsonValue>,
+    inputs: &mut CliInputs,
 ) -> Result<(), String> {
     match explicit_value {
-        Some(value) => insert_json_input(inputs, key_or_assignment, &value),
+        Some(value) => inputs.insert_json(key_or_assignment, &value),
         None => {
             let (key, value) = key_or_assignment.split_once('=').ok_or_else(|| {
                 "runx skill --input-json requires key=<json> or key <json>".to_owned()
             })?;
-            insert_json_input(inputs, key, value)
+            inputs.insert_json(key, value)
         }
     }
-}
-
-fn insert_input(
-    inputs: &mut BTreeMap<String, JsonValue>,
-    raw_key: &str,
-    raw_value: String,
-) -> Result<(), String> {
-    let key = normalize_input_key(raw_key);
-    if key.is_empty() {
-        return Err("runx skill input key must be non-empty".to_owned());
-    }
-    insert_unique(inputs, key, parse_cli_value(&raw_value))
-}
-
-fn insert_json_input(
-    inputs: &mut BTreeMap<String, JsonValue>,
-    raw_key: &str,
-    raw_value: &str,
-) -> Result<(), String> {
-    let key = normalize_input_key(raw_key);
-    if key.is_empty() {
-        return Err("runx skill input key must be non-empty".to_owned());
-    }
-    let value = serde_json::from_str(raw_value)
-        .map_err(|error| format!("runx skill --input-json {key} is invalid JSON: {error}"))?;
-    insert_unique(inputs, key, value)
-}
-
-fn insert_unique(
-    inputs: &mut BTreeMap<String, JsonValue>,
-    key: String,
-    value: JsonValue,
-) -> Result<(), String> {
-    if inputs.contains_key(&key) {
-        return Err(format!(
-            "runx skill input {key:?} was supplied more than once"
-        ));
-    }
-    inputs.insert(key, value);
-    Ok(())
 }
 
 fn normalize_input_key(raw: &str) -> String {
@@ -188,10 +208,6 @@ fn normalize_input_key(raw: &str) -> String {
         .trim_start_matches("--")
         .replace('-', "_")
         .to_owned()
-}
-
-fn parse_cli_value(raw: &str) -> JsonValue {
-    serde_json::from_str(raw).unwrap_or_else(|_| JsonValue::String(raw.to_owned()))
 }
 
 fn string_arg(args: &[OsString], index: usize) -> Result<String, String> {

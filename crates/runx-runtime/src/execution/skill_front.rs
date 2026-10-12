@@ -694,3 +694,6 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
 fn invalid(message: impl Into<String>) -> SkillRunError {
     SkillRunError::Invalid(message.into())
 }
+
+#[cfg(test)]
+mod tests;

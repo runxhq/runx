@@ -319,7 +319,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         notes: &[],
         options: &[
-            "-i, --input key=value    Set a structured input; repeat for multiple inputs",
+            "-i, --input key=value    Set an input, read by the type its runner declares; repeat for multiple inputs",
             "--input-json key=json    Set an input that must parse as JSON",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with per-key inputs",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",

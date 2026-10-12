@@ -49,7 +49,10 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
             diagnostics: false,
             trusted_command_execution: true,
             full_operator_context: false,
-            inputs,
+            inputs: crate::skill::CliInputs {
+                texts: BTreeMap::new(),
+                json: inputs,
+            },
             input_document: None,
             act: None,
             managed_agent: plan.managed_agent,

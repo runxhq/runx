@@ -19,6 +19,7 @@ mod resolver;
 use environment_readiness::{
     append_text as append_environment_readiness_text, inspect as inspect_environment_readiness,
 };
+pub use inputs::CliInputs;
 use inputs::read_input_document;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
@@ -43,7 +44,7 @@ pub struct SkillPlan {
     /// `runx new`. User-supplied `runx skill` invocations cannot set this.
     pub trusted_command_execution: bool,
     pub full_operator_context: bool,
-    pub inputs: BTreeMap<String, JsonValue>,
+    pub inputs: CliInputs,
     pub input_document: Option<crate::document_input::DocumentInputSource>,
     /// The act the invoker states for the run (`--act`).
     pub act: Option<runx_contracts::CallAct>,
@@ -102,7 +103,18 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 );
             }
         },
-        None => plan.inputs.clone(),
+        None => match plan.inputs.typed(&skill_path, plan.runner.as_deref()) {
+            Ok(inputs) => inputs,
+            Err(error) => {
+                return write_skill_failure(
+                    &error,
+                    plan.json,
+                    "input_error",
+                    1,
+                    entry_provenance(&resolved),
+                );
+            }
+        },
     };
     if resolved.paid_listing.is_some() && resolved.hosted_registry_url.is_some() {
         let mut output = match marketplace::discover_paid_skill(
