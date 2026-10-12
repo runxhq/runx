@@ -72,8 +72,10 @@ before any downstream action.
 - `payload` (required): business payload delivered to Zapier.
 - `handoff_audience` (optional): defaults to
   `zapier:zap:runx-governed-effect`.
-- `zapier_account_id` and `zapier_hook_id` (send runner): Catch Hook path
-  segments.
+
+The Catch Hook URL is the `zapier` connector's `catch_hook` credential, bound
+once with `runx credential set zapier --credential catch_hook --from-stdin`.
+It never enters the run's inputs, records or receipts.
 
 `event_id` is also the Runx mutation idempotency key and the value delivered as
 `idempotency_key`; there is no second retry identity that can drift from it.

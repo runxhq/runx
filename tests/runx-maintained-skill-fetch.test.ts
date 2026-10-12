@@ -32,16 +32,16 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const officialLock = await officialSkillLock("runx/research");
+      const runxMaintainedLock = await runxMaintainedSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/research/SKILL.md"),
         profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: officialLock.version,
+        version: runxMaintainedLock.version,
         env,
       });
-      const skillRef = `acme/research@${officialLock.version}`;
+      const skillRef = `acme/research@${runxMaintainedLock.version}`;
 
       const first = runNativeSkill(env, [
         skillRef,
@@ -86,18 +86,18 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const officialLock = await officialSkillLock("runx/research");
+      const runxMaintainedLock = await runxMaintainedSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/research/SKILL.md"),
         profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: officialLock.version,
+        version: runxMaintainedLock.version,
         env,
       });
 
       const result = runNativeSkill(env, [
-        `acme/research@${officialLock.version}`,
+        `acme/research@${runxMaintainedLock.version}`,
         "--registry",
         registryDir,
         "--digest",
@@ -114,7 +114,7 @@ describe("registry skill native fetch", () => {
         (JSON.parse(result.stdout) as { error?: { message?: string } }).error?.message,
       ).toContain("digest mismatch");
       expect(
-        existsSync(path.join(globalHomeDir, "official-skills", "acme", "research", "SKILL.md")),
+        existsSync(path.join(globalHomeDir, "runx-maintained-skills", "acme", "research", "SKILL.md")),
       ).toBe(false);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -130,7 +130,7 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await officialSkillLock("runx/agency");
+      const lockEntry = await runxMaintainedSkillLock("runx/agency");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/agency/SKILL.md"),
@@ -172,7 +172,7 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await officialSkillLock("runx/data-store");
+      const lockEntry = await runxMaintainedSkillLock("runx/data-store");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/data-store/SKILL.md"),
@@ -231,19 +231,19 @@ function testEnv(projectDir: string, globalHomeDir: string): NodeJS.ProcessEnv {
   return env;
 }
 
-async function officialSkillLock(skillId: string): Promise<{
+async function runxMaintainedSkillLock(skillId: string): Promise<{
   readonly skill_id: string;
   readonly version: string;
   readonly digest: string;
 }> {
-  const officialLock = JSON.parse(
-    await readFile(path.resolve("skills/official.lock.json"), "utf8"),
+  const runxMaintainedLock = JSON.parse(
+    await readFile(path.resolve("skills/runx-maintained.lock.json"), "utf8"),
   ) as ReadonlyArray<{
     readonly skill_id: string;
     readonly version: string;
     readonly digest: string;
   }>;
-  const entry = officialLock.find((candidate) => candidate.skill_id === skillId);
+  const entry = runxMaintainedLock.find((candidate) => candidate.skill_id === skillId);
   if (!entry) {
     throw new Error(`Missing ${skillId} entry in official-skills.lock.json.`);
   }

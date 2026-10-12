@@ -28,7 +28,7 @@ pub struct ReviewReceiptImprovementProposal {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[runx_schema(spec_id = "https://runx.ai/schemas/review-receipt-output.schema.json")]
+#[runx_schema(id = "runx.review_receipt_output.v1")]
 pub struct ReviewReceiptOutput {
     pub verdict: ReviewReceiptVerdict,
     pub failure_summary: String,

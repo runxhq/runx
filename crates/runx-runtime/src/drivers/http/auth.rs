@@ -17,13 +17,19 @@ use runx_contracts::connector::HttpAuth;
 
 /// Present only the credential chosen by an admitted instance. HTTP and MCP
 /// share this boundary; ordinary request templates never receive these fields.
+/// A credential presented as the request's URL ([`credential_url`]) carries
+/// no header.
 pub(crate) fn credential_header(
     presentation: &HttpAuth,
     credential: &CredentialSecret,
     method: HttpMethod,
     url: &Url,
-) -> Result<RuntimeHttpHeader, String> {
+) -> Result<Option<RuntimeHttpHeader>, String> {
+    let Some(header_name) = presentation.header_name() else {
+        return Ok(None);
+    };
     let value = match presentation {
+        HttpAuth::Url { .. } => return Ok(None),
         HttpAuth::Bearer { field } => format!("Bearer {}", credential.field(field.as_str())?),
         HttpAuth::Header { field, .. } => credential.field(field.as_str())?.to_owned(),
         HttpAuth::Oauth1 => {
@@ -45,10 +51,30 @@ pub(crate) fn credential_header(
         }
     };
     credential.presented(&value);
-    Ok(RuntimeHttpHeader::secret(
-        presentation.header_name().to_ascii_lowercase(),
+    Ok(Some(RuntimeHttpHeader::secret(
+        header_name.to_ascii_lowercase(),
         value,
-    ))
+    )))
+}
+
+/// The request URL a credential presented as one stands for: the credential's
+/// field, which must start with the request's declared URL. It is a secret,
+/// redacted wherever it would otherwise be echoed.
+pub(crate) fn credential_url(
+    presentation: &HttpAuth,
+    credential: &CredentialSecret,
+    declared: &Url,
+) -> Result<Option<Url>, String> {
+    let HttpAuth::Url { field } = presentation else {
+        return Ok(None);
+    };
+    let value = credential.field(field.as_str())?;
+    if !value.starts_with(declared.as_str()) {
+        return Err("the credential's URL is outside the request's declared URL".to_owned());
+    }
+    let url = Url::parse(value).map_err(|_| "the credential's URL is invalid".to_owned())?;
+    credential.presented(value);
+    Ok(Some(url))
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {
@@ -214,6 +240,7 @@ mod tests {
             HttpMethod::Get,
             &Url::parse("https://api.example.com").unwrap(),
         )
+        .unwrap()
         .unwrap();
         assert_eq!(header.name, "x-custom-identity");
         assert_eq!(header.value, "private-presented-key");
@@ -228,9 +255,40 @@ mod tests {
             HttpMethod::Get,
             &Url::parse("https://api.example.com").unwrap(),
         )
+        .unwrap()
         .unwrap();
         let echo = base64::engine::general_purpose::STANDARD.encode(&bearer.value);
         assert_eq!(credential.scrub_text(echo), "[redacted-credential]");
+    }
+
+    #[test]
+    fn a_url_credential_stays_within_the_declared_url_and_is_redacted() {
+        let credential = CredentialSecret::new(
+            runx_contracts::connector::CredentialName::new("hook").unwrap(),
+            BTreeMap::from([(
+                "url".to_owned(),
+                "https://hooks.example.com/catch/123/secret/".to_owned(),
+            )]),
+        );
+        let presentation =
+            serde_json::from_value(serde_json::json!({"type": "url", "field": "url"})).unwrap();
+        let declared = Url::parse("https://hooks.example.com/catch/").unwrap();
+        let url = credential_url(&presentation, &credential, &declared)
+            .unwrap()
+            .unwrap();
+        assert_eq!(url.as_str(), "https://hooks.example.com/catch/123/secret/");
+        assert_eq!(
+            credential
+                .scrub_text("posted to https://hooks.example.com/catch/123/secret/".to_owned()),
+            "posted to [redacted-credential]"
+        );
+        assert!(
+            credential_header(&presentation, &credential, HttpMethod::Post, &url)
+                .unwrap()
+                .is_none()
+        );
+        let elsewhere = Url::parse("https://hooks.example.com/other/").unwrap();
+        assert!(credential_url(&presentation, &credential, &elsewhere).is_err());
     }
 
     #[test]
@@ -254,6 +312,7 @@ mod tests {
             HttpMethod::Post,
             &Url::parse("https://api.example.com/2/tweets?x=1").unwrap(),
         )
+        .unwrap()
         .unwrap();
         let encoded = header
             .value

@@ -1,7 +1,7 @@
 import { Type, type Static } from "../internal.js";
 import {
   JSON_SCHEMA_DRAFT_2020_12,
-  RUNX_CONTROL_SCHEMA_REFS,
+  RUNX_CONTRACT_IDS,
   type DeepReadonly,
   generatedSchema,
   stringEnum,
@@ -50,7 +50,7 @@ const outputTypeSchema = Type.Record(
   outputEntrySchema,
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: RUNX_CONTROL_SCHEMA_REFS.output,
+    $id: RUNX_CONTRACT_IDS.output,
   },
 );
 

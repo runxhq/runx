@@ -3,10 +3,11 @@
 use super::*;
 
 #[test]
-fn official_connectors_load_with_digests() {
-    let connectors = ConnectorScope::official_connectors().expect("official connectors");
+fn runx_maintained_connectors_load_with_digests() {
+    let connectors =
+        ConnectorScope::runx_maintained_connectors().expect("runx-maintained connectors");
     assert!(!connectors.is_empty());
-    let scope = ConnectorScope::official_only().unwrap();
+    let scope = ConnectorScope::runx_maintained_only().unwrap();
     let slack = scope.connector("slack").expect("slack");
     let (name, operation, digest) = slack.operation("channel.post").expect("channel.post");
     assert_eq!(name.as_str(), "channel.post");
@@ -17,12 +18,12 @@ fn official_connectors_load_with_digests() {
     assert!(digest.as_str().starts_with("sha256:"));
     assert!(matches!(
         scope.connector("nope"),
-        Err(ConnectorRegistryError::NotOfficial { .. })
+        Err(ConnectorRegistryError::NotRunxMaintained { .. })
     ));
 }
 
 #[test]
-fn a_plugin_connector_cannot_shadow_an_official_one() {
+fn a_plugin_connector_cannot_shadow_an_runx_maintained_one() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"runx"}"#).unwrap();
     let skill = root.path().join("skills/notify");
@@ -78,7 +79,11 @@ operations:
     )
     .unwrap();
     // A lock, a readme and a desktop file beside the connector directories.
-    std::fs::write(root.path().join("connectors/official.lock.json"), "{}").unwrap();
+    std::fs::write(
+        root.path().join("connectors/runx-maintained.lock.json"),
+        "{}",
+    )
+    .unwrap();
     std::fs::write(root.path().join("connectors/README.md"), "# Connectors\n").unwrap();
     std::fs::write(root.path().join("connectors/.DS_Store"), [0u8; 8]).unwrap();
     let scope = ConnectorScope::at(&connector).unwrap();
@@ -118,7 +123,7 @@ operations:
     let loaded = scope.connector("acme-weather").unwrap();
     assert!(matches!(loaded.origin, ConnectorOrigin::Plugin { .. }));
     assert!(
-        ConnectorScope::official_only()
+        ConnectorScope::runx_maintained_only()
             .unwrap()
             .connector("acme-weather")
             .is_err()
@@ -382,18 +387,18 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
 }
 
 #[test]
-fn an_installed_version_of_an_official_connector_is_its_own_revision() {
+fn an_installed_version_of_an_runx_maintained_connector_is_its_own_revision() {
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
     let installed =
         load_installed(&install(&home, "runx", "open-meteo", "9.0.0", "Next.")).unwrap();
-    let official = ConnectorScope::official_only()
+    let maintained = ConnectorScope::runx_maintained_only()
         .unwrap()
         .connector("open-meteo")
         .unwrap();
-    assert_ne!(installed.manifest_digest, official.manifest_digest);
+    assert_ne!(installed.manifest_digest, maintained.manifest_digest);
 
     let scope = ConnectorScope::at(&work)
         .unwrap()
@@ -405,9 +410,9 @@ fn an_installed_version_of_an_official_connector_is_its_own_revision() {
     // A requirement pinned to the embedded revision still binds it.
     assert!(matches!(
         scope
-            .requirement("runx/open-meteo", &pinned(&official.manifest_digest))
+            .requirement("runx/open-meteo", &pinned(&maintained.manifest_digest))
             .unwrap()
             .origin,
-        ConnectorOrigin::Official
+        ConnectorOrigin::RunxMaintained
     ));
 }

@@ -140,9 +140,9 @@ if (rustBuild.status === 0) {
     "generated artifacts and fixtures",
     [
       step("catalog version drift", "pnpm", ["catalog:check"]),
-      step("official skill lock", "pnpm", ["official-lock:check"]),
+      step("runx-maintained skill lock", "pnpm", ["runx-maintained-lock:check"]),
       step("bundled core skills", "pnpm", ["bundled-skills:check"]),
-      step("official connectors", "pnpm", ["official-connectors:check"]),
+      step("runx-maintained connectors", "pnpm", ["runx-maintained-connectors:check"]),
       step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
       step("extension SDK package contract", "node", ["scripts/check-extension-sdk-package-contract.mjs"]),

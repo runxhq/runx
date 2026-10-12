@@ -56,6 +56,24 @@ carry credentials. Presented material is secret regardless of the header name.
 MCP accepts bearer and named headers; OAuth1 remains per-request HTTP signing.
 Query credentials and Basic authentication are not implemented.
 
+A provider whose secret is the endpoint itself, such as a webhook, presents
+the credential as the request URL:
+
+```yaml
+auth:
+  catch_hook: {type: url, field: url}
+requests:
+  - method: POST
+    url: https://hooks.zapier.com/hooks/catch/
+```
+
+The request's declared `url` is the prefix the credential's URL must start
+with, and the URL is redacted wherever it would be echoed. HTTP only; an MCP
+server presents its credential as a header.
+
+A connector that takes no credential may only read. An approval alone never
+authorizes a write.
+
 `audience` fixes the hosts a request Runx renders may reach: an HTTP request or
 an MCP server URL outside it is refused before anything is sent. A process tool
 or stdio MCP server is different. It is a trusted program on the operator's

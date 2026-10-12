@@ -2,7 +2,7 @@
 //!
 //! A tool ships beside its connector, at `tools/<segment>/.../`, one
 //! directory per segment of its dotted name (`git.push` is `tools/git/push/`).
-//! An official connector's tools are embedded in the binary with its
+//! A runx-maintained connector's tools are embedded in the binary with its
 //! manifest. A tool is never looked up from the skill that calls the
 //! operation: the program that receives a connector's credential is the one
 //! its connector ships.
@@ -32,7 +32,7 @@ pub struct ConnectorTool {
 enum ToolFiles {
     /// A plugin connector's, read from its directory again when it runs.
     Directory(PathBuf),
-    /// An official connector's, embedded in the binary.
+    /// A runx-maintained connector's, embedded in the binary.
     Embedded(BTreeMap<String, &'static str>),
 }
 
@@ -53,9 +53,9 @@ impl ConnectorTool {
         })
     }
 
-    /// The tool `tool` among an official connector's `embedded` files, keyed
+    /// The tool `tool` among a runx-maintained connector's `embedded` files, keyed
     /// by their path below its `tools/`.
-    pub(crate) fn official(
+    pub(crate) fn runx_maintained(
         embedded: &[(&'static str, &'static str)],
         tool: &str,
     ) -> Result<Self, String> {
@@ -275,11 +275,11 @@ mod tests {
         Ok(())
     }
 
-    /// Every official process tool is embedded and named as its connector
+    /// Every runx-maintained process tool is embedded and named as its connector
     /// declares it.
     #[test]
-    fn official_tools_are_embedded() -> Result<(), String> {
-        for connector in super::super::ConnectorScope::official_connectors()
+    fn runx_maintained_tools_are_embedded() -> Result<(), String> {
+        for connector in super::super::ConnectorScope::runx_maintained_connectors()
             .map_err(|error| error.to_string())?
         {
             for (name, tool) in &connector.tools {
@@ -289,7 +289,7 @@ mod tests {
                 );
             }
         }
-        let github = super::super::ConnectorScope::official_only()
+        let github = super::super::ConnectorScope::runx_maintained_only()
             .and_then(|scope| scope.connector("github"))
             .map_err(|error| error.to_string())?;
         assert!(github.tools.contains_key("git.push"));

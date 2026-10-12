@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/approval-gate.schema.json",
+  "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -23,5 +23,6 @@
     "id",
     "reason"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.approval_gate.v1"
 }

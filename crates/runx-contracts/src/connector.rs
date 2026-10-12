@@ -772,6 +772,11 @@ pub enum HttpAuth {
     /// OAuth 1.0a user context, signed with the credential's
     /// `consumer_key`, `consumer_secret`, `access_token` and `access_secret`.
     Oauth1,
+    /// A declared credential field as the request's complete URL, for a
+    /// provider whose secret is the endpoint itself, such as a webhook. The
+    /// request's declared URL is the prefix the credential's URL must start
+    /// with.
+    Url { field: CredentialName },
 }
 
 impl HttpAuth {
@@ -779,17 +784,21 @@ impl HttpAuth {
     #[must_use]
     pub fn fields(&self) -> Vec<&str> {
         match self {
-            Self::Bearer { field } | Self::Header { field, .. } => vec![field.as_str()],
+            Self::Bearer { field } | Self::Header { field, .. } | Self::Url { field } => {
+                vec![field.as_str()]
+            }
             Self::Oauth1 => OAUTH1_FIELDS.to_vec(),
         }
     }
 
-    /// The header the transport owns for this presentation.
+    /// The header the transport owns for this presentation; a credential
+    /// presented as the URL owns none.
     #[must_use]
-    pub fn header_name(&self) -> &str {
+    pub fn header_name(&self) -> Option<&str> {
         match self {
-            Self::Header { name, .. } => name.as_str(),
-            Self::Bearer { .. } | Self::Oauth1 => "authorization",
+            Self::Header { name, .. } => Some(name.as_str()),
+            Self::Bearer { .. } | Self::Oauth1 => Some("authorization"),
+            Self::Url { .. } => None,
         }
     }
 }

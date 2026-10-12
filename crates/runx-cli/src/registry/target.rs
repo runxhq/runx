@@ -184,12 +184,12 @@ pub(crate) fn destination_root(
         .unwrap_or_else(|| runx_runtime::RunxPaths::resolve(env, cwd).in_workspace("skills"))
 }
 
-pub(crate) fn official_skills_cache_root(
+pub(crate) fn runx_maintained_skills_cache_root(
     paths: &runx_runtime::RunxPaths,
     env: &BTreeMap<String, String>,
 ) -> PathBuf {
-    env.get("RUNX_OFFICIAL_SKILLS_DIR").map_or_else(
-        || paths.official_skills(),
+    env.get("RUNX_MAINTAINED_SKILLS_DIR").map_or_else(
+        || paths.runx_maintained_skills(),
         |value| paths.in_workspace(value),
     )
 }

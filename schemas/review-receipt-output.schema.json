@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/schemas/review-receipt-output.schema.json",
+  "$id": "https://schemas.runx.ai/runx/review-receipt-output/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
@@ -52,5 +52,6 @@
     "improvement_proposals",
     "next_harness_checks"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.review_receipt_output.v1"
 }

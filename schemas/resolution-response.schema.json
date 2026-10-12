@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/resolution-response.schema.json",
+  "$id": "https://schemas.runx.ai/runx/resolution-response/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -16,5 +16,6 @@
     "actor",
     "payload"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.resolution_response.v1"
 }

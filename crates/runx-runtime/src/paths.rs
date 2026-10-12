@@ -173,8 +173,8 @@ impl RunxPaths {
     }
 
     #[must_use]
-    pub fn official_skills(&self) -> PathBuf {
-        self.home.join("official-skills")
+    pub fn runx_maintained_skills(&self) -> PathBuf {
+        self.home.join("runx-maintained-skills")
     }
 
     #[must_use]

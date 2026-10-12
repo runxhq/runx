@@ -5,27 +5,32 @@ description: Deliver a governed handoff to a Zapier Catch Hook.
 category: orchestration
 runtime_capability: false
 auth:
-  none: {}
+  credentials:
+    catch_hook:
+      kind: webhook_url
+      fields:
+        - {name: url, label: Zapier Catch Hook URL}
+      delivery: {env: ZAPIER_CATCH_HOOK_URL}
+      audience: [hooks.zapier.com]
 placements:
   local:
-    auth: [none]
+    auth: [credentials]
 operations:
   hook.invoke:
     description: Deliver one handoff to a Zapier Catch Hook; Zapier acknowledges it and offers no readback.
     verb: write
     scopes: [orchestrator.zapier.workflow.invoke]
+    credentials: [catch_hook]
     target:
-      template: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
+      template: https://hooks.zapier.com/hooks/catch/
     approval: required
     guarantees:
       readback: unavailable
     input_schema:
       type: object
-      required: [zapier_account_id, hook_id, delivery]
+      required: [delivery]
       additionalProperties: false
       properties:
-        zapier_account_id: {type: string, pattern: '^[0-9]+$', maxLength: 32}
-        hook_id: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 128}
         delivery:
           type: object
           required: [event_id, handoff_scope, handoff_audience, idempotency_key, payload]
@@ -39,9 +44,11 @@ operations:
     implementation:
       http:
         allowed_hosts: [hooks.zapier.com]
+        auth:
+          catch_hook: {type: url, field: url}
         requests:
           - method: POST
-            url: {"$concat": ["https://hooks.zapier.com/hooks/catch/", {"$argument": "/zapier_account_id"}, "/", {"$argument": "/hook_id"}, "/"]}
+            url: https://hooks.zapier.com/hooks/catch/
             headers:
               accept: application/json
               x-runx-event-id: {"$argument": "/delivery/event_id"}

@@ -16,8 +16,8 @@ const lightOnlyPatterns = [
 
 const skillPatterns = [
   /^skills\//u,
-  /^skills\/official\.lock\.json$/u,
-  /^scripts\/(?:audit-core-skills|check-codex-export|check-skill-version-drift|generate-official-lock|harness-sweep)\.mjs$/u,
+  /^skills\/runx-maintained\.lock\.json$/u,
+  /^scripts\/(?:audit-core-skills|check-codex-export|check-skill-version-drift|generate-runx-maintained-lock|harness-sweep)\.mjs$/u,
 ];
 
 const skillImpactPatterns = [
@@ -63,7 +63,7 @@ export function classifyFiles(files) {
   return {
     files: normalized,
     full,
-    // Skill packages and the native runtime can alter official skill behavior.
+    // Skill packages and the native runtime can alter runx-maintained skill behavior.
     // Other known workspace changes stay behind the full correctness wall
     // without paying for an unrelated catalog-wide harness sweep.
     skills: normalized.length === 0 || skillsChanged || skillRuntimeChanged || unknown,

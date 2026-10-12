@@ -1,21 +1,21 @@
-//! Prints the official connector manifests, validated, beside the digests
+//! Prints the runx-maintained connector manifests, validated, beside the digests
 //! runx Connect compares against what a runtime admitted. Digests are
-//! computed only in Rust; `scripts/generate-official-connectors.mjs` writes
+//! computed only in Rust; `scripts/generate-runx-maintained-connectors.mjs` writes
 //! this into `@runxhq/contracts`.
 //!
-//! With `--lock`, prints instead the version each official connector
+//! With `--lock`, prints instead the version each runx-maintained connector
 //! publishes as, read by the native packager:
-//! `registry/official-connectors.lock.json`, which
-//! `scripts/publish-official-connectors.mjs` publishes from.
+//! `registry/runx-maintained-connectors.lock.json`, which
+//! `scripts/publish-runx-maintained-connectors.mjs` publishes from.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-const USAGE: &str = "usage: runx-official-connectors [--lock] <connectors directory>";
+const USAGE: &str = "usage: runx-maintained-connectors [--lock] <connectors directory>";
 
-/// One official connector as the registry records it: its ref, the
+/// One runx-maintained connector as the registry records it: its ref, the
 /// content-derived version label it publishes under, and that content's digest.
 #[derive(Serialize)]
 struct LockEntry {
@@ -43,9 +43,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut stdout = std::io::stdout().lock();
     if lock {
-        serde_json::to_writer_pretty(&mut stdout, &official_lock(&root)?)?;
+        serde_json::to_writer_pretty(&mut stdout, &runx_maintained_lock(&root)?)?;
     } else {
-        let connectors = runx_runtime::kernel::connectors::official_connectors_contract(&root)?;
+        let connectors =
+            runx_runtime::kernel::connectors::runx_maintained_connectors_contract(&root)?;
         serde_json::to_writer_pretty(&mut stdout, &connectors)?;
     }
     writeln!(stdout)?;
@@ -54,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Every connector directory below `root`, in name order, packaged as its
 /// publisher would publish it.
-fn official_lock(root: &Path) -> Result<Lock, Box<dyn std::error::Error>> {
+fn runx_maintained_lock(root: &Path) -> Result<Lock, Box<dyn std::error::Error>> {
     let mut directories = std::fs::read_dir(root)?
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<Result<Vec<_>, _>>()?;

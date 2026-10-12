@@ -7,7 +7,6 @@ catalog:
   role: context
   execution: execute
   completion: provider_acknowledgement
-  requires_adapter: true
   approval: required
   category: ops
 input_definitions:
@@ -41,16 +40,6 @@ input_definitions:
     type: json
     required: false
     description: Optional receiver metadata; a supplied url must be public HTTPS.
-  zapier_account_id:
-    type: string
-    required: true
-    description: Zapier Catch Hook account id path segment.
-    schema: { pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 }
-  zapier_hook_id:
-    type: string
-    required: true
-    description: Zapier Catch Hook id path segment.
-    schema: { pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 }
 harness:
   cases:
     - name: zapier-handoff-preflight-ready
@@ -141,10 +130,6 @@ runners:
   send:
     default: true
     inputs:
-      zapier_account_id:
-        definition: zapier_account_id
-      zapier_hook_id:
-        definition: zapier_hook_id
       event_id:
         definition: event_id
       handoff_audience:
@@ -158,9 +143,7 @@ runners:
       receiver:
         definition: receiver
     examples:
-      - zapier_account_id: "12345678"
-        zapier_hook_id: abcDEF123
-        event_id: evt_zapier_demo_001
+      - event_id: evt_zapier_demo_001
         handoff_audience: zapier:zap:runx-governed-effect
         execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
         payload: { hello: zap }
@@ -179,8 +162,6 @@ runners:
           receiver: $input.receiver
       - id: address
         inputs:
-          zapier_account_id: $input.zapier_account_id
-          hook_id: $input.zapier_hook_id
           delivery: $steps.build-handoff-context.handoff_context.delivery
         tool: { module: hook.mjs, export: hookRequest }
         outputs:

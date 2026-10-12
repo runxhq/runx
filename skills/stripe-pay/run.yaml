@@ -1,6 +1,6 @@
 skill: stripe-pay
 version: "0.4.1"
-catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: stripe-spt, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
+catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: stripe-spt, execution: execute, completion: provider_readback, approval: required, category: payments }
 runners:
   stripe-spt:
     default: true

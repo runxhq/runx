@@ -171,7 +171,7 @@ fn tool_ref_segments(tool_ref: &str) -> Result<Vec<&str>, ToolCatalogError> {
         .filter(|segment| !segment.is_empty())
         .collect::<Vec<_>>();
     if segments.len() < 2 {
-        return Err(ToolCatalogError::InvalidRequest(format!(
+        return Err(ToolCatalogError::Unqualified(format!(
             "Tool '{tool_ref}' must include a namespace, for example fs.read."
         )));
     }

@@ -1,6 +1,6 @@
 skill: reddit
 version: "0.1.3"
-catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: read, completion: runtime_receipt, requires_adapter: true, approval: conditional }
+catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: read, completion: runtime_receipt, approval: conditional }
 connectors:
   reddit:
     operations: [tabs.list, tab.bind, account.inspect, page.navigate, feed.read, rules.read, thread.read, composer.read, comment.readback]

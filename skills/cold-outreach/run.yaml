@@ -7,7 +7,6 @@ catalog:
   role: canonical
   execution: plan
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
   category: growth
 runners:

@@ -466,7 +466,7 @@ fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode
         out.extend(readiness.iter().map(readiness_line));
         append_environment_readiness_text(&mut out, object);
         if let Some(capabilities) = object.get("capabilities").and_then(JsonValue::as_object) {
-            for key in ["execution", "completion", "requires_adapter", "approval"] {
+            for key in ["execution", "completion", "approval"] {
                 if let Some(value) = capabilities.get(key) {
                     out.push_str(&format!("{key}: {}\n", display_json_scalar(value)));
                 }

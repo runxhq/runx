@@ -123,7 +123,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     fs::write(adjacent_dir.join("SKILL.md"), adjacent_manual)?;
     fs::write(
         adjacent_dir.join("run.yaml"),
-        "skill: adjacent\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  requires_adapter: false\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
+        "skill: adjacent\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
     )?;
     fs::write(
         temp.path().join("context.yaml"),

@@ -222,8 +222,28 @@ impl InvocationOutput {
         exit_code: Option<i32>,
         duration_ms: u64,
     ) -> Self {
-        let value = serde_json::from_str(&stdout).unwrap_or(JsonValue::String(stdout));
-        Self::process_value(status, value, stderr, exit_code, duration_ms)
+        // A process answers with JSON on stdout; empty stdout is no value.
+        // Any other stdout breaks that contract and fails the invocation.
+        if stdout.trim().is_empty() {
+            return Self::process_value(status, JsonValue::Null, stderr, exit_code, duration_ms);
+        }
+        match serde_json::from_str(&stdout) {
+            Ok(value) => Self::process_value(status, value, stderr, exit_code, duration_ms),
+            Err(_) => {
+                let stderr = if stderr.trim().is_empty() {
+                    "process stdout is not JSON".to_owned()
+                } else {
+                    format!("{}\nprocess stdout is not JSON", stderr.trim_end())
+                };
+                Self::process_value(
+                    InvocationStatus::Failure,
+                    JsonValue::Null,
+                    stderr,
+                    exit_code,
+                    duration_ms,
+                )
+            }
+        }
     }
 
     #[must_use]

@@ -81,11 +81,10 @@ impl Property {
 
 /// The top-level identity envelope a contract document carries.
 ///
-/// Most contracts are `Runx { logical }`: a `schemas.runx.ai` `$id` derived
-/// from the logical name, the `x-runx-schema` marker, and an optional `schema`
-/// const discriminant. A handful of legacy contracts carry only a bare `$id`
-/// (the `runx.ai/spec` and `runx.ai/schemas` documents) with no
-/// `x-runx-schema` and no injected `schema` discriminant; those use `BareId`.
+/// A runx contract is `Runx { logical }`: a `schemas.runx.ai` `$id` derived
+/// from the logical name and the `x-runx-schema` marker. A schema runx
+/// publishes for another protocol, such as x402, is `External`: its own `$id`
+/// and no runx marker.
 pub enum Identity<'a> {
     /// Logical-name identity: `schemas.runx.ai` `$id`, `x-runx-schema` marker,
     /// and an injected optional `schema` const. The `$id` is `url` when given
@@ -95,9 +94,9 @@ pub enum Identity<'a> {
         logical: &'a str,
         url: Option<&'a str>,
     },
-    /// A bare `$id` with no `x-runx-schema` marker and no injected `schema`
-    /// discriminant (the `runx.ai/spec` / `runx.ai/schemas` documents).
-    BareId { url: &'a str },
+    /// Another protocol's schema as runx publishes it: a bare `$id` with no
+    /// `x-runx-schema` marker.
+    External { url: &'a str },
 }
 
 /// Start a document with its top-level identity envelope, if any: `$schema`,
@@ -122,7 +121,7 @@ fn identity_envelope(identity: Option<Identity<'_>>) -> (Map<String, Value>, Opt
             schema.insert("x-runx-schema".to_owned(), json!(logical));
             (schema, Some(logical))
         }
-        Identity::BareId { url } => {
+        Identity::External { url } => {
             schema.insert("$id".to_owned(), json!(url));
             (schema, None)
         }

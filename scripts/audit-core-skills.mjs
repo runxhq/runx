@@ -40,7 +40,7 @@ try {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
     process.stdout.write(
-      `core skill audit ${report.status}: ${report.summary.reviewed}/${report.summary.official} reviewed\n`,
+      `core skill audit ${report.status}: ${report.summary.reviewed}/${report.summary.runx_maintained} reviewed\n`,
     );
   }
   if (report.status !== "passed") process.exitCode = 1;
@@ -52,17 +52,17 @@ try {
 function buildReport(options) {
   nativeProcessCount = 0;
   const runx = resolveRunxBinary(options.runxBin);
-  const official = readOfficialLock();
+  const maintained = readRunxMaintainedLock();
   const review = readProductReview();
   const catalog = readNativeCatalog(runx);
   const toolCatalog = readNativeToolCatalog(runx);
-  const findings = validateCoverage({ official, review, catalog });
+  const findings = validateCoverage({ maintained, review, catalog });
   const entries = [];
   let rewrittenManualCount = 0;
   let semanticDiagnosticCount = 0;
 
-  for (const record of official) {
-    const name = officialName(record);
+  for (const record of maintained) {
+    const name = runxMaintainedName(record);
     const decision = review.get(name);
     const catalogItem = catalog.get(name);
     const inspection = inspectSkill(runx, name);
@@ -144,22 +144,22 @@ function buildReport(options) {
     });
   }
 
-  const maximumNativeProcesses = official.length + 2;
+  const maximumNativeProcesses = maintained.length + 2;
   if (nativeProcessCount > maximumNativeProcesses) {
     findings.push(
       `native audit launched ${nativeProcessCount} processes; expected at most ${maximumNativeProcesses}`,
     );
   }
   entries.sort((left, right) => left.skill.localeCompare(right.skill));
-  const publicCount = official.filter((entry) => entry.catalog_visibility === "public").length;
-  const internalCount = official.length - publicCount;
+  const publicCount = maintained.filter((entry) => entry.catalog_visibility === "public").length;
+  const internalCount = maintained.length - publicCount;
   const decisions = countBy(entries, (entry) => entry.decision);
   const archetypes = countBy(entries, (entry) => entry.archetype);
   return {
     schema,
     status: findings.length === 0 ? "passed" : "failed",
     summary: {
-      official: official.length,
+      runx_maintained: maintained.length,
       reviewed: review.size,
       public: publicCount,
       internal: internalCount,
@@ -174,19 +174,19 @@ function buildReport(options) {
   };
 }
 
-function readOfficialLock() {
-  const value = JSON.parse(readFileSync(path.join(root, "skills", "official.lock.json"), "utf8"));
-  if (!Array.isArray(value)) throw new Error("skills/official.lock.json must be an array");
-  return [...value].sort((left, right) => officialName(left).localeCompare(officialName(right)));
+function readRunxMaintainedLock() {
+  const value = JSON.parse(readFileSync(path.join(root, "skills", "runx-maintained.lock.json"), "utf8"));
+  if (!Array.isArray(value)) throw new Error("skills/runx-maintained.lock.json must be an array");
+  return [...value].sort((left, right) => runxMaintainedName(left).localeCompare(runxMaintainedName(right)));
 }
 
-function officialName(record) {
+function runxMaintainedName(record) {
   if (typeof record?.skill_id !== "string") {
-    throw new Error(`invalid official skill record: ${JSON.stringify(record)}`);
+    throw new Error(`invalid runx-maintained skill record: ${JSON.stringify(record)}`);
   }
   const parts = record.skill_id.split("/");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new Error(`invalid official skill record: ${JSON.stringify(record)}`);
+    throw new Error(`invalid runx-maintained skill record: ${JSON.stringify(record)}`);
   }
   return parts[1];
 }
@@ -311,13 +311,13 @@ function inspectSkill(runx, name) {
   return runJson(runx, args);
 }
 
-function validateCoverage({ official, review, catalog }) {
+function validateCoverage({ maintained, review, catalog }) {
   const findings = [];
-  const officialNames = new Set();
-  for (const record of official) {
-    const name = officialName(record);
-    if (officialNames.has(name)) findings.push(`${name}: duplicate official lock entry`);
-    officialNames.add(name);
+  const runxMaintainedNames = new Set();
+  for (const record of maintained) {
+    const name = runxMaintainedName(record);
+    if (runxMaintainedNames.has(name)) findings.push(`${name}: duplicate runx-maintained lock entry`);
+    runxMaintainedNames.add(name);
     if (!["internal", "public"].includes(record.catalog_visibility)) {
       findings.push(`${name}: unsupported visibility ${record.catalog_visibility ?? "<missing>"}`);
     }
@@ -329,7 +329,7 @@ function validateCoverage({ official, review, catalog }) {
   }
 
   for (const [name, decision] of review) {
-    if (!officialNames.has(name)) findings.push(`${name}: review row is not in the official lock`);
+    if (!runxMaintainedNames.has(name)) findings.push(`${name}: review row is not in the runx-maintained lock`);
     if (!allowedArchetypes.has(decision.archetype)) {
       findings.push(`${name}: unsupported archetype ${decision.archetype}`);
     }
@@ -340,12 +340,12 @@ function validateCoverage({ official, review, catalog }) {
     if (!decision.evidence) findings.push(`${name}: review evidence is empty`);
   }
 
-  for (const name of officialNames) {
+  for (const name of runxMaintainedNames) {
     if (!review.has(name)) findings.push(`${name}: missing product review row`);
     if (!catalog.has(name)) findings.push(`${name}: missing top-level native catalog entry`);
   }
   for (const name of catalog.keys()) {
-    if (!officialNames.has(name)) findings.push(`${name}: top-level native catalog entry is unlocked`);
+    if (!runxMaintainedNames.has(name)) findings.push(`${name}: top-level native catalog entry is unlocked`);
   }
   return findings;
 }
@@ -747,23 +747,23 @@ function runSelfTests() {
   const review = parseReviewTable(table);
   assert(review.size === 1, "review parser must return one row");
   assert(review.get("alpha")?.rationale === "Useful | governed.", "escaped pipes must survive");
-  const official = [{
+  const maintained = [{
     skill_id: "runx/alpha",
     catalog_visibility: "public",
     catalog_role: "canonical",
   }];
   const catalog = new Map([["alpha", { name: "alpha" }]]);
   assert(
-    validateCoverage({ official, review, catalog }).length === 0,
+    validateCoverage({ maintained, review, catalog }).length === 0,
     "matching native, lock, and review evidence must pass",
   );
-  const missing = validateCoverage({ official, review: new Map(), catalog });
+  const missing = validateCoverage({ maintained, review: new Map(), catalog });
   assert(missing.includes("alpha: missing product review row"), "missing review rows must fail");
   const wrongRole = new Map([
     ["alpha", { ...review.get("alpha"), catalog_role: "public/branded" }],
   ]);
   assert(
-    validateCoverage({ official, review: wrongRole, catalog }).some((finding) =>
+    validateCoverage({ maintained, review: wrongRole, catalog }).some((finding) =>
       finding.includes("review catalog role public/branded does not match lock public/canonical")
     ),
     "catalog-role drift must fail",
@@ -847,7 +847,7 @@ function runSelfTests() {
   assert(
     validateInspectionClaims({
       name: "alpha",
-      record: official[0],
+      record: maintained[0],
       decision: { execution: "javascript" },
       inspection,
       runnerInspections: [inspection],
@@ -857,7 +857,7 @@ function runSelfTests() {
   assert(
     validateInspectionClaims({
       name: "alpha",
-      record: official[0],
+      record: maintained[0],
       decision: { execution: "tool:data.read" },
       inspection,
       runnerInspections: [inspection],
@@ -867,7 +867,7 @@ function runSelfTests() {
   assert(
     validatePublicInvocationReadiness(
       "alpha",
-      official[0],
+      maintained[0],
       {
         ...inspection,
         semantic_report: {
@@ -889,7 +889,7 @@ function runSelfTests() {
     ),
   };
   assert(
-    validateOperatorJourneys("alpha", official[0], missingJourney)
+    validateOperatorJourneys("alpha", maintained[0], missingJourney)
       .some((finding) => finding.includes("no composed operator journey")),
     "public skills without a composed journey must fail",
   );
@@ -912,7 +912,7 @@ function runSelfTests() {
   assert(
     validatePublicManual({
       name: "alpha",
-      record: official[0],
+      record: maintained[0],
       runnerInspections: [inspection],
       source: validGuide,
     }).length === 0,
@@ -921,7 +921,7 @@ function runSelfTests() {
   const invalidGuide = validGuide.replace("## Operating model\n\nCompose `research` evidence before making the decision.\n\n", "");
   const guideFindings = validatePublicManual({
     name: "alpha",
-    record: official[0],
+    record: maintained[0],
     runnerInspections: [inspection],
     source: invalidGuide,
   });
@@ -948,7 +948,7 @@ function runSelfTests() {
   assert(
     validatePublicManual({
       name: "alpha",
-      record: official[0],
+      record: maintained[0],
       runnerInspections: [composingInspection],
       source: generatedGuide,
     }).length === 0,

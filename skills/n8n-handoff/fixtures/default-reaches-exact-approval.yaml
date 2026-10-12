@@ -6,9 +6,10 @@ operator_journeys:
     confusors: [zapier-handoff, marketplace-invoke]
     request: Hand this governed Runx payload to the configured n8n workflow.
     expected_outcome: Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.
+setup: { credentials: [n8n] }
+env: { N8N_WEBHOOK_URL: 'https://acme.app.n8n.cloud/webhook/runx-governed-effect' }
 inputs:
   webhook_host: acme.app.n8n.cloud
-  workflow_slug: runx-governed-effect
   event_id: evt_n8n_demo_001
   handoff_audience: n8n:workflow:runx-governed-effect
   execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }

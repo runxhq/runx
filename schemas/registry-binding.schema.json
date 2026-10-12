@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/schemas/registry-binding.schema.json",
+  "$id": "https://schemas.runx.ai/runx/registry-binding/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
@@ -161,5 +161,6 @@
     "registry",
     "harness"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.registry_binding.v1"
 }

@@ -7,7 +7,6 @@ catalog:
   role: canonical
   execution: execute
   completion: runtime_receipt
-  requires_adapter: true
   approval: conditional
   category: ops
 

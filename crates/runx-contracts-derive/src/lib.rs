@@ -47,11 +47,6 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 )
             }
         }
-        Some(Identity::BareId { url }) => quote! {
-            ::core::option::Option::Some(
-                ::runx_contracts::schema::Identity::BareId { url: #url },
-            )
-        },
         None => quote! { ::core::option::Option::None },
     };
 
@@ -484,14 +479,10 @@ enum Identity {
         logical: String,
         url: Option<String>,
     },
-    /// `spec_id = "https://runx.ai/spec/question.schema.json"`: a bare `$id`
-    /// with no `x-runx-schema` marker (the legacy `runx.ai/*` documents).
-    BareId { url: String },
 }
 
-/// `#[runx_schema(id = "runx.reference.v1")]`, `#[runx_schema(id = "...", url =
-/// "...")]`, or `#[runx_schema(spec_id = "https://...")]` on the type, if
-/// present.
+/// `#[runx_schema(id = "runx.reference.v1")]` or `#[runx_schema(id = "...", url =
+/// "...")]` on the type, if present.
 fn runx_identity(attrs: &[syn::Attribute]) -> syn::Result<Option<Identity>> {
     for attr in attrs {
         if !attr.path().is_ident("runx_schema") {
@@ -499,7 +490,6 @@ fn runx_identity(attrs: &[syn::Attribute]) -> syn::Result<Option<Identity>> {
         }
         let mut logical: Option<String> = None;
         let mut url: Option<String> = None;
-        let mut spec_id: Option<String> = None;
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("id") {
                 let value = meta.value()?;
@@ -511,18 +501,10 @@ fn runx_identity(attrs: &[syn::Attribute]) -> syn::Result<Option<Identity>> {
                 let lit: syn::LitStr = value.parse()?;
                 url = Some(lit.value());
                 Ok(())
-            } else if meta.path.is_ident("spec_id") {
-                let value = meta.value()?;
-                let lit: syn::LitStr = value.parse()?;
-                spec_id = Some(lit.value());
-                Ok(())
             } else {
                 Err(meta.error("unsupported runx_schema attribute"))
             }
         })?;
-        if let Some(url) = spec_id {
-            return Ok(Some(Identity::BareId { url }));
-        }
         if let Some(logical) = logical {
             return Ok(Some(Identity::Runx { logical, url }));
         }

@@ -14,9 +14,9 @@ operator_journeys:
     must_not_repeat:
       - Do not rerun the upstream Runx operation.
       - Do not deliver the hook again after its response is receipted.
+setup: { credentials: [zapier] }
+env: { ZAPIER_CATCH_HOOK_URL: 'https://hooks.zapier.com/hooks/catch/12345678/abcDEF123/' }
 inputs:
-  zapier_account_id: "12345678"
-  zapier_hook_id: abcDEF123
   event_id: evt_zapier_demo_001
   handoff_audience: zapier:zap:runx-governed-effect
   execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }

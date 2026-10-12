@@ -812,7 +812,7 @@ operations:
         );
         assert_eq!(files.get("connectors/acme/acme-ops/mark.svg"), Some(&MARK));
         // Only what the connector is: no stray file, no undeclared connector,
-        // while the official connector is pinned as a snapshot too.
+        // while the runx-maintained connector is pinned as a snapshot too.
         assert!(!files.contains_key("connectors/acme/acme-ops/notes.txt"));
         assert!(
             !files
@@ -975,12 +975,12 @@ operations:
     }
 
     #[test]
-    fn an_official_connector_source_tree_packages_as_the_official_connector()
+    fn an_runx_maintained_connector_source_tree_packages_as_the_runx_maintained_connector()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
         let connector = super::prepare_registry_connector_package(&directory)?;
-        let official = crate::ConnectorScope::official_only()?.connector("github")?;
+        let official = crate::ConnectorScope::runx_maintained_only()?.connector("github")?;
         assert_eq!(connector.manifest_digest, official.manifest_digest);
         // The tools shipped are the bytes in the source tree, which are the
         // bytes the runtime embeds.

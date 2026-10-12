@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/output.schema.json",
+  "$id": "https://schemas.runx.ai/runx/output/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "patternProperties": {
     "^(.*)$": {
@@ -57,5 +57,6 @@
       ]
     }
   },
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.output.v1"
 }

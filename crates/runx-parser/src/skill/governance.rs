@@ -20,6 +20,11 @@ pub(super) fn validate_artifact_contract(
     let Some(record) = FIELDS.optional_object(value, field)? else {
         return Ok(None);
     };
+    FIELDS.reject_unknown_fields(
+        &record,
+        field,
+        &["emits", "named_emits", "packets", "wrap_as", "packet"],
+    )?;
     let emits = match record.get("emits") {
         Some(JsonValue::String(value)) => Some(vec![value.clone()]),
         value => FIELDS.optional_string_array(value, &format!("{field}.emits"))?,

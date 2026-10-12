@@ -20,7 +20,7 @@ use runx_runtime::{
 use crate::registry::{self, RegistryAction, RegistryPlan};
 use crate::router::{DoctorMode, DoctorPlan};
 
-const OFFICIAL_SKILLS_DIR_ENV: &str = "RUNX_OFFICIAL_SKILLS_DIR";
+const MAINTAINED_SKILLS_DIR_ENV: &str = "RUNX_MAINTAINED_SKILLS_DIR";
 
 pub fn run_native_doctor(plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
     match run_doctor_command(&plan, workspace.env(), workspace.cwd()) {
@@ -301,10 +301,10 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
     let diagnostics = vec![
         registry_target_diagnostic(&target),
         path_diagnostic(
-            "runx.registry.official_cache",
-            "Official skill cache",
-            registry::official_skills_cache_root(&paths, env),
-            &[OFFICIAL_SKILLS_DIR_ENV],
+            "runx.registry.runx_maintained_cache",
+            "Runx-maintained skill cache",
+            registry::runx_maintained_skills_cache_root(&paths, env),
+            &[MAINTAINED_SKILLS_DIR_ENV],
         ),
         path_diagnostic(
             "runx.registry.global_cache",

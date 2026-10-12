@@ -1,7 +1,7 @@
 import { Type, type Static } from "../internal.js";
 import {
   JSON_SCHEMA_DRAFT_2020_12,
-  RUNX_CONTROL_SCHEMA_REFS,
+  RUNX_CONTRACT_IDS,
   type DeepReadonly,
   generatedSchema,
   unknownRecordSchema,
@@ -40,7 +40,7 @@ const agentActInvocationTypeSchema = Type.Object(
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: RUNX_CONTROL_SCHEMA_REFS.agent_act_invocation,
+    $id: RUNX_CONTRACT_IDS.agentActInvocation,
     additionalProperties: false,
   },
 );
@@ -61,7 +61,7 @@ const questionTypeSchema = Type.Object(
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: RUNX_CONTROL_SCHEMA_REFS.question,
+    $id: RUNX_CONTRACT_IDS.question,
     additionalProperties: false,
   },
 );
@@ -79,7 +79,7 @@ const approvalGateTypeSchema = Type.Object(
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: RUNX_CONTROL_SCHEMA_REFS.approval_gate,
+    $id: RUNX_CONTRACT_IDS.approvalGate,
     additionalProperties: false,
   },
 );

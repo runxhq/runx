@@ -291,7 +291,7 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
                 errors,
             );
             for (credential, presentation) in server_auth {
-                if matches!(presentation, HttpAuth::Oauth1) {
+                if matches!(presentation, HttpAuth::Oauth1 | HttpAuth::Url { .. }) {
                     errors.push(
                         &format!("placements.local.mcp_server.auth.{credential}"),
                         "an MCP server authenticates with a bearer token or a declared credential header",
@@ -565,12 +565,16 @@ fn validate_operation(
             "name the credentials that may authorize this operation",
         );
     }
-    // A write to an endpoint that takes no credential, such as a webhook whose
-    // URL is the capability, is gated by a person every time instead.
-    if !read && manifest.auth.unauthenticated() && operation.approval != ApprovalFloor::Required {
+    // An approval alone never authorizes a write: a write to a provider takes
+    // a credential, a session or a grant. A webhook whose URL is the
+    // capability declares that URL as a credential presented as the URL.
+    if !read
+        && manifest.auth.unauthenticated()
+        && !matches!(operation.implementation, Some(Implementation::Store(_)))
+    {
         errors.push(
-            &format!("{field}.approval"),
-            "a write without authentication needs approval: required",
+            &format!("{field}.verb"),
+            "a write to a provider needs a credential, a session or a grant",
         );
     }
     let acknowledged = operation.guarantees.readback == ReadbackGuarantee::Unavailable;
@@ -618,7 +622,7 @@ fn validate_operation(
                 .credential
                 .as_ref()
                 .and_then(|name| http.auth.get(name))
-                .is_some_and(|auth| !matches!(auth, HttpAuth::Oauth1)),
+                .is_some_and(|auth| !matches!(auth, HttpAuth::Oauth1 | HttpAuth::Url { .. })),
         };
         if !supported {
             errors.push(
@@ -1077,7 +1081,8 @@ fn validate_template_headers(
             .any(|reserved| name.eq_ignore_ascii_case(reserved))
             || auth
                 .values()
-                .any(|presentation| name.eq_ignore_ascii_case(presentation.header_name()))
+                .filter_map(HttpAuth::header_name)
+                .any(|header| name.eq_ignore_ascii_case(header))
         {
             errors.push(&format!("{field}.{name}"), "authentication headers are owned by credential presentation, not request templates");
         }

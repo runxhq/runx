@@ -148,10 +148,3 @@ impl JsonFieldReader {
         Ok(())
     }
 }
-
-pub(crate) fn field_value<'a>(
-    object: Option<&'a JsonObject>,
-    field: &str,
-) -> Option<&'a JsonValue> {
-    object.and_then(|object| object.get(field))
-}

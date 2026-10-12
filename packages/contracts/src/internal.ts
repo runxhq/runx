@@ -9,6 +9,18 @@ export const JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/
 export const RUNX_SCHEMA_BASE_URL = "https://schemas.runx.ai" as const;
 
 export const RUNX_CONTRACT_IDS = {
+  output: `${RUNX_SCHEMA_BASE_URL}/runx/output/v1.json`,
+  agentContextEnvelope: `${RUNX_SCHEMA_BASE_URL}/runx/agent-context-envelope/v1.json`,
+  agentActInvocation: `${RUNX_SCHEMA_BASE_URL}/runx/agent-act-invocation/v1.json`,
+  question: `${RUNX_SCHEMA_BASE_URL}/runx/question/v1.json`,
+  approvalGate: `${RUNX_SCHEMA_BASE_URL}/runx/approval-gate/v1.json`,
+  resolutionRequest: `${RUNX_SCHEMA_BASE_URL}/runx/resolution-request/v1.json`,
+  resolutionResponse: `${RUNX_SCHEMA_BASE_URL}/runx/resolution-response/v1.json`,
+  actResult: `${RUNX_SCHEMA_BASE_URL}/runx/act-result/v1.json`,
+  turnCall: `${RUNX_SCHEMA_BASE_URL}/runx/turn-call/v1.json`,
+  turnStatus: `${RUNX_SCHEMA_BASE_URL}/runx/turn-status/v1.json`,
+  registryBinding: `${RUNX_SCHEMA_BASE_URL}/runx/registry-binding/v1.json`,
+  reviewReceiptOutput: `${RUNX_SCHEMA_BASE_URL}/runx/review-receipt-output/v1.json`,
   doctor: `${RUNX_SCHEMA_BASE_URL}/runx/doctor/v1.json`,
   dev: `${RUNX_SCHEMA_BASE_URL}/runx/dev/v1.json`,
   list: `${RUNX_SCHEMA_BASE_URL}/runx/list/v1.json`,
@@ -92,22 +104,6 @@ export const RUNX_LOGICAL_SCHEMAS = {
   getPaidInvocationResult: "runx.payment.get_paid_invocation.result.v1",
   cancelPaidInvocationRequest: "runx.payment.cancel_paid_invocation.request.v1",
   cancelPaidInvocationResult: "runx.payment.cancel_paid_invocation.result.v1",
-} as const;
-
-export const RUNX_CONTROL_SCHEMA_REFS = {
-  output: "https://runx.ai/spec/output.schema.json",
-  agent_context_envelope: "https://runx.ai/spec/agent-context-envelope.schema.json",
-  agent_act_invocation: "https://runx.ai/spec/agent-act-invocation.schema.json",
-  question: "https://runx.ai/spec/question.schema.json",
-  approval_gate: "https://runx.ai/spec/approval-gate.schema.json",
-  resolution_request: "https://runx.ai/spec/resolution-request.schema.json",
-  resolution_response: "https://runx.ai/spec/resolution-response.schema.json",
-  act_result: "https://runx.ai/spec/act-result.schema.json",
-} as const;
-
-export const RUNX_AUXILIARY_SCHEMA_IDS = {
-  registryBinding: "https://runx.ai/schemas/registry-binding.schema.json",
-  reviewReceiptOutput: "https://runx.ai/schemas/review-receipt-output.schema.json",
 } as const;
 
 export type UnknownRecord = Readonly<Record<string, unknown>>;

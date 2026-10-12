@@ -8,10 +8,8 @@ catalog:
   role: branded
   canonical_skill: runx/organic-growth
   provider: google-search-console
-  runtime_path: provider
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: none
 
 input_definitions:

@@ -9,7 +9,6 @@ catalog:
   role: canonical
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
   category: authoring
 
@@ -146,9 +145,6 @@ runners:
           native_validation: $steps.collect-evidence.skill_validation
 
   assess:
-    runx:
-      post_run:
-        reflect: never
     inputs:
       skill_ref:
         type: string

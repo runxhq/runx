@@ -300,13 +300,20 @@ id: hooks
 name: Hooks
 description: Deliver to a webhook.
 runtime_capability: false
-auth: {none: {}}
-placements: {local: {auth: [none]}}
+auth:
+  credentials:
+    hook:
+      kind: webhook_url
+      fields: [{name: url}]
+      delivery: {env: HOOK_URL}
+      audience: ["*.example.com"]
+placements: {local: {auth: [credentials]}}
 operations:
   hook.invoke:
     description: Deliver one payload.
     verb: write
     scopes: [hook.invoke]
+    credentials: [hook]
     target: {template: "https://hooks.example.com/catch"}
     approval: required
     guarantees: {readback: unavailable}
@@ -318,6 +325,7 @@ operations:
     implementation:
       http:
         allowed_hosts: ["*.example.com"]
+        auth: {hook: {type: url, field: url}}
         requests:
           - id: deliver
             method: POST
@@ -328,15 +336,23 @@ operations:
 "#;
 
 #[test]
-fn an_unauthenticated_write_is_acknowledged_behind_exact_approval() {
-    let validated = validate(HOOK).expect("an approved acknowledged write validates");
+fn a_webhook_write_takes_its_url_as_a_credential_and_is_acknowledged() {
+    let validated = validate(HOOK).expect("a credentialed acknowledged write validates");
     assert_eq!(
         validated.manifest.operations["hook.invoke"].finality(),
         "acknowledged"
     );
+    // An approval alone never authorizes a write.
+    let unauthenticated = HOOK
+        .replace(
+            "auth:\n  credentials:\n    hook:\n      kind: webhook_url\n      fields: [{name: url}]\n      delivery: {env: HOOK_URL}\n      audience: [\"*.example.com\"]\nplacements: {local: {auth: [credentials]}}",
+            "auth: {none: {}}\nplacements: {local: {auth: [none]}}",
+        )
+        .replace("    credentials: [hook]\n", "")
+        .replace("        auth: {hook: {type: url, field: url}}\n", "");
     assert_rejects(
-        &HOOK.replace("    approval: required\n", ""),
-        "a write without authentication needs approval: required",
+        &unauthenticated,
+        "a write to a provider needs a credential, a session or a grant",
     );
     assert_rejects(
         &HOOK.replace(

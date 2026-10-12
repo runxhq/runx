@@ -20,9 +20,7 @@ const CATALOG_FIELDS: &[&str] = &[
     "owner",
     "part_of",
     "provider",
-    "requires_adapter",
     "role",
-    "runtime_path",
     "tags",
     "visibility",
 ];
@@ -172,16 +170,12 @@ pub struct CatalogMetadata {
     pub canonical_skill: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub runtime_path: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub part_of: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<CatalogExecution>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion: Option<CatalogCompletion>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires_adapter: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval: Option<CatalogApproval>,
     /// The registry category the skill declares: a skill category of the
@@ -515,29 +509,22 @@ pub(crate) fn validate_catalog_metadata(
         &format!("{label}.canonical_skill"),
     )?;
     let provider = FIELDS.optional_string(value.get("provider"), &format!("{label}.provider"))?;
-    let runtime_path =
-        FIELDS.optional_string(value.get("runtime_path"), &format!("{label}.runtime_path"))?;
     let part_of = FIELDS
         .optional_string_array(value.get("part_of"), &format!("{label}.part_of"))?
         .unwrap_or_default();
     let execution = parse_catalog_execution(&value, label)?;
     let completion = parse_catalog_completion(&value, label)?;
-    let requires_adapter = FIELDS.optional_bool(
-        value.get("requires_adapter"),
-        &format!("{label}.requires_adapter"),
-    )?;
     let approval = parse_catalog_approval(&value, label)?;
     let capability_fields = [
         execution.is_some(),
         completion.is_some(),
-        requires_adapter.is_some(),
         approval.is_some(),
     ];
     if capability_fields.iter().any(|present| *present)
         && capability_fields.iter().any(|present| !*present)
     {
         return Err(FIELDS.validation_error(format!(
-            "{label} capability metadata must declare execution, completion, requires_adapter, and approval together."
+            "{label} capability metadata must declare execution, completion and approval together."
         )));
     }
     validate_catalog_bindings(role, &canonical_skill, &provider, &part_of, label)?;
@@ -560,11 +547,9 @@ pub(crate) fn validate_catalog_metadata(
         role,
         canonical_skill,
         provider,
-        runtime_path,
         part_of,
         execution,
         completion,
-        requires_adapter,
         approval,
         category,
         tags,
@@ -824,7 +809,6 @@ catalog:
   role: canonical
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: required
 runners:
   plan:
@@ -858,7 +842,6 @@ catalog:
   role: context
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
 harness:
   cases:
@@ -906,7 +889,6 @@ catalog:
   role: canonical
   execution: read
   completion: provider_readback
-  requires_adapter: true
   approval: none
 harness:
   cases:

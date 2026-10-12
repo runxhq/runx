@@ -344,7 +344,8 @@ fn bind_resolved(
                 workspace.cwd().to_path_buf(),
             )
             .with_effects(effects.clone()),
-        )?;
+        )
+        .map_err(|blocked| blocked.error)?;
     }
     crate::execution_environment::resolve_declared_environment(
         &manifest.execution_requirements(runner),

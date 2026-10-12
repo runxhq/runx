@@ -8,7 +8,6 @@ catalog:
   part_of: [runx/spend]
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
   category: payments
 harness:

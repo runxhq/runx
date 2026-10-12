@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Publishes every official connector at the version
-// registry/official-connectors.lock.json names, through `runx registry
+// Publishes every runx-maintained connector at the version
+// registry/runx-maintained-connectors.lock.json names, through `runx registry
 // connector publish`, as the principal the runx CLI is authenticated as (the
 // runx publisher's service principal).
 //
-//   node scripts/publish-official-connectors.mjs --registry https://api.runx.ai
+//   node scripts/publish-runx-maintained-connectors.mjs --registry https://api.runx.ai
 //
 // Every package is checked against the lock before anything is published. A
 // package or a registry record whose ref, version or content digest differs
@@ -15,13 +15,13 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const USAGE = "Usage: publish-official-connectors --registry <url>";
+const USAGE = "Usage: publish-runx-maintained-connectors --registry <url>";
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const connectorsRoot = path.join(workspaceRoot, "connectors");
 const runx = process.env.RUNX_BIN || "runx";
 
 function fail(message) {
-  console.error(`publish-official-connectors: ${message}`);
+  console.error(`publish-runx-maintained-connectors: ${message}`);
   process.exit(1);
 }
 
@@ -53,8 +53,8 @@ function drift(entry, actual) {
 }
 
 const registry = registryArgument();
-const lockPath = path.join(workspaceRoot, "registry", "official-connectors.lock.json");
-if (!existsSync(lockPath)) fail("registry/official-connectors.lock.json is missing; run pnpm official-connectors:generate");
+const lockPath = path.join(workspaceRoot, "registry", "runx-maintained-connectors.lock.json");
+if (!existsSync(lockPath)) fail("registry/runx-maintained-connectors.lock.json is missing; run pnpm runx-maintained-connectors:generate");
 const { connectors } = JSON.parse(readFileSync(lockPath, "utf8"));
 const entries = connectors.map((entry) => ({ ...entry, directory: path.join("connectors", entry.ref.slice(entry.ref.indexOf("/") + 1)) }));
 
@@ -64,7 +64,7 @@ const stale = entries.flatMap((entry) => {
   const differences = drift(entry, connectorCommand(["package", entry.directory]).connector);
   return differences.length > 0 ? [`${entry.ref}: ${differences.join(", ")}`] : [];
 });
-if (stale.length > 0) fail(`packages differ from the lock; run pnpm official-connectors:generate\n  ${stale.join("\n  ")}`);
+if (stale.length > 0) fail(`packages differ from the lock; run pnpm runx-maintained-connectors:generate\n  ${stale.join("\n  ")}`);
 
 const counts = { published: 0, unchanged: 0 };
 for (const entry of entries) {
@@ -77,4 +77,4 @@ for (const entry of entries) {
   counts[published.status] += 1;
   console.log(`${entry.ref}@${entry.version} ${published.status}`);
 }
-console.log(`${entries.length} official connectors: ${counts.published} published, ${counts.unchanged} unchanged`);
+console.log(`${entries.length} runx-maintained connectors: ${counts.published} published, ${counts.unchanged} unchanged`);

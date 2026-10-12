@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/act-result.schema.json",
+  "$id": "https://schemas.runx.ai/runx/act-result/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "anyOf": [
     {
@@ -117,7 +117,7 @@
           "type": "object"
         },
         "request": {
-          "$id": "https://runx.ai/spec/resolution-request.schema.json",
+          "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "anyOf": [
             {
@@ -133,7 +133,7 @@
                 },
                 "questions": {
                   "items": {
-                    "$id": "https://runx.ai/spec/question.schema.json",
+                    "$id": "https://schemas.runx.ai/runx/question/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
@@ -162,7 +162,8 @@
                       "required",
                       "type"
                     ],
-                    "type": "object"
+                    "type": "object",
+                    "x-runx-schema": "runx.question.v1"
                   },
                   "type": "array"
                 }
@@ -178,7 +179,7 @@
               "additionalProperties": false,
               "properties": {
                 "gate": {
-                  "$id": "https://runx.ai/spec/approval-gate.schema.json",
+                  "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
                   "properties": {
@@ -202,7 +203,8 @@
                     "id",
                     "reason"
                   ],
-                  "type": "object"
+                  "type": "object",
+                  "x-runx-schema": "runx.approval_gate.v1"
                 },
                 "id": {
                   "minLength": 1,
@@ -228,7 +230,7 @@
                   "type": "string"
                 },
                 "invocation": {
-                  "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+                  "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
                   "properties": {
@@ -281,7 +283,7 @@
                       "type": "object"
                     },
                     "envelope": {
-                      "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                      "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                       "$schema": "https://json-schema.org/draft/2020-12/schema",
                       "additionalProperties": false,
                       "properties": {
@@ -1013,7 +1015,8 @@
                         "provenance",
                         "trust_boundary"
                       ],
-                      "type": "object"
+                      "type": "object",
+                      "x-runx-schema": "runx.agent_context_envelope.v1"
                     },
                     "id": {
                       "minLength": 1,
@@ -1035,7 +1038,8 @@
                     "envelope",
                     "allowance"
                   ],
-                  "type": "object"
+                  "type": "object",
+                  "x-runx-schema": "runx.agent_act_invocation.v1"
                 },
                 "kind": {
                   "const": "agent_act",
@@ -1077,7 +1081,8 @@
               ],
               "type": "object"
             }
-          ]
+          ],
+          "x-runx-schema": "runx.resolution_request.v1"
         },
         "signal": {
           "type": "null"
@@ -1106,5 +1111,6 @@
       ],
       "type": "object"
     }
-  ]
+  ],
+  "x-runx-schema": "runx.act_result.v1"
 }

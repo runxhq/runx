@@ -129,10 +129,6 @@ pub(super) fn catalog_capabilities(catalog: &CatalogMetadata) -> Option<JsonValu
             JsonValue::String(catalog.completion?.as_str().to_owned()),
         ),
         (
-            "requires_adapter".to_owned(),
-            JsonValue::Bool(catalog.requires_adapter?),
-        ),
-        (
             "approval".to_owned(),
             JsonValue::String(catalog.approval?.as_str().to_owned()),
         ),

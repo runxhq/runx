@@ -6,16 +6,10 @@ catalog:
   audience: public
   visibility: public
   role: canonical
-  runtime_path: local
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
   tags: [extraction, schema-validation, provenance]
-
-emits:
-  - name: structured_extraction_result
-    packet: runx.structured_extraction.result.v1
 
 runners:
   extract:

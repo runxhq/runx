@@ -9,7 +9,6 @@ catalog:
   part_of: [runx/research]
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
   category: research
 

@@ -176,7 +176,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     // The act names the connector operation it ran, exactly as admission
     // bound it, inside the signed body.
     let operation = act.operation.as_ref().expect("the admitted operation");
-    let slack = runx_runtime::ConnectorScope::official_only()
+    let slack = runx_runtime::ConnectorScope::runx_maintained_only()
         .unwrap()
         .connector("runx/slack")
         .unwrap();

@@ -54,10 +54,15 @@ impl fmt::Display for PublishCliError {
             Self::Environment(error) => write!(formatter, "{error}"),
             Self::Publish(error) => {
                 if let HostedApiOperationError::Api {
-                    code, detail, hint, ..
+                    operation,
+                    code,
+                    detail,
+                    hint,
+                    ..
                 } = error
                 {
                     return formatter.write_str(&publish_error_message(
+                        operation,
                         code,
                         detail,
                         hint.as_deref(),
@@ -86,8 +91,9 @@ impl From<runx_runtime::HostedApiError> for PublishCliError {
     }
 }
 
-fn publish_error_message(code: &str, detail: &str, hint: Option<&str>) -> String {
-    if code == "missing_scope" && detail.contains("receipts:write") {
+fn publish_error_message(operation: &str, code: &str, detail: &str, hint: Option<&str>) -> String {
+    // The receipt notary's only scope is `receipts:write`.
+    if operation == "receipt publish" && code == "missing_scope" {
         return [
             "This token can publish skills but not receipts.",
             "The receipt notary requires `receipts:write`.",

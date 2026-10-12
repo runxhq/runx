@@ -6,9 +6,9 @@ operator_journeys:
     confusors: [n8n-handoff, marketplace-invoke]
     request: Hand this governed Runx payload to the configured Zapier Catch Hook.
     expected_outcome: Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.
+setup: { credentials: [zapier] }
+env: { ZAPIER_CATCH_HOOK_URL: 'https://hooks.zapier.com/hooks/catch/12345678/abcDEF123/' }
 inputs:
-  zapier_account_id: "12345678"
-  zapier_hook_id: abcDEF123
   event_id: evt_zapier_demo_001
   handoff_audience: zapier:zap:runx-governed-effect
   execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }

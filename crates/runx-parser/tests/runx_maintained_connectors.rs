@@ -1,4 +1,4 @@
-//! Every official connector manifest parses and validates, and its id
+//! Every runx-maintained connector manifest parses and validates, and its id
 //! matches its directory.
 
 use std::fs;
@@ -11,7 +11,7 @@ fn connectors_root() -> PathBuf {
 }
 
 #[test]
-fn official_connectors_validate() -> Result<(), String> {
+fn runx_maintained_connectors_validate() -> Result<(), String> {
     let Ok(entries) = fs::read_dir(connectors_root()) else {
         return Ok(());
     };

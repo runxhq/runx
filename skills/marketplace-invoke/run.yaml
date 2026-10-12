@@ -5,10 +5,8 @@ catalog:
   audience: operator
   visibility: public
   role: canonical
-  runtime_path: hosted
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: required
   category: payments
 runners:

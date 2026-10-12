@@ -7,10 +7,8 @@ catalog:
   visibility: public
   role: context
   provider: moltbook
-  runtime_path: moltbook
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: conditional
   category: content
 

@@ -62,8 +62,8 @@
     },
     {
       "ref": "runx/n8n",
-      "version": "sha-07527e140f8f",
-      "content_digest": "sha256:07527e140f8f17fbcf0946fc9385fb1c7d9e0b9a5199c92d332d50ccffbee288"
+      "version": "sha-c6495fe5f896",
+      "content_digest": "sha256:c6495fe5f8969f93c238d73a932f395935a3e6b31f163502a773f8e7a7907a39"
     },
     {
       "ref": "runx/national-weather-service",
@@ -147,8 +147,8 @@
     },
     {
       "ref": "runx/zapier",
-      "version": "sha-029e101246cc",
-      "content_digest": "sha256:029e101246ccbb3a8097ddeb5ec4d1f7f62c97f52d036af2fee200bbe3522df2"
+      "version": "sha-828408c457fd",
+      "content_digest": "sha256:828408c457fdfae1da5f5e764aff3e4bb2e6af3eecca32c33750e4d9017721e2"
     }
   ]
 }

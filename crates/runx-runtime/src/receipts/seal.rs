@@ -1150,7 +1150,7 @@ mod tests {
         // Same sealed claim, entirely different transport bytes: identity is
         // unchanged, because a receipt binds its declared claim, never the raw
         // transport value or its diagnostics.
-        let other_transport = identity_receipt("unrelated transport bytes", claim("1", "2"))?;
+        let other_transport = identity_receipt("{\"unrelated\":\"transport\"}", claim("1", "2"))?;
         // A reordered claim canonicalises to the same identity.
         let reordered = identity_receipt(
             "{\"a\":\"1\",\"b\":\"2\"}",

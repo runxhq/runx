@@ -7,7 +7,7 @@
 
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 
-import { officialConnectors } from "./generated/official-connectors.js";
+import { runxMaintainedConnectors } from "./generated/runx-maintained-connectors.js";
 import { generatedSchema, validateContractSchema } from "./internal.js";
 
 /** Exact revision identity, validated by the Rust-owned binding schema. */
@@ -52,7 +52,8 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type HttpAuth =
   | { readonly type: "bearer"; readonly field?: string }
   | { readonly type: "header"; readonly name: string; readonly field: string }
-  | { readonly type: "oauth1" };
+  | { readonly type: "oauth1" }
+  | { readonly type: "url"; readonly field: string };
 
 export interface CredentialField {
   readonly name: string;
@@ -194,8 +195,8 @@ export interface ReferenceDeclaration {
   readonly locator: string;
 }
 
-/** An official connector with the digests Rust computed for it. */
-export interface OfficialConnector {
+/** A runx-maintained connector with the digests Rust computed for it. */
+export interface RunxMaintainedConnector {
   readonly connector_binding: ConnectorBinding;
   readonly manifest_digest: string;
   readonly digests: {
@@ -210,13 +211,13 @@ export interface OfficialConnector {
 let referenceDeclarations: readonly (readonly [string, ReferenceKind, RegExp])[] | undefined;
 
 /**
- * What `locator` names, from the reference kinds official connectors declare,
+ * What `locator` names, from the reference kinds runx-maintained connectors declare,
  * as the kernel classifies it: the first declaration of `provider`'s
- * connector it matches, or of any official connector when no provider is
+ * connector it matches, or of any runx-maintained connector when no provider is
  * given, and an external URL when none does.
  */
 export function referenceKind(provider: string | undefined, locator: string): ReferenceKind {
-  referenceDeclarations ??= officialConnectors.flatMap((connector) =>
+  referenceDeclarations ??= runxMaintainedConnectors.flatMap((connector) =>
     (connector.manifest.references ?? []).map(
       (reference) => [connector.manifest.id, reference.kind, new RegExp(`^(?:${reference.locator})$`, "u")] as const,
     ));

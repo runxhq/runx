@@ -284,7 +284,7 @@ fn doctor_registry_json_reports_readiness_without_key_material()
     assert_eq!(report["summary"]["warnings"], 0);
     let rendered = serde_json::to_string(&report)?;
     assert!(rendered.contains("https://registry.runx.test/api"));
-    assert!(rendered.contains("official-skills"));
+    assert!(rendered.contains("runx-maintained-skills"));
     assert!(rendered.contains("registry-skills"));
     assert!(rendered.contains("operator-key-1"));
     assert!(rendered.contains("acme/*"));
@@ -400,7 +400,7 @@ const REGISTRY_ENV_NAMES: &[&str] = &[
     "RUNX_HOME",
     "RUNX_REGISTRY_URL",
     "RUNX_REGISTRY_DIR",
-    "RUNX_OFFICIAL_SKILLS_DIR",
+    "RUNX_MAINTAINED_SKILLS_DIR",
     "RUNX_INSTALLATION_ID",
     "RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID",
     "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",

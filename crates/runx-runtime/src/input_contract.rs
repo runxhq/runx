@@ -278,26 +278,20 @@ fn input_error(
     )
 }
 
+/// An input declared `artifact` arrives in the canonical artifact envelope
+/// a step emits, `{schema?, data}`; its value is the envelope's data.
 fn unwrap_artifact(value: &JsonValue, name: &str) -> Result<JsonValue, String> {
-    let JsonValue::Object(object) = value else {
-        return Ok(value.clone());
-    };
-    if let Some(data) = object.get("data") {
-        return Ok(data.clone());
-    }
-    for envelope in ["artifact", "output"] {
-        if let Some(JsonValue::Object(nested)) = object.get(envelope)
-            && let Some(data) = nested.get("data")
+    match value {
+        JsonValue::Object(object)
+            if object.contains_key("data")
+                && object.keys().all(|key| key == "data" || key == "schema") =>
         {
-            return Ok(data.clone());
+            Ok(object.get("data").cloned().unwrap_or(JsonValue::Null))
         }
+        _ => Err(format!(
+            "input '{name}' is an artifact; pass its envelope {{\"schema\", \"data\"}}"
+        )),
     }
-    if object.contains_key("schema") || object.contains_key("meta") {
-        return Err(format!(
-            "tool input '{name}' is an artifact envelope without data"
-        ));
-    }
-    Ok(value.clone())
 }
 
 fn json_type(value: &JsonValue) -> &'static str {

@@ -5,8 +5,8 @@ use std::path::Path;
 use super::*;
 
 fn slack_binding() -> ConnectorBinding {
-    crate::ConnectorScope::official_only()
-        .expect("official connectors load")
+    crate::ConnectorScope::runx_maintained_only()
+        .expect("runx-maintained connectors load")
         .connector("runx/slack")
         .expect("slack is official")
         .binding()

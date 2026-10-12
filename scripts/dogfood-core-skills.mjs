@@ -71,7 +71,7 @@ const steps = [
     args: ["exec", "vitest", "run", "tests/payment-skill-profile-validation.test.ts"],
   },
   {
-    label: "prove official skills with a fresh isolated caller",
+    label: "prove runx-maintained skills with a fresh isolated caller",
     command: process.execPath,
     args: [
       "scripts/harness-sweep.mjs",

@@ -1439,9 +1439,13 @@ fn mcp(
                 let presentation = auth.get(&secret.name).ok_or_else(|| {
                     unsupported("the MCP server does not present the instance's credential")
                 })?;
-                if matches!(presentation, runx_contracts::connector::HttpAuth::Oauth1) {
+                if matches!(
+                    presentation,
+                    runx_contracts::connector::HttpAuth::Oauth1
+                        | runx_contracts::connector::HttpAuth::Url { .. }
+                ) {
                     return Err(unsupported(
-                        "an MCP session cannot use request-bound OAuth1 signing",
+                        "an MCP session presents its credential as a header",
                     ));
                 }
                 let url = url::Url::parse(url.as_str())
@@ -1453,6 +1457,11 @@ fn mcp(
                     &url,
                 )
                 .map_err(|reason| rejected("binding_unavailable", reason))?;
+                let Some(header) = header else {
+                    return Err(unsupported(
+                        "an MCP session presents its credential as a header",
+                    ));
+                };
                 if headers
                     .keys()
                     .any(|name| name.eq_ignore_ascii_case(&header.name))

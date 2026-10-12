@@ -6,10 +6,8 @@ catalog:
   audience: operator
   visibility: public
   role: canonical
-  runtime_path: dispute-provider
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: required
   category: payments
 

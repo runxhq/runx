@@ -5,10 +5,9 @@ use crate::{
     ValidationError,
     harness_fixture::{HarnessFixtureError, parse_harness_fixture},
     parse_graph_yaml, parse_packet_schema_document, parse_runner_manifest_yaml,
-    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml,
-    runner::resolve_post_run_reflect_policy,
-    validate_graph, validate_runner_manifest, validate_skill_artifact_contract,
-    validate_skill_install, validate_skill_with_options, validate_tool_manifest,
+    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, validate_graph,
+    validate_runner_manifest, validate_skill_artifact_contract, validate_skill_install,
+    validate_skill_with_options, validate_tool_manifest,
 };
 use runx_contracts::{JsonObject, JsonValue, json_string_field};
 use serde::{Deserialize, Serialize};
@@ -114,7 +113,6 @@ fn is_supported_parser_kind(kind: &str) -> bool {
             | "parser.validateHarnessFixtureYaml"
             | "parser.parsePacketSchemaDocument"
             | "parser.validateSkillArtifactContract"
-            | "parser.resolvePostRunReflectPolicy"
             | "parser.validateSkillInstall"
     )
 }
@@ -156,13 +154,6 @@ enum ParserInput {
         #[serde(default)]
         artifacts: Option<JsonValue>,
         #[serde(default = "default_artifact_field")]
-        field: String,
-    },
-    #[serde(rename = "parser.resolvePostRunReflectPolicy")]
-    ResolvePostRunReflectPolicy {
-        #[serde(default)]
-        runx: Option<JsonObject>,
-        #[serde(default = "default_runx_field")]
         field: String,
     },
     #[serde(rename = "parser.validateSkillInstall")]
@@ -282,9 +273,6 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
         ParserInput::ValidateSkillArtifactContract { artifacts, field } => to_json_value(
             validate_skill_artifact_contract(artifacts.as_ref(), &field)?,
         ),
-        ParserInput::ResolvePostRunReflectPolicy { runx, field } => {
-            to_json_value(resolve_post_run_reflect_policy(runx.as_ref(), &field)?)
-        }
         ParserInput::ValidateSkillInstall { markdown, origin } => {
             to_json_value(validate_skill_install(&markdown, origin)?)
         }
@@ -300,10 +288,6 @@ fn to_json_value<T: Serialize>(value: T) -> Result<JsonValue, ParserEvalError> {
 
 fn default_artifact_field() -> String {
     "runx.artifacts".to_owned()
-}
-
-fn default_runx_field() -> String {
-    "runx".to_owned()
 }
 
 #[cfg(test)]

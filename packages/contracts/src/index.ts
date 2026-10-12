@@ -34,7 +34,7 @@ export {
   type HttpRequest,
   type JsonObject,
   type JsonValue,
-  type OfficialConnector,
+  type RunxMaintainedConnector,
   type OperationVerb,
   type ReferenceDeclaration,
   type ReferenceKind,
@@ -43,7 +43,7 @@ export {
   type TemplateInputs,
 } from "./connector.js";
 
-export { officialConnectors } from "./generated/official-connectors.js";
+export { runxMaintainedConnectors } from "./generated/runx-maintained-connectors.js";
 export { posixCommand, renderPosixCommand, type CopyableCommand } from "./copyable-command.js";
 export { isRegistryVersion, REGISTRY_VERSION_PATTERN } from "./registry-version.js";
 export {
@@ -121,8 +121,6 @@ export {
   RUNX_SCHEMA_BASE_URL,
   RUNX_CONTRACT_IDS,
   RUNX_LOGICAL_SCHEMAS,
-  RUNX_CONTROL_SCHEMA_REFS,
-  RUNX_AUXILIARY_SCHEMA_IDS,
   contractSchemaMatches,
   validateContractSchemaForDiagnostics,
   Type,

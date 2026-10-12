@@ -7,10 +7,8 @@ catalog:
   role: branded
   canonical_skill: runx/send-as
   provider: twitter
-  runtime_path: twitter
   execution: read
   completion: provider_readback
-  requires_adapter: true
   approval: none
   category: growth
 connectors:

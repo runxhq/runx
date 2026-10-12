@@ -70,7 +70,10 @@ pub fn run_native_init(plan: InitPlan, workspace: &WorkspaceEnv) -> ExitCode {
             InitAction::Project
         },
         paths: paths.clone(),
-        official_cache_dir: crate::registry::official_skills_cache_root(paths, workspace.env()),
+        official_cache_dir: crate::registry::runx_maintained_skills_cache_root(
+            paths,
+            workspace.env(),
+        ),
         prefetch_official: plan.prefetch_official,
         generated: InitGeneratedValues::generate(),
     };

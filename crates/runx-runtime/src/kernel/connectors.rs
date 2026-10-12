@@ -1,12 +1,12 @@
 //! The connector registry: where a requirement's connector comes from.
 //!
-//! Official connectors are embedded in the binary and validated once per
+//! Runx-maintained connectors are embedded in the binary and validated once per
 //! process. A skill also sees the connectors of the plugin that holds it,
 //! `<plugin root>/connectors/<id>/connector.yaml`. A bundled package, one under
 //! a registry package bundle descriptor, is its own plugin root; in a source
 //! tree the plugin root is the nearest directory at or above the skill holding
 //! `connectors/`. Within one resolution an id names exactly one manifest, in
-//! the directory named by its id: a plugin connector with an official id is
+//! the directory named by its id: a plugin connector with a runx-maintained id is
 //! refused unless it is the same manifest, and a bundled skill never sees its
 //! composer's plugin connectors.
 
@@ -21,8 +21,8 @@ use runx_contracts::connector::{
 use runx_parser::{ValidatedConnector, parse_connector_manifest, validate_connector_manifest};
 use thiserror::Error;
 
-mod official;
 pub mod references;
+mod runx_maintained;
 mod tools;
 
 pub use tools::ConnectorTool;
@@ -63,7 +63,7 @@ impl LoadedConnector {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConnectorOrigin {
-    Official,
+    RunxMaintained,
     Plugin {
         root: PathBuf,
     },
@@ -76,25 +76,25 @@ pub enum ConnectorOrigin {
 
 #[derive(Debug, Error)]
 pub enum ConnectorRegistryError {
-    #[error("official connector {id} is invalid: {message}")]
-    InvalidOfficial { id: String, message: String },
+    #[error("runx-maintained connector {id} is invalid: {message}")]
+    InvalidRunxMaintained { id: String, message: String },
     #[error("connector manifest {path} is invalid: {message}")]
     InvalidManifest { path: PathBuf, message: String },
-    #[error("connector {id} at {path} conflicts with the official connector of the same id")]
+    #[error("connector {id} at {path} conflicts with the runx-maintained connector of the same id")]
     Shadowed { id: ConnectorId, path: PathBuf },
-    #[error("connector {id} is not an official connector")]
-    NotOfficial { id: String },
+    #[error("connector {id} is not a runx-maintained connector")]
+    NotRunxMaintained { id: String },
     #[error("connector {id} is not available in this scope")]
     Unavailable { id: String },
     #[error("connector {id} names more than one publisher; use its qualified reference")]
     Ambiguous { id: String },
     #[error(
-        "connector {id} is neither an official connector nor one of the plugin at {}",
+        "connector {id} is neither a runx-maintained connector nor one of the plugin at {}",
         root.display()
     )]
     NotInPlugin { id: String, root: PathBuf },
     #[error(
-        "connector {id} is not an official connector, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/",
+        "connector {id} is not a runx-maintained connector, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/",
         dir.display()
     )]
     NoPlugin { id: String, dir: PathBuf },
@@ -124,57 +124,64 @@ pub enum ConnectorRegistryError {
     },
 }
 
-struct Official {
+struct RunxMaintained {
     connectors: BTreeMap<ConnectorId, Arc<LoadedConnector>>,
 }
 
-fn official() -> Result<&'static Official, ConnectorRegistryError> {
-    static OFFICIAL: OnceLock<Result<Official, ConnectorRegistryError>> = OnceLock::new();
-    OFFICIAL
-        .get_or_init(load_official)
+fn runx_maintained() -> Result<&'static RunxMaintained, ConnectorRegistryError> {
+    static RUNX_MAINTAINED: OnceLock<Result<RunxMaintained, ConnectorRegistryError>> =
+        OnceLock::new();
+    RUNX_MAINTAINED
+        .get_or_init(load_runx_maintained)
         .as_ref()
-        .map_err(|error| ConnectorRegistryError::InvalidOfficial {
+        .map_err(|error| ConnectorRegistryError::InvalidRunxMaintained {
             id: match error {
-                ConnectorRegistryError::InvalidOfficial { id, .. } => id.clone(),
+                ConnectorRegistryError::InvalidRunxMaintained { id, .. } => id.clone(),
                 _ => String::new(),
             },
             message: error.to_string(),
         })
 }
 
-fn load_official() -> Result<Official, ConnectorRegistryError> {
-    let invalid = |id: &str, message: String| ConnectorRegistryError::InvalidOfficial {
+fn load_runx_maintained() -> Result<RunxMaintained, ConnectorRegistryError> {
+    let invalid = |id: &str, message: String| ConnectorRegistryError::InvalidRunxMaintained {
         id: id.to_owned(),
         message,
     };
     let mut connectors = BTreeMap::new();
     let namespace = PublisherNamespace::new("runx")
         .ok_or_else(|| invalid("runx", "invalid embedded namespace".to_owned()))?;
-    for (id, source) in official::CONNECTORS {
+    for (id, source) in runx_maintained::CONNECTORS {
         let manifest =
             parse_connector_manifest(source).map_err(|error| invalid(id, error.to_string()))?;
         let validated = validate_connector_manifest(manifest)
             .map_err(|errors| invalid(id, format!("{errors:?}")))?;
-        let embedded = official::TOOLS
+        let embedded = runx_maintained::TOOLS
             .iter()
             .filter(|(connector, _, _)| connector == id)
             .map(|(_, path, contents)| (*path, *contents))
             .collect::<Vec<_>>();
         let tools = process_tools(&validated.manifest)
             .map(|tool| {
-                ConnectorTool::official(&embedded, tool).map(|loaded| (tool.to_owned(), loaded))
+                ConnectorTool::runx_maintained(&embedded, tool)
+                    .map(|loaded| (tool.to_owned(), loaded))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()
             .map_err(|message| invalid(id, message))?;
         connectors.insert(
             validated.manifest.id.clone(),
             Arc::new(
-                loaded(&namespace, validated, ConnectorOrigin::Official, tools)
-                    .map_err(|message| invalid(id, message))?,
+                loaded(
+                    &namespace,
+                    validated,
+                    ConnectorOrigin::RunxMaintained,
+                    tools,
+                )
+                .map_err(|message| invalid(id, message))?,
             ),
         );
     }
-    Ok(Official { connectors })
+    Ok(RunxMaintained { connectors })
 }
 
 fn loaded(
@@ -271,13 +278,15 @@ pub(crate) fn operation_digest_entries<'a>(
         .collect()
 }
 
-/// The official connectors as runx Connect reads them: each manifest under
+/// The runx-maintained connectors as runx Connect reads them: each manifest under
 /// `connectors_dir`, validated, beside its manifest digest and each
 /// operation's operation and implementation digests, the tool packages its
 /// process operations run read the way the runtime reads a plugin's.
-/// `scripts/generate-official-connectors.mjs` writes this into
+/// `scripts/generate-runx-maintained-connectors.mjs` writes this into
 /// `@runxhq/contracts`; digests are computed in Rust only.
-pub fn official_connectors_contract(connectors_dir: &Path) -> Result<serde_json::Value, String> {
+pub fn runx_maintained_connectors_contract(
+    connectors_dir: &Path,
+) -> Result<serde_json::Value, String> {
     let namespace = plugin_namespace(
         connectors_dir
             .parent()
@@ -325,12 +334,12 @@ pub fn official_connectors_contract(connectors_dir: &Path) -> Result<serde_json:
     Ok(serde_json::Value::Array(connectors))
 }
 
-/// The connectors one skill may use: official, plus its plugin's.
+/// The connectors one skill may use: runx-maintained, plus its plugin's.
 #[derive(Clone)]
 pub struct ConnectorScope {
     plugin: Option<Arc<PluginConnectors>>,
     /// The directory the plugin was looked for from, so a miss says where.
-    /// None for the official connectors alone.
+    /// None for the runx-maintained connectors alone.
     searched: Option<PathBuf>,
     /// The runx home's installed connector versions, read only for a
     /// qualified connector named exactly: by a requirement's manifest pin or
@@ -346,9 +355,9 @@ struct PluginConnectors {
 
 impl ConnectorScope {
     /// The connectors usable from `dir`, a skill's directory or an operator's
-    /// workspace: official, plus those of the plugin `dir` is in.
+    /// workspace: runx-maintained, plus those of the plugin `dir` is in.
     pub fn at(dir: &Path) -> Result<Self, ConnectorRegistryError> {
-        official()?;
+        runx_maintained()?;
         let dir = inspected(dir)?;
         if let Some(bindings) =
             crate::registry::package_bundle::bundled_connectors(&dir).map_err(|message| {
@@ -577,7 +586,7 @@ impl ConnectorScope {
         Ok(versions)
     }
 
-    /// Every connector in the scope, official first.
+    /// Every connector in the scope, runx-maintained first.
     pub fn connectors(&self) -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
         if let Some(plugin) = self.plugin.as_ref().filter(|plugin| plugin.isolated) {
             return Ok(plugin.connectors.values().map(Arc::clone).collect());
@@ -586,7 +595,7 @@ impl ConnectorScope {
             .plugin
             .iter()
             .flat_map(|plugin| plugin.connectors.values());
-        Ok(official()?
+        Ok(runx_maintained()?
             .connectors
             .values()
             .chain(plugin)
@@ -594,9 +603,9 @@ impl ConnectorScope {
             .collect())
     }
 
-    /// Only the official connectors.
-    pub fn official_only() -> Result<Self, ConnectorRegistryError> {
-        official()?;
+    /// Only the runx-maintained connectors.
+    pub fn runx_maintained_only() -> Result<Self, ConnectorRegistryError> {
+        runx_maintained()?;
         Ok(Self {
             plugin: None,
             searched: None,
@@ -618,7 +627,7 @@ impl ConnectorScope {
             if self.plugin.as_ref().is_some_and(|plugin| plugin.isolated) {
                 return Err(ConnectorRegistryError::Unavailable { id: id.to_owned() });
             }
-            let found = official()?
+            let found = runx_maintained()?
                 .connectors
                 .values()
                 .chain(
@@ -639,10 +648,10 @@ impl ConnectorScope {
             .collect::<Vec<_>>();
         if plugin.len() > 1
             || (plugin.first().is_some_and(|connector| {
-                official()
+                runx_maintained()
                     .ok()
-                    .and_then(|official| official.connectors.get(id))
-                    .is_some_and(|official| official.connector_ref != connector.connector_ref)
+                    .and_then(|maintained| maintained.connectors.get(id))
+                    .is_some_and(|maintained| maintained.connector_ref != connector.connector_ref)
             }))
         {
             return Err(ConnectorRegistryError::Ambiguous { id: id.to_owned() });
@@ -653,7 +662,7 @@ impl ConnectorScope {
         if self.plugin.as_ref().is_some_and(|plugin| plugin.isolated) {
             return Err(ConnectorRegistryError::Unavailable { id: id.to_owned() });
         }
-        if let Some(connector) = official()?.connectors.get(id) {
+        if let Some(connector) = runx_maintained()?.connectors.get(id) {
             return Ok(Arc::clone(connector));
         }
         let id = id.to_owned();
@@ -666,13 +675,18 @@ impl ConnectorScope {
                 id,
                 dir: dir.clone(),
             }),
-            (None, None) => Err(ConnectorRegistryError::NotOfficial { id }),
+            (None, None) => Err(ConnectorRegistryError::NotRunxMaintained { id }),
         }
     }
 
-    /// Every official connector, for catalogs and inspection.
-    pub fn official_connectors() -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
-        Ok(official()?.connectors.values().map(Arc::clone).collect())
+    /// Every runx-maintained connector, for catalogs and inspection.
+    pub fn runx_maintained_connectors() -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError>
+    {
+        Ok(runx_maintained()?
+            .connectors
+            .values()
+            .map(Arc::clone)
+            .collect())
     }
 
     /// The variable every connector in reach delivers a credential in.
@@ -681,7 +695,7 @@ impl ConnectorScope {
             .plugin
             .iter()
             .flat_map(|plugin| plugin.connectors.values());
-        Ok(official()?
+        Ok(runx_maintained()?
             .connectors
             .values()
             .chain(plugin)
@@ -796,8 +810,8 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
                 ),
             });
         }
-        // The official plugin's own source tree is the official connector.
-        if connector.origin == ConnectorOrigin::Official {
+        // The runx-maintained plugin's own source tree is the runx-maintained connector.
+        if connector.origin == ConnectorOrigin::RunxMaintained {
             continue;
         }
         connectors.insert(connector.connector_ref.clone(), connector);
@@ -810,9 +824,9 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
 }
 
 /// The connector whose manifest is `directory/connector.yaml`, loaded as a
-/// plugin's with its plugin at `root`. An official connector's own source
-/// tree resolves to the official connector; any other connector may not take
-/// an official id or declare references.
+/// plugin's with its plugin at `root`. A runx-maintained connector's own source
+/// tree resolves to the runx-maintained connector; any other connector may not take
+/// a runx-maintained id or declare references.
 pub(crate) fn load_connector_directory(
     directory: &Path,
     root: &Path,
@@ -834,7 +848,7 @@ pub(crate) fn load_connector_directory(
 
 /// The connector version installed at `directory`, its own plugin root: the
 /// exact package a registry published, named by the namespace it carries.
-/// It may be another version of an official connector.
+/// It may be another version of a runx-maintained connector.
 pub(crate) fn load_installed(
     directory: &Path,
 ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
@@ -876,11 +890,11 @@ fn load_directory(
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map_err(&invalid)?;
     let connector = loaded(namespace, validated, origin, tools).map_err(&invalid)?;
-    if let Some(official) = official()?.connectors.get(&connector.manifest.id)
-        && official.connector_ref == connector.connector_ref
+    if let Some(maintained) = runx_maintained()?.connectors.get(&connector.manifest.id)
+        && maintained.connector_ref == connector.connector_ref
     {
-        if official.connector_digest == connector.connector_digest {
-            return Ok(Arc::clone(official));
+        if maintained.connector_digest == connector.connector_digest {
+            return Ok(Arc::clone(maintained));
         }
         if source {
             return Err(ConnectorRegistryError::Shadowed {
@@ -893,14 +907,14 @@ fn load_directory(
 }
 
 pub(crate) fn embedded_manifest(connector: &LoadedConnector) -> Option<&'static str> {
-    official::CONNECTORS
+    runx_maintained::CONNECTORS
         .iter()
         .find(|(id, _)| *id == connector.manifest.id.as_str())
         .map(|(_, document)| *document)
 }
 
 pub(crate) fn embedded_asset(connector: &LoadedConnector, path: &str) -> Option<&'static [u8]> {
-    official::ASSETS
+    runx_maintained::ASSETS
         .iter()
         .find(|(id, file, _)| *id == connector.manifest.id.as_str() && *file == path)
         .map(|(_, _, document)| document.as_bytes())

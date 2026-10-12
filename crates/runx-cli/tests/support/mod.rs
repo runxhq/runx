@@ -341,7 +341,7 @@ impl MockConnect {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         use std::io::Write;
 
-        let scope = runx_runtime::ConnectorScope::official_only()?;
+        let scope = runx_runtime::ConnectorScope::runx_maintained_only()?;
         let grants = grants
             .iter()
             .map(|(grant_id, connector, scopes)| {

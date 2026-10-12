@@ -8,7 +8,6 @@ catalog:
   role: canonical
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: required
 
 harness:

@@ -387,11 +387,15 @@ fn flag_value<'a>(contents: &'a str, flag: &str) -> Result<&'a str, Box<dyn std:
 }
 
 #[test]
-fn explicit_ref_exports_official_source_skill() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = ExportFixture::new("runx-export-official-ref")?;
-    let official_root = fixture.write_official_skill_with_runner_inputs("work-plan")?;
+fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-runx-maintained-ref")?;
+    let runx_maintained_root =
+        fixture.write_runx_maintained_skill_with_runner_inputs("work-plan")?;
     let mut env = fixture.env.clone();
-    env.insert("RUNX_SKILL_ROOTS".to_owned(), path_string(&official_root)?);
+    env.insert(
+        "RUNX_SKILL_ROOTS".to_owned(),
+        path_string(&runx_maintained_root)?,
+    );
 
     let report = run_export_command(
         &ExportPlan {
@@ -408,7 +412,7 @@ fn explicit_ref_exports_official_source_skill() -> Result<(), Box<dyn std::error
     assert_eq!(report.exported[0].skill, "work-plan");
     let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
     assert!(shim.contains("skill "));
-    assert!(shim.contains("/official-skills/work-plan"));
+    assert!(shim.contains("/runx-maintained-skills/work-plan"));
     assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
     Ok(())
 }
@@ -784,11 +788,11 @@ impl ExportFixture {
         Ok(())
     }
 
-    fn write_official_skill_with_runner_inputs(
+    fn write_runx_maintained_skill_with_runner_inputs(
         &self,
         name: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let root = self.root.join("official-skills");
+        let root = self.root.join("runx-maintained-skills");
         Self::write_runner_input_skill_at(&root.join(name), name)?;
         Ok(root)
     }

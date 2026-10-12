@@ -110,13 +110,13 @@ pub(super) fn reject_secret_material(relative: &str, contents: &str) -> Result<(
     Ok(())
 }
 
-/// The prefixes official connectors declare for their secrets.
+/// The prefixes runx-maintained connectors declare for their secrets.
 fn declared_secret_prefixes() -> Result<&'static [String], RuntimeError> {
     static PREFIXES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
     if let Some(prefixes) = PREFIXES.get() {
         return Ok(prefixes);
     }
-    let connectors = crate::kernel::connectors::ConnectorScope::official_connectors()
+    let connectors = crate::kernel::connectors::ConnectorScope::runx_maintained_connectors()
         .map_err(|error| invalid_skill_change(error.to_string()))?;
     let prefixes = connectors
         .iter()

@@ -6,10 +6,8 @@ catalog:
   visibility: public
   role: canonical
   provider: google-calendar
-  runtime_path: provider
   execution: read
   completion: provider_readback
-  requires_adapter: true
   approval: none
 
 input_definitions:

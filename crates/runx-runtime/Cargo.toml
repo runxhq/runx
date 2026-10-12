@@ -116,8 +116,8 @@ test = false
 bench = false
 
 [[bin]]
-name = "runx-official-connectors"
-path = "src/bin/runx-official-connectors.rs"
+name = "runx-maintained-connectors"
+path = "src/bin/runx-maintained-connectors.rs"
 test = false
 bench = false
 

@@ -137,7 +137,7 @@ pub struct RegistryBindingHarness {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[runx_schema(spec_id = "https://runx.ai/schemas/registry-binding.schema.json")]
+#[runx_schema(id = "runx.registry_binding.v1")]
 pub struct RegistryBinding {
     pub schema: RegistryBindingSchema,
     pub state: RegistryBindingState,

@@ -12,16 +12,13 @@ use crate::skill::{
     validate_harness_manifest, validate_inputs, validate_runner_definition,
 };
 use crate::{
-    ParseError, ValidationError, assert_execution_profile_yaml_subset,
-    json_fields::{self, JsonFieldReader},
+    ParseError, ValidationError, assert_execution_profile_yaml_subset, json_fields::JsonFieldReader,
 };
 
 const FIELDS: JsonFieldReader = JsonFieldReader::new("runner_manifest");
 const MANIFEST_FIELDS: &[&str] = &[
     "skill",
     "version",
-    "runx",
-    "emits",
     "catalog",
     "connectors",
     "tools",
@@ -46,10 +43,6 @@ pub struct SkillRunnerManifest {
     pub skill: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx: Option<runx_contracts::JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub emits: Option<runx_contracts::JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogMetadata>,
     /// The connector operations this skill needs, by requirement key.
@@ -172,8 +165,6 @@ pub fn validate_runner_manifest(
     Ok(SkillRunnerManifest {
         skill,
         version: FIELDS.optional_string(raw.document.get("version"), "version")?,
-        runx: FIELDS.optional_object(raw.document.get("runx"), "runx")?,
-        emits: raw.document.get("emits").cloned(),
         catalog,
         connectors,
         tools,
@@ -340,28 +331,6 @@ fn expand_input_definitions(
     let mut resolved = runner.clone();
     resolved.insert("inputs".to_owned(), JsonValue::Object(expanded));
     Ok(resolved)
-}
-
-pub fn resolve_post_run_reflect_policy(
-    runx: Option<&JsonObject>,
-    field: &str,
-) -> Result<String, ValidationError> {
-    let post_run = FIELDS.optional_object(
-        json_fields::field_value(runx, "post_run"),
-        &format!("{field}.post_run"),
-    )?;
-    let reflect = FIELDS
-        .optional_string(
-            json_fields::field_value(post_run.as_ref(), "reflect"),
-            &format!("{field}.post_run.reflect"),
-        )?
-        .unwrap_or_else(|| "never".to_owned());
-    if matches!(reflect.as_str(), "auto" | "always" | "never") {
-        return Ok(reflect);
-    }
-    Err(FIELDS.validation_error(format!(
-        "{field}.post_run.reflect must be auto, always, or never."
-    )))
 }
 
 fn validate_harness_runners(

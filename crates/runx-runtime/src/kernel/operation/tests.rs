@@ -311,7 +311,7 @@ impl Fixture {
 
     /// List a grant runx Connect holds without confirming it yet.
     fn list_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
-        let connector = ConnectorScope::official_only()
+        let connector = ConnectorScope::runx_maintained_only()
             .unwrap()
             .connector(connector)
             .unwrap();
@@ -324,7 +324,7 @@ impl Fixture {
     }
 
     fn try_select_grant(&self, grant_id: &str, connector: &str) -> Result<(), String> {
-        let connector = ConnectorScope::official_only()
+        let connector = ConnectorScope::runx_maintained_only()
             .unwrap()
             .connector(connector)
             .unwrap();
@@ -344,6 +344,34 @@ impl Fixture {
             self.root.path(),
         )
         .map(|_| ())
+    }
+
+    /// Store `value` as `connector`'s `credential` and select it, as
+    /// `runx credential set` would.
+    fn set_credential(&self, connector: &str, credential: &str, value: &str) {
+        let connector = ConnectorScope::runx_maintained_only()
+            .unwrap()
+            .connector(connector)
+            .unwrap();
+        let instances = Instances::new(
+            KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+                &self.env,
+                self.root.path(),
+            ))
+            .unwrap(),
+        );
+        crate::kernel::setup::set_credential(
+            &instances,
+            &connector,
+            "default",
+            &runx_contracts::connector::CredentialName::new(credential).unwrap(),
+            value,
+            &[],
+            JsonObject::new(),
+            &crate::services::WorkspaceEnv::new(self.env.clone(), self.root.path().to_path_buf())
+                .unwrap(),
+        )
+        .unwrap();
     }
 
     fn admit(
@@ -655,7 +683,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
 #[test]
 fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     let fixture = Fixture::new(&["channel.post"]);
-    let slack = ConnectorScope::official_only()
+    let slack = ConnectorScope::runx_maintained_only()
         .unwrap()
         .connector("runx/slack")
         .unwrap();
@@ -970,13 +998,18 @@ fn a_hosted_declared_read_sends_one_request_per_item() {
 }
 
 #[test]
-fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
-    // The confirmed grant is Slack's; n8n takes no authority and runs public.
+fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval() {
+    // The webhook's URL is its credential: the operator binds it, and the
+    // call reaches only that URL.
     let fixture = Fixture::new(&["channel.post"]);
+    fixture.set_credential(
+        "runx/n8n",
+        "webhook",
+        "https://acme.app.n8n.cloud/webhook/runx-effect",
+    );
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {
             "webhook_host": "acme.app.n8n.cloud",
-            "workflow_slug": "runx-effect",
             "delivery": {
                 "event_id": "evt-1",
                 "handoff_scope": "orchestrator.n8n.workflow.invoke",
@@ -1033,7 +1066,6 @@ fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
     let other: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {
             "webhook_host": "acme.app.n8n.cloud",
-            "workflow_slug": "runx-effect",
             "delivery": {
                 "event_id": "evt-2",
                 "handoff_scope": "orchestrator.n8n.workflow.invoke",

@@ -7,10 +7,8 @@ catalog:
   role: branded
   canonical_skill: runx/send-as
   provider: slack
-  runtime_path: slack
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: required
   category: ops
 input_definitions:

@@ -216,13 +216,13 @@ jobs:
         if: needs.classify.outputs.full == 'true'
         run: node scripts/check-rust-kernel-parity.mjs --api-only
 
-      - name: Official skill operator audit
+      - name: Runx-maintained skill operator audit
         if: needs.classify.outputs.skills == 'true'
         run: |
-          node scripts/generate-official-lock.mjs --check
+          node scripts/generate-runx-maintained-lock.mjs --check
           node scripts/audit-core-skills.mjs --check --json
 
-      - name: Official skill harness sweep
+      - name: Runx-maintained skill harness sweep
         if: needs.classify.outputs.skills == 'true'
         run: node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build
 

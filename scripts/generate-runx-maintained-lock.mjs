@@ -13,7 +13,7 @@ import {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(scriptDir, "..");
 const skillsRoot = path.join(workspaceRoot, "skills");
-const outputPath = path.join(skillsRoot, "official.lock.json");
+const outputPath = path.join(skillsRoot, "runx-maintained.lock.json");
 const check = process.argv.includes("--check");
 
 const packages = [];
@@ -35,7 +35,7 @@ for (const entry of (await readdir(skillsRoot, { withFileTypes: true })).sort((l
 const skills = validateSkillMarkdownBatch(packages.map((entry) => entry.markdown));
 const manifests = validateRunnerManifestYamlBatch(packages.map((entry) => entry.profileDocument));
 const entries = packages.map(({ markdown, profileDocument }, index) => {
-  const record = buildOfficialSkillLockRecord(markdown, profileDocument, skills[index], manifests[index]);
+  const record = buildRunxMaintainedSkillLockRecord(markdown, profileDocument, skills[index], manifests[index]);
   return {
     skill_id: record.skill_id,
     version: record.version,
@@ -46,9 +46,9 @@ const entries = packages.map(({ markdown, profileDocument }, index) => {
 });
 
 await writeOrCheck(outputPath, `${JSON.stringify(entries, null, 2)}\n`);
-console.log(`${check ? "checked" : "generated"} ${entries.length} official skill locks`);
+console.log(`${check ? "checked" : "generated"} ${entries.length} runx-maintained skill locks`);
 
-function buildOfficialSkillLockRecord(markdown, profileDocument, skill, manifest) {
+function buildRunxMaintainedSkillLockRecord(markdown, profileDocument, skill, manifest) {
   if (manifest.skill && manifest.skill !== skill.name) {
     throw new Error(`Runner manifest skill '${manifest.skill}' does not match skill '${skill.name}'.`);
   }
@@ -62,7 +62,7 @@ function buildOfficialSkillLockRecord(markdown, profileDocument, skill, manifest
     }))
     .digest("hex");
   return {
-    skill_id: `${manifest.catalog?.owner ?? "runx"}/${slugifyOfficialSkillName(skill.name)}`,
+    skill_id: `${manifest.catalog?.owner ?? "runx"}/${slugifyRunxMaintainedSkillName(skill.name)}`,
     version: `sha-${versionSeed.slice(0, 12)}`,
     digest,
     catalog_visibility: manifest.catalog?.visibility ?? "internal",
@@ -70,14 +70,14 @@ function buildOfficialSkillLockRecord(markdown, profileDocument, skill, manifest
   };
 }
 
-function slugifyOfficialSkillName(value) {
+function slugifyRunxMaintainedSkillName(value) {
   const slug = value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!slug) {
-    throw new Error("Official skill names cannot produce an empty registry slug.");
+    throw new Error("Runx-maintained skill names cannot produce an empty registry slug.");
   }
   return slug;
 }
@@ -86,7 +86,7 @@ async function writeOrCheck(filePath, contents) {
   if (check) {
     const current = await readFile(filePath, "utf8").catch(() => undefined);
     if (current !== contents) {
-      throw new Error(`${path.relative(workspaceRoot, filePath)} is stale; run pnpm official-lock:generate`);
+      throw new Error(`${path.relative(workspaceRoot, filePath)} is stale; run pnpm runx-maintained-lock:generate`);
     }
     return;
   }

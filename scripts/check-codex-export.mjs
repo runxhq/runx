@@ -17,7 +17,7 @@ const failures = [];
 if (!existsSync(runx)) fail(`runx binary is missing: ${runx}`);
 if (!existsSync(installRoot)) fail(`Codex skill directory is missing: ${installRoot}`);
 
-const lock = JSON.parse(readFileSync(path.join(root, "skills", "official.lock.json"), "utf8"));
+const lock = JSON.parse(readFileSync(path.join(root, "skills", "runx-maintained.lock.json"), "utf8"));
 const publicNames = lock
   .filter((entry) => entry.catalog_visibility === "public")
   .map((entry) => entry.skill_id.split("/").at(-1))

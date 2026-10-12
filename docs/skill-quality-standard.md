@@ -334,8 +334,7 @@ validate it by counting model-authored prose fields.
 
 Capability metadata describes the complete public runner surface of a package,
 not only its default runner. `execution` and `completion` state the strongest
-effect the package can truthfully close; `requires_adapter` is true when any
-public runner crosses an adapter boundary; and `approval` reflects the strictest
+effect the package can truthfully close, and `approval` reflects the strictest
 human gate required by those runners. The default runner remains the concise
 entry path and is reported separately in catalog reviews.
 

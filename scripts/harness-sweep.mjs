@@ -43,7 +43,7 @@ try {
 async function runSweep(options) {
   const started = performance.now();
   const runxBin = resolveRunxBinary(options);
-  const skills = officialSkills();
+  const skills = runxMaintainedSkills();
   const allowed = new Set(options.allowed);
   const scratchRoot = path.join(repoRoot, ".runx", "harness-sweep");
   mkdirSync(scratchRoot, { recursive: true });
@@ -99,7 +99,7 @@ async function runSweep(options) {
   return {
     schema,
     status: failures.length === 0 ? "passed" : "failed",
-    summary: `${passedSkillCount} passed, ${notDeclaredSkillCount} internal not declared, ${skills.length} official`,
+    summary: `${passedSkillCount} passed, ${notDeclaredSkillCount} internal not declared, ${skills.length} runx-maintained`,
     required,
     expected_skill_count: expectedSkillCount ?? null,
     discovered_skill_count: skills.length,
@@ -128,7 +128,7 @@ function sweepFailures({
   const failures = [];
   if (expectedSkillCount !== undefined && discoveredSkillCount !== expectedSkillCount) {
     failures.push(
-      `expected ${expectedSkillCount} official skills, discovered ${discoveredSkillCount}`,
+      `expected ${expectedSkillCount} runx-maintained skills, discovered ${discoveredSkillCount}`,
     );
   }
   if (gating && passedSkillCount < required) {
@@ -167,7 +167,7 @@ async function runSelfTests() {
   );
   assertFailures(
     sweepFailures({ ...defaults, failed: [], expectedSkillCount: 3 }),
-    ["expected 3 official skills, discovered 2"],
+    ["expected 3 runx-maintained skills, discovered 2"],
     "--expected-count must catch catalog drift",
   );
   const started = performance.now();
@@ -571,20 +571,20 @@ function resolveRunxBinary(options) {
   return binary;
 }
 
-function officialSkills() {
-  const lockPath = path.join(repoRoot, "skills", "official.lock.json");
+function runxMaintainedSkills() {
+  const lockPath = path.join(repoRoot, "skills", "runx-maintained.lock.json");
   const lock = JSON.parse(readFileSync(lockPath, "utf8"));
   if (!Array.isArray(lock)) {
-    throw new Error("official skills lock is not an array");
+    throw new Error("runx-maintained skills lock is not an array");
   }
   return lock
     .map((entry) => {
       const parts = typeof entry?.skill_id === "string" ? entry.skill_id.split("/") : [];
       if (parts.length !== 2 || !parts[0] || !parts[1]) {
-        throw new Error(`invalid official skill entry: ${JSON.stringify(entry)}`);
+        throw new Error(`invalid runx-maintained skill entry: ${JSON.stringify(entry)}`);
       }
       if (!["internal", "public"].includes(entry.catalog_visibility)) {
-        throw new Error(`invalid official skill visibility: ${JSON.stringify(entry)}`);
+        throw new Error(`invalid runx-maintained skill visibility: ${JSON.stringify(entry)}`);
       }
       return {
         name: parts[1],
@@ -613,7 +613,7 @@ function harnessEnv(runxBin, tempRoot, workspaceDir) {
 function harnessToolRoots() {
   return [
     path.join(repoRoot, "tools"),
-    ...officialSkills()
+    ...runxMaintainedSkills()
       .map((skill) => path.join(repoRoot, "skills", skill.name, "tools"))
       .filter(existsSync),
   ].join(path.delimiter);

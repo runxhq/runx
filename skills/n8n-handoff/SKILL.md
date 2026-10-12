@@ -70,8 +70,13 @@ receiver must validate before starting its workflow.
 - `payload` (required): business payload delivered to n8n.
 - `handoff_audience` (optional): defaults to
   `n8n:workflow:runx-governed-effect`.
-- `webhook_host` and `workflow_slug` (send runner): the n8n Cloud host and the
-  webhook path segment that selects the workflow.
+- `webhook_host` (send runner): the n8n Cloud host, such as
+  `acme.app.n8n.cloud`.
+
+The workflow's production webhook URL is the `n8n` connector's `webhook`
+credential, bound once with `runx credential set n8n --credential webhook
+--from-stdin`. It must be on `webhook_host`, and it never enters the run's
+inputs, records or receipts.
 
 `event_id` is also the Runx mutation idempotency key and the value delivered as
 `idempotency_key`; there is no second retry identity that can drift from it.

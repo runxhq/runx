@@ -30,7 +30,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
   steps:
-    - receipt-query
+    - ledger
     - digest
     - prepare
     - apply_noop

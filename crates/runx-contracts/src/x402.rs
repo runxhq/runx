@@ -507,7 +507,7 @@ pub struct RunxX402InvocationExtension {
 }
 
 fn external_object_schema(id: &'static str, properties: Vec<Property>) -> Value {
-    object_schema(properties, false, Some(Identity::BareId { url: id }))
+    object_schema(properties, false, Some(Identity::External { url: id }))
 }
 
 fn optional_nullable(name: &'static str, schema: Value) -> Property {

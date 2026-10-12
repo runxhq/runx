@@ -98,7 +98,7 @@ fn process_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn
     assert_eq!(output.status, InvocationStatus::Success);
     assert_eq!(
         output.value,
-        runx_contracts::JsonValue::String("[redacted-credential]\n".to_owned())
+        runx_contracts::JsonValue::String("[redacted-credential]".to_owned())
     );
     assert!(!output.rendered_value().contains("ghs_secret_token"));
     Ok(())
@@ -125,10 +125,7 @@ fn process_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn 
     })?;
 
     assert_eq!(output.status, InvocationStatus::Failure);
-    assert_eq!(
-        output.value,
-        runx_contracts::JsonValue::String(String::new())
-    );
+    assert_eq!(output.value, runx_contracts::JsonValue::Null);
     let diagnostic = output.failure_message().unwrap_or_default();
     assert!(diagnostic.contains("stdout/stderr omitted"));
     assert!(!output.rendered_value().contains("ghs_secret_token"));
@@ -211,7 +208,7 @@ fn process_tool() -> ProcessTool {
         command: "sh".to_owned(),
         args: vec![
             "-c".to_owned(),
-            "printf '%s\\n' \"$GITHUB_TOKEN\"".to_owned(),
+            "printf '\"%s\"\\n' \"$GITHUB_TOKEN\"".to_owned(),
         ],
         cwd: None,
         timeout_seconds: Some(5),

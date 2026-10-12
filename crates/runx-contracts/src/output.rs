@@ -80,7 +80,7 @@ impl OutputField {
 /// name to [`OutputField`], carrying the bare `runx.ai/spec` `$id`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(transparent)]
-#[runx_schema(spec_id = "https://runx.ai/spec/output.schema.json")]
+#[runx_schema(id = "runx.output.v1")]
 pub struct Output(pub BTreeMap<String, OutputField>);
 
 /// A malformed output declaration. Syntax and nested schema validity share one

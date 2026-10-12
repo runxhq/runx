@@ -122,7 +122,7 @@ pub struct ActResultNeedsAgentEnvelope {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(untagged)]
-#[runx_schema(spec_id = "https://runx.ai/spec/act-result.schema.json")]
+#[runx_schema(id = "runx.act_result.v1")]
 pub enum ActResultEnvelope {
     Terminal(ActResultTerminalEnvelope),
     NeedsAgent(Box<ActResultNeedsAgentEnvelope>),

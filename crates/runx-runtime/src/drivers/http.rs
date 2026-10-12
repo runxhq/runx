@@ -309,6 +309,11 @@ impl Http<'_> {
                 .map_err(|error| error.to_string())?,
         )
         .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
+        // A credential that is the endpoint itself replaces the declared URL,
+        // which it must extend; the checks below hold for it as for any URL.
+        if let Some(credential_url) = self.credential_url(&url)? {
+            url = credential_url;
+        }
         // A fragment never reaches the server: a URL carrying one names a
         // request other than the one sent.
         if url.fragment().is_some() {
@@ -522,7 +527,19 @@ impl Http<'_> {
                 secret.name
             )
         })?;
-        auth::credential_header(presentation, secret, method, url).map(Some)
+        auth::credential_header(presentation, secret, method, url)
+    }
+
+    /// The URL the instance's credential stands for, when its implementation
+    /// presents the credential as the request URL.
+    fn credential_url(&self, declared: &Url) -> Result<Option<Url>, String> {
+        let Some(secret) = self.call.credential else {
+            return Ok(None);
+        };
+        match self.spec.auth.get(&secret.name) {
+            Some(presentation) => auth::credential_url(presentation, secret, declared),
+            None => Ok(None),
+        }
     }
 }
 

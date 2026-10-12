@@ -505,11 +505,12 @@ fn resolve_prepared_context(
             .with_effects(effects.clone()),
     ) {
         Ok(chain) => ready_prepared_context(trace, chain),
-        Err(error) => {
-            let reason = error.to_string();
-            let node_path = trace_node_path(&reason);
-            blocked_prepared_context(trace, &node_path, "expand_chain", reason)
-        }
+        Err(blocked) => blocked_prepared_context(
+            trace,
+            &blocked.node_path,
+            "expand_chain",
+            blocked.error.to_string(),
+        ),
     }
 }
 
@@ -763,16 +764,6 @@ fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<Pa
             collect_node_guards(child, guards);
         }
     }
-}
-
-fn trace_node_path(message: &str) -> String {
-    message
-        .split_whitespace()
-        .find(|word| word.starts_with("entry"))
-        .map(|word| word.trim_matches(|value: char| !value.is_alphanumeric() && value != '.'))
-        .filter(|word| !word.is_empty())
-        .unwrap_or("entry")
-        .to_owned()
 }
 
 #[cfg(test)]

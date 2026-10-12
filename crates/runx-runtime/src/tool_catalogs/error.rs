@@ -19,6 +19,8 @@ pub enum ToolCatalogError {
         message: String,
     },
     InvalidRequest(String),
+    /// A tool ref with no namespace, which names no catalog tool.
+    Unqualified(String),
     NotFound(String),
 }
 
@@ -47,6 +49,7 @@ impl ToolCatalogError {
         match self {
             Self::InvalidManifest { message, .. }
             | Self::InvalidRequest(message)
+            | Self::Unqualified(message)
             | Self::NotFound(message) => message.clone(),
             Self::Io {
                 action,
@@ -78,8 +81,9 @@ impl fmt::Display for ToolCatalogError {
             Self::InvalidManifest { path, message } => {
                 write!(formatter, "{}: {message}", path.display())
             }
-            Self::InvalidRequest(message) => formatter.write_str(message),
-            Self::NotFound(message) => formatter.write_str(message),
+            Self::InvalidRequest(message)
+            | Self::Unqualified(message)
+            | Self::NotFound(message) => formatter.write_str(message),
         }
     }
 }

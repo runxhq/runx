@@ -1,6 +1,6 @@
 skill: spend
 version: "0.5.4"
-catalog: { kind: graph, audience: operator, visibility: public, role: canonical, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
+catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 connectors:
   payment:
     operations: [payment.spend, payment.spend.read]

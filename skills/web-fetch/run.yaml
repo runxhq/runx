@@ -8,7 +8,6 @@ catalog:
   role: canonical
   execution: read
   completion: provider_readback
-  requires_adapter: false
   approval: none
   category: research
 

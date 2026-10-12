@@ -7,7 +7,6 @@ catalog:
   role: canonical
   execution: read
   completion: provider_readback
-  requires_adapter: true
   approval: none
   category: research
 connectors:

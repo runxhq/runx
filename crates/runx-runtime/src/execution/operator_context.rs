@@ -182,12 +182,36 @@ pub fn load_skill_operator_context_chain(
 ) -> Result<SkillOperatorContextChain, SkillRunError> {
     let loaded = crate::load_validated_skill_package(skill_path)?;
     load_skill_operator_context_chain_from_package(&loaded, selected_runner_name, options)
+        .map_err(|blocked| blocked.error)
+}
+
+/// A chain that could not be expanded, and the node it stopped at.
+#[derive(Debug)]
+pub(crate) struct BlockedChain {
+    /// The deepest node whose expansion failed, `entry` for the entry skill.
+    pub(crate) node_path: String,
+    pub(crate) error: SkillRunError,
 }
 
 pub(crate) fn load_skill_operator_context_chain_from_package(
     loaded: &crate::LoadedSkillPackage,
     selected_runner_name: Option<&str>,
     options: SkillOperatorContextOptions,
+) -> Result<SkillOperatorContextChain, Box<BlockedChain>> {
+    let mut blocked_at = None;
+    expand_chain(loaded, selected_runner_name, options, &mut blocked_at).map_err(|error| {
+        Box::new(BlockedChain {
+            node_path: blocked_at.unwrap_or_else(|| "entry".to_owned()),
+            error,
+        })
+    })
+}
+
+fn expand_chain(
+    loaded: &crate::LoadedSkillPackage,
+    selected_runner_name: Option<&str>,
+    options: SkillOperatorContextOptions,
+    blocked_at: &mut Option<String>,
 ) -> Result<SkillOperatorContextChain, SkillRunError> {
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
@@ -215,7 +239,9 @@ pub(crate) fn load_skill_operator_context_chain_from_package(
         requested_runner: selected_runner_name.map(str::to_owned),
         env,
         depth: 0,
-    })?;
+    });
+    *blocked_at = state.blocked_at.take();
+    let entry = entry?;
     Ok(SkillOperatorContextChain {
         entry,
         node_count: state.node_count,
@@ -231,6 +257,8 @@ struct ExpansionState {
     node_count: usize,
     content_bytes: usize,
     ancestry: BTreeSet<String>,
+    /// The deepest node whose expansion failed.
+    blocked_at: Option<String>,
 }
 
 struct NodeInput {
@@ -253,12 +281,25 @@ impl ExpansionState {
             node_count: 0,
             content_bytes: 0,
             ancestry: BTreeSet::new(),
+            blocked_at: None,
         }
     }
 
     fn expand_runner_node(
         &mut self,
         input: NodeInput,
+    ) -> Result<SkillOperatorContextNode, SkillRunError> {
+        let result = self.expand_admitted_node(&input);
+        // The deepest failing node records itself first as the error unwinds.
+        if result.is_err() && self.blocked_at.is_none() {
+            self.blocked_at = Some(input.node_path.clone());
+        }
+        result
+    }
+
+    fn expand_admitted_node(
+        &mut self,
+        input: &NodeInput,
     ) -> Result<SkillOperatorContextNode, SkillRunError> {
         self.admit_node(input.depth)?;
         let identity = node_identity(&input.package, &input.skill_dir, &input.runner.name)?;
@@ -269,7 +310,7 @@ impl ExpansionState {
             )));
         }
 
-        let result = self.build_runner_node(&input);
+        let result = self.build_runner_node(input);
         self.ancestry.remove(&identity);
         result
     }
@@ -766,12 +807,7 @@ fn resolve_referenced_local_tool(
             artifacts: resolution.tool.artifacts,
             execution_boundary: boundary(ExecutionBoundaryKind::TrustedHostProcess),
         })),
-        Err(ToolCatalogError::NotFound(_)) => Ok(None),
-        Err(ToolCatalogError::InvalidRequest(message))
-            if message.contains("must include a namespace") =>
-        {
-            Ok(None)
-        }
+        Err(ToolCatalogError::NotFound(_) | ToolCatalogError::Unqualified(_)) => Ok(None),
         Err(error) => Err(blocked(format!(
             "operator context could not resolve tool '{name}': {error}"
         ))),

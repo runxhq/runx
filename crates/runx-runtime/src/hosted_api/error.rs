@@ -153,7 +153,7 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                 .ok()
                 .map(|envelope| match envelope.error {
                     PlainError::Message(detail) => HostedApiErrorPayload {
-                        code: plain_error_code(&detail).to_owned(),
+                        code: "api_error".to_owned(),
                         detail,
                         hint: None,
                         retry_after_seconds: None,
@@ -161,12 +161,4 @@ pub fn parse_hosted_api_error(body: &str) -> Option<HostedApiErrorPayload> {
                     PlainError::Payload(payload) => payload,
                 })
         })
-}
-
-fn plain_error_code(detail: &str) -> &'static str {
-    if detail.contains("Missing required scope") {
-        "missing_scope"
-    } else {
-        "api_error"
-    }
 }

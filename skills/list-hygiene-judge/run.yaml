@@ -8,7 +8,6 @@ catalog:
   role: canonical
   execution: execute
   completion: runtime_receipt
-  requires_adapter: true
   approval: none
 
 input_definitions:

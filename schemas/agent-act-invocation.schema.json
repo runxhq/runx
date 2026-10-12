@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+  "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -52,7 +52,7 @@
       "type": "object"
     },
     "envelope": {
-      "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+      "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
@@ -784,7 +784,8 @@
         "provenance",
         "trust_boundary"
       ],
-      "type": "object"
+      "type": "object",
+      "x-runx-schema": "runx.agent_context_envelope.v1"
     },
     "id": {
       "minLength": 1,
@@ -806,5 +807,6 @@
     "envelope",
     "allowance"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.agent_act_invocation.v1"
 }

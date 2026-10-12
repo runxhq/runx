@@ -7,13 +7,8 @@ catalog:
   role: canonical
   execution: execute
   completion: runtime_receipt
-  requires_adapter: true
   approval: conditional
   category: ops
-
-emits:
-  - name: agency_turn
-    packet: runx.agency.turn.v1
 
 runners:
   advance:

@@ -34,9 +34,9 @@ type SkillRunnerManifest = {
   readonly raw: { readonly document: Record<string, unknown> };
 };
 
-describe("official skill catalog", () => {
-  it("ships official skills as portable packages plus checked-in execution profiles", async () => {
-    const packages = await Promise.all(officialSkillPackages().map(async (skillName) => {
+describe("runx-maintained skill catalog", () => {
+  it("ships runx-maintained skills as portable packages plus checked-in execution profiles", async () => {
+    const packages = await Promise.all(runxMaintainedSkillPackages().map(async (skillName) => {
       const skillDir = path.resolve("skills", skillName);
       const skillMarkdownPath = path.join(skillDir, "SKILL.md");
       const manifestPath = path.join(skillDir, "run.yaml");
@@ -66,9 +66,9 @@ describe("official skill catalog", () => {
   });
 
   it("keeps the public official catalog limited to implemented catalog skills", async () => {
-    const publicSkills = officialSkillPackages().filter((skillName) => catalogVisibility(skillName) === "public");
+    const publicSkills = runxMaintainedSkillPackages().filter((skillName) => catalogVisibility(skillName) === "public");
     const entries = JSON.parse(
-      await readFile(path.resolve("skills", "official.lock.json"), "utf8"),
+      await readFile(path.resolve("skills", "runx-maintained.lock.json"), "utf8"),
     ) as ReadonlyArray<{ readonly skill_id: string; readonly catalog_visibility?: string }>;
     const publicLockSkills = entries
       .filter((entry) => entry.catalog_visibility === "public")
@@ -92,7 +92,7 @@ describe("official skill catalog", () => {
   });
 
   it("keeps public packages covered by executable proof", () => {
-    for (const skillName of officialSkillPackages()) {
+    for (const skillName of runxMaintainedSkillPackages()) {
       if (catalogVisibility(skillName) !== "public") {
         continue;
       }
@@ -131,7 +131,7 @@ describe("official skill catalog", () => {
   });
 });
 
-function officialSkillPackages(): readonly string[] {
+function runxMaintainedSkillPackages(): readonly string[] {
   return readdirSync(path.resolve("skills"), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .filter((entry) => !entry.name.startsWith("."))

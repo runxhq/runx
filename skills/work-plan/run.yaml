@@ -7,7 +7,6 @@ catalog:
   role: context
   execution: plan
   completion: plan
-  requires_adapter: false
   approval: none
 harness:
   files:

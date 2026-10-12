@@ -20,7 +20,6 @@ catalog:
   role: canonical
   execution: plan
   completion: plan
-  requires_adapter: false
   approval: none
 
 harness:

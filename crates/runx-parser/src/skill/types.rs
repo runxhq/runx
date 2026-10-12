@@ -112,8 +112,6 @@ pub struct SkillRunnerDefinition {
     /// expose them without reparsing package files.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runx: Option<JsonObject>,
     /// The runner's steps, as the graph the engine runs. Its name is the
     /// runner's.
     pub graph: crate::ExecutionGraph,

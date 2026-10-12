@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   RUNX_CONTRACT_IDS,
-  RUNX_AUXILIARY_SCHEMA_IDS,
-  RUNX_CONTROL_SCHEMA_REFS,
   RUNX_LOGICAL_SCHEMAS,
   agentContextEnvelopeSchema,
   agentActInvocationSchema,
@@ -228,9 +226,9 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns executor control protocol schemas and runtime validation", () => {
-    expect(outputSchema.$id).toBe(RUNX_CONTROL_SCHEMA_REFS.output);
-    expect(agentContextEnvelopeSchema.$id).toBe(RUNX_CONTROL_SCHEMA_REFS.agent_context_envelope);
-    expect(actResultEnvelopeSchema.$id).toBe(RUNX_CONTROL_SCHEMA_REFS.act_result);
+    expect(outputSchema.$id).toBe(RUNX_CONTRACT_IDS.output);
+    expect(agentContextEnvelopeSchema.$id).toBe(RUNX_CONTRACT_IDS.agentContextEnvelope);
+    expect(actResultEnvelopeSchema.$id).toBe(RUNX_CONTRACT_IDS.actResult);
     expect(runxGeneratedSchemaArtifacts["output.schema.json"].$id).toBe(outputSchema.$id);
     expect(runxGeneratedSchemaArtifacts["agent-context-envelope.schema.json"].$id).toBe(agentContextEnvelopeSchema.$id);
     expect(runxGeneratedSchemaArtifacts["act-result.schema.json"].$id).toBe(actResultEnvelopeSchema.$id);
@@ -341,8 +339,8 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns generated auxiliary schemas", () => {
-    expect(registryBindingSchema.$id).toBe(RUNX_AUXILIARY_SCHEMA_IDS.registryBinding);
-    expect(reviewReceiptOutputSchema.$id).toBe(RUNX_AUXILIARY_SCHEMA_IDS.reviewReceiptOutput);
+    expect(registryBindingSchema.$id).toBe(RUNX_CONTRACT_IDS.registryBinding);
+    expect(reviewReceiptOutputSchema.$id).toBe(RUNX_CONTRACT_IDS.reviewReceiptOutput);
     expect(runxAuxiliarySchemas.registryBinding).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
     expect(runxAuxiliarySchemas.reviewReceiptOutput).toBe(runxGeneratedSchemaArtifacts["review-receipt-output.schema.json"]);
     expect(runxAuxiliarySchemas.registryBinding.$id).toBe(registryBindingSchema.$id);
@@ -749,7 +747,7 @@ describe("@runxhq/contracts", () => {
         status: "harness_verified",
         case_count: 1,
       },
-    })).toThrow(/registry-binding\.schema\.json/);
+    })).toThrow(/runx\/registry-binding\/v1\.json/);
   });
 
   it("owns generic post-handoff contracts for reusable outreach state", () => {

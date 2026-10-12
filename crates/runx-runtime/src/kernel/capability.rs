@@ -117,21 +117,18 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             instance,
             request.connector,
             None,
-            reachable_scopes(request.connector, |operation| {
-                public_may(request.connector, operation)
-            }),
+            reachable_scopes(request.connector, public_may),
             Vec::new(),
         )),
     }
 }
 
-/// Whether an instance with no authority may call `operation`: a read; a
-/// write on a connector that takes no authority at all, which stands on the
-/// operator's exact approval; or a write to a store, which reaches only the
-/// storage the operator configured.
-fn public_may(connector: &LoadedConnector, operation: &ConnectorOperation) -> bool {
+/// Whether an instance with no authority may call `operation`: a read, or a
+/// write to a store, which reaches only the storage the operator configured.
+/// An approval alone never authorizes a write: a connector that writes to a
+/// provider takes a credential, a session or a grant.
+fn public_may(operation: &ConnectorOperation) -> bool {
     operation.verb == OperationVerb::Read
-        || connector.manifest.auth.unauthenticated()
         || matches!(operation.implementation, Some(Implementation::Store(_)))
 }
 
@@ -185,7 +182,7 @@ fn capability(
         .manifest
         .operations
         .values()
-        .filter(|operation| !public || public_may(connector, operation))
+        .filter(|operation| !public || public_may(operation))
         .map(|operation| operation.verb.authority_verb())
         .collect::<Vec<_>>();
     let mut unique_verbs = Vec::new();

@@ -9,7 +9,6 @@ catalog:
   role: canonical
   execution: execute
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
 
 harness:

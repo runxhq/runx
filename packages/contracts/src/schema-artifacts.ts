@@ -120,7 +120,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.act_assignment.v1"
   } as JsonSchema,
   "act-result.schema.json": {
-    "$id": "https://runx.ai/spec/act-result.schema.json",
+    "$id": "https://schemas.runx.ai/runx/act-result/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "anyOf": [
       {
@@ -238,7 +238,7 @@ export const runxSchemaArtifacts = {
             "type": "object"
           },
           "request": {
-            "$id": "https://runx.ai/spec/resolution-request.schema.json",
+            "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "anyOf": [
               {
@@ -254,7 +254,7 @@ export const runxSchemaArtifacts = {
                   },
                   "questions": {
                     "items": {
-                      "$id": "https://runx.ai/spec/question.schema.json",
+                      "$id": "https://schemas.runx.ai/runx/question/v1.json",
                       "$schema": "https://json-schema.org/draft/2020-12/schema",
                       "additionalProperties": false,
                       "properties": {
@@ -283,7 +283,8 @@ export const runxSchemaArtifacts = {
                         "required",
                         "type"
                       ],
-                      "type": "object"
+                      "type": "object",
+                      "x-runx-schema": "runx.question.v1"
                     },
                     "type": "array"
                   }
@@ -299,7 +300,7 @@ export const runxSchemaArtifacts = {
                 "additionalProperties": false,
                 "properties": {
                   "gate": {
-                    "$id": "https://runx.ai/spec/approval-gate.schema.json",
+                    "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
@@ -323,7 +324,8 @@ export const runxSchemaArtifacts = {
                       "id",
                       "reason"
                     ],
-                    "type": "object"
+                    "type": "object",
+                    "x-runx-schema": "runx.approval_gate.v1"
                   },
                   "id": {
                     "minLength": 1,
@@ -349,7 +351,7 @@ export const runxSchemaArtifacts = {
                     "type": "string"
                   },
                   "invocation": {
-                    "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+                    "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
@@ -402,7 +404,7 @@ export const runxSchemaArtifacts = {
                         "type": "object"
                       },
                       "envelope": {
-                        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                        "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                         "additionalProperties": false,
                         "properties": {
@@ -1134,7 +1136,8 @@ export const runxSchemaArtifacts = {
                           "provenance",
                           "trust_boundary"
                         ],
-                        "type": "object"
+                        "type": "object",
+                        "x-runx-schema": "runx.agent_context_envelope.v1"
                       },
                       "id": {
                         "minLength": 1,
@@ -1156,7 +1159,8 @@ export const runxSchemaArtifacts = {
                       "envelope",
                       "allowance"
                     ],
-                    "type": "object"
+                    "type": "object",
+                    "x-runx-schema": "runx.agent_act_invocation.v1"
                   },
                   "kind": {
                     "const": "agent_act",
@@ -1198,7 +1202,8 @@ export const runxSchemaArtifacts = {
                 ],
                 "type": "object"
               }
-            ]
+            ],
+            "x-runx-schema": "runx.resolution_request.v1"
           },
           "signal": {
             "type": "null"
@@ -1227,7 +1232,8 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object"
       }
-    ]
+    ],
+    "x-runx-schema": "runx.act_result.v1"
   } as JsonSchema,
   "admission.schema.json": {
     "$id": "https://schemas.runx.ai/runx/admission/v1.json",
@@ -2913,7 +2919,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.admission.v1"
   } as JsonSchema,
   "agent-act-invocation.schema.json": {
-    "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+    "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -2966,7 +2972,7 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "envelope": {
-        "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+        "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
@@ -3698,7 +3704,8 @@ export const runxSchemaArtifacts = {
           "provenance",
           "trust_boundary"
         ],
-        "type": "object"
+        "type": "object",
+        "x-runx-schema": "runx.agent_context_envelope.v1"
       },
       "id": {
         "minLength": 1,
@@ -3720,10 +3727,11 @@ export const runxSchemaArtifacts = {
       "envelope",
       "allowance"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.agent_act_invocation.v1"
   } as JsonSchema,
   "agent-context-envelope.schema.json": {
-    "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+    "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -4455,7 +4463,8 @@ export const runxSchemaArtifacts = {
       "provenance",
       "trust_boundary"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.agent_context_envelope.v1"
   } as JsonSchema,
   "approval-decision.schema.json": {
     "$id": "https://schemas.runx.ai/runx/approval/decision/v1.json",
@@ -4511,7 +4520,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.approval.decision.v1"
   } as JsonSchema,
   "approval-gate.schema.json": {
-    "$id": "https://runx.ai/spec/approval-gate.schema.json",
+    "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -4535,7 +4544,8 @@ export const runxSchemaArtifacts = {
       "id",
       "reason"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.approval_gate.v1"
   } as JsonSchema,
   "artifact.schema.json": {
     "$id": "https://schemas.runx.ai/runx/artifact/v1.json",
@@ -8350,6 +8360,25 @@ export const runxSchemaArtifacts = {
                                   "type"
                                 ],
                                 "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "field": {
+                                    "maxLength": 64,
+                                    "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "const": "url",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "field"
+                                ],
+                                "type": "object"
                               }
                             ]
                           },
@@ -9612,6 +9641,25 @@ export const runxSchemaArtifacts = {
                               },
                               "required": [
                                 "type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "field": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "url",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "field"
                               ],
                               "type": "object"
                             }
@@ -17862,7 +17910,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.orchestrator.handoff_context.v1"
   } as JsonSchema,
   "output.schema.json": {
-    "$id": "https://runx.ai/spec/output.schema.json",
+    "$id": "https://schemas.runx.ai/runx/output/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "patternProperties": {
       "^(.*)$": {
@@ -17920,7 +17968,8 @@ export const runxSchemaArtifacts = {
         ]
       }
     },
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.output.v1"
   } as JsonSchema,
   "packet-index.schema.json": {
     "$id": "https://schemas.runx.ai/runx/packet/index/v1.json",
@@ -19454,7 +19503,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.provider.operation.v1"
   } as JsonSchema,
   "question.schema.json": {
-    "$id": "https://runx.ai/spec/question.schema.json",
+    "$id": "https://schemas.runx.ai/runx/question/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -19483,7 +19532,8 @@ export const runxSchemaArtifacts = {
       "required",
       "type"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.question.v1"
   } as JsonSchema,
   "quote-paid-invocation-request.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/quote-paid-invocation/request/v1.json",
@@ -24385,7 +24435,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.reference.v1"
   } as JsonSchema,
   "registry-binding.schema.json": {
-    "$id": "https://runx.ai/schemas/registry-binding.schema.json",
+    "$id": "https://schemas.runx.ai/runx/registry-binding/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": true,
     "properties": {
@@ -24547,10 +24597,11 @@ export const runxSchemaArtifacts = {
       "registry",
       "harness"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.registry_binding.v1"
   } as JsonSchema,
   "resolution-request.schema.json": {
-    "$id": "https://runx.ai/spec/resolution-request.schema.json",
+    "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "anyOf": [
       {
@@ -24566,7 +24617,7 @@ export const runxSchemaArtifacts = {
           },
           "questions": {
             "items": {
-              "$id": "https://runx.ai/spec/question.schema.json",
+              "$id": "https://schemas.runx.ai/runx/question/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
@@ -24595,7 +24646,8 @@ export const runxSchemaArtifacts = {
                 "required",
                 "type"
               ],
-              "type": "object"
+              "type": "object",
+              "x-runx-schema": "runx.question.v1"
             },
             "type": "array"
           }
@@ -24611,7 +24663,7 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "gate": {
-            "$id": "https://runx.ai/spec/approval-gate.schema.json",
+            "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
@@ -24635,7 +24687,8 @@ export const runxSchemaArtifacts = {
               "id",
               "reason"
             ],
-            "type": "object"
+            "type": "object",
+            "x-runx-schema": "runx.approval_gate.v1"
           },
           "id": {
             "minLength": 1,
@@ -24661,7 +24714,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "invocation": {
-            "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+            "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
@@ -24714,7 +24767,7 @@ export const runxSchemaArtifacts = {
                 "type": "object"
               },
               "envelope": {
-                "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "additionalProperties": false,
                 "properties": {
@@ -25446,7 +25499,8 @@ export const runxSchemaArtifacts = {
                   "provenance",
                   "trust_boundary"
                 ],
-                "type": "object"
+                "type": "object",
+                "x-runx-schema": "runx.agent_context_envelope.v1"
               },
               "id": {
                 "minLength": 1,
@@ -25468,7 +25522,8 @@ export const runxSchemaArtifacts = {
               "envelope",
               "allowance"
             ],
-            "type": "object"
+            "type": "object",
+            "x-runx-schema": "runx.agent_act_invocation.v1"
           },
           "kind": {
             "const": "agent_act",
@@ -25510,10 +25565,11 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object"
       }
-    ]
+    ],
+    "x-runx-schema": "runx.resolution_request.v1"
   } as JsonSchema,
   "resolution-response.schema.json": {
-    "$id": "https://runx.ai/spec/resolution-response.schema.json",
+    "$id": "https://schemas.runx.ai/runx/resolution-response/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -25530,10 +25586,11 @@ export const runxSchemaArtifacts = {
       "actor",
       "payload"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.resolution_response.v1"
   } as JsonSchema,
   "review-receipt-output.schema.json": {
-    "$id": "https://runx.ai/schemas/review-receipt-output.schema.json",
+    "$id": "https://schemas.runx.ai/runx/review-receipt-output/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": true,
     "properties": {
@@ -25586,7 +25643,8 @@ export const runxSchemaArtifacts = {
       "improvement_proposals",
       "next_harness_checks"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.review_receipt_output.v1"
   } as JsonSchema,
   "run-summary.schema.json": {
     "$id": "https://schemas.runx.ai/runx/run-summary/v1.json",
@@ -30367,7 +30425,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.tool.manifest.v1"
   } as JsonSchema,
   "turn-call.schema.json": {
-    "$id": "https://runx.ai/spec/turn-call.schema.json",
+    "$id": "https://schemas.runx.ai/runx/turn-call/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -30449,7 +30507,7 @@ export const runxSchemaArtifacts = {
               },
               "waiting": {
                 "items": {
-                  "$id": "https://runx.ai/spec/resolution-request.schema.json",
+                  "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "anyOf": [
                     {
@@ -30465,7 +30523,7 @@ export const runxSchemaArtifacts = {
                         },
                         "questions": {
                           "items": {
-                            "$id": "https://runx.ai/spec/question.schema.json",
+                            "$id": "https://schemas.runx.ai/runx/question/v1.json",
                             "$schema": "https://json-schema.org/draft/2020-12/schema",
                             "additionalProperties": false,
                             "properties": {
@@ -30494,7 +30552,8 @@ export const runxSchemaArtifacts = {
                               "required",
                               "type"
                             ],
-                            "type": "object"
+                            "type": "object",
+                            "x-runx-schema": "runx.question.v1"
                           },
                           "type": "array"
                         }
@@ -30510,7 +30569,7 @@ export const runxSchemaArtifacts = {
                       "additionalProperties": false,
                       "properties": {
                         "gate": {
-                          "$id": "https://runx.ai/spec/approval-gate.schema.json",
+                          "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
                           "properties": {
@@ -30534,7 +30593,8 @@ export const runxSchemaArtifacts = {
                             "id",
                             "reason"
                           ],
-                          "type": "object"
+                          "type": "object",
+                          "x-runx-schema": "runx.approval_gate.v1"
                         },
                         "id": {
                           "minLength": 1,
@@ -30560,7 +30620,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "invocation": {
-                          "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+                          "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
                           "properties": {
@@ -30613,7 +30673,7 @@ export const runxSchemaArtifacts = {
                               "type": "object"
                             },
                             "envelope": {
-                              "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                              "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
                               "additionalProperties": false,
                               "properties": {
@@ -31345,7 +31405,8 @@ export const runxSchemaArtifacts = {
                                 "provenance",
                                 "trust_boundary"
                               ],
-                              "type": "object"
+                              "type": "object",
+                              "x-runx-schema": "runx.agent_context_envelope.v1"
                             },
                             "id": {
                               "minLength": 1,
@@ -31367,7 +31428,8 @@ export const runxSchemaArtifacts = {
                             "envelope",
                             "allowance"
                           ],
-                          "type": "object"
+                          "type": "object",
+                          "x-runx-schema": "runx.agent_act_invocation.v1"
                         },
                         "kind": {
                           "const": "agent_act",
@@ -31409,7 +31471,8 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object"
                     }
-                  ]
+                  ],
+                  "x-runx-schema": "runx.resolution_request.v1"
                 },
                 "type": "array"
               }
@@ -31504,16 +31567,17 @@ export const runxSchemaArtifacts = {
       "target",
       "outcome"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.turn_call.v1"
   } as JsonSchema,
   "turn-status.schema.json": {
-    "$id": "https://runx.ai/spec/turn-status.schema.json",
+    "$id": "https://schemas.runx.ai/runx/turn-status/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
       "calls": {
         "items": {
-          "$id": "https://runx.ai/spec/turn-call.schema.json",
+          "$id": "https://schemas.runx.ai/runx/turn-call/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
@@ -31595,7 +31659,7 @@ export const runxSchemaArtifacts = {
                     },
                     "waiting": {
                       "items": {
-                        "$id": "https://runx.ai/spec/resolution-request.schema.json",
+                        "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                         "anyOf": [
                           {
@@ -31611,7 +31675,7 @@ export const runxSchemaArtifacts = {
                               },
                               "questions": {
                                 "items": {
-                                  "$id": "https://runx.ai/spec/question.schema.json",
+                                  "$id": "https://schemas.runx.ai/runx/question/v1.json",
                                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                                   "additionalProperties": false,
                                   "properties": {
@@ -31640,7 +31704,8 @@ export const runxSchemaArtifacts = {
                                     "required",
                                     "type"
                                   ],
-                                  "type": "object"
+                                  "type": "object",
+                                  "x-runx-schema": "runx.question.v1"
                                 },
                                 "type": "array"
                               }
@@ -31656,7 +31721,7 @@ export const runxSchemaArtifacts = {
                             "additionalProperties": false,
                             "properties": {
                               "gate": {
-                                "$id": "https://runx.ai/spec/approval-gate.schema.json",
+                                "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
                                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "additionalProperties": false,
                                 "properties": {
@@ -31680,7 +31745,8 @@ export const runxSchemaArtifacts = {
                                   "id",
                                   "reason"
                                 ],
-                                "type": "object"
+                                "type": "object",
+                                "x-runx-schema": "runx.approval_gate.v1"
                               },
                               "id": {
                                 "minLength": 1,
@@ -31706,7 +31772,7 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "invocation": {
-                                "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+                                "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
                                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "additionalProperties": false,
                                 "properties": {
@@ -31759,7 +31825,7 @@ export const runxSchemaArtifacts = {
                                     "type": "object"
                                   },
                                   "envelope": {
-                                    "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+                                    "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
                                     "properties": {
@@ -32491,7 +32557,8 @@ export const runxSchemaArtifacts = {
                                       "provenance",
                                       "trust_boundary"
                                     ],
-                                    "type": "object"
+                                    "type": "object",
+                                    "x-runx-schema": "runx.agent_context_envelope.v1"
                                   },
                                   "id": {
                                     "minLength": 1,
@@ -32513,7 +32580,8 @@ export const runxSchemaArtifacts = {
                                   "envelope",
                                   "allowance"
                                 ],
-                                "type": "object"
+                                "type": "object",
+                                "x-runx-schema": "runx.agent_act_invocation.v1"
                               },
                               "kind": {
                                 "const": "agent_act",
@@ -32555,7 +32623,8 @@ export const runxSchemaArtifacts = {
                             ],
                             "type": "object"
                           }
-                        ]
+                        ],
+                        "x-runx-schema": "runx.resolution_request.v1"
                       },
                       "type": "array"
                     }
@@ -32650,12 +32719,13 @@ export const runxSchemaArtifacts = {
             "target",
             "outcome"
           ],
-          "type": "object"
+          "type": "object",
+          "x-runx-schema": "runx.turn_call.v1"
         },
         "type": "array"
       },
       "invocation": {
-        "$id": "https://runx.ai/spec/agent-act-invocation.schema.json",
+        "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
@@ -32708,7 +32778,7 @@ export const runxSchemaArtifacts = {
             "type": "object"
           },
           "envelope": {
-            "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+            "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
@@ -33440,7 +33510,8 @@ export const runxSchemaArtifacts = {
               "provenance",
               "trust_boundary"
             ],
-            "type": "object"
+            "type": "object",
+            "x-runx-schema": "runx.agent_context_envelope.v1"
           },
           "id": {
             "minLength": 1,
@@ -33462,7 +33533,8 @@ export const runxSchemaArtifacts = {
           "envelope",
           "allowance"
         ],
-        "type": "object"
+        "type": "object",
+        "x-runx-schema": "runx.agent_act_invocation.v1"
       },
       "tools": {
         "items": {
@@ -33573,7 +33645,8 @@ export const runxSchemaArtifacts = {
       "tools",
       "calls"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.turn_status.v1"
   } as JsonSchema,
   "work-outcome.schema.json": {
     "$id": "https://schemas.runx.ai/runx/work-outcome/v1.json",

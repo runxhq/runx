@@ -12,14 +12,11 @@ const RUNNER_FIELDS: &[&str] = &[
     "outputs",
     "policy",
     "result_from",
-    "runx",
     "steps",
 ];
 
 /// The graph keys a runner carries for its steps.
 const GRAPH_FIELDS: &[&str] = &["policy", "result_from", "steps"];
-
-const RUNX_FIELDS: &[&str] = &["post_run"];
 
 pub(crate) fn validate_runner_definition(
     skill: &str,
@@ -27,11 +24,6 @@ pub(crate) fn validate_runner_definition(
     runner: JsonObject,
 ) -> Result<SkillRunnerDefinition, ValidationError> {
     FIELDS.reject_unknown_fields(&runner, &format!("runners.{name}"), RUNNER_FIELDS)?;
-    let runx = FIELDS.optional_object(runner.get("runx"), &format!("runners.{name}.runx"))?;
-    if let Some(runx) = &runx {
-        FIELDS.reject_unknown_fields(runx, &format!("runners.{name}.runx"), RUNX_FIELDS)?;
-    }
-    crate::runner::resolve_post_run_reflect_policy(runx.as_ref(), &format!("runners.{name}.runx"))?;
     let inputs = validate_inputs(
         FIELDS
             .optional_object(runner.get("inputs"), &format!("runners.{name}.inputs"))?
@@ -47,7 +39,6 @@ pub(crate) fn validate_runner_definition(
             .unwrap_or(false),
         inputs,
         examples,
-        runx,
         graph: runner_graph(skill, name, &runner)?,
         raw: runner,
     })

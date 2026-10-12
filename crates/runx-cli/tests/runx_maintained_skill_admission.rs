@@ -6,8 +6,8 @@ use runx_runtime::load_validated_skill_package;
 use runx_runtime::skill_front::{SkillOperatorContextOptions, load_skill_operator_context_chain};
 
 #[test]
-fn every_official_runner_prepares_through_the_cli_runtime() -> Result<(), Box<dyn std::error::Error>>
-{
+fn every_runx_maintained_runner_prepares_through_the_cli_runtime()
+-> Result<(), Box<dyn std::error::Error>> {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let skills_root = repo_root.join("skills");
     let effects = runx_cli::runtime::runtime_effect_registry()?;
@@ -48,7 +48,7 @@ fn every_official_runner_prepares_through_the_cli_runtime() -> Result<(), Box<dy
 
     assert!(
         failures.is_empty(),
-        "every official runner must prepare through the complete CLI runtime:\n{}",
+        "every runx-maintained runner must prepare through the complete CLI runtime:\n{}",
         failures.join("\n")
     );
     Ok(())

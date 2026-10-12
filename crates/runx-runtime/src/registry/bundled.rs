@@ -139,7 +139,7 @@ impl BundledSkill {
         install_bundled_skill(
             &candidate,
             &InstallLocalSkillOptions {
-                destination_root: paths.official_skills().join("bundled"),
+                destination_root: paths.runx_maintained_skills().join("bundled"),
                 expected_digest: expected_digest.map(str::to_owned),
                 trusted_manifest_keys: Vec::new(),
             },

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-const script = fileURLToPath(new URL("../scripts/publish-official-connectors.mjs", import.meta.url));
+const script = fileURLToPath(new URL("../scripts/publish-runx-maintained-connectors.mjs", import.meta.url));
 
 /**
  * A runx stand-in: `package` answers with the facts in `<dir>/package.json`,
@@ -46,19 +46,19 @@ function workspace(connectors: readonly ReturnType<typeof entry>[]) {
   const root = mkdtempSync(path.join(os.tmpdir(), "runx-publish-official-"));
   roots.push(root);
   mkdirSync(path.join(root, "scripts"));
-  copyFileSync(script, path.join(root, "scripts/publish-official-connectors.mjs"));
+  copyFileSync(script, path.join(root, "scripts/publish-runx-maintained-connectors.mjs"));
   const runx = path.join(root, "runx");
   writeFileSync(runx, FAKE_RUNX);
   chmodSync(runx, 0o755);
   mkdirSync(path.join(root, "connectors"));
   mkdirSync(path.join(root, "registry"));
-  writeFileSync(path.join(root, "registry/official-connectors.lock.json"), JSON.stringify({ connectors }));
+  writeFileSync(path.join(root, "registry/runx-maintained-connectors.lock.json"), JSON.stringify({ connectors }));
   for (const connector of connectors) {
     const directory = path.join(root, "connectors", connector.ref.split("/")[1]!);
     mkdirSync(directory);
     writeFileSync(path.join(directory, "package.json"), JSON.stringify(connector));
   }
-  const run = (...args: string[]) => spawnSync(process.execPath, [path.join(root, "scripts/publish-official-connectors.mjs"), ...args], {
+  const run = (...args: string[]) => spawnSync(process.execPath, [path.join(root, "scripts/publish-runx-maintained-connectors.mjs"), ...args], {
     cwd: root,
     encoding: "utf8",
     env: { ...process.env, RUNX_BIN: runx },
@@ -66,13 +66,13 @@ function workspace(connectors: readonly ReturnType<typeof entry>[]) {
   return { root, run };
 }
 
-describe("publish-official-connectors", () => {
+describe("publish-runx-maintained-connectors", () => {
   it("publishes each lock entry once, and a rerun reports every entry unchanged", () => {
     const { root, run } = workspace([entry("apollo", "a"), entry("github", "b")]);
     const first = run("--registry", "https://registry.runx.test");
     expect(first.status, first.stderr).toBe(0);
     expect(first.stdout).toContain("runx/apollo@sha-aaaaaaaaaaaa published");
-    expect(first.stdout).toContain("2 official connectors: 2 published, 0 unchanged");
+    expect(first.stdout).toContain("2 runx-maintained connectors: 2 published, 0 unchanged");
     expect(JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))).toEqual({
       "runx/apollo@sha-aaaaaaaaaaaa": digest("a"),
       "runx/github@sha-bbbbbbbbbbbb": digest("b"),
@@ -80,7 +80,7 @@ describe("publish-official-connectors", () => {
 
     const again = run("--registry", "https://registry.runx.test");
     expect(again.status, again.stderr).toBe(0);
-    expect(again.stdout).toContain("2 official connectors: 0 published, 2 unchanged");
+    expect(again.stdout).toContain("2 runx-maintained connectors: 0 published, 2 unchanged");
   });
 
   it("publishes nothing when any package differs from the lock", () => {
@@ -103,8 +103,8 @@ describe("publish-official-connectors", () => {
 
   it("refuses to run without a registry, or without the lock", () => {
     const { root, run } = workspace([entry("apollo", "a")]);
-    expect(run().stderr).toContain("Usage: publish-official-connectors --registry <url>");
-    rmSync(path.join(root, "registry/official-connectors.lock.json"));
-    expect(run("--registry", "https://registry.runx.test").stderr).toContain("official-connectors.lock.json is missing");
+    expect(run().stderr).toContain("Usage: publish-runx-maintained-connectors --registry <url>");
+    rmSync(path.join(root, "registry/runx-maintained-connectors.lock.json"));
+    expect(run("--registry", "https://registry.runx.test").stderr).toContain("runx-maintained-connectors.lock.json is missing");
   });
 });

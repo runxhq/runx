@@ -7,10 +7,8 @@ catalog:
   role: branded
   canonical_skill: runx/weather-forecast
   provider: national-weather-service
-  runtime_path: http
   execution: read
   completion: provider_readback
-  requires_adapter: false
   approval: none
   category: data
 connectors:

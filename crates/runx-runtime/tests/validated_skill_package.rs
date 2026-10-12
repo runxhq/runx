@@ -171,8 +171,8 @@ fn packet_input_schema_must_exist_and_own_authored_examples()
 }
 
 #[test]
-fn official_skill_packages_validate_through_the_aggregate() -> Result<(), Box<dyn std::error::Error>>
-{
+fn runx_maintained_skill_packages_validate_through_the_aggregate()
+-> Result<(), Box<dyn std::error::Error>> {
     let skills_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("skills");
@@ -196,7 +196,7 @@ fn official_skill_packages_validate_through_the_aggregate() -> Result<(), Box<dy
 
     assert!(
         failures.is_empty(),
-        "official skill packages must share one aggregate contract:\n{}",
+        "runx-maintained skill packages must share one aggregate contract:\n{}",
         failures.join("\n")
     );
     Ok(())

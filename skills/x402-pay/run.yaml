@@ -1,6 +1,6 @@
 skill: x402-pay
 version: "0.9.3"
-catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, runtime_path: hosted, execution: execute, completion: provider_readback, requires_adapter: true, approval: required, category: payments }
+catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   marketplace_offer:
     type: object

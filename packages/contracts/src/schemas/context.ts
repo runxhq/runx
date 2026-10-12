@@ -1,7 +1,7 @@
 import { Type, type Static } from "../internal.js";
 import {
   JSON_SCHEMA_DRAFT_2020_12,
-  RUNX_CONTROL_SCHEMA_REFS,
+  RUNX_CONTRACT_IDS,
   type DeepReadonly,
   generatedSchema,
   unknownRecordSchema,
@@ -112,7 +112,7 @@ const agentContextEnvelopeTypeSchema = Type.Object(
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,
-    $id: RUNX_CONTROL_SCHEMA_REFS.agent_context_envelope,
+    $id: RUNX_CONTRACT_IDS.agentContextEnvelope,
     additionalProperties: false,
   },
 );

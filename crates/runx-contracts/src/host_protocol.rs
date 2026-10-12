@@ -71,7 +71,7 @@ pub enum ExecutionEvent {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/resolution-request.schema.json")]
+#[runx_schema(id = "runx.resolution_request.v1")]
 pub enum ResolutionRequest {
     Input {
         id: NonEmptyString,
@@ -96,7 +96,7 @@ pub enum ResolutionRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/question.schema.json")]
+#[runx_schema(id = "runx.question.v1")]
 pub struct Question {
     pub id: NonEmptyString,
     pub prompt: NonEmptyString,
@@ -110,7 +110,7 @@ pub struct Question {
 /// Host protocol approval request gate carried by `ResolutionRequest::Approval`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/approval-gate.schema.json")]
+#[runx_schema(id = "runx.approval_gate.v1")]
 pub struct ApprovalGate {
     pub id: NonEmptyString,
     pub reason: NonEmptyString,
@@ -123,7 +123,7 @@ pub struct ApprovalGate {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/agent-act-invocation.schema.json")]
+#[runx_schema(id = "runx.agent_act_invocation.v1")]
 pub struct AgentActInvocation {
     pub id: NonEmptyString,
     /// The kind of agent the step asks for.
@@ -189,7 +189,7 @@ pub enum TurnTarget {
 /// One call an agent made in its turn, and how it ended.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/turn-call.schema.json")]
+#[runx_schema(id = "runx.turn_call.v1")]
 pub struct TurnCallResult {
     /// The call's place in the turn, from 0.
     pub index: u32,
@@ -238,7 +238,7 @@ pub struct TurnTool {
 /// ended.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/turn-status.schema.json")]
+#[runx_schema(id = "runx.turn_status.v1")]
 pub struct TurnStatus {
     pub invocation: AgentActInvocation,
     pub tools: Vec<TurnTool>,
@@ -247,7 +247,7 @@ pub struct TurnStatus {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/resolution-response.schema.json")]
+#[runx_schema(id = "runx.resolution_response.v1")]
 pub struct ResolutionResponse {
     pub actor: ResolutionResponseActor,
     /// Shallow response payload.

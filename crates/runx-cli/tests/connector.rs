@@ -315,7 +315,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
         assert!(!ok, "{missing}");
         assert!(
             missing.to_string().contains(&format!(
-                "connector acme-two is neither an official connector nor one of the plugin at {}",
+                "connector acme-two is neither a runx-maintained connector nor one of the plugin at {}",
                 canonical(&plugin)?
             )),
             "{missing}"

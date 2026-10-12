@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn a_profile_replaced_elsewhere_no_longer_serves_the_first_binding() {
         let root = tempfile::tempdir().unwrap();
-        let connector = crate::ConnectorScope::official_only()
+        let connector = crate::ConnectorScope::runx_maintained_only()
             .unwrap()
             .connector("moltbook")
             .unwrap();

@@ -139,9 +139,9 @@ fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolIns
 
 fn lookup_miss(error: &ToolCatalogError) -> bool {
     match error {
-        ToolCatalogError::NotFound(_) => true,
-        ToolCatalogError::InvalidRequest(message) => message.contains("must include a namespace"),
-        ToolCatalogError::Io { .. }
+        ToolCatalogError::NotFound(_) | ToolCatalogError::Unqualified(_) => true,
+        ToolCatalogError::InvalidRequest(_)
+        | ToolCatalogError::Io { .. }
         | ToolCatalogError::Json { .. }
         | ToolCatalogError::InvalidManifest { .. } => false,
     }

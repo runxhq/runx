@@ -290,7 +290,6 @@ catalog:
   role: context
   execution: read
   completion: runtime_receipt
-  requires_adapter: false
   approval: none
 
 harness:

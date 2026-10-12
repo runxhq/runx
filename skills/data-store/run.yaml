@@ -6,16 +6,10 @@ catalog:
   audience: public
   visibility: public
   role: canonical
-  runtime_path: store
   execution: execute
   completion: runtime_receipt
-  requires_adapter: true
   approval: none
   category: data
-
-emits:
-  - name: data_operation_result
-    packet: runx.data.operation_result.v1
 
 connectors:
   store:

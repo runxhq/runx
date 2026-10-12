@@ -7,7 +7,6 @@ catalog:
   role: context
   execution: execute
   completion: provider_acknowledgement
-  requires_adapter: true
   approval: required
   category: ops
 input_definitions:
@@ -46,12 +45,6 @@ input_definitions:
     required: true
     description: The workspace's n8n Cloud host, such as acme.app.n8n.cloud, without scheme or path.
     schema: { pattern: '^[a-z0-9][a-z0-9-]{0,62}\.app\.n8n\.cloud$' }
-  workflow_slug:
-    type: string
-    required: false
-    default: runx-governed-effect
-    description: Single safe n8n webhook path segment.
-    schema: { pattern: '^[A-Za-z0-9_-]+$', maxLength: 128 }
 harness:
   cases:
     - name: n8n-handoff-preflight-ready
@@ -144,8 +137,6 @@ runners:
     inputs:
       webhook_host:
         definition: webhook_host
-      workflow_slug:
-        definition: workflow_slug
       event_id:
         definition: event_id
       handoff_audience:
@@ -160,7 +151,6 @@ runners:
         definition: receiver
     examples:
       - webhook_host: acme.app.n8n.cloud
-        workflow_slug: runx-governed-effect
         event_id: evt_n8n_demo_001
         handoff_audience: n8n:workflow:runx-governed-effect
         execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
@@ -181,7 +171,6 @@ runners:
       - id: address
         inputs:
           webhook_host: $input.webhook_host
-          workflow_slug: $input.workflow_slug
           delivery: $steps.build-handoff-context.handoff_context.delivery
         tool: { module: webhook.mjs, export: webhookRequest }
         outputs:

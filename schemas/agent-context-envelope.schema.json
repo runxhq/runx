@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/agent-context-envelope.schema.json",
+  "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -731,5 +731,6 @@
     "provenance",
     "trust_boundary"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.agent_context_envelope.v1"
 }

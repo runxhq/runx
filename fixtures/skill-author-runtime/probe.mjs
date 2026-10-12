@@ -23,7 +23,7 @@ if (mode === "inspect-stdin") {
     mode,
   });
 } else if (mode === "large-output") {
-  process.stdout.write("a".repeat(2 * 1024 * 1024));
+  process.stdout.write(JSON.stringify("a".repeat(2 * 1024 * 1024)));
 } else {
   const { inputs, source } = readEnvInputs();
   writeJson({

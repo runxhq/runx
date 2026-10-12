@@ -18,7 +18,7 @@ fn instances() -> (tempfile::TempDir, Instances) {
 }
 
 fn slack() -> std::sync::Arc<LoadedConnector> {
-    ConnectorScope::official_only()
+    ConnectorScope::runx_maintained_only()
         .expect("scope")
         .connector("slack")
         .expect("slack")
@@ -93,7 +93,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
     instances
         .confirm(hosted("shared-id", &slack), false)
         .expect("confirm");
-    let github = ConnectorScope::official_only()
+    let github = ConnectorScope::runx_maintained_only()
         .unwrap()
         .connector("github")
         .unwrap();
@@ -108,7 +108,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
 #[test]
 fn a_public_connector_needs_no_setup() {
     let (_root, instances) = instances();
-    let public = ConnectorScope::official_only()
+    let public = ConnectorScope::runx_maintained_only()
         .unwrap()
         .connector("open-meteo")
         .unwrap();

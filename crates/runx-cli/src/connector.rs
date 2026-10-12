@@ -1,4 +1,4 @@
-//! `runx connector`: the official connectors and those of the plugin the
+//! `runx connector`: the runx-maintained connectors and those of the plugin the
 //! workspace is in, their readiness here, and the instances that bind them to
 //! an account.
 //!
@@ -425,7 +425,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     }
 }
 
-/// An official connector, one of the plugin runx was invoked in, or an
+/// A runx-maintained connector, one of the plugin runx was invoked in, or an
 /// installed version named by its qualified ref.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
     ConnectorScope::at(workspace.paths().cwd())

@@ -442,12 +442,6 @@ fn inspect_catalog(catalog: &CatalogMetadata) -> JsonValue {
     if let Some(provider) = &catalog.provider {
         output.insert("provider".to_owned(), JsonValue::String(provider.clone()));
     }
-    if let Some(runtime_path) = &catalog.runtime_path {
-        output.insert(
-            "runtime_path".to_owned(),
-            JsonValue::String(runtime_path.clone()),
-        );
-    }
     if !catalog.part_of.is_empty() {
         output.insert(
             "part_of".to_owned(),
@@ -471,12 +465,6 @@ fn inspect_catalog(catalog: &CatalogMetadata) -> JsonValue {
         output.insert(
             "completion".to_owned(),
             JsonValue::String(completion.as_str().to_owned()),
-        );
-    }
-    if let Some(requires_adapter) = catalog.requires_adapter {
-        output.insert(
-            "requires_adapter".to_owned(),
-            JsonValue::Bool(requires_adapter),
         );
     }
     if let Some(approval) = catalog.approval {

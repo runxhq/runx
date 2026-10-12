@@ -7,10 +7,8 @@ catalog:
   visibility: public
   role: canonical
   provider: github
-  runtime_path: github
   execution: execute
   completion: provider_readback
-  requires_adapter: true
   approval: none
   category: ops
 

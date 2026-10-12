@@ -20,7 +20,6 @@ catalog:
   role: graph-stage
   execution: plan
   completion: plan
-  requires_adapter: true
   approval: required
   part_of:
     - runx/demo
@@ -41,7 +40,6 @@ runners:
     assert_eq!(catalog.role, CatalogRole::GraphStage);
     assert_eq!(catalog.execution, Some(CatalogExecution::Plan));
     assert_eq!(catalog.completion, Some(CatalogCompletion::Plan));
-    assert_eq!(catalog.requires_adapter, Some(true));
     assert_eq!(catalog.approval, Some(CatalogApproval::Required));
     assert_eq!(catalog.part_of, vec!["runx/demo"]);
     // Typed kinds serialize back to their original snake_case wire strings.

@@ -1,5 +1,5 @@
 {
-  "$id": "https://runx.ai/spec/question.schema.json",
+  "$id": "https://schemas.runx.ai/runx/question/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -28,5 +28,6 @@
     "required",
     "type"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.question.v1"
 }

@@ -1,4 +1,4 @@
-//! What a provider locator names, from the reference kinds official
+//! What a provider locator names, from the reference kinds runx-maintained
 //! connectors declare. The runtime classifies references this way instead of
 //! knowing any provider's locator shapes. Receipts are classified the same
 //! way whichever skill sealed them, so plugin connectors declare none.
@@ -11,12 +11,12 @@ use runx_contracts::connector::ConnectorManifest;
 
 use super::ConnectorScope;
 
-/// Every official connector's declarations, compiled once: connector id,
+/// Every runx-maintained connector's declarations, compiled once: connector id,
 /// kind, whole-locator pattern.
 fn declarations() -> &'static [(String, ReferenceType, Regex)] {
     static DECLARATIONS: OnceLock<Vec<(String, ReferenceType, Regex)>> = OnceLock::new();
     DECLARATIONS.get_or_init(|| {
-        let Ok(connectors) = ConnectorScope::official_connectors() else {
+        let Ok(connectors) = ConnectorScope::runx_maintained_connectors() else {
             return Vec::new();
         };
         connectors
@@ -41,7 +41,7 @@ fn declarations() -> &'static [(String, ReferenceType, Regex)] {
 }
 
 /// The kind `locator` names: the first declaration of `provider`'s connector
-/// it matches, or of any official connector when no provider is given, and an
+/// it matches, or of any runx-maintained connector when no provider is given, and an
 /// external URL when none does.
 #[must_use]
 pub fn reference_kind(provider: Option<&str>, locator: &str) -> ReferenceType {

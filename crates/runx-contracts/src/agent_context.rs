@@ -141,7 +141,7 @@ pub struct ExecutionLocation {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(spec_id = "https://runx.ai/spec/agent-context-envelope.schema.json")]
+#[runx_schema(id = "runx.agent_context_envelope.v1")]
 pub struct AgentContextEnvelope {
     pub run_id: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
