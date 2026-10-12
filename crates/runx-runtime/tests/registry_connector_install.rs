@@ -233,6 +233,50 @@ fn a_signer_scoped_to_another_publisher_is_refused() -> Result<(), Box<dyn std::
     assert_nothing_installed(temp.path())
 }
 
+#[test]
+fn a_newer_official_connector_version_installs_beside_the_embedded_one()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
+    let mut files = prepare_registry_connector_package(&source)?.files;
+    // A later runx/github: its manifest, so its digest, differs from the binary's.
+    let manifest = files
+        .iter_mut()
+        .find(|file| file.path == "connector.yaml")
+        .ok_or("connector.yaml")?;
+    manifest.content = manifest
+        .content
+        .replacen("description: ", "description: Newer. ", 1);
+    let published = RegistryConnectorVersion {
+        connector_ref: runx_contracts::connector::ConnectorRef::new("runx/github").ok_or("ref")?,
+        version: "9.0.0".to_owned(),
+        trust_tier: TrustTier::FirstParty,
+        signed_manifest: sign(
+            RegistrySubjectKind::Connector,
+            "runx/github",
+            "9.0.0",
+            &files,
+        )?,
+        files,
+    };
+    let options = InstallRegistryConnectorOptions {
+        connectors_root: temp.path().join("connectors"),
+        expected_content_digest: None,
+        trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
+            KEY_ID.to_owned(),
+            &STANDARD.encode(key_pair()?.public_key().as_ref()),
+        )?],
+        manifest_source_authority: RegistryManifestSourceAuthority::OfficialRunx,
+    };
+
+    let installed = install_registry_connector(&published, &options)?;
+
+    assert_eq!(installed.status, InstallStatus::Installed);
+    let embedded = runx_runtime::ConnectorScope::official_only()?.connector("github")?;
+    assert_ne!(installed.manifest_digest, embedded.manifest_digest);
+    Ok(())
+}
+
 /// The `acme/acme-ops` package as `prepare_registry_connector_package` emits
 /// it, published as 1.0.0 with a trusted signature.
 fn published_version(

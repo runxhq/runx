@@ -26,7 +26,7 @@ use super::trust_anchor::{
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
 };
-use crate::kernel::connectors::load_connector_directory;
+use crate::kernel::connectors::load_installed;
 
 /// One published connector version as the registry serves it for install.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,7 +294,9 @@ fn load(
     directory: &Path,
 ) -> Result<Loaded, ConnectorInstallError> {
     let connector_ref = &published.connector_ref;
-    let connector = load_connector_directory(directory, directory)
+    // An installed version, not a source tree: a later runx/* version may
+    // differ from the copy embedded in this binary.
+    let connector = load_installed(directory)
         .map_err(|error| invalid_package(connector_ref, error.to_string()))?;
     if connector.connector_ref != *connector_ref {
         return Err(invalid_package(
