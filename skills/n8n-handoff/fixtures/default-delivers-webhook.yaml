@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [zapier-handoff, governed-outbound]
+    confusors: [zapier-handoff, marketplace-invoke]
     request: Hand this governed Runx payload to the configured n8n workflow.
     expected_outcome: Prepare, approve, and deliver one idempotent webhook request with the receiver response captured.
   - mode: composed

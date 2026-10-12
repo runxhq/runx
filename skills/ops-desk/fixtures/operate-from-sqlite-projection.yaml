@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [business-ops, operator-inbox]
+    confusors: [agency, attention-review]
     request: Inspect this workspace and tell me the next safe operational action.
     expected_outcome: Return a bounded state summary, prioritized risk, and exact next governed lane from the local projection.
   - mode: composed

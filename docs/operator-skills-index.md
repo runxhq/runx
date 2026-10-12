@@ -23,7 +23,6 @@ Skills that run a standing mandate, route work, or operate a project workspace.
 | Directory | Purpose |
 |---|---|
 | `agency/` | Run a standing team with a mandate, advanced one governed case at a time. |
-| `business-ops/` | Route one business signal through a replayable governed ops chain. |
 | `ops-desk/` | Operate a project, workspace, or account from an agent or machine principal. |
 | `policy-draft/` | Turn a plain-English governance brief into one validated runx policy. |
 | `lead-qualify/` | Assess supplied ICP criteria against factual lead context; keep contact eligibility separate. |
@@ -74,7 +73,6 @@ Skills that enforce policy, audit receipts, or review skill quality.
 | `github-pr-comment/` | Post one exact approved GitHub PR comment with retry safety and readback. |
 | `redact-pii/` | Scrub personal data out of content before it crosses a trust boundary. |
 | `vault-unseal/` | Plan a scoped, time-bounded unseal of a secret under explicit policy. |
-| `governed-outbound/` | Gather an external source, scrub personal data, and publish governed output. |
 
 ## Payments & Settlement
 
@@ -96,7 +94,6 @@ paths, not alternative operator choices.
 |---|---|
 | `data-store/` | Govern provider-agnostic data reads and state transitions through a receipt. |
 | `github-sync/` | Read or execute a scoped pull or push of GitHub issues, threads, or PRs. |
-| `chief-of-staff/` | Convert mailbox and calendar context into a reviewable execution plan. |
 | `n8n-handoff/` | Validate a runx execution context and hand off a governed payload to n8n. |
 | `zapier-handoff/` | Validate a runx execution context and hand off a governed payload to Zapier. |
 | `slack-notify/` | Plan a governed Slack notification under scoped egress and gating. |
@@ -151,8 +148,7 @@ Refer to the ["Add A Project Operator Skill Only When"](./operator-skills.md) se
 
 ## Mock vs. Live Lanes
 
-The internal packages `mock-charge`, `mock-pay`, and `mock-refund` are
+The fixtures `fixtures/skills/mock-charge`, `mock-pay` and `mock-refund` are
 deterministic local harness fixtures. They never move money and remain excluded
 from ordinary operator discovery. Public payment skills are thin contracts that
 require Runx Hosted for real execution; no private rail package remains in OSS.
-`reflect-digest` is internal skill-improvement plumbing.

@@ -35,7 +35,7 @@ For governed code changes, see [issue-to-pr.md](issue-to-pr.md).
 
 ## Payment Boundary Proof
 
-Run `runx harness skills/mock-pay` for deterministic local simulation and
+Run `runx harness fixtures/skills/mock-pay` for deterministic local simulation and
 `runx harness skills/spend/fixtures/hosted-contract.yaml` for the public hosted
 contract. The former always records `money_moved: false`; the latter uses
 fixture provider responses and does not prove live settlement. Real rail
@@ -778,7 +778,7 @@ Run a whole skill package to execute its inline `run.yaml` cases and every
 conventional `fixtures/*.yaml` case through the native runtime:
 
 ```bash
-runx harness ./skills/business-ops --json
+runx harness ./skills/cve-audit --json
 ```
 
 Pass a fixture YAML path instead when intentionally replaying one standalone

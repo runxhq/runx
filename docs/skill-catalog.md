@@ -189,8 +189,8 @@ evidence, not copied into the repo by default.
 | `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
 | `data` | `data-store`, `product-analytics`, `run-history`, `sql-analyst` |
 | `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify`, `nitrosend` |
-| `ops` | `github-sync`, `governed-outbound`, `chief-of-staff`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
-| `payments` | `charge`, `dispute-respond`, `mock-charge`, `mock-pay`, `mock-refund`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
+| `ops` | `github-sync`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
+| `payments` | `charge`, `dispute-respond`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
 | `research` | `ecosystem-brief`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `vuln-disclosure`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt`, `vault-unseal` |
 

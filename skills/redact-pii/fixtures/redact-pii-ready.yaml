@@ -4,7 +4,7 @@ target: ..
 runner: redact-pii
 operator_journeys:
   - mode: standalone
-    confusors: [extract, governed-outbound]
+    confusors: [extract, data-subject-request]
     request: Remove names, emails, and phone numbers from this support text before it crosses a trust boundary.
     expected_outcome: Return usable scrubbed content only after deterministic residual scanning passes.
   - mode: composed

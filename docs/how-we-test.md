@@ -34,11 +34,11 @@ coverage for surviving TypeScript package boundaries.
 For canonical local runtime behavior, prefer the Rust lane directly. Authority,
 receipt, harness, registry, and policy-config changes need Rust coverage. The
 real-payment boundary is proved as hosted provider contracts; deterministic
-local payment behavior is limited to the three mock skill packages:
+local payment behavior is limited to the three mock fixtures:
 
 ```bash
 cargo test --manifest-path crates/Cargo.toml -p runx-cli --test integration
-runx harness skills/mock-pay
+runx harness fixtures/skills/mock-pay
 runx harness skills/spend/fixtures/hosted-contract.yaml
 ```
 

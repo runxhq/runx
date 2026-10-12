@@ -318,32 +318,34 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
 }
 
 #[test]
-fn business_ops_durable_route_replays_once_and_returns_reusable_state() -> TestResult {
-    let root = crate::support::temp_root("runx-business-ops-durable-journey");
+fn a_store_append_replays_once_and_appends_one_event() -> TestResult {
+    let root = crate::support::temp_root("runx-store-durable-journey");
     let repo_root = crate::support::repo_root()?;
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(&root)?;
+    let store = repo_root.join("skills/data-store");
+    let stream = [
+        "--input",
+        "data_source_ref=tenant://journey/launch",
+        "--input",
+        "resource=ops_routes",
+        "--input",
+        "aggregate_id=launch-readiness",
+    ];
 
-    let run = || -> TestResult<Value> {
+    let append = || -> TestResult<Value> {
         let output = command(&root)
             .arg("skill")
-            .arg(repo_root.join("skills/business-ops"))
-            .arg("route_and_append")
+            .arg(&store)
+            .arg("append_event")
+            .args(stream)
             .args([
-                "--input",
-                "data_source_ref=tenant://journey/business-ops",
-                "--input",
-                "resource=ops_routes",
-                "--input",
-                "aggregate_id=launch-readiness",
                 "--input",
                 "expected_version=0",
                 "--input",
                 "idempotency_key=launch-readiness:classify:v1",
-                "--input",
-                "signal=Launch readiness needs incident, publication, and payment coordination.",
-                "--input",
-                "operator_context=Reuse this route; consequential effects remain in their owning skills.",
+                "--input-json",
+                r#"event={"type":"route.classified","lane":"classify"}"#,
             ])
             .arg("--receipt-dir")
             .arg(&receipt_dir)
@@ -352,153 +354,40 @@ fn business_ops_durable_route_replays_once_and_returns_reusable_state() -> TestR
         assert_json(&output, 0)
     };
 
-    let committed = run()?;
+    let committed = append()?;
     assert_eq!(committed["status"], "sealed");
     assert_eq!(
-        committed["result"]["route_persistence"]["data"]["append_status"],
+        committed["result"]["data_operation_result"]["data"]["status"],
         "committed"
     );
-    assert_eq!(
-        committed["result"]["route_persistence"]["data"]["projection"]["event_count"],
-        1
-    );
-    assert_eq!(
-        committed["result"]["lane_packet"]["data"]["lane"],
-        "classify"
-    );
-
-    let replayed = run()?;
+    let replayed = append()?;
     assert_eq!(replayed["status"], "sealed");
     assert_eq!(
-        replayed["result"]["route_persistence"]["data"]["append_status"],
+        replayed["result"]["data_operation_result"]["data"]["status"],
         "idempotent_replay"
     );
-    assert_eq!(
-        replayed["result"]["route_persistence"]["data"]["projection"]["event_count"], 1,
-        "replaying the same route must not append another event"
-    );
-    assert_eq!(
-        replayed["result"]["route_persistence"]["data"]["projection"]["version"],
-        1
-    );
-
     for result in [&committed, &replayed] {
         let receipt_id = json_string(result, "receipt_id")?;
         assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
     }
-    Ok(())
-}
 
-#[test]
-fn incident_turn_reuses_case_approval_across_agent_resume_without_claiming_delivery() -> TestResult
-{
-    let root = crate::support::temp_root("runx-incident-resume-journey");
-    let repo_root = crate::support::repo_root()?;
-    let receipt_dir = root.join(".runx/receipts");
-    let inputs = root.join("incident-inputs.json");
-    fs::create_dir_all(&root)?;
-    fs::write(
-        &inputs,
-        serde_json::json!({
-            "case_id": "inc-sev2-checkout",
-            "driver_id": "driver-primary",
-            "incident_objective": "send",
-            "case_state": {
-                "declared": true,
-                "severity": "SEV-2",
-                "scope": "checkout-api",
-                "turn": 4,
-                "pending_escalation": {
-                    "status": "awaiting_approval",
-                    "lane": "human:incident-reviewer",
-                    "proposed_handoff": {
-                        "skill": "send-as",
-                        "runner": "plan",
-                        "principal": "incident:comms:morgan",
-                        "channel": "email",
-                        "audience": {
-                            "list_ref": "stakeholders:checkout-api",
-                            "classification": "incident-stakeholders"
-                        },
-                        "content_digest": "sha256:4e44f31f628799267f0957c554b8c47d90d2eabf41e5a84248941d28c45955ae"
-                    }
-                }
-            },
-            "roster": [
-                {"role": "commander", "principal": "incident:commander:alex", "skill": "ops-desk", "scope": ["incident.command"]},
-                {"role": "responder_lead", "principal": "incident:responder:rio", "skill": "incident-response", "scope": ["incident.respond"]},
-                {"role": "comms_lead", "principal": "incident:comms:morgan", "skill": "send-as", "scope": ["stakeholder.send"]}
-            ],
-            "approval": {
-                "principal": "incident:comms:morgan",
-                "reason": "Approve this exact audience and content digest for send planning."
-            }
-        })
-        .to_string(),
-    )?;
-
-    let pause = command(&root)
+    // Replaying the same append adds no second event.
+    let read = command(&root)
         .arg("skill")
-        .arg(repo_root.join("skills/incident-commander"))
-        .arg("advance")
-        .arg("--inputs")
-        .arg("incident-inputs.json")
+        .arg(&store)
+        .arg("read_events")
+        .args(stream)
         .arg("--receipt-dir")
         .arg(&receipt_dir)
-        .args(["--json"])
+        .arg("--json")
         .output()?;
-    let pause = assert_json(&pause, 2)?;
-    assert_eq!(pause["status"], "needs_agent");
-    let run_id = json_string(&pause, "run_id")?;
-    let request_id = pause["requests"]
-        .as_array()
-        .and_then(|requests| requests.first())
-        .and_then(|request| request["id"].as_str())
-        .ok_or("incident pause omitted its agent request")?;
-
-    let answer = serde_json::json!({
-        "answers": {
-            (request_id): {
-                "decision": "dispatch",
-                "reason": "The existing comms-lead approval permits a separate send-as planning run.",
-                "dispatch": {
-                    "member": "comms_lead",
-                    "skill": "send-as",
-                    "task": "Plan the approved stakeholder update from the bound audience and content digest.",
-                    "needed_scope": ["stakeholder.send"],
-                    "consequence": "stakeholder_send_handoff",
-                    "verification": {
-                        "expected_receipt": "runx.receipt.v1",
-                        "readback": "Return provider-backed send evidence before claiming delivery."
-                    }
-                }
-            }
-        }
-    })
-    .to_string();
-    let mut resume = command(&root);
-    resume
-        .arg("resume")
-        .arg(run_id)
-        .arg("-")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json");
-    let resumed = output_with_stdin(&mut resume, &answer)?;
-    let resumed = assert_json(&resumed, 0)?;
-    assert_eq!(resumed["status"], "sealed");
-    assert_eq!(resumed["run_id"], run_id);
-    let turn = &resumed["result"]["incident_turn"]["data"];
-    assert_eq!(turn["decision"], "advanced");
-    assert_eq!(turn["downstream_handoff"]["skill"], "send-as");
-    assert_eq!(turn["downstream_handoff"]["state"], "ready_for_planning");
-    assert_eq!(turn["delivery_status"], "not_sent");
-    assert_eq!(turn["effect_state"]["provider_delivery"], "not_executed");
-    assert_eq!(turn["validation"]["status"], "pass");
-    let receipt_id = json_string(&resumed, "receipt_id")?;
-    assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history =
-        super::assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
-    assert!(!super::run_is_paused(&history, run_id));
+    let read = assert_json(&read, 0)?;
+    assert_eq!(
+        read["result"]["data_operation_result"]["data"]["events"]
+            .as_array()
+            .map(Vec::len),
+        Some(1),
+        "{read}"
+    );
     Ok(())
 }

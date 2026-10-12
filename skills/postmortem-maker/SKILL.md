@@ -29,8 +29,7 @@ of this skill.
 
 To build the fragment set from live systems, compose `web-fetch` or
 `data-store` reads upstream; the digest binds whatever evidence was supplied.
-`incident-commander` owns running the incident; this skill owns explaining it
-afterward.
+Running the incident belongs to its operator; this skill explains it afterward.
 
 ## Output
 

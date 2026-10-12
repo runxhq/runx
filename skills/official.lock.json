@@ -7,16 +7,9 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "zhtwangk/answer-from-docs",
-    "version": "sha-06d425a0cab0",
-    "digest": "ee6a6fdfb94485b17d369b857658d1c0c29378510902b5fd5b5402acb6d3e42f",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
-  },
-  {
     "skill_id": "runx/attention-review",
-    "version": "sha-3e04740338fa",
-    "digest": "af1e2b04b83eba49e4d115b9bd0274e8bb84664d85a870b6019fd48502a009e6",
+    "version": "sha-ebd0e224ff15",
+    "digest": "46cf2b769af4a945fb7b9b0f460cd74ecc3bf9849bca95708e70213ec5f25337",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -28,25 +21,11 @@
     "catalog_role": "context"
   },
   {
-    "skill_id": "runx/business-ops",
-    "version": "sha-76af981470ea",
-    "digest": "b628ddb1e5f2b26c12ecfb70e972df3b2f4ecc48d4d44db4d942fca6f728cdd5",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/charge",
     "version": "sha-64d0fddd97d0",
     "digest": "def79cdc499710d37dbbdda878f60784c99c9f80014d17c030767c7c5e0eec43",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/chief-of-staff",
-    "version": "sha-d682a832f5c3",
-    "digest": "f58b7d876df48409184c9b76bb3fab1d88c9a41e091238499805ab4539610b51",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
   },
   {
     "skill_id": "runx/cold-outreach",
@@ -78,7 +57,7 @@
   },
   {
     "skill_id": "runx/conversation-review",
-    "version": "sha-04c0069cfe2b",
+    "version": "sha-f0c6774c765b",
     "digest": "2cec39d1dc54719c84860d82df0e424153a10295f4b107b31cd0e0ca1cafef75",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -99,8 +78,8 @@
   },
   {
     "skill_id": "runx/data-store",
-    "version": "sha-c40b19bc75fd",
-    "digest": "377bf22c57478f4bbd74929301b4ff3adbbfd2803fc6887361dbac76cc32c42e",
+    "version": "sha-6b01de6df187",
+    "digest": "5322e3acba7486e968a0186b78ff1cd9604ce57c5c0aa81caf3f8c5c90647a1d",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -155,7 +134,7 @@
   },
   {
     "skill_id": "runx/github-pr-comment",
-    "version": "sha-dbb8544ba0fd",
+    "version": "sha-6c0a61dad750",
     "digest": "9683d81590031dba5f423c3625dc200ea404324c29fde0dd183740f899725864",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -196,25 +175,11 @@
     "catalog_role": "branded"
   },
   {
-    "skill_id": "runx/governed-outbound",
-    "version": "sha-3957d6851cbf",
-    "digest": "81db1f6cf285f620917f2d841a260cc2b115637c5219c1a83b09f5513ea48f76",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
-  },
-  {
     "skill_id": "runx/helpdesk",
-    "version": "sha-f90d1faeb02d",
-    "digest": "755f464a3ab1838c7a898906c61ff7114edd8405db4b569708590bf67c99deae",
+    "version": "sha-386f7b308f15",
+    "digest": "bf45c8d8d8496e794df5d5b7626e5baf7a8671f4cf2cea3b19eebf5396081576",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "mossony/incident-commander",
-    "version": "sha-7cf298ba5836",
-    "digest": "01f3a35935a90d63f9e15afef26f0d72d747413471cdf7f1269b81c699238539",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
   },
   {
     "skill_id": "runx/issue-intake",
@@ -239,8 +204,8 @@
   },
   {
     "skill_id": "runx/knowledge-router",
-    "version": "sha-ce0d9a834a7b",
-    "digest": "85147c1e35a1dbb02c69c4f25e6c3250ff43b73d094e2abd03300a8d97fef5bf",
+    "version": "sha-2d9bea589d10",
+    "digest": "809a157147fb0dbd0fd479970b2f749a9ebe51dd1ed4e7590b525c53db92a8b8",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -280,34 +245,6 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "zhtwangk/meeting-followup",
-    "version": "sha-89277d31a4cc",
-    "digest": "2076f10968ed5781b57306715934e52241851733401ebd67ed4fbcedba2a6edd",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
-  },
-  {
-    "skill_id": "runx/mock-charge",
-    "version": "sha-447d6c115d82",
-    "digest": "63d7e704481c9a6fcb6ac9e36134903aea72ddda70e5b9ec45b6fd4471c4a54d",
-    "catalog_visibility": "internal",
-    "catalog_role": "harness-fixture"
-  },
-  {
-    "skill_id": "runx/mock-pay",
-    "version": "sha-51d45866b629",
-    "digest": "a6930d234300cbb55a74a29088358e3e1ffa8b74db80b8ceb61be9e9a03952dc",
-    "catalog_visibility": "internal",
-    "catalog_role": "harness-fixture"
-  },
-  {
-    "skill_id": "runx/mock-refund",
-    "version": "sha-efd5f9c9a70d",
-    "digest": "cf860ac2dd4d11d411ab210b4077d01464452ae1efcc31103346399852795ed1",
-    "catalog_visibility": "internal",
-    "catalog_role": "harness-fixture"
-  },
-  {
     "skill_id": "runx/moltbook",
     "version": "sha-e3e7ce2c923e",
     "digest": "f8ab65090f7999692eaa9fd9779290883e723f67eacf349f26f4e9f47075e7c6",
@@ -343,13 +280,6 @@
     "catalog_role": "branded"
   },
   {
-    "skill_id": "runx/operator-inbox",
-    "version": "sha-c4870ccb8819",
-    "digest": "af757d71908a242f25631736c70a42888572f45b436e49654b7bc9380e04b347",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/ops-desk",
     "version": "sha-32bb63cce50b",
     "digest": "c5bb364e756d84ec151633246451b55453e458936079540333e96d7493ec3285",
@@ -372,8 +302,8 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-3d21dc6848b3",
-    "digest": "95fbf25f826a020401bc4e1dc19f5fe577ad981eb2d0854a782a08891a0304cb",
+    "version": "sha-e174db913aae",
+    "digest": "9708d6ea913c39c6cdb25d22ea03b1b70077b1fb168d4233df80d39857fd7c72",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -425,13 +355,6 @@
     "digest": "c33e3d324ca74d4e0d8ad8ca3c13ae963ecba84487f42b9b893ef672031c4f6c",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/reflect-digest",
-    "version": "sha-636c30b426d3",
-    "digest": "9ab69bf41dfd3cceb2e1764a742cd28155f251f0d1ac39fb986a890c2dcce8bb",
-    "catalog_visibility": "internal",
-    "catalog_role": "context"
   },
   {
     "skill_id": "runx/refund",
@@ -519,8 +442,8 @@
   },
   {
     "skill_id": "runx/slack",
-    "version": "sha-19ea2d80b915",
-    "digest": "301da720c2826cd8b5e49de0c799790571c1984e9c7be47ad7a0744e476c280e",
+    "version": "sha-c0a27e08bc29",
+    "digest": "07b77ec343808629a756a58a6b289fe27f923225f22883bc07cc530574225ca4",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },

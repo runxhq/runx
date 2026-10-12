@@ -239,55 +239,6 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
 }
 
 #[test]
-fn standalone_business_ops_journey_routes_verifies_and_reads_receipt_tree() -> TestResult {
-    let root = crate::support::temp_root("runx-operator-business-ops-journey");
-    let skill_dir = crate::support::repo_root()?.join("skills/business-ops");
-    let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
-
-    let run = command(&root)
-        .arg("skill")
-        .arg(&skill_dir)
-        .args([
-            "--input",
-            "signal=Launch readiness for API v2 with docs, release, customer comms, and spend checks.",
-            "--input",
-            "operator_context=Live sends route through send-as; payment movement requires a spend gate and provider readback.",
-        ])
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .args(["--json", "--diagnostics"])
-        .output()?;
-    let run = assert_json(&run, 0)?;
-
-    assert_eq!(run["status"], "sealed");
-    assert_eq!(run["closure"]["disposition"], "closed");
-    assert_eq!(run["trace"]["graph"], "business-ops");
-    assert_eq!(run["trace"]["status"], "succeeded");
-    assert_eq!(
-        run["trace"]["steps"].as_array().map(|steps| steps
-            .iter()
-            .map(|step| step["step_id"].clone())
-            .collect::<Vec<_>>()),
-        Some(["route"].into_iter().map(serde_json::Value::from).collect())
-    );
-    assert_eq!(run["result"]["lane_packet"]["data"]["lane"], "classify");
-    assert_eq!(
-        run["result"]["lane_packet"]["data"]["handoff"]["lane_ref"],
-        "business-ops"
-    );
-    assert!(run.get("receipt").is_none());
-    assert!(run.get("execution").is_none());
-    let receipt_id = json_string(&run, "receipt_id")?;
-    let run_id = json_string(&run, "run_id")?;
-
-    assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
-
-    Ok(())
-}
-
-#[test]
 fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let root = crate::support::temp_root("runx-operator-provider-readiness-journey");
     let skill_dir = crate::support::repo_root()?.join("skills/google-analytics");

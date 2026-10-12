@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -17,7 +17,7 @@ harness:
     - name: conversation-review-keeps-ordinary-reply-out-of-coding
       operator_journeys:
         - mode: standalone
-          confusors: [issue-intake, chief-of-staff]
+          confusors: [issue-intake, attention-review]
           request: Review this grounded email conversation and prepare the next response.
           expected_outcome: Produce an unsent reply without opening an engineering intake or work plan.
         - mode: composed

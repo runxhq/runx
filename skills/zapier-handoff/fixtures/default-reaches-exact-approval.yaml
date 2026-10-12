@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: refusal
-    confusors: [n8n-handoff, governed-outbound]
+    confusors: [n8n-handoff, marketplace-invoke]
     request: Hand this governed Runx payload to the configured Zapier Catch Hook.
     expected_outcome: Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.
 inputs:

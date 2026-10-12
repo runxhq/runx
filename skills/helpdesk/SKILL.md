@@ -22,7 +22,7 @@ Use this skill when an agent has a single support request and needs a safe first
 decision: answer, ask for more information, route to engineering, route to
 billing, route to account review, or route to abuse review.
 
-It is useful in business-ops graphs where support triage fans out from inbox
+It is useful where support triage fans out from inbox
 intake, then hands off only safe drafts to `send-as` or another provider-backed
 send lane. It also works for dry-run review of support queues because it has no
 external side effects.

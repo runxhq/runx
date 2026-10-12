@@ -9,9 +9,7 @@ Produce a validated retrieval and ownership route from a bounded source
 catalog. This skill decides where evidence should come from and who owns the
 answer; it does not answer the question or perform the follow-up operation.
 
-`business-ops` routes a business signal across action lanes such as release,
-outreach, spend, and proof. `knowledge-router` instead resolves references
-inside an explicit knowledge catalog. Its deterministic validator rejects
+`knowledge-router` resolves references inside an explicit knowledge catalog. Its deterministic validator rejects
 invented sources, owners, and skills.
 
 ## Source catalog

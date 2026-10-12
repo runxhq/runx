@@ -7,11 +7,6 @@
       "command": "runx harness examples/hello-world"
     },
     {
-      "path": "skills/business-ops",
-      "proof": "Launch routing stops sends and spend at their gates, requires provider evidence, persists a route, and proves idempotent replay.",
-      "command": "runx harness skills/business-ops"
-    },
-    {
       "path": "skills/data-store",
       "proof": "Provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope.",
       "command": "runx harness skills/data-store/fixtures/append-read-sqlite-event.yaml"

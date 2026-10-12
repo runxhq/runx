@@ -29,7 +29,7 @@ export function finalizeAttention(inputs) {
       continue;
     }
     if (state.disposition && state.disposition !== "open") {
-      findings.push("draft item selects an action already dispositioned by operator-inbox");
+      findings.push("draft item selects an action already dispositioned");
       continue;
     }
     seen.add(ref);

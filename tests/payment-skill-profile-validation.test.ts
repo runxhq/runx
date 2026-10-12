@@ -76,8 +76,8 @@ describe("payment ownership boundary", () => {
 
   it("keeps deterministic mocks local, explicit, and incapable of moving money", async () => {
     for (const skill of localPaymentSimulators) {
-      const profile = await readFile(path.resolve("skills", skill, "run.yaml"), "utf8");
-      const implementation = await readFile(path.resolve("skills", skill, `${skill}.mjs`), "utf8");
+      const profile = await readFile(path.resolve("fixtures/skills", skill, "run.yaml"), "utf8");
+      const implementation = await readFile(path.resolve("fixtures/skills", skill, `${skill}.mjs`), "utf8");
       const manifest = validateRunnerManifestYaml(profile).raw.document as {
         readonly catalog?: Record<string, unknown>;
       };

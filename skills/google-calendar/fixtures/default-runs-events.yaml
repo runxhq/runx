@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [chief-of-staff, google-analytics]
+    confusors: [google-analytics, attention-review]
     request: Read the next day of events on my selected Google Calendar.
     expected_outcome: Read exact selected calendar once and return bounded evidence with provider readback and complete coverage.
 inputs:

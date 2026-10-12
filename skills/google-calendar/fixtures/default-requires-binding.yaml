@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: refusal
-    confusors: [chief-of-staff, google-analytics]
+    confusors: [google-analytics, attention-review]
     request: Read my Google Calendar events without a connected Calendar account.
     expected_outcome: Refuse before claiming event evidence or making a provider request.
 inputs:

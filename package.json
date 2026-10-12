@@ -33,7 +33,6 @@
     "docs:api": "tsx scripts/gen-api-index.ts",
     "docs:api:check": "tsx scripts/gen-api-index.ts --check",
     "docs:exit-codes": "tsx scripts/check-cli-exit-codes.ts",
-    "docs:readme-art": "node scripts/render-ops-map.mjs",
     "extension-sdk:check-package-contract": "node scripts/check-extension-sdk-package-contract.mjs",
     "bindings:check": "node scripts/check-upstream-skill-bindings.mjs",
     "official-lock:check": "node scripts/generate-official-lock.mjs --check",

@@ -4,7 +4,7 @@ target: ..
 runner: execute
 operator_journeys:
   - mode: composed
-    confusors: [send-as, governed-outbound]
+    confusors: [send-as, moltbook]
     request: Run the next batch of this approved posting plan.
     expected_outcome: Publish the next post alone under its own approval, confirm it by reading it back, and advance the cursor past it.
     prior_evidence:

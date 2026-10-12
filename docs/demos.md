@@ -15,15 +15,14 @@ demos, runnable previews, and fixture support.
 | Demo | Proof | Run | Gate |
 | --- | --- | --- | --- |
 | `examples/hello-world` | Native CLI top-level skill and harness baseline. | `runx harness examples/hello-world` | harness |
-| `skills/business-ops` | Launch routing stops sends and spend at their gates, requires provider evidence, persists a route, and proves idempotent replay. | `runx harness skills/business-ops` | harness |
 | `skills/data-store` | A provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope. | `runx harness skills/data-store/fixtures/append-read-sqlite-event.yaml` | harness |
 | `skills/nws-weather-forecast` | The official NWS skill reads through its `national-weather-service` connector and seals stable provider metadata. | `runx harness skills/nws-weather-forecast/fixtures/nws-forecast-washington-monument.yaml` | live external |
 | `examples/loop-orchestration` | A bounded outer loop submits governed runx turns, prints receipt ids and next-turn reasons, demonstrates `context_skills`, and includes a refusal path. | `sh examples/loop-orchestration/run.sh` | harness |
 
 ## Payment Contract Proof
 
-The internal `mock-charge`, `mock-pay`, and `mock-refund` packages provide the
-only local payment simulation and always report `money_moved: false`. Public
+The `fixtures/skills/mock-charge`, `mock-pay` and `mock-refund` fixtures provide
+the only local payment simulation and always report `money_moved: false`. Public
 payment packages use hosted provider-response fixtures that prove approval,
 idempotency, mutation, and readback contracts without embedding a rail
 implementation in OSS. Real settlement dogfood belongs to Runx Hosted.

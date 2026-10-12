@@ -1,5 +1,5 @@
 skill: knowledge-router
-version: "0.2.6"
+version: "0.2.7"
 
 catalog:
   kind: graph
@@ -17,7 +17,7 @@ harness:
     - name: knowledge-router-validates-source-owner-and-skill
       operator_journeys:
         - mode: standalone
-          confusors: [answer-from-docs, business-ops]
+          confusors: [research, deep-research]
           request: Route this question to the validated knowledge source, owner, and next skill.
           expected_outcome: Return exact source, ownership, escalation, and follow-up references from the supplied catalog.
         - mode: composed

@@ -16,7 +16,7 @@ credential custody and execute a fixed Slack operation. It may be local,
 self-hosted, third-party, or Runx-hosted. The skill, its procedure, approval
 point, retry identity, and completion rule remain in Runx OSS. Any queue,
 team-specific routing rule, or durable action state belongs in a higher-level
-operator skill and normally composes `operator-inbox`.
+operator skill.
 
 ## Composes
 
@@ -87,8 +87,7 @@ channel, thread locator, message locator, content digest, and occurrence time
 from Slack. Provider acceptance alone is not completion.
 
 Use `slack-notify` for a proactive top-level channel post. Use this skill for
-search, thread context, and replies. Use `operator-inbox` when observations must
-become durable local work items. A product-owned skill may add team-specific
+search, thread context, and replies. A product-owned skill may add team-specific
 triage and compose these skills, but must not copy their provider transport,
 approval, idempotency, readback, or queue logic.
 
@@ -128,8 +127,7 @@ timestamps, and a content digest; they do not echo the delivered message.
 
 An operator can search for direct mentions or start from a pasted Slack
 permalink. They hydrate only the actionable thread, preserve its canonical
-locator, then pass that normalized observation to a team-specific triage skill
-and `operator-inbox`. If a reply is needed, `plan_reply` binds the proposed text
+locator, then pass that normalized observation to a team-specific triage skill. If a reply is needed, `plan_reply` binds the proposed text
 to the exact canonical thread. A changed draft fails before approval. An
 approved unchanged reply is posted once, then read back from the exact returned
 message locator before Runx seals the effect.

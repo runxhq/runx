@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [slack-notify, governed-outbound]
+    confusors: [slack-notify, conversation-reply]
     request: Send this digest-bound release notice as the release bot.
     expected_outcome: Plan once, send the approved payload once, and return independent provider readback.
 inputs:

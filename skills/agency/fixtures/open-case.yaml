@@ -4,7 +4,7 @@ target: ..
 runner: open
 operator_journeys:
   - mode: standalone
-    confusors: [ops-desk, chief-of-staff]
+    confusors: [ops-desk, attention-review]
     request: Open a governed agency case to keep the API documentation accurate.
     expected_outcome: Persist one bounded case with its mandate, roster, signal, and limits ready for controlled turns.
   - mode: composed

@@ -1,5 +1,5 @@
 skill: attention-review
-version: "0.4.5"
+version: "0.4.6"
 
 catalog:
   kind: graph
@@ -16,7 +16,7 @@ harness:
     - name: attention-review-selects-bounded-attention
       operator_journeys:
         - mode: standalone
-          confusors: [chief-of-staff, ops-desk]
+          confusors: [ops-desk, conversation-review]
           request: Decide whether these new personal mailbox and chat observations warrant a private update.
           expected_outcome: Return source-bound attention and an undelivered private brief intent.
         - mode: composed

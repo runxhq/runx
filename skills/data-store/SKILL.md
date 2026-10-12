@@ -120,7 +120,7 @@ An event's type is, in order: `event.type`, `event.event_type`,
 `event.effect_family + "." + event.operation`, or `event.operation`, else
 `data.event`. Domain skills that emit `runx.effect.transition.v1` packets
 include `effect_family` and `operation` on every event so projections say
-`board.accept` or `business_ops.route` instead of `data.event`.
+`board.accept` instead of `data.event`.
 
 ## Worked example
 

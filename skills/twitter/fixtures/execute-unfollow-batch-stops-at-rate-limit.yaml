@@ -4,7 +4,7 @@ target: ..
 runner: execute
 operator_journeys:
   - mode: composed
-    confusors: [send-as, governed-outbound]
+    confusors: [send-as, moltbook]
     request: Run the next batch of this approved unfollow plan.
     expected_outcome: Unfollow the contiguous run of accounts under one approval, settle each act, stop at the provider's rate limit, and record the cursor and reset time.
     prior_evidence:

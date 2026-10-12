@@ -4,7 +4,7 @@ target: ..
 runner: publish
 operator_journeys:
   - mode: composed
-    confusors: [governed-outbound, send-as]
+    confusors: [send-as, twitter]
     request: Publish this approved Moltbook post packet.
     expected_outcome: Bind the exact payload digest, publish once after approval, and confirm the created post by reading it back.
     prior_evidence:
