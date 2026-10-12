@@ -25,7 +25,7 @@ type Transport = Arc<dyn RuntimeHttpTransport + Send + Sync>;
 /// A grant as evidence: the listing's view plus the principal holding it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HostedGrant {
-    pub connector_binding: ConnectorBinding,
+    pub connector_binding: Option<ConnectorBinding>,
     pub grant_id: String,
     pub provider: String,
     pub scopes: Vec<String>,
@@ -39,13 +39,17 @@ impl HostedGrant {
         &self,
         connector: &crate::kernel::connectors::LoadedConnector,
     ) -> Result<(), String> {
-        if self.connector_binding != connector.binding() {
-            return Err(format!(
+        match &self.connector_binding {
+            None => Err(format!(
+                "hosted grant {} names no connector runx Connect executes it under",
+                self.grant_id
+            )),
+            Some(binding) if *binding != connector.binding() => Err(format!(
                 "hosted grant {} does not bind connector {} at its loaded revision",
                 self.grant_id, connector.connector_ref
-            ));
+            )),
+            Some(_) => Ok(()),
         }
-        Ok(())
     }
 }
 

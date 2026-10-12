@@ -210,6 +210,11 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
                     ],
                     "status": "active",
                     "credential_material_bound": true
+                }, {
+                    "grant_id": "grant_retired_1",
+                    "provider": "retired",
+                    "scopes": ["records.read"],
+                    "status": "active"
                 }]
             })
             .to_string(),
@@ -225,18 +230,30 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
 
     assert_eq!(
         grants,
-        vec![HostedProviderGrant {
-            connector_binding: slack_binding(),
-            grant_id: "grant_slack_1".to_owned(),
-            provider: "slack".to_owned(),
-            scopes: vec![
-                "channel.post".to_owned(),
-                "https://provider.example/auth/custom.scope?mode=read,write".to_owned(),
-                "opaque capability with spaces".to_owned(),
-            ],
-            status: "active".to_owned(),
-            target_locator: None,
-        }]
+        vec![
+            HostedProviderGrant {
+                connector_binding: Some(slack_binding()),
+                grant_id: "grant_slack_1".to_owned(),
+                provider: "slack".to_owned(),
+                scopes: vec![
+                    "channel.post".to_owned(),
+                    "https://provider.example/auth/custom.scope?mode=read,write".to_owned(),
+                    "opaque capability with spaces".to_owned(),
+                ],
+                status: "active".to_owned(),
+                target_locator: None,
+            },
+            // A grant Connect executes under no connector still lists; only
+            // confirming or using it is refused.
+            HostedProviderGrant {
+                connector_binding: None,
+                grant_id: "grant_retired_1".to_owned(),
+                provider: "retired".to_owned(),
+                scopes: vec!["records.read".to_owned()],
+                status: "active".to_owned(),
+                target_locator: None,
+            },
+        ]
     );
     let requests = transport.requests.borrow();
     assert_eq!(requests[1].method, HttpMethod::Get);

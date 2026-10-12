@@ -28,7 +28,9 @@ pub struct ProviderOperationRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostedProviderGrant {
-    pub connector_binding: ConnectorBinding,
+    /// The exact connector runx Connect executes the grant's operations
+    /// under; none when it executes none.
+    pub connector_binding: Option<ConnectorBinding>,
     pub grant_id: String,
     pub provider: String,
     pub scopes: Vec<String>,
@@ -77,13 +79,8 @@ fn parse_provider_grant(value: &JsonValue) -> Result<HostedProviderGrant, Provid
     let provider = required_response_string(grant, "provider")?.to_owned();
     let connector_binding = grant
         .get("connector_binding")
-        .ok_or_else(|| {
-            ProviderOperationError::InvalidResponse(
-                "provider grant omitted its connector binding".to_owned(),
-            )
-        })?
-        .clone()
-        .deserialize_into::<ConnectorBinding>()
+        .map(|binding| binding.clone().deserialize_into::<ConnectorBinding>())
+        .transpose()
         .map_err(|error| {
             ProviderOperationError::InvalidResponse(format!(
                 "provider grant connector binding is invalid: {error}"

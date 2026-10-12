@@ -320,6 +320,10 @@ impl Fixture {
 
     /// Confirm a listed grant as the connector's selected instance.
     fn select_grant(&self, grant_id: &str, connector: &str) {
+        self.try_select_grant(grant_id, connector).unwrap();
+    }
+
+    fn try_select_grant(&self, grant_id: &str, connector: &str) -> Result<(), String> {
         let connector = ConnectorScope::official_only()
             .unwrap()
             .connector(connector)
@@ -339,7 +343,7 @@ impl Fixture {
             &self.env,
             self.root.path(),
         )
-        .unwrap();
+        .map(|_| ())
     }
 
     fn admit(
@@ -643,6 +647,47 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         .expect_err("another run exceeds the delegation's use cap");
     assert!(error.to_string().contains("limit is exhausted"), "{error}");
     assert_eq!(fixture.provider.calls(), 1);
+}
+
+/// A grant is confirmed only for the exact connector Connect executes it
+/// under: another revision, or none, is refused.
+#[test]
+fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let slack = ConnectorScope::official_only()
+        .unwrap()
+        .connector("runx/slack")
+        .unwrap();
+    let mut binding = slack.binding();
+    binding.connector_digest =
+        runx_contracts::connector::Digest::new(format!("sha256:{}", "0".repeat(64))).unwrap();
+    fixture.provider.grants.lock().unwrap().extend([
+        serde_json::json!({
+            "grant_id": "grant_slack_other",
+            "provider": "slack",
+            "connector_binding": binding,
+            "status": "active",
+            "scopes": ["channel.post"],
+        }),
+        serde_json::json!({
+            "grant_id": "grant_slack_unbound",
+            "provider": "slack",
+            "status": "active",
+            "scopes": ["channel.post"],
+        }),
+    ]);
+
+    let other = fixture
+        .try_select_grant("grant_slack_other", "runx/slack")
+        .unwrap_err();
+    assert!(
+        other.contains("does not bind connector runx/slack"),
+        "{other}"
+    );
+    let unbound = fixture
+        .try_select_grant("grant_slack_unbound", "runx/slack")
+        .unwrap_err();
+    assert!(unbound.contains("names no connector"), "{unbound}");
 }
 
 #[test]
