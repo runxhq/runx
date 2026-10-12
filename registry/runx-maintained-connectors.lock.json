@@ -112,8 +112,8 @@
     },
     {
       "ref": "runx/store",
-      "version": "sha-dd11ca2c0a0d",
-      "content_digest": "sha256:dd11ca2c0a0d16b513e4cd25854f49cda9bf01f19ce91c9f8942b2d4b40c10ef"
+      "version": "sha-fdf70f88ba24",
+      "content_digest": "sha256:fdf70f88ba24679992cc5227568370e5788076cb965e1e6b2c92cf3937e6c5bd"
     },
     {
       "ref": "runx/stripe",
@@ -132,13 +132,13 @@
     },
     {
       "ref": "runx/vault",
-      "version": "sha-68c0738b34f0",
-      "content_digest": "sha256:68c0738b34f0dc101906ceed676f769f94f1845985a812b5ad1f522aa22f1f60"
+      "version": "sha-9ecf05d8b226",
+      "content_digest": "sha256:9ecf05d8b22647771c0bae2daaaac068de017e76c8c68e7f46848371f6222b68"
     },
     {
       "ref": "runx/web",
-      "version": "sha-a5e6c5c28a69",
-      "content_digest": "sha256:a5e6c5c28a69cc4edf6bb904201fb2e7dd64da6e45485c444e100ee57370c801"
+      "version": "sha-0f8017e62a31",
+      "content_digest": "sha256:0f8017e62a31a80258ff2b7d3149db86011172632a4486aa08ea6d972d535049"
     },
     {
       "ref": "runx/x402",
