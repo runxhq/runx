@@ -1,14 +1,10 @@
 mod error;
-mod external_receipt;
 mod registry;
 mod state;
 mod types;
 
 pub use crate::kernel::custody::Settlement;
 pub use error::RuntimeEffectError;
-pub use external_receipt::{
-    EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
-};
 pub use registry::RuntimeEffectRegistry;
 pub use state::EffectAdmission;
 pub use types::{

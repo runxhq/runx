@@ -96,9 +96,6 @@ pub use dev::{
 };
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
 pub use effects::{
-    EXTERNAL_RECEIPT_EFFECT_FAMILY, EXTERNAL_RECEIPT_VERIFY_TOOL, ExternalReceiptEffect,
-};
-pub use effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
     EffectStepRequest, EffectToolRequest, RuntimeEffect, RuntimeEffectError, RuntimeEffectRegistry,
 };

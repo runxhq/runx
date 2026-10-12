@@ -1,0 +1,32 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "scafld.verify",
+  "version": "0.1.0",
+  "description": "Verify one signed scafld receipt against an exact commit with the scafld CLI on PATH: the scafld connector's receipt.verify implementation.",
+  "source": {
+    "command": "sh",
+    "args": [
+      "./verify.sh",
+      "{{receipt_path}}",
+      "{{target}}",
+      "{{repo_root}}"
+    ]
+  },
+  "inputs": {
+    "receipt_path": {
+      "type": "string",
+      "required": true,
+      "description": "The receipt file, relative to repo_root or absolute within it."
+    },
+    "target": {
+      "type": "string",
+      "required": true,
+      "description": "Exact commit the receipt must verify against."
+    },
+    "repo_root": {
+      "type": "string",
+      "required": true,
+      "description": "Repository root the receipt was finalized in, relative to the workspace."
+    }
+  }
+}

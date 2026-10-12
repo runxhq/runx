@@ -190,8 +190,8 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-c8a5940603e4",
-    "digest": "f68b43b725bc88d34380be18a8bb6496b057ff65ec4f0e370b2aa5f77297399f",
+    "version": "sha-37c02e4b7c03",
+    "digest": "8b21e2309d584d643989be616bcef2696375fa344fbe4d67fddaa8fd79fad9a0",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

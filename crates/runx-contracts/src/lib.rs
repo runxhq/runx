@@ -171,7 +171,7 @@ pub use list::{
 };
 pub use native_packets::{
     ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,
-    DataOperationStatus, DataStopCondition, ExternalReceiptVerification, GitBlobDigest,
+    DataOperationStatus, DataStopCondition, GitBlobDigest,
     LocalArtifact, LocalArtifactPage,
 };
 pub use operational_policy::{

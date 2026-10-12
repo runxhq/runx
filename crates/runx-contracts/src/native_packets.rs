@@ -55,25 +55,6 @@ pub struct GitBlobDigest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(
-    id = "runx.external_receipt.verification.v1",
-    url = "https://schemas.runx.ai/runx/external-receipt/verification/v1.json"
-)]
-pub struct ExternalReceiptVerification {
-    pub schema: String,
-    pub verifier: String,
-    pub verified: bool,
-    pub task_id: String,
-    pub verdict: String,
-    pub target: String,
-    pub contract_digest: String,
-    pub receipt_ref: String,
-    pub receipt_digest: String,
-    pub verified_at: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(
     id = "runx.data.operation_result.v1",
     url = "https://schemas.runx.ai/runx/data/operation-result/v1.json"
 )]

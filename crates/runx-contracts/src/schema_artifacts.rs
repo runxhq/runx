@@ -13,7 +13,7 @@ use crate::{
     DataOperationResult, Decision, DecisionObservation, DevReport, DoctorReport,
     ExecutePaidInvocationRequest, ExecutePaidInvocationResult, ExternalJobContinuation,
     ExternalJobSchedule, ExternalJobScheduleIntent, ExternalJobStageRequest,
-    ExternalJobStageResult, ExternalReceiptVerification, Fixture, GetPaidInvocationRequest,
+    ExternalJobStageResult, Fixture, GetPaidInvocationRequest,
     GetPaidInvocationResult, GitBlobDigest, HandoffSignal, HandoffState, LedgerEntry,
     LocalArtifact, LocalArtifactPage, OfferRevisionRef, OperationalPolicy, OperationalProposal,
     OrchestratorExecutionContext, OrchestratorHandoffContext, Output, PacketIndex, PaidInvocation,
@@ -80,9 +80,6 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<LocalArtifact>("local-artifact.schema.json"),
         public_packet_artifact::<LocalArtifactPage>("local-artifact-page.schema.json"),
         public_packet_artifact::<GitBlobDigest>("git-blob-digest.schema.json"),
-        public_packet_artifact::<ExternalReceiptVerification>(
-            "external-receipt-verification.schema.json",
-        ),
         public_packet_artifact::<DataOperationResult>("data-operation-result.schema.json"),
         public_packet_artifact::<ApprovalDecisionPacket>("approval-decision.schema.json"),
         schema_artifact::<ActAssignment>("act-assignment.schema.json"),

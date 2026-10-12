@@ -1,0 +1,30 @@
+schema: runx.connector.v1
+id: scafld
+name: scafld
+description: Verify signed scafld receipts with the scafld CLI installed on this host.
+category: dev-tools
+runtime_capability: false
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  receipt.verify:
+    description: Verify one signed scafld receipt against an exact commit, and return whether it passed with the receipt read and its digest.
+    verb: read
+    scopes: [receipt.read]
+    target:
+      template: {"$argument": "/receipt_path"}
+    input_schema:
+      type: object
+      required: [receipt_path, target, repo_root]
+      additionalProperties: false
+      properties:
+        receipt_path: {type: string, pattern: "^[^-]", maxLength: 4096}
+        target: {type: string, pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$"}
+        repo_root: {type: string, pattern: "^[^-]", maxLength: 4096}
+    result_fields: [passed, receipt_digest, receipt]
+    implementation:
+      process:
+        tool: scafld.verify

@@ -22,8 +22,9 @@ host agent's editor, shell, Git, tests, or repository judgment.
    manufacture Runx answer files between normal coding steps.
 5. Call `scafld finalize` exactly once after the change and tests are ready.
    Preserve its workspace-scoped receipt path, exact target commit, and
-   contract digest in `host_result`. Runx verifies that receipt with scafld;
-   host-authored status strings are not proof.
+   contract digest in `host_result`. Runx verifies that receipt with the scafld
+   CLI on this host (`scafld/receipt.verify`) and checks its verdict, commit,
+   contract and open blockers; host-authored status strings are not proof.
 6. If PR publication is not authorized, return the tested/finalized result and
    stop. Do not silently downgrade the work to a plan.
 7. If publication is authorized, pass the exact `host_result` to `publish`.

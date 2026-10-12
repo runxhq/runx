@@ -15666,58 +15666,6 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.external_job_stage.result.v1"
   } as JsonSchema,
-  "external-receipt-verification.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/external-receipt/verification/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "contract_digest": {
-        "type": "string"
-      },
-      "receipt_digest": {
-        "type": "string"
-      },
-      "receipt_ref": {
-        "type": "string"
-      },
-      "schema": {
-        "type": "string"
-      },
-      "target": {
-        "type": "string"
-      },
-      "task_id": {
-        "type": "string"
-      },
-      "verdict": {
-        "type": "string"
-      },
-      "verified": {
-        "type": "boolean"
-      },
-      "verified_at": {
-        "type": "string"
-      },
-      "verifier": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "schema",
-      "verifier",
-      "verified",
-      "task_id",
-      "verdict",
-      "target",
-      "contract_digest",
-      "receipt_ref",
-      "receipt_digest",
-      "verified_at"
-    ],
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.external_receipt.verification.v1"
-  } as JsonSchema,
   "fixture.schema.json": {
     "$id": "https://schemas.runx.ai/runx/fixture/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",

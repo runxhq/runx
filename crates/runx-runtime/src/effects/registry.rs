@@ -21,9 +21,7 @@ pub struct RuntimeEffectRegistry {
 impl RuntimeEffectRegistry {
     /// Standard portable local effect owners used by every operator surface.
     pub fn local() -> Result<Self, RuntimeEffectError> {
-        let mut registry = Self::with_effect(crate::kernel::operation::OperationEffect::default())?;
-        registry.register_effect(super::ExternalReceiptEffect)?;
-        Ok(registry)
+        Self::with_effect(crate::kernel::operation::OperationEffect::default())
     }
 
     #[must_use]

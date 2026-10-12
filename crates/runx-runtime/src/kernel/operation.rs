@@ -1791,8 +1791,23 @@ fn placement(context: &OperationAdmission) -> (&'static str, ExecutionBoundaryKi
         (Placement::Local, Some(Implementation::Process(_))) => {
             ("local_process", ExecutionBoundaryKind::TrustedHostProcess)
         }
+        // A stdio server is a process the runtime starts with the instance's
+        // credential, so it is trusted, not contained.
         (Placement::Local, Some(Implementation::Mcp(_))) => {
-            ("local_mcp", ExecutionBoundaryKind::NativeCapability)
+            let server = context
+                .admitted
+                .connector
+                .manifest
+                .placements
+                .local
+                .as_ref()
+                .and_then(|local| local.mcp_server.as_ref());
+            match server {
+                Some(runx_contracts::connector::McpServer::Stdio { .. }) => {
+                    ("local_mcp", ExecutionBoundaryKind::TrustedHostProcess)
+                }
+                _ => ("local_mcp", ExecutionBoundaryKind::NativeCapability),
+            }
         }
         (Placement::Local, Some(Implementation::Web(_))) => {
             ("local_web", ExecutionBoundaryKind::NativeCapability)

@@ -9915,6 +9915,87 @@ export const officialConnectors: readonly OfficialConnector[] = [
   },
   {
     "connector_binding": {
+      "connector": "runx/scafld",
+      "connector_digest": "sha256:cad382d429680c8b98efb0b7e62b9f3ac4d113d2940a3d0267e9011d8b1d3bec",
+      "manifest_digest": "sha256:0af41990f6347b4bbed6ddd7a3a927e8e4b8bffe731e10aaa013a20cdc9cc7fd"
+    },
+    "digests": {
+      "receipt.verify": {
+        "implementation": "sha256:e5ea2833be8eab9c70bbe75b4ad8fba1c5788866029b28c5e3a4835864ee6f14",
+        "operation": "sha256:75b89627f57e005053f89f744e612fe4169a5e94c109847134f28ec47790cc8b"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "none": {}
+      },
+      "category": "dev-tools",
+      "description": "Verify signed scafld receipts with the scafld CLI installed on this host.",
+      "id": "scafld",
+      "name": "scafld",
+      "operations": {
+        "receipt.verify": {
+          "description": "Verify one signed scafld receipt against an exact commit, and return whether it passed with the receipt read and its digest.",
+          "implementation": {
+            "process": {
+              "tool": "scafld.verify"
+            }
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "receipt_path": {
+                "maxLength": 4096,
+                "pattern": "^[^-]",
+                "type": "string"
+              },
+              "repo_root": {
+                "maxLength": 4096,
+                "pattern": "^[^-]",
+                "type": "string"
+              },
+              "target": {
+                "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "receipt_path",
+              "target",
+              "repo_root"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "passed",
+            "receipt_digest",
+            "receipt"
+          ],
+          "scopes": [
+            "receipt.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/receipt_path"
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "none"
+          ]
+        }
+      },
+      "runtime_capability": false,
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:0af41990f6347b4bbed6ddd7a3a927e8e4b8bffe731e10aaa013a20cdc9cc7fd"
+  },
+  {
+    "connector_binding": {
       "connector": "runx/sentry",
       "connector_digest": "sha256:2789e7084acdc723aca3c03312827c47e7abfb4db72bf9e15d454043f2bb8cb0",
       "manifest_digest": "sha256:e21741e32aa497186dc5357b5a1f81687142f243a957e4d20968f6dfaa5eb41e"

@@ -1090,7 +1090,8 @@ fn sealed_refs(
 /// stdio: the instance's stored credential reaches it in the variable its
 /// declaration names, beside the base host environment every host process
 /// gets, and nothing else of the operator's. The server echoes what it holds,
-/// and the echo of the credential is redacted before the answer is kept.
+/// and the echo of the credential is redacted before the answer is kept. The
+/// call seals the trusted host process boundary.
 #[cfg(feature = "mcp")]
 #[test]
 fn a_stdio_mcp_server_receives_the_instance_credential_and_no_operator_secret() {
@@ -1238,9 +1239,13 @@ runners:
         let mut dispatched = None;
         let outcome =
             execute(context, "read", &env, &skill_dir, &NoTools, &mut dispatched).unwrap();
-        let delivered = dispatched
-            .and_then(|dispatched| dispatched.credential)
-            .unwrap();
+        let dispatched = dispatched.unwrap();
+        assert_eq!(
+            dispatched.boundary,
+            ExecutionBoundaryKind::TrustedHostProcess,
+            "a stdio server is a process the runtime starts, not contained"
+        );
+        let delivered = dispatched.credential.unwrap();
         assert_eq!(delivered.provider.as_str(), "probe-mcp");
         serde_json::to_value(&packet(&outcome)["result"]).unwrap()["content"][0]["text"]
             .as_str()

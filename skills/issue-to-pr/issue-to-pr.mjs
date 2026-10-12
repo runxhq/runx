@@ -138,14 +138,10 @@ export function admitHostResult(inputs) {
 export function finalizeIssueToPr(inputs) {
   const host = object(inputs.host_result);
   const admission = object(inputs.host_admission);
-  const verification = object(inputs.receipt_verification);
+  const verification = verifiedReceipt(inputs.receipt_verification, host);
   const publication = object(inputs.publication_result);
   const errors = Array.isArray(admission.errors) ? [...admission.errors] : [];
-  const verified = verification.verified === true
-    && text(verification.verdict) === "pass"
-    && text(verification.target) === text(host.commit)
-    && text(verification.contract_digest) === text(host.finalization?.contract_digest)
-    && Boolean(text(verification.receipt_ref));
+  const verified = verification.verified;
   if (errors.length === 0 && !verified) errors.push("scafld finalization did not verify");
   const publicationRequested = text(host.publication?.decision) === "ready";
   const published = publicationRequested
@@ -171,7 +167,7 @@ export function finalizeIssueToPr(inputs) {
         && host.tests.every((test) => text(test?.status) === "passed"),
       finalization: {
         status: verified ? "verified" : "unverified",
-        receipt_ref: text(verification.receipt_ref),
+        receipt_ref: verification.receipt_ref,
         contract_digest: text(host.finalization?.contract_digest),
         target: text(host.commit),
       },
@@ -184,6 +180,28 @@ export function finalizeIssueToPr(inputs) {
       errors,
     },
   };
+}
+
+// The receipt `scafld/receipt.verify` verified, bound to this host result: a
+// passing verdict for exactly the tested commit and contract, with no open
+// blockers.
+function verifiedReceipt(value, host) {
+  const operation = object(value);
+  const result = object(operation.result);
+  const body = object(object(result.receipt).body);
+  const contract = text(host.finalization?.contract_digest).replace(/^sha256:/, "");
+  const receiptRef = text(result.receipt_digest);
+  const verified = operation.status === "success"
+    && result.passed === true
+    && digest(receiptRef)
+    && text(body.task_id) !== ""
+    && text(body.verdict) === "pass"
+    && text(body.head_commit) === text(host.commit)
+    && contract !== ""
+    && text(body.spec_fingerprint) === contract
+    && Array.isArray(body.open_blockers)
+    && body.open_blockers.length === 0;
+  return { verified, receipt_ref: verified ? receiptRef : "" };
 }
 
 function object(value) {
