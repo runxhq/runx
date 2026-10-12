@@ -2,7 +2,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
-use crate::cli_args::{flag_value, optional_flag_value, os_arg, os_flag_value, split_flag};
+use crate::cli_args::{flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
 use crate::connect::ConnectPlan;
 use crate::connector::ConnectorPlan;
@@ -154,7 +154,6 @@ pub struct NewPlan {
 #[derive(Debug, Eq, PartialEq)]
 pub struct InitPlan {
     pub global: bool,
-    pub prefetch_official: bool,
     pub json: bool,
 }
 
@@ -843,7 +842,6 @@ fn is_repository_url(value: &str) -> bool {
 
 fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
     let mut global = false;
-    let mut prefetch_official = false;
     let mut json = false;
     let mut index = 1;
 
@@ -874,25 +872,11 @@ fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
                 global = true;
                 index += 1;
             }
-            "--prefetch" => {
-                if matches!(inline_value, Some("false") | Some("0")) {
-                    prefetch_official = false;
-                    index += 1;
-                    continue;
-                }
-                let (value, next_index) = optional_flag_value(args, index, inline_value, "init")?;
-                prefetch_official = value.is_none_or(|value| truthy(&value));
-                index = next_index;
-            }
             _ => return Err(format!("unknown init flag {flag}")),
         }
     }
 
-    Ok(InitPlan {
-        global,
-        prefetch_official,
-        json,
-    })
+    Ok(InitPlan { global, json })
 }
 
 fn parse_dev_plan(args: &[OsString]) -> Result<DevPlan, String> {
@@ -1700,8 +1684,4 @@ fn validate_registry_ref_version(value: &str) -> Result<(), String> {
         validate_registry_version(&version)?;
     }
     Ok(())
-}
-
-fn truthy(value: &str) -> bool {
-    matches!(value, "true" | "1" | "yes" | "official")
 }

@@ -36,13 +36,9 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "init",
         top_level_usage: &[],
-        usage: &["runx init [-g|--global] [--prefetch official] [--json]"],
+        usage: &["runx init [-g|--global] [--json]"],
         notes: &[],
-        options: &[
-            "-g, --global",
-            "--prefetch official  Prefetch the official skill catalog",
-            "-j, --json",
-        ],
+        options: &["-g, --global", "-j, --json"],
     },
     CommandSpec {
         name: "verify",

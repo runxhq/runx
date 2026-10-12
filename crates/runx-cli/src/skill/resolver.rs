@@ -6,8 +6,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::PaidSkillListing;
 use runx_contracts::sha256_prefixed;
 use runx_runtime::registry::{
-    InstallCandidate, InstallLocalSkillOptions, materialization_cache_path,
-    materialization_digest_marker, parse_registry_ref, split_skill_id,
+    InstallCandidate, InstallLocalSkillOptions, parse_registry_ref, split_skill_id,
 };
 
 use crate::registry::{self, RegistryAction, RegistryPlan};
@@ -228,8 +227,10 @@ fn resolve_registry_skill(
         .as_ref()
         .and_then(|acquired| acquired.paid_listing.clone());
     canonicalize_candidate_ref(&mut candidate);
-    let identity = registry_cache_identity(&candidate)?;
-    let destination_root = destination_root_for_cache(env, cwd, &source_fingerprint, &identity)?;
+    let identity = registry_identity(&candidate)?;
+    // A fetched skill is added to the project's skills directory, once per
+    // version, like any other.
+    let destination_root = runx_runtime::RunxPaths::resolve(env, cwd).skills();
     let install = runx_runtime::registry::install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
@@ -281,50 +282,14 @@ fn resolve_registry_skill(
     })
 }
 
-fn destination_root_for_cache(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    source_fingerprint: &str,
-    identity: &RegistryCacheIdentity,
-) -> Result<PathBuf, String> {
-    let skill_id = identity
-        .skill_id
-        .as_deref()
-        .ok_or_else(|| "registry skill is missing skill_id".to_owned())?;
-    let (owner, name) = split_skill_id(skill_id).map_err(|error| error.to_string())?;
-    let version = identity
-        .version
-        .as_deref()
-        .ok_or_else(|| "registry skill is missing version".to_owned())?;
-    let digest = identity
-        .digest
-        .as_deref()
-        .ok_or_else(|| "registry skill is missing signed digest".to_owned())?;
-    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
-    let root = paths.registry_skills().join(source_fingerprint);
-    Ok(materialization_cache_path(
-        &root,
-        owner,
-        name,
-        version,
-        &cache_identity_digest(
-            digest,
-            identity.profile_digest.as_deref(),
-            identity.package_digest.as_deref(),
-        ),
-    ))
-}
-
-fn registry_cache_identity(candidate: &InstallCandidate) -> Result<RegistryCacheIdentity, String> {
+fn registry_identity(candidate: &InstallCandidate) -> Result<RegistryIdentity, String> {
     let manifest = candidate.signed_manifest.as_ref().ok_or_else(|| {
         format!(
             "registry signed manifest is required for {}",
             candidate.r#ref
         )
     })?;
-    // The envelope signs one content digest over every file; install checks
-    // the candidate against it, so these digests derive from bound bytes.
-    Ok(RegistryCacheIdentity {
+    Ok(RegistryIdentity {
         skill_id: candidate
             .skill_id
             .clone()
@@ -333,38 +298,20 @@ fn registry_cache_identity(candidate: &InstallCandidate) -> Result<RegistryCache
             .version
             .clone()
             .or_else(|| Some(manifest.version.clone())),
-        digest: Some(sha256_prefixed(candidate.markdown.as_bytes())),
-        profile_digest: candidate
-            .profile_document
-            .as_ref()
-            .map(|document| sha256_prefixed(document.as_bytes())),
-        package_digest: candidate.package_digest.clone(),
     })
 }
 
+/// The skill and version a registry candidate's signed manifest names.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct RegistryCacheIdentity {
+struct RegistryIdentity {
     skill_id: Option<String>,
     version: Option<String>,
-    digest: Option<String>,
-    profile_digest: Option<String>,
-    package_digest: Option<String>,
 }
 
 fn canonicalize_candidate_ref(candidate: &mut InstallCandidate) {
     if let (Some(skill_id), Some(version)) = (&candidate.skill_id, &candidate.version) {
         candidate.r#ref = format!("{skill_id}@{version}");
     }
-}
-
-fn cache_identity_digest(
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-) -> String {
-    sha256_prefixed(
-        materialization_digest_marker(digest, profile_digest, package_digest).as_bytes(),
-    )
 }
 
 fn registry_source_fingerprint(target: &registry::RegistryTarget) -> String {
@@ -478,15 +425,6 @@ mod tests {
         assert!(is_explicit_registry_ref("registry:acme/echo", "acme/echo"));
         assert!(!is_explicit_registry_ref("./echo", "./echo"));
         assert!(!is_explicit_registry_ref("echo", "echo"));
-    }
-
-    #[test]
-    fn cache_identity_includes_profile_digest() {
-        let without_profile = cache_identity_digest("sha256:abc", None, None);
-        let with_profile = cache_identity_digest("sha256:abc", Some("sha256:def"), None);
-        assert_ne!(without_profile, with_profile);
-        assert!(without_profile.starts_with("sha256:"));
-        assert!(with_profile.starts_with("sha256:"));
     }
 
     #[test]

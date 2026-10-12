@@ -38,7 +38,7 @@ pub(super) fn collect_publish_package_files(
     let connectors = super::connectors::package_connectors(
         loaded,
         &mut files,
-        crate::RunxPaths::resolve(env, cwd).installed_connectors(),
+        crate::RunxPaths::resolve(env, cwd).connectors(),
     )?;
     validate_package_limits(&files)?;
     Ok(CollectedPackage {

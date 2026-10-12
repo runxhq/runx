@@ -320,8 +320,14 @@ runners:
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
     // The package states what it declares, so a registry checks a
     // presentation's references against it: its inputs and child skills.
-    assert_eq!(output["registry"]["package"]["metadata"]["input_names"], json!(["provider"]));
-    assert_eq!(output["registry"]["package"]["metadata"]["skill_refs"], json!([]));
+    assert_eq!(
+        output["registry"]["package"]["metadata"]["input_names"],
+        json!(["provider"])
+    );
+    assert_eq!(
+        output["registry"]["package"]["metadata"]["skill_refs"],
+        json!([])
+    );
     // A run-time choice names each connector it may choose; refs are sorted
     // and operations keep the order the package lists them. Each connector is
     // named by its publisher and the digests a closure binds it by.
@@ -558,10 +564,14 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         ),
     ])?;
     let home = root.join("home");
+    // An installed connector is added to the project's connectors directory.
+    let project = root.join("project");
+    fs::create_dir_all(&project)?;
     let connector_command =
         |args: &[&str]| -> Result<std::process::Output, Box<dyn std::error::Error>> {
             Ok(runx_command()?
                 .env("RUNX_HOME", &home)
+                .env("RUNX_CWD", &project)
                 .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
                 .args(["registry", "connector"])
                 .args(args)
@@ -597,7 +607,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
             "\"status\": \"installed\"",
         ],
     )?;
-    let destination = home.join("connectors/acme/acme-ops/1.0.0");
+    let destination = project.join("connectors/acme/acme-ops/1.0.0");
     let output: serde_json::Value = serde_json::from_slice(&install.stdout)?;
     assert_eq!(
         output["registry"]["install"]["destination"],

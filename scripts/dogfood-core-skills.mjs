@@ -114,6 +114,7 @@ function runRegistryResolverDogfood() {
   });
 
   const root = mkdtempSync(path.join(os.tmpdir(), "runx-registry-dogfood-"));
+  mkdirSync(path.join(root, "project"), { recursive: true });
   try {
     const registryDir = path.join(root, "registry");
     const skillDir = path.join(root, "echo");
@@ -148,6 +149,8 @@ function runRegistryResolverDogfood() {
     const env = {
       ...dogfoodEnv,
       RUNX_HOME: path.join(root, "home"),
+      // A fetched skill is added to the project's skills directory.
+      RUNX_CWD: path.join(root, "project"),
       RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: signingKey.keyId,
       RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: signingKey.publicKeyBase64,
       RUNX_REGISTRY_MANIFEST_TRUST_OWNER: "acme",
@@ -195,8 +198,8 @@ function runRegistryResolverDogfood() {
     }
     const output = JSON.parse(result.stdout);
     const skillDirectory = output.requests?.[0]?.invocation?.envelope?.execution_location?.skill_directory;
-    if (!skillDirectory || !String(skillDirectory).includes("registry-skills")) {
-      throw new Error(`native registry resolver did not report a registry cache path: ${skillDirectory}`);
+    if (!skillDirectory || !String(skillDirectory).includes(`${path.sep}skills${path.sep}`)) {
+      throw new Error(`native registry resolver did not add the skill to the project's skills directory: ${skillDirectory}`);
     }
     if (!statSync(path.join(skillDirectory, "SKILL.md")).isFile()) {
       throw new Error(`native registry resolver did not materialize ${skillDirectory}/SKILL.md`);

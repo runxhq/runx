@@ -412,7 +412,7 @@ fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std
     assert_eq!(report.exported[0].skill, "work-plan");
     let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
     assert!(shim.contains("skill "));
-    assert!(shim.contains("/runx-maintained-skills/work-plan"));
+    assert!(shim.contains("/skills/work-plan"));
     assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
     Ok(())
 }
@@ -792,7 +792,7 @@ impl ExportFixture {
         &self,
         name: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let root = self.root.join("runx-maintained-skills");
+        let root = self.root.join("skills");
         Self::write_runner_input_skill_at(&root.join(name), name)?;
         Ok(root)
     }

@@ -27,7 +27,6 @@ pub(crate) use connector::parse_connector_subject;
 
 pub(crate) use target::{
     RegistryTarget, destination_root, registry_source_description, resolve_registry_target,
-    runx_maintained_skills_cache_root,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

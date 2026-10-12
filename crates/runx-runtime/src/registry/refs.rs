@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use crate::http::RuntimeHttpTransport;
 
 use super::http::{RegistryClient, RegistryClientError};
@@ -79,31 +77,6 @@ pub fn resolve_remote_registry_ref<T: RuntimeHttpTransport>(
         }
         _ => Err(RegistryResolveError::Ambiguous(parsed.skill_id)),
     }
-}
-
-pub fn materialization_cache_path(
-    root: &Path,
-    owner: &str,
-    name: &str,
-    version: &str,
-    digest: &str,
-) -> PathBuf {
-    let marker = digest.strip_prefix("sha256:").unwrap_or(digest);
-    let short = marker.chars().take(16).collect::<String>();
-    root.join(safe_path_part(owner))
-        .join(safe_path_part(name))
-        .join(safe_path_part(version))
-        .join(safe_path_part(&short))
-}
-
-pub fn materialization_digest_marker(
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-) -> String {
-    let profile_digest = profile_digest.unwrap_or("");
-    let package_digest = package_digest.unwrap_or("");
-    format!("digest={digest}\nprofile_digest={profile_digest}\npackage_digest={package_digest}\n")
 }
 
 pub fn safe_skill_package_parts(

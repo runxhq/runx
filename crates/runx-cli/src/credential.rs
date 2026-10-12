@@ -60,7 +60,7 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
             let connector = runx_runtime::ConnectorScope::at(workspace.paths().cwd())
                 .and_then(|scope| {
                     scope
-                        .with_installed(workspace.paths().installed_connectors())
+                        .in_project(workspace.paths().connectors())
                         .named(connector)
                 })
                 .map_err(|error| error.to_string())?;

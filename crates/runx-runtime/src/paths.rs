@@ -164,22 +164,22 @@ impl RunxPaths {
         self.home.join("tools").join(digest.replace(':', "-"))
     }
 
-    /// The local package cache of published connectors:
-    /// `<publisher>/<id>/<version>/`, each version written once and never
-    /// rewritten.
+    /// The project's one skills directory (core-shape §6.5): the skills the
+    /// user writes, every skill added from a registry and the runx-maintained
+    /// skills the release carries, the latter two at
+    /// `<publisher>/<name>/<version>/`, each version written once.
     #[must_use]
-    pub fn installed_connectors(&self) -> PathBuf {
-        self.home.join("connectors")
+    pub fn skills(&self) -> PathBuf {
+        self.workspace.join("skills")
     }
 
+    /// The project's one connectors directory: the user's own connectors,
+    /// every connector added from a registry and the runx-maintained
+    /// connectors the release carries, the latter two at
+    /// `<publisher>/<id>/<version>/`, each version written once.
     #[must_use]
-    pub fn runx_maintained_skills(&self) -> PathBuf {
-        self.home.join("runx-maintained-skills")
-    }
-
-    #[must_use]
-    pub fn registry_skills(&self) -> PathBuf {
-        self.home.join("registry-skills")
+    pub fn connectors(&self) -> PathBuf {
+        self.workspace.join("connectors")
     }
 
     /// The receipt root named by `RUNX_RECEIPT_DIR`, when one is.
@@ -243,11 +243,6 @@ impl RunxPaths {
         self.project.join("authoring").join("applications")
     }
 
-    #[must_use]
-    pub fn registry_step_skills(&self) -> PathBuf {
-        self.project.join("registry-step-skills")
-    }
-
     /// A file the operator keeps in the project directory.
     #[must_use]
     pub fn project_file(&self, name: &str) -> PathBuf {
@@ -278,12 +273,16 @@ fn env_path<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a Path
         .map(Path::new)
 }
 
+/// The project `start` lies in: the nearest ancestor that is a runx project,
+/// a workspace, or holds the project's `skills/` directory, so a skill's
+/// packages land beside the skills, never inside one.
 fn find_workspace(start: &Path) -> Option<PathBuf> {
     start
         .ancestors()
         .find(|dir| {
             dir.join("pnpm-workspace.yaml").exists()
                 || dir.join(RUNX_DIR).join(PROJECT_STATE).exists()
+                || dir.join("skills").is_dir()
         })
         .map(Path::to_path_buf)
 }

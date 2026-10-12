@@ -347,9 +347,8 @@ impl<'a> ExecutionClosureInspector<'a> {
         let mut scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
             .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
         if let Some(env) = self.env {
-            scope = scope.with_installed(
-                crate::paths::RunxPaths::resolve(env, &package_root).installed_connectors(),
-            );
+            scope =
+                scope.in_project(crate::paths::RunxPaths::resolve(env, &package_root).connectors());
         }
         for (key, requirement) in loaded
             .manifest()

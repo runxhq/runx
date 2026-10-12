@@ -747,10 +747,9 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
         })
     );
     assert_eq!(
-        plan(&["init", "-g", "--prefetch", "official", "--json"]),
+        plan(&["init", "-g", "--json"]),
         RouterAction::RunInit(InitPlan {
             global: true,
-            prefetch_official: true,
             json: true,
         })
     );

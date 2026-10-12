@@ -466,9 +466,8 @@ impl RuntimeEffect for OperationEffect {
         let lanes = LaneInputs::read(request.env, request.run_id);
         let scope = ConnectorScope::at(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?
-            .with_installed(
-                crate::paths::RunxPaths::resolve(request.env, request.graph_dir)
-                    .installed_connectors(),
+            .in_project(
+                crate::paths::RunxPaths::resolve(request.env, request.graph_dir).connectors(),
             );
         let instances = Instances::new(Arc::clone(&store));
         let admitted = admission::admit(&Evaluation {

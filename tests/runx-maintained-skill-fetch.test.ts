@@ -24,7 +24,7 @@ const SOURCE_PACKETS = JSON.stringify([{
 
 describe("registry skill native fetch", () => {
   it("acquires, caches, and reruns a registry skill through the native resolver", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-official-fetch-"));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
     const env = testEnv(projectDir, globalHomeDir);
@@ -55,7 +55,7 @@ describe("registry skill native fetch", () => {
       ]);
       const firstJson = parseJsonOutput(first, 2);
       expect((firstJson as { status?: string }).status).toBe("needs_agent");
-      const firstPath = findRegistrySkillCachePath(globalHomeDir, "acme/research");
+      const firstPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/research");
       expect((await stat(path.join(firstPath, "SKILL.md"))).isFile()).toBe(true);
       expect((await stat(path.join(firstPath, "run.yaml"))).isFile()).toBe(true);
 
@@ -78,7 +78,7 @@ describe("registry skill native fetch", () => {
   });
 
   it("rejects a registry acquisition with a digest mismatch before caching", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-official-fetch-digest-"));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-digest-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
     const env = testEnv(projectDir, globalHomeDir);
@@ -114,7 +114,7 @@ describe("registry skill native fetch", () => {
         (JSON.parse(result.stdout) as { error?: { message?: string } }).error?.message,
       ).toContain("digest mismatch");
       expect(
-        existsSync(path.join(globalHomeDir, "runx-maintained-skills", "acme", "research", "SKILL.md")),
+        existsSync(path.join(projectDir, "skills", "acme", "research")),
       ).toBe(false);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -122,7 +122,7 @@ describe("registry skill native fetch", () => {
   });
 
   it("copies graph stages beside cached registry graph skills", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-official-fetch-stages-"));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-stages-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
     const env = testEnv(projectDir, globalHomeDir);
@@ -149,7 +149,7 @@ describe("registry skill native fetch", () => {
       ]);
       const output = parseJsonOutput(result, 0);
       expect((output as { status?: string }).status).toBe("ok");
-      const skillPath = findRegistrySkillCachePath(globalHomeDir, "acme/agency");
+      const skillPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/agency");
       for (const stage of ["plan", "reduce"]) {
         expect(
           (await stat(
@@ -164,7 +164,7 @@ describe("registry skill native fetch", () => {
   });
 
   it("runs cached registry graph skills through native data operations", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-official-fetch-data-store-"));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-data-store-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
     const env = testEnv(projectDir, globalHomeDir);
@@ -188,7 +188,7 @@ describe("registry skill native fetch", () => {
         "--registry",
         registryDir,
         "--input",
-        "data_source_ref=local://runx-data-store/official-cache",
+        "data_source_ref=local://runx-data-store/maintained-cache",
         "--input",
         "resource=board_events",
         "--input",
@@ -245,7 +245,7 @@ async function runxMaintainedSkillLock(skillId: string): Promise<{
   }>;
   const entry = runxMaintainedLock.find((candidate) => candidate.skill_id === skillId);
   if (!entry) {
-    throw new Error(`Missing ${skillId} entry in official-skills.lock.json.`);
+    throw new Error(`Missing ${skillId} entry in runx-maintained.lock.json.`);
   }
   return entry;
 }
@@ -279,12 +279,12 @@ function parseJsonOutput(result: {
   return JSON.parse(result.stdout);
 }
 
-function findRegistrySkillCachePath(globalHomeDir: string, skillId: string): string {
+function findAddedSkillPath(skillsDir: string, skillId: string): string {
   const [owner, name] = skillId.split("/");
   if (!owner || !name) {
     throw new Error(`Invalid skill id ${skillId}.`);
   }
-  const base = globalHomeDir;
+  const base = skillsDir;
   const matches: string[] = [];
   const walk = (directory: string): void => {
     if (!existsSync(directory)) {

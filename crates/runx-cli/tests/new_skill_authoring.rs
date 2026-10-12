@@ -93,6 +93,9 @@ fn new_skill_authoring_rejects_outside_workspace_without_writing() -> TestResult
 fn command(repo: &Path, runx_home: &Path) -> Command {
     let mut command = crate::support::unsigned_runx_command_at(repo);
     command.env("RUNX_HOME", runx_home.join("home"));
+    // The bundled skill-build is added to the project's skills directory, so
+    // the project is the test's own, never the repository.
+    command.env("RUNX_CWD", runx_home);
     crate::support::isolate_project(&mut command);
     command
 }

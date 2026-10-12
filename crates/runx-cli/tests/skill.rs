@@ -493,8 +493,7 @@ fn native_skill_resolves_trusted_registry_ref() -> Result<(), Box<dyn std::error
     let skill_dir = needs_agent_skill_directory(&output_json)?;
     assert!(skill_dir.join("SKILL.md").exists());
     assert!(skill_dir.join("run.yaml").exists());
-    assert!(skill_dir.to_string_lossy().contains("registry-skills"));
-    assert!(skill_dir.to_string_lossy().contains("1.0.0"));
+    assert!(skill_dir.ends_with("skills/acme/echo/1.0.0"));
 
     Ok(())
 }
@@ -668,7 +667,7 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
             .as_str()
             .is_some_and(|message| message.contains("registry signed manifest is required"))
     );
-    assert!(!unsigned_root.join("home").join("registry-skills").exists());
+    assert!(!unsigned_root.join("project").join("skills").exists());
 
     let mismatch_root = crate::support::temp_root("runx-skill-registry-digest-mismatch");
     let mismatch_registry =
@@ -692,7 +691,7 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
             .as_str()
             .is_some_and(|message| message.contains("digest mismatch"))
     );
-    assert!(!mismatch_root.join("home").join("registry-skills").exists());
+    assert!(!mismatch_root.join("project").join("skills").exists());
 
     Ok(())
 }
@@ -930,6 +929,10 @@ fn trusted_registry_runx_command(root: &Path) -> Result<Command, Box<dyn std::er
     let mut command = crate::support::signed_runx_command("skill-test-key");
     let key_pair = test_manifest_key_pair()?;
     command.env("RUNX_HOME", root.join("home"));
+    // A fetched skill is added to the project's skills directory.
+    let project = root.join("project");
+    fs::create_dir_all(&project)?;
+    command.env("RUNX_CWD", &project);
     command.env(
         runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
         base64::engine::general_purpose::STANDARD.encode(key_pair.public_key().as_ref()),

@@ -2,7 +2,7 @@
 //! connector directory with the runtime's own loader. Publish, read and
 //! install use a hosted registry, the only registry that holds published
 //! connectors; install verifies the version and writes it to the local
-//! package cache (`RunxPaths::installed_connectors()`).
+//! package cache (`RunxPaths::connectors()`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -210,7 +210,7 @@ fn install(
     let installed = install_registry_connector(
         &published,
         &InstallRegistryConnectorOptions {
-            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).installed_connectors(),
+            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
             expected_content_digest: plan.expected_digest.clone(),
             trusted_manifest_keys: trusted_manifest_keys_from_env_for_source(
                 env,

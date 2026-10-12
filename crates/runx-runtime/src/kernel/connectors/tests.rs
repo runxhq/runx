@@ -334,9 +334,7 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
     // An install in progress is never read.
     std::fs::create_dir_all(home.join("acme/ops-api/.staging-1-2")).unwrap();
     let first = load_installed(&first).unwrap();
-    let scope = ConnectorScope::at(&work)
-        .unwrap()
-        .with_installed(home.clone());
+    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
 
     let resolved = scope
         .requirement("acme/ops-api", &pinned(&first.manifest_digest))
@@ -400,9 +398,7 @@ fn an_installed_version_of_an_runx_maintained_connector_is_its_own_revision() {
         .unwrap();
     assert_ne!(installed.manifest_digest, maintained.manifest_digest);
 
-    let scope = ConnectorScope::at(&work)
-        .unwrap()
-        .with_installed(home.clone());
+    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
     let resolved = scope
         .requirement("runx/open-meteo", &pinned(&installed.manifest_digest))
         .unwrap();

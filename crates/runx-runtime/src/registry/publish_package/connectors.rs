@@ -94,7 +94,7 @@ pub(super) fn package_connectors(
     }
     let scope = ConnectorScope::at(&loaded.package_root)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
-        .with_installed(installed);
+        .in_project(installed);
     let fixed = loaded
         .manifest()
         .into_iter()

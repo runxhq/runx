@@ -18,8 +18,6 @@ pub enum InitAction {
 pub struct RunxInitOptions {
     pub action: InitAction,
     pub paths: RunxPaths,
-    pub official_cache_dir: PathBuf,
-    pub prefetch_official: bool,
     pub generated: InitGeneratedValues,
 }
 
@@ -67,8 +65,6 @@ pub struct RunxInitResult {
     pub global_home_dir: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub official_cache_dir: Option<PathBuf>,
 }
 
 pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError> {
@@ -89,7 +85,6 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
                 project_id: Some(ensured.state.project_id),
                 global_home_dir: None,
                 installation_id: None,
-                official_cache_dir: None,
             })
         }
         InitAction::Global => {
@@ -98,15 +93,6 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
                 &options.generated.installation_id,
                 &options.generated.created_at,
             )?;
-            if options.prefetch_official {
-                fs::create_dir_all(&options.official_cache_dir).map_err(|source| {
-                    InitError::io(
-                        "creating official skills cache",
-                        &options.official_cache_dir,
-                        source,
-                    )
-                })?;
-            }
             Ok(RunxInitResult {
                 action: InitAction::Global,
                 created: ensured.created,
@@ -114,9 +100,6 @@ pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError>
                 project_id: None,
                 global_home_dir: Some(options.paths.home().to_path_buf()),
                 installation_id: Some(ensured.state.installation_id),
-                official_cache_dir: options
-                    .prefetch_official
-                    .then(|| options.official_cache_dir.clone()),
             })
         }
     }

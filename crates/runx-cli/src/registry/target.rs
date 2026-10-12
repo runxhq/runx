@@ -181,17 +181,7 @@ pub(crate) fn destination_root(
     plan.destination
         .as_ref()
         .map(|path| super::resolve_path(path, env, cwd, false))
-        .unwrap_or_else(|| runx_runtime::RunxPaths::resolve(env, cwd).in_workspace("skills"))
-}
-
-pub(crate) fn runx_maintained_skills_cache_root(
-    paths: &runx_runtime::RunxPaths,
-    env: &BTreeMap<String, String>,
-) -> PathBuf {
-    env.get("RUNX_MAINTAINED_SKILLS_DIR").map_or_else(
-        || paths.runx_maintained_skills(),
-        |value| paths.in_workspace(value),
-    )
+        .unwrap_or_else(|| runx_runtime::RunxPaths::resolve(env, cwd).skills())
 }
 
 pub(crate) fn registry_source_description(target: &RegistryTarget) -> String {

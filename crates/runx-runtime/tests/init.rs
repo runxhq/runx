@@ -27,23 +27,14 @@ fn init_project_state_is_reused() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn init_global_prefetches_official_cache() -> Result<(), Box<dyn std::error::Error>> {
+fn init_global_records_the_installation() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::create("init-global")?;
     let home = temp.path().join("home");
-    let official = temp.path().join("official");
-    let result = runx_init(&RunxInitOptions {
-        action: InitAction::Global,
-        paths: paths_in(temp.path()),
-        official_cache_dir: official.clone(),
-        prefetch_official: true,
-        generated: generated("proj_fixture", "inst_fixture", "2026-05-19T01:02:03.004Z"),
-    })?;
+    let result = runx_init(&init_options(InitAction::Global, &temp))?;
 
     assert!(result.created);
     assert_eq!(result.global_home_dir, Some(home.clone()));
-    assert_eq!(result.official_cache_dir, Some(official.clone()));
     assert!(home.join("install.json").exists());
-    assert!(official.is_dir());
     Ok(())
 }
 
@@ -51,8 +42,6 @@ fn init_options(action: InitAction, temp: &TestDir) -> RunxInitOptions {
     RunxInitOptions {
         action,
         paths: paths_in(temp.path()),
-        official_cache_dir: temp.path().join("official"),
-        prefetch_official: false,
         generated: generated("proj_fixture", "inst_fixture", "2026-05-19T01:02:03.004Z"),
     }
 }

@@ -42,7 +42,7 @@ pub struct RegistryConnectorVersion {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstallRegistryConnectorOptions {
-    /// `RunxPaths::installed_connectors()`.
+    /// The project's connectors directory, `RunxPaths::connectors()`.
     pub connectors_root: PathBuf,
     /// A content digest the caller pinned (`--digest`).
     pub expected_content_digest: Option<String>,
@@ -110,6 +110,51 @@ pub enum ConnectorInstallError {
     },
     #[error("{}: {source}", .path.display())]
     Io { path: PathBuf, source: io::Error },
+}
+
+/// Writes the release's copy of runx-maintained connector `connector` into a
+/// project's `connectors_root` at `runx/<id>/<version>/`, once, packaged
+/// exactly as it publishes; returns that directory. Its bytes come from the
+/// running release, so they carry no registry signature to verify; the
+/// caller checks the copy it reads back against the release's digests.
+pub(crate) fn seed_runx_maintained_connector(
+    connectors_root: &Path,
+    connector: &crate::kernel::connectors::LoadedConnector,
+) -> Result<PathBuf, String> {
+    let package = connector_package(connector, None).map_err(|error| error.to_string())?;
+    let reference = &package.connector_ref;
+    let versions = connectors_root
+        .join(reference.namespace())
+        .join(reference.id());
+    let destination = versions.join(&package.version);
+    if destination.exists() {
+        return Ok(destination);
+    }
+    fs::create_dir_all(&versions).map_err(|error| format!("{}: {error}", versions.display()))?;
+    let staged = versions.join(format!(".staging-{}", unique_suffix()));
+    let written = package
+        .files
+        .iter()
+        .try_for_each(|file| {
+            validate_registry_package_file_path(&file.path)?;
+            let path = staged.join(&file.path);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("{}: {error}", parent.display()))?;
+            }
+            fs::write(&path, file.content.as_bytes())
+                .map_err(|error| format!("{}: {error}", path.display()))
+        })
+        .and_then(|()| match fs::rename(&staged, &destination) {
+            Ok(()) => Ok(()),
+            // Another run seeded this version first.
+            Err(_) if destination.exists() => Ok(()),
+            Err(error) => Err(format!("{}: {error}", destination.display())),
+        });
+    if staged.exists() {
+        let _ignored = fs::remove_dir_all(&staged);
+    }
+    written.map(|()| destination)
 }
 
 /// Verifies `published` and writes it to

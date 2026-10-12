@@ -341,10 +341,15 @@ pub struct ConnectorScope {
     /// The directory the plugin was looked for from, so a miss says where.
     /// None for the runx-maintained connectors alone.
     searched: Option<PathBuf>,
-    /// The runx home's installed connector versions, read only for a
-    /// qualified connector named exactly: by a requirement's manifest pin or
-    /// an operator's `ref@version`. Never an ambient search root.
+    /// The project's connectors directory, whose added versions
+    /// (`<publisher>/<id>/<version>/`) are read only for a qualified connector
+    /// named exactly: by a requirement's manifest pin or an operator's
+    /// `ref@version`. Never an ambient search root.
     installed: Option<PathBuf>,
+    /// The project's connectors directory a runx-maintained connector is
+    /// seeded into and read back from (core-shape §6.5). None for the
+    /// runx-maintained source plugin itself and for a bundle.
+    seeds: Option<PathBuf>,
 }
 
 struct PluginConnectors {
@@ -407,6 +412,7 @@ impl ConnectorScope {
                 })),
                 searched: Some(dir),
                 installed: None,
+                seeds: None,
             });
         }
         let plugin = match plugin_root(&dir)? {
@@ -417,17 +423,56 @@ impl ConnectorScope {
             plugin,
             searched: Some(dir),
             installed: None,
+            seeds: None,
         })
     }
 
-    /// This scope, able to read the connector versions installed under
-    /// `root` (`RunxPaths::installed_connectors`). A bundled package stays
-    /// isolated: it carries every connector it binds.
-    #[must_use]
-    pub fn with_installed(mut self, root: PathBuf) -> Self {
-        if !self.isolated() {
-            self.installed = Some(root);
+    /// `connector`, a runx-maintained connector, as this project holds it:
+    /// the release's copy, written once into the project's connectors
+    /// directory and read back from there. A copy whose bytes are not the
+    /// release's is refused.
+    fn maintained(
+        &self,
+        connector: &Arc<LoadedConnector>,
+    ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        let Some(root) = &self.seeds else {
+            return Ok(Arc::clone(connector));
+        };
+        let directory = crate::registry::seed_runx_maintained_connector(root, connector).map_err(
+            |message| ConnectorRegistryError::Uninspectable {
+                dir: root.clone(),
+                message,
+            },
+        )?;
+        let held = load_installed(&directory)?;
+        if held.connector_digest != connector.connector_digest {
+            return Err(ConnectorRegistryError::InvalidManifest {
+                path: directory.join(MANIFEST_FILE),
+                message: format!(
+                    "this copy of {} is not the one this runx release carries; remove {} to restore it",
+                    connector.connector_ref,
+                    directory.display()
+                ),
+            });
         }
+        Ok(held)
+    }
+
+    /// This scope within the project whose connectors directory is `root`
+    /// (`RunxPaths::connectors`, core-shape §6.5): it reads the versions added
+    /// there, and seeds the runx-maintained connectors it resolves into it.
+    /// The runx-maintained source project is those connectors' source, so
+    /// nothing is seeded into it. A bundled package stays isolated: it
+    /// carries every connector it binds.
+    #[must_use]
+    pub fn in_project(mut self, root: PathBuf) -> Self {
+        if self.isolated() {
+            return self;
+        }
+        self.seeds = runx_maintained_source(&root)
+            .is_none()
+            .then(|| root.clone());
+        self.installed = Some(root);
         self
     }
 
@@ -610,6 +655,7 @@ impl ConnectorScope {
             plugin: None,
             searched: None,
             installed: None,
+            seeds: None,
         })
     }
 
@@ -627,18 +673,22 @@ impl ConnectorScope {
             if self.plugin.as_ref().is_some_and(|plugin| plugin.isolated) {
                 return Err(ConnectorRegistryError::Unavailable { id: id.to_owned() });
             }
-            let found = runx_maintained()?
+            if let Some(connector) = self
+                .plugin
+                .iter()
+                .flat_map(|plugin| plugin.connectors.values())
+                .find(|connector| connector.connector_ref == reference)
+            {
+                return Ok(Arc::clone(connector));
+            }
+            return match runx_maintained()?
                 .connectors
                 .values()
-                .chain(
-                    self.plugin
-                        .iter()
-                        .flat_map(|plugin| plugin.connectors.values()),
-                )
-                .find(|connector| connector.connector_ref == reference);
-            return found
-                .map(Arc::clone)
-                .ok_or_else(|| ConnectorRegistryError::Unavailable { id: id.to_owned() });
+                .find(|connector| connector.connector_ref == reference)
+            {
+                Some(connector) => self.maintained(connector),
+                None => Err(ConnectorRegistryError::Unavailable { id: id.to_owned() }),
+            };
         }
         let plugin = self
             .plugin
@@ -663,7 +713,7 @@ impl ConnectorScope {
             return Err(ConnectorRegistryError::Unavailable { id: id.to_owned() });
         }
         if let Some(connector) = runx_maintained()?.connectors.get(id) {
-            return Ok(Arc::clone(connector));
+            return self.maintained(connector);
         }
         let id = id.to_owned();
         match (&self.plugin, &self.searched) {
@@ -928,6 +978,21 @@ pub(crate) struct PluginMetadata {
 }
 
 pub(crate) const PLUGIN_METADATA_FILE: &str = "plugin.json";
+
+/// The publisher runx-maintained connectors and skills are published under.
+pub(crate) const RUNX_PUBLISHER: &str = "runx";
+
+/// The runx-maintained source tree `dir` lies in: the nearest ancestor whose
+/// `plugin.json` declares the `runx` namespace. Its own skills and connectors
+/// are the runx-maintained ones, so nothing is seeded into it.
+#[must_use]
+pub fn runx_maintained_source(dir: &Path) -> Option<PathBuf> {
+    dir.ancestors()
+        .find(|ancestor| {
+            plugin_namespace(ancestor).is_ok_and(|namespace| namespace.as_str() == RUNX_PUBLISHER)
+        })
+        .map(Path::to_path_buf)
+}
 
 pub(crate) fn plugin_namespace(root: &Path) -> Result<PublisherNamespace, String> {
     let source = read_bounded(&root.join(PLUGIN_METADATA_FILE))?;

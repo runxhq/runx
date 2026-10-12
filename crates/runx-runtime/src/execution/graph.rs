@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::{CallAct, JsonObject, JsonValue, sha256_prefixed};
+use runx_contracts::{CallAct, JsonObject, JsonValue};
 use runx_core::state_machine::SequentialGraphStepDefinition;
 use runx_parser::{
     Binding, ExecutionGraph, GraphStep, Operand, SkillRunnerDefinition, SkillRunnerManifest,
@@ -15,8 +15,7 @@ use runx_parser::{
 use crate::RuntimeError;
 use crate::registry::{
     FileRegistryStore, InstallCandidate, InstallLocalSkillOptions, RegistryResolveOptions,
-    RegistrySkillResolution, install_local_skill, materialization_cache_path,
-    materialization_digest_marker, resolve_registry_skill, split_skill_id,
+    RegistrySkillResolution, install_local_skill, resolve_registry_skill, split_skill_id,
     trusted_registry_manifest_keys_from_env,
 };
 
@@ -639,27 +638,13 @@ fn materialize_registry_step_skill(
             reason: format!("nested skill registry ref '{reference}' was not found"),
         })?;
 
-    let (owner, name) = split_skill_id(&resolution.skill_id).map_err(|source| {
-        RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "nested skill registry ref '{reference}' resolved to invalid skill id '{}': {source}",
-                resolution.skill_id
-            ),
-        }
+    split_skill_id(&resolution.skill_id).map_err(|source| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason: format!(
+            "nested skill registry ref '{reference}' resolved to invalid skill id '{}': {source}",
+            resolution.skill_id
+        ),
     })?;
-    let profile_digest = resolution
-        .profile_document
-        .as_ref()
-        .map(|document| sha256_prefixed(document.as_bytes()));
-    let identity_digest = sha256_prefixed(
-        materialization_digest_marker(
-            &prefixed_digest(&resolution.digest),
-            profile_digest.as_deref(),
-            resolution.package_digest.as_deref(),
-        )
-        .as_bytes(),
-    );
     let provenance = LoadedStepSkillRegistryProvenance {
         reference: reference.to_owned(),
         source: resolution.source.clone(),
@@ -670,16 +655,9 @@ fn materialize_registry_step_skill(
         package_digest: resolution.package_digest.clone(),
         trust_tier: registry_trust_tier_label(&resolution.trust_tier).to_owned(),
     };
-    let cache_root = crate::RunxPaths::resolve(options.env, graph_dir)
-        .registry_step_skills()
-        .join(registry_source_fingerprint(registry_dir));
-    let destination_root = materialization_cache_path(
-        &cache_root,
-        owner,
-        name,
-        &resolution.version,
-        &identity_digest,
-    );
+    // A registry child is added to the project's skills directory, once per
+    // version, like any other added skill.
+    let destination_root = crate::RunxPaths::resolve(options.env, graph_dir).skills();
     let candidate = InstallCandidate {
         markdown: resolution.markdown,
         profile_document: resolution.profile_document,
@@ -733,14 +711,6 @@ fn materialize_registry_step_skill(
         directory,
         registry: Some(provenance),
     })
-}
-
-fn registry_source_fingerprint(registry_dir: &str) -> String {
-    sha256_prefixed(registry_dir.as_bytes())
-        .trim_start_matches("sha256:")
-        .chars()
-        .take(16)
-        .collect()
 }
 
 fn prefixed_digest(digest: &str) -> String {

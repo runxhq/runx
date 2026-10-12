@@ -154,7 +154,6 @@ function deterministicEnv(
     RUNX_CWD: cwd,
     RUNX_HOME: path.join(caseTempRoot, "home"),
     RUNX_KNOWLEDGE_DIR: path.join(caseTempRoot, "knowledge"),
-    RUNX_MAINTAINED_SKILLS_DIR: path.join(caseTempRoot, "runx-maintained-skills"),
     RUNX_PROJECT_DIR: path.join(caseTempRoot, "project"),
     RUNX_REGISTRY_DIR: path.join(caseTempRoot, "registry"),
     RUNX_REGISTRY_URL: "",

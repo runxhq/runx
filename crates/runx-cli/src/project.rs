@@ -70,11 +70,6 @@ pub fn run_native_init(plan: InitPlan, workspace: &WorkspaceEnv) -> ExitCode {
             InitAction::Project
         },
         paths: paths.clone(),
-        official_cache_dir: crate::registry::runx_maintained_skills_cache_root(
-            paths,
-            workspace.env(),
-        ),
-        prefetch_official: plan.prefetch_official,
         generated: InitGeneratedValues::generate(),
     };
 
@@ -136,13 +131,6 @@ fn render_init_result(json: bool, result: &RunxInitResult) -> ExitCode {
                     .map(|path| path.display().to_string()),
             ),
             ("installation_id", result.installation_id.clone()),
-            (
-                "official_cache",
-                result
-                    .official_cache_dir
-                    .as_ref()
-                    .map(|path| path.display().to_string()),
-            ),
         ],
     ))
 }

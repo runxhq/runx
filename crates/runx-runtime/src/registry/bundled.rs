@@ -98,6 +98,46 @@ impl BundledSkill {
         &self.version
     }
 
+    /// This skill as the runx-maintained source tree at `root` holds it, when
+    /// it does.
+    fn source(
+        &self,
+        root: &std::path::Path,
+        expected_digest: Option<&str>,
+    ) -> Result<Option<InstallLocalSkillResult>, String> {
+        let directory = root.join("skills").join(&self.package.metadata.name);
+        let destination = directory.join("SKILL.md");
+        let Ok(markdown) = std::fs::read_to_string(&destination) else {
+            return Ok(None);
+        };
+        let digest = sha256_prefixed(markdown.as_bytes());
+        if let Some(expected) = expected_digest
+            && expected != digest
+        {
+            return Err(format!(
+                "runx-maintained skill '{}' at {} has digest {digest}, not {expected}",
+                self.skill_id,
+                directory.display()
+            ));
+        }
+        let profile_digest = std::fs::read_to_string(directory.join(runx_parser::PROFILE_FILE))
+            .ok()
+            .map(|profile| sha256_prefixed(profile.as_bytes()));
+        Ok(Some(InstallLocalSkillResult {
+            status: super::install::InstallStatus::Unchanged,
+            destination,
+            skill_name: self.package.metadata.name.clone(),
+            source: "source:runx".to_owned(),
+            source_label: "runx-maintained source".to_owned(),
+            skill_id: Some(self.skill_id.clone()),
+            version: Some(self.version().to_owned()),
+            digest,
+            profile_digest,
+            runner_names: self.package.metadata.runner_names.clone(),
+            trust_tier: None,
+        }))
+    }
+
     pub(crate) fn validated_package(
         &self,
     ) -> Result<runx_parser::ValidatedSkillPackage, runx_parser::SkillPackageError> {
@@ -113,6 +153,12 @@ impl BundledSkill {
         paths: &RunxPaths,
         expected_digest: Option<&str>,
     ) -> Result<InstallLocalSkillResult, String> {
+        // Inside the runx-maintained source, the skill is its source.
+        if let Some(source) = crate::kernel::connectors::runx_maintained_source(paths.workspace())
+            && let Some(result) = self.source(&source, expected_digest)?
+        {
+            return Ok(result);
+        }
         let version = self.version();
         let profile_digest = self
             .package
@@ -139,7 +185,7 @@ impl BundledSkill {
         install_bundled_skill(
             &candidate,
             &InstallLocalSkillOptions {
-                destination_root: paths.runx_maintained_skills().join("bundled"),
+                destination_root: paths.skills(),
                 expected_digest: expected_digest.map(str::to_owned),
                 trusted_manifest_keys: Vec::new(),
             },

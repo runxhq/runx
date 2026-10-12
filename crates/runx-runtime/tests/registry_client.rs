@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -9,8 +8,7 @@ use runx_runtime::registry::{
     RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
     RegistryManifestSourceAuthority, RegistryResolveError, RegistrySignedManifest, RegistrySubject,
     RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_local_skill,
-    materialization_cache_path, materialization_digest_marker, parse_registry_ref,
-    skill_content_digest,
+    parse_registry_ref, skill_content_digest,
 };
 use runx_runtime::{
     HttpMethod, RuntimeHttpError, RuntimeHttpRequest as HttpRequest,
@@ -387,25 +385,6 @@ fn ref_helpers_parse_cache_and_package_paths() {
     assert_eq!(
         parse_registry_ref("runx://skill/acme%2Fecho+tool").skill_id,
         "acme/echo+tool"
-    );
-
-    assert_eq!(
-        materialization_cache_path(
-            Path::new("/tmp/cache"),
-            "Acme",
-            "Echo Tool",
-            "1.0.0",
-            "sha256:1234567890abcdef9999"
-        ),
-        Path::new("/tmp/cache")
-            .join("acme")
-            .join("echo-tool")
-            .join("1.0.0")
-            .join("1234567890abcdef")
-    );
-    assert_eq!(
-        materialization_digest_marker("sha256:abc", Some("sha256:def"), None),
-        "digest=sha256:abc\nprofile_digest=sha256:def\npackage_digest=\n"
     );
 }
 

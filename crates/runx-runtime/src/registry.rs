@@ -20,6 +20,7 @@ use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 pub(crate) use bundled::bundled_skills;
 pub use bundled::{bundled_runx_manual, materialize_bundled_skill};
+pub(crate) use connector_install::seed_runx_maintained_connector;
 pub use connector_install::{
     ConnectorInstallError, InstallRegistryConnectorOptions, InstalledRegistryConnector,
     RegistryConnectorVersion, install_registry_connector,
@@ -54,8 +55,7 @@ pub use publish_package::{
     prepare_registry_publish_package,
 };
 pub use refs::{
-    ParsedRegistryRef, RegistryResolveError, materialization_cache_path,
-    materialization_digest_marker, parse_registry_ref, safe_skill_package_parts,
+    ParsedRegistryRef, RegistryResolveError, parse_registry_ref, safe_skill_package_parts,
 };
 pub use source_authority::{
     RUNX_REGISTRY_SOURCE_AUTHORITY_ENV, RegistryManifestSourceAuthority, canonical_registry_url,

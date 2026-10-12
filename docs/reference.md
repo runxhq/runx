@@ -91,7 +91,6 @@ Recommended flows:
 
 ```bash
 runx init
-runx init -g --prefetch official
 runx new docs-demo --objective "Create a bounded documentation decision skill"
 runx list skills
 runx registry search sourcey --json
@@ -484,8 +483,8 @@ Connectors are published only to a hosted registry, so `publish`, `read` and
 - `runx registry connector read <publisher>/<id>[@version]` shows the current
   version, or the one named.
 - `runx registry connector install <publisher>/<id>[@version] [--digest <content-digest>]`
-  writes the version to the local package cache,
-  `<runx home>/connectors/<publisher>/<id>/<version>/`. The signed manifest
+  adds the version to the project's connectors directory,
+  `connectors/<publisher>/<id>/<version>/`. The signed manifest
   must name that connector (never a skill), version and content digest under a
   trusted key scoped to its publisher, and the staged files must load and
   repackage as exactly those files before they are renamed into place. A
@@ -497,6 +496,18 @@ rule a package's `mark.svg` passes, so a registry can admit an image (a
 publisher's profile mark) on the parser's word. A valid mark reports
 `mark_sha256`, the SHA-256 of exactly the bytes checked and the key a registry
 serves it under, and its size; a refused one fails with the parser's reason.
+
+A project keeps every package it runs in two directories beside its source.
+`skills/` holds the skills you write (`skills/<name>/`), every skill added
+from a registry by `runx add`, by running a registry ref or as a registry
+step's child (`skills/<owner>/<name>/<version>/`), and the runx-maintained
+skills this release carries, added as `skills/runx/<name>/<version>/` when
+first used. `connectors/` holds your own connectors (`connectors/<id>/`),
+installed ones (`connectors/<publisher>/<id>/<version>/`) and the
+runx-maintained connectors a skill uses, added as
+`connectors/runx/<id>/<version>/` from the release and checked against it on
+every read. A version directory is written once; other bytes under it are
+refused. The runx home keeps keys, configuration and state, not packages.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new
@@ -714,8 +725,8 @@ steps:
 ```
 
 This uses the same explicit local-registry rule: set `RUNX_REGISTRY_DIR`, sync or
-publish the skill into that registry first, and treat `.runx/registry-step-skills`
-as generated runtime cache rather than source.
+publish the skill into that registry first. A registry child is added to the
+project's `skills/<owner>/<name>/<version>/` like any other added skill.
 
 Any runnable skill package can also be exposed locally as an MCP tool with:
 

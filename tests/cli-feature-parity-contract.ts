@@ -59,7 +59,7 @@ export interface OracleCase {
 const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   "cli.help": annotation("none", ["cli-presentation"], ["help.top-level", "usage.unsupported"]),
   new: annotation("local-runtime", ["skill-authoring", "graph-runtime", "caller-mediated-resolution", "receipts", "cli-presentation"], ["new.validate"]),
-  init: annotation("filesystem", ["workspace-init", "runx-maintained-skills"], ["init.validate"]),
+  init: annotation("filesystem", ["workspace-init"], ["init.validate"]),
   verify: annotation("none", ["receipts", "cli-presentation"], ["verify.validate"]),
   history: annotation("none", ["history", "ledger", "receipts"], ["history.execute"]),
   resume: annotation("local-runtime", ["caller-mediated-resolution", "graph-runtime", "receipts", "cli-presentation"], ["resume.validate"]),
@@ -112,7 +112,6 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
   surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, harness, and transactional apply lane."),
   surface("workspace-init", "runx-runtime", "semantic", "Deterministic project and global workspace initialization remains separate from skill authoring."),
-  surface("runx-maintained-skills", "runx-cli", "schema-exact", "Prefetch and lockfile behavior stays fixture-backed."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills, graphs, packets, and overlays stays represented."),
   surface("extension-sdk", "packages/extension-sdk", "schema-exact", "External process extension output and manifest validation remain schema-exact."),
 ];
