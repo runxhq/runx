@@ -9,6 +9,10 @@ use crate::services::tool_roots::inferred_tool_roots;
 use thiserror::Error;
 
 const WORKSPACE_ENV_FILE: &str = ".env";
+/// Runx's own variables: where state lives, which Connect and registry it
+/// trusts, how it signs, and what a host admits. They come only from the
+/// process a host or operator starts, never from a workspace's files.
+const RUNX_NAME_PREFIX: &str = "RUNX_";
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WorkspaceEnv {
@@ -22,7 +26,8 @@ impl WorkspaceEnv {
     /// Capture one immutable local-operator environment for a Runx workspace.
     ///
     /// The workspace is resolved from the ambient environment before `.env` is
-    /// read. The file is parsed as data and only fills missing keys; this method
+    /// read. The file is parsed as data and only fills missing keys; a file
+    /// that sets one of Runx's own `RUNX_` variables is refused. This method
     /// never mutates the process environment.
     pub fn load_process(cwd: PathBuf) -> Result<Self, WorkspaceEnvError> {
         Self::load(std::env::vars().collect(), cwd)
@@ -153,6 +158,10 @@ pub enum WorkspaceEnvError {
     EnvironmentReference { path: PathBuf },
     #[error("workspace environment file {path} could not be parsed")]
     Parse { path: PathBuf },
+    #[error(
+        "workspace environment file {path} sets {name}; Runx's own variables come only from the process environment or `runx config`"
+    )]
+    ReservedName { path: PathBuf, name: String },
 }
 
 fn require_absolute_cwd(cwd: &Path) -> Result<(), WorkspaceEnvError> {
@@ -179,6 +188,12 @@ fn merge_env_file(
 
     for entry in entries {
         let (key, value) = entry.map_err(|error| workspace_env_error(path, error))?;
+        if key.starts_with(RUNX_NAME_PREFIX) {
+            return Err(WorkspaceEnvError::ReservedName {
+                path: path.to_path_buf(),
+                name: key,
+            });
+        }
         env.entry(key).or_insert(value);
     }
     Ok(true)
@@ -246,7 +261,7 @@ mod tests {
     fn workspace_env_loads_optional_file_without_mutating_process_env()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
-        let key = format!("RUNX_ENV_TEST_{}", std::process::id());
+        let key = format!("WORKSPACE_ENV_TEST_{}", std::process::id());
         assert!(std::env::var(&key).is_err());
         fs::write(temp.path().join(".env"), format!("{key}=from-file\n"))?;
 
@@ -273,18 +288,26 @@ mod tests {
         Ok(())
     }
 
+    /// A workspace's file cannot redirect Runx's state, Connect or signing,
+    /// nor admit authority a host supplies.
     #[test]
-    fn workspace_env_resolves_root_before_file_content() -> Result<(), Box<dyn std::error::Error>> {
+    fn workspace_env_never_sets_runx_variables() -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
-        fs::write(temp.path().join(".env"), "RUNX_CWD=/redirected\n")?;
-
-        let workspace = WorkspaceEnv::load(BTreeMap::new(), temp.path().to_path_buf())?;
-
-        assert_eq!(workspace.cwd(), temp.path());
-        assert_eq!(
-            workspace.env().get(RUNX_CWD_ENV),
-            Some(&temp.path().to_string_lossy().into_owned())
-        );
+        for name in [
+            "RUNX_CWD",
+            "RUNX_HOME",
+            "RUNX_PUBLIC_API_BASE_URL",
+            "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON",
+        ] {
+            fs::write(temp.path().join(".env"), format!("{name}=from-file\n"))?;
+            let refused = WorkspaceEnv::load(BTreeMap::new(), temp.path().to_path_buf())
+                .err()
+                .ok_or("a runx variable loaded from .env")?;
+            assert!(
+                matches!(&refused, WorkspaceEnvError::ReservedName { name: refused, .. } if refused == name),
+                "{refused}"
+            );
+        }
         Ok(())
     }
 

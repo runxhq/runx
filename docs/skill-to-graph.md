@@ -187,8 +187,9 @@ command starts. Help and version rendering remain independent of workspace
 state. Runx first resolves
 the workspace from the process environment and current directory, then parses
 the exact `<workspace>/.env` file when it exists. The file only fills missing
-keys, so an exported process value always wins. Runx parses the file as data; it
-does not source a shell or mutate the process environment.
+keys, so an exported process value always wins, and it may not set Runx's own
+`RUNX_` variables. Runx parses the file as data; it does not source a shell or
+mutate the process environment.
 
 Keep `.env` local and ignored by version control. Loading a key does not make
 it ambient child configuration. Executable runners declare non-secret

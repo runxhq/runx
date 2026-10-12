@@ -138,7 +138,9 @@ Every executing Runx CLI command discovers the workspace root and parses its
 exact `.env` file as data; help and version rendering do not depend on
 workspace state. Runx does not source a shell. Exported process values win;
 `.env` fills only missing names. One immutable snapshot is used for the whole
-command or MCP server session.
+command or MCP server session. Runx's own `RUNX_` variables never come from
+`.env`: a file that sets one is refused, so a workspace cannot redirect Runx's
+state, Connect or receipt signing, nor supply authority a host admits.
 
 The snapshot supplies a runner's declared `environment.required` and
 `environment.optional` names: ordinary, non-secret configuration. It is not a
