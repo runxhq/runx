@@ -78,7 +78,6 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
   mcp: annotation("adapter", ["mcp"], ["mcp.serve.validate"], "none"),
   turn: annotation("local-runtime", ["mcp", "caller-mediated-resolution", "graph-runtime", "receipts"], ["turn.validate"], "none"),
-  assistant: annotation("local-runtime", ["graph-runtime", "receipts", "cli-presentation"], ["assistant.validate"]),
   skill: annotation("local-runtime", ["skill-resolution", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   add: annotation("external-stub", ["registry", "cli-presentation"], ["add.validate"]),
   harness: annotation("local-runtime", ["harness", "receipts", "execution-boundary"], ["harness.execute"]),
@@ -150,7 +149,7 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
       [],
     ),
     execute(commands, "list.tools.execute", "list", ["list", "tools", "--json"], 0, true, [], []),
-    execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"github\""], []),
+    execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"runx/github\""], []),
     execute(commands, "connect.execute", "connect", ["connect", "list", "--api-base-url", "http://127.0.0.1:9", "--json"], 1, true, ["not publicly routable"], [], { RUNX_PUBLIC_API_TOKEN: "rxk_fixture" }),
   ];
   const executableCaseIds = new Set(executableCases.map((testCase) => testCase.id));
