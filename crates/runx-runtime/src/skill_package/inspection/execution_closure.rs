@@ -344,8 +344,13 @@ impl<'a> ExecutionClosureInspector<'a> {
             return Ok(());
         }
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
-        let scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
+        let mut scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
             .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+        if let Some(env) = self.env {
+            scope = scope.with_installed(
+                crate::paths::RunxPaths::resolve(env, &package_root).installed_connectors(),
+            );
+        }
         for (key, requirement) in loaded
             .manifest()
             .into_iter()
@@ -362,10 +367,8 @@ impl<'a> ExecutionClosureInspector<'a> {
             };
             for reference in references {
                 let connector = scope
-                    .connector(reference)
+                    .requirement(reference, requirement)
                     .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
-                crate::kernel::admission::required_manifest(requirement, &connector)
-                    .map_err(SkillInspectionError::ConnectorBinding)?;
                 walk.closure
                     .connector_bindings
                     .insert(ExecutionConnectorBinding {

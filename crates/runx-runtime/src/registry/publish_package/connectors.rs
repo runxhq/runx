@@ -79,36 +79,35 @@ pub fn prepare_registry_connector_package(
 }
 
 /// The connectors `loaded` declares, in canonical order, with the files of
-/// each plugin connector added to `files` below its package root.
+/// each plugin or installed connector added to `files` below its package
+/// root. A requirement pinned to another publisher's manifest packages the
+/// installed version under `installed` that publishes it.
 pub(super) fn package_connectors(
     loaded: &LoadedSkillPackage,
     files: &mut BTreeMap<String, RegistryPackageFile>,
+    installed: std::path::PathBuf,
 ) -> Result<Vec<RegistryConnectorMetadata>, RegistryPublishPackageError> {
     let declared = declared_connectors(loaded.manifest());
     if declared.is_empty() {
         return Ok(Vec::new());
     }
     let scope = ConnectorScope::at(&loaded.package_root)
-        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
-    for (key, requirement) in loaded
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
+        .with_installed(installed);
+    let fixed = loaded
         .manifest()
         .into_iter()
         .flat_map(|manifest| &manifest.connectors)
-    {
-        if requirement.connector_from.is_none() {
-            let connector = scope
-                .connector(key)
-                .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
-            crate::kernel::admission::required_manifest(requirement, &connector)
-                .map_err(RegistryPublishPackageError::invalid)?;
-        }
-    }
+        .filter(|(_, requirement)| requirement.connector_from.is_none())
+        .collect::<BTreeMap<_, _>>();
     let projected = declared
         .into_iter()
         .map(|(id, operations)| {
-            let connector = scope
-                .connector(&id)
-                .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
+            let connector = match fixed.get(&id) {
+                Some(requirement) => scope.requirement(&id, requirement),
+                None => scope.connector(&id),
+            }
+            .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
             if let Some(missing) = operations.iter().find(|operation| {
                 !connector
                     .manifest

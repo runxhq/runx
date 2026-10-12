@@ -203,7 +203,9 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
     write_plugin_connector(&package.join("connectors/acme"), "acme", "acme");
     let snapshot = load_directory(
         &package.join("connectors/acme/acme"),
-        &package,
+        ConnectorOrigin::Plugin {
+            root: package.clone(),
+        },
         &PublisherNamespace::new("acme").unwrap(),
         false,
     )
@@ -249,5 +251,128 @@ fn a_plugin_connector_lives_in_the_directory_its_id_names() {
         ConnectorScope::at(&skill),
         Err(ConnectorRegistryError::InvalidManifest { message, .. })
             if message.contains("lives in connectors/acme-records/")
+    ));
+}
+
+/// Leave `publisher/id` installed as `version` under `home`, as a registry
+/// install does: the package's own `plugin.json` names its publisher.
+fn install(home: &Path, publisher: &str, id: &str, version: &str, description: &str) -> PathBuf {
+    let directory = home.join(publisher).join(id).join(version);
+    std::fs::create_dir_all(&directory).unwrap();
+    std::fs::write(
+        directory.join("plugin.json"),
+        format!(r#"{{"namespace":"{publisher}"}}"#),
+    )
+    .unwrap();
+    std::fs::write(
+        directory.join("connector.yaml"),
+        format!(
+            "schema: runx.connector.v1\nid: {id}\nname: Ops\ndescription: {description}\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
+        ),
+    )
+    .unwrap();
+    directory
+}
+
+fn pinned(digest: &Digest) -> runx_parser::ConnectorRequirement {
+    runx_parser::ConnectorRequirement {
+        operations: vec![OperationName::new("record.read").unwrap()],
+        manifest_digest: Some(digest.clone()),
+        connector_from: None,
+        allowed_connectors: Vec::new(),
+    }
+}
+
+#[test]
+fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("connectors");
+    let work = root.path().join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    let first = install(&home, "acme", "ops-api", "1.0.0", "First.");
+    install(&home, "acme", "ops-api", "1.1.0", "Second.");
+    // An install in progress is never read.
+    std::fs::create_dir_all(home.join("acme/ops-api/.staging-1-2")).unwrap();
+    let first = load_installed(&first).unwrap();
+    let scope = ConnectorScope::at(&work)
+        .unwrap()
+        .with_installed(home.clone());
+
+    let resolved = scope
+        .requirement("acme/ops-api", &pinned(&first.manifest_digest))
+        .unwrap();
+    assert_eq!(resolved.manifest_digest, first.manifest_digest);
+    assert!(matches!(resolved.origin, ConnectorOrigin::Installed { .. }));
+
+    let unpublished = Digest::new(format!("sha256:{}", "0".repeat(64))).unwrap();
+    let refused = scope
+        .requirement("acme/ops-api", &pinned(&unpublished))
+        .unwrap_err();
+    assert!(
+        matches!(refused, ConnectorRegistryError::NotInstalled { .. })
+            && refused
+                .to_string()
+                .contains("runx registry connector install acme/ops-api@<version>"),
+        "{refused}"
+    );
+
+    // The installed versions are read only through a scope given them.
+    assert!(matches!(
+        ConnectorScope::at(&work)
+            .unwrap()
+            .requirement("acme/ops-api", &pinned(&first.manifest_digest)),
+        Err(ConnectorRegistryError::Unavailable { .. })
+    ));
+
+    // An operator names one exact version; two installed versions of a
+    // bare ref are not chosen between.
+    assert_eq!(
+        scope
+            .named("acme/ops-api@1.1.0")
+            .unwrap()
+            .manifest
+            .description
+            .as_str(),
+        "Second."
+    );
+    assert!(matches!(
+        scope.named("acme/ops-api"),
+        Err(ConnectorRegistryError::InstalledAmbiguous { versions, .. })
+            if versions == ["1.0.0", "1.1.0"]
+    ));
+    assert!(matches!(
+        scope.named("acme/ops-api@2.0.0"),
+        Err(ConnectorRegistryError::VersionNotInstalled { .. })
+    ));
+}
+
+#[test]
+fn an_installed_version_of_an_official_connector_is_its_own_revision() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("connectors");
+    let work = root.path().join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    let installed =
+        load_installed(&install(&home, "runx", "open-meteo", "9.0.0", "Next.")).unwrap();
+    let official = ConnectorScope::official_only()
+        .unwrap()
+        .connector("open-meteo")
+        .unwrap();
+    assert_ne!(installed.manifest_digest, official.manifest_digest);
+
+    let scope = ConnectorScope::at(&work)
+        .unwrap()
+        .with_installed(home.clone());
+    let resolved = scope
+        .requirement("runx/open-meteo", &pinned(&installed.manifest_digest))
+        .unwrap();
+    assert_eq!(resolved.manifest_digest, installed.manifest_digest);
+    // A requirement pinned to the embedded revision still binds it.
+    assert!(matches!(
+        scope
+            .requirement("runx/open-meteo", &pinned(&official.manifest_digest))
+            .unwrap()
+            .origin,
+        ConnectorOrigin::Official
     ));
 }

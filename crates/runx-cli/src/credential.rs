@@ -58,7 +58,11 @@ fn execute(plan: &CredentialPlan, workspace: &WorkspaceEnv) -> Result<String, St
                 return Err("credential secret input must come from stdin".to_owned());
             }
             let connector = runx_runtime::ConnectorScope::at(workspace.paths().cwd())
-                .and_then(|scope| scope.connector(connector))
+                .and_then(|scope| {
+                    scope
+                        .with_installed(workspace.paths().installed_connectors())
+                        .named(connector)
+                })
                 .map_err(|error| error.to_string())?;
             let credential = CredentialName::new(credential.as_str())
                 .ok_or_else(|| format!("{credential} is not a credential name"))?;

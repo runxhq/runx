@@ -35,7 +35,11 @@ pub(super) fn collect_publish_package_files(
         insert_source_file(&mut files, relative, contents)?;
     }
     packet::append_declared_packet_schemas(&mut files, loaded, env, cwd, packet_ids)?;
-    let connectors = super::connectors::package_connectors(loaded, &mut files)?;
+    let connectors = super::connectors::package_connectors(
+        loaded,
+        &mut files,
+        crate::RunxPaths::resolve(env, cwd).installed_connectors(),
+    )?;
     validate_package_limits(&files)?;
     Ok(CollectedPackage {
         files: files.into_values().collect(),

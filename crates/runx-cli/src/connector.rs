@@ -422,10 +422,15 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     }
 }
 
-/// An official connector, or one of the plugin runx was invoked in.
+/// An official connector, one of the plugin runx was invoked in, or an
+/// installed version named by its qualified ref.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
     ConnectorScope::at(workspace.paths().cwd())
-        .and_then(|scope| scope.connector(connector))
+        .and_then(|scope| {
+            scope
+                .with_installed(workspace.paths().installed_connectors())
+                .named(connector)
+        })
         .map_err(|error| error.to_string())
 }
 

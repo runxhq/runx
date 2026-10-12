@@ -64,7 +64,14 @@ impl LoadedConnector {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConnectorOrigin {
     Official,
-    Plugin { root: PathBuf },
+    Plugin {
+        root: PathBuf,
+    },
+    /// A version installed from a registry into the runx home: its exact
+    /// package, read from `directory`.
+    Installed {
+        directory: PathBuf,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -93,6 +100,28 @@ pub enum ConnectorRegistryError {
     NoPlugin { id: String, dir: PathBuf },
     #[error("{} cannot be inspected for a plugin: {message}", dir.display())]
     Uninspectable { dir: PathBuf, message: String },
+    #[error("connector {connector} does not match the required manifest digest")]
+    RequiredManifest { connector: ConnectorRef },
+    #[error(
+        "connector {connector} at manifest {manifest_digest} is not installed; install the version that publishes it with `runx registry connector install {connector}@<version>`"
+    )]
+    NotInstalled {
+        connector: ConnectorRef,
+        manifest_digest: Digest,
+    },
+    #[error(
+        "connector {connector} has more than one installed version{}; name one as {connector}@<version>",
+        if versions.is_empty() { String::new() } else { format!(" ({})", versions.join(", ")) }
+    )]
+    InstalledAmbiguous {
+        connector: ConnectorRef,
+        versions: Vec<String>,
+    },
+    #[error("connector {connector} has no installed version {version}")]
+    VersionNotInstalled {
+        connector: ConnectorRef,
+        version: String,
+    },
 }
 
 struct Official {
@@ -272,6 +301,10 @@ pub struct ConnectorScope {
     /// The directory the plugin was looked for from, so a miss says where.
     /// None for the official connectors alone.
     searched: Option<PathBuf>,
+    /// The runx home's installed connector versions, read only for a
+    /// qualified connector named exactly: by a requirement's manifest pin or
+    /// an operator's `ref@version`. Never an ambient search root.
+    installed: Option<PathBuf>,
 }
 
 struct PluginConnectors {
@@ -308,7 +341,12 @@ impl ConnectorScope {
                             id: binding.connector.to_string(),
                         }
                     })?;
-                let connector = load_directory(&directory, &root, &namespace, false)?;
+                let connector = load_directory(
+                    &directory,
+                    ConnectorOrigin::Plugin { root: root.clone() },
+                    &namespace,
+                    false,
+                )?;
                 if connector.connector_ref != binding.connector
                     || connector.manifest_digest != binding.manifest_digest
                     || connector.connector_digest != binding.connector_digest
@@ -328,6 +366,7 @@ impl ConnectorScope {
                     connectors,
                 })),
                 searched: Some(dir),
+                installed: None,
             });
         }
         let plugin = match plugin_root(&dir)? {
@@ -337,7 +376,174 @@ impl ConnectorScope {
         Ok(Self {
             plugin,
             searched: Some(dir),
+            installed: None,
         })
+    }
+
+    /// This scope, able to read the connector versions installed under
+    /// `root` (`RunxPaths::installed_connectors`). A bundled package stays
+    /// isolated: it carries every connector it binds.
+    #[must_use]
+    pub fn with_installed(mut self, root: PathBuf) -> Self {
+        if !self.isolated() {
+            self.installed = Some(root);
+        }
+        self
+    }
+
+    fn isolated(&self) -> bool {
+        self.plugin.as_ref().is_some_and(|plugin| plugin.isolated)
+    }
+
+    /// The connector a skill's requirement keyed `key` binds. A qualified key
+    /// pinned to a manifest digest that no connector in reach carries
+    /// resolves to the installed version publishing that exact manifest.
+    pub fn requirement(
+        &self,
+        key: &str,
+        requirement: &runx_parser::ConnectorRequirement,
+    ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        let Some(pin) = requirement.manifest_digest.as_ref() else {
+            return self.connector(key);
+        };
+        let reference = ConnectorRef::new(key);
+        match (self.connector(key), reference) {
+            (Ok(connector), _) if &connector.manifest_digest == pin => Ok(connector),
+            (Ok(connector), _) if self.installed.is_none() => {
+                Err(ConnectorRegistryError::RequiredManifest {
+                    connector: connector.connector_ref.clone(),
+                })
+            }
+            (Ok(connector), _) => self.installed_pinned(&connector.connector_ref, pin),
+            (Err(ConnectorRegistryError::Unavailable { .. }), Some(reference))
+                if self.installed.is_some() =>
+            {
+                self.installed_pinned(&reference, pin)
+            }
+            (Err(error), _) => Err(error),
+        }
+    }
+
+    /// The installed version of `connector` publishing manifest `pin`.
+    fn installed_pinned(
+        &self,
+        connector: &ConnectorRef,
+        pin: &Digest,
+    ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        let mut found: Option<Arc<LoadedConnector>> = None;
+        for (_, installed) in self.installed_versions(connector)? {
+            if &installed.manifest_digest != pin {
+                continue;
+            }
+            if let Some(previous) = &found
+                && previous.connector_digest != installed.connector_digest
+            {
+                return Err(ConnectorRegistryError::InstalledAmbiguous {
+                    connector: connector.clone(),
+                    versions: Vec::new(),
+                });
+            }
+            found.get_or_insert(installed);
+        }
+        found.ok_or_else(|| ConnectorRegistryError::NotInstalled {
+            connector: connector.clone(),
+            manifest_digest: pin.clone(),
+        })
+    }
+
+    /// The connector an operator names on the command line: an id or
+    /// qualified ref in reach, `ref@version` for an installed version, or a
+    /// bare qualified ref of which exactly one version is installed.
+    pub fn named(&self, name: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        if let Some((reference, version)) = name.split_once('@') {
+            let connector = ConnectorRef::new(reference).ok_or_else(|| {
+                ConnectorRegistryError::Unavailable {
+                    id: name.to_owned(),
+                }
+            })?;
+            return self.installed(&connector, Some(version));
+        }
+        match (self.connector(name), ConnectorRef::new(name)) {
+            (Err(ConnectorRegistryError::Unavailable { .. }), Some(reference)) => {
+                self.installed(&reference, None)
+            }
+            (result, _) => result,
+        }
+    }
+
+    /// The installed version an operator names: `ref@version`, or a bare
+    /// qualified ref no connector in reach answers when exactly one version
+    /// of it is installed.
+    pub fn installed(
+        &self,
+        connector: &ConnectorRef,
+        version: Option<&str>,
+    ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        let versions = self.installed_versions(connector)?;
+        match version {
+            Some(version) => versions
+                .into_iter()
+                .find(|(installed, _)| installed == version)
+                .map(|(_, loaded)| loaded)
+                .ok_or_else(|| ConnectorRegistryError::VersionNotInstalled {
+                    connector: connector.clone(),
+                    version: version.to_owned(),
+                }),
+            None => match <[_; 1]>::try_from(versions) {
+                Ok([(_, loaded)]) => Ok(loaded),
+                Err(versions) if versions.is_empty() => Err(ConnectorRegistryError::Unavailable {
+                    id: connector.to_string(),
+                }),
+                Err(versions) => Err(ConnectorRegistryError::InstalledAmbiguous {
+                    connector: connector.clone(),
+                    versions: versions.into_iter().map(|(version, _)| version).collect(),
+                }),
+            },
+        }
+    }
+
+    /// Every installed version of `connector`, by version label. Each version
+    /// directory is complete or absent; a dot-entry is an install in progress.
+    fn installed_versions(
+        &self,
+        connector: &ConnectorRef,
+    ) -> Result<Vec<(String, Arc<LoadedConnector>)>, ConnectorRegistryError> {
+        let Some(root) = &self.installed else {
+            return Ok(Vec::new());
+        };
+        let directory = root.join(connector.namespace()).join(connector.id());
+        let uninspectable = |error: std::io::Error| ConnectorRegistryError::Uninspectable {
+            dir: directory.clone(),
+            message: error.to_string(),
+        };
+        let entries = match std::fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(uninspectable(error)),
+        };
+        let mut versions = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(uninspectable)?;
+            let Some(version) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if version.starts_with('.') || !entry.path().is_dir() {
+                continue;
+            }
+            let loaded = load_installed(&entry.path())?;
+            if &loaded.connector_ref != connector {
+                return Err(ConnectorRegistryError::InvalidManifest {
+                    path: entry.path().join(MANIFEST_FILE),
+                    message: format!(
+                        "the installed package is {}, not {connector}",
+                        loaded.connector_ref
+                    ),
+                });
+            }
+            versions.push((version, loaded));
+        }
+        versions.sort_by(|left, right| left.0.cmp(&right.0));
+        Ok(versions)
     }
 
     /// Every connector in the scope, official first.
@@ -363,6 +569,7 @@ impl ConnectorScope {
         Ok(Self {
             plugin: None,
             searched: None,
+            installed: None,
         })
     }
 
@@ -460,6 +667,9 @@ impl ConnectorScope {
     /// Source bytes for a bound snapshot, when present on disk. Embedded
     /// connectors have their own source bytes in the runtime.
     pub(crate) fn connector_directory(&self, connector: &LoadedConnector) -> Option<PathBuf> {
+        if let ConnectorOrigin::Installed { directory } = &connector.origin {
+            return Some(directory.clone());
+        }
         if let Some(plugin) = self.plugin.as_ref() {
             let directory = plugin.root.join("connectors").join(if plugin.isolated {
                 connector.connector_ref.as_str()
@@ -578,12 +788,40 @@ pub(crate) fn load_connector_directory(
             path: root.join(PLUGIN_METADATA_FILE),
             message,
         })?;
-    load_directory(directory, root, &namespace, true)
+    load_directory(
+        directory,
+        ConnectorOrigin::Plugin {
+            root: root.to_path_buf(),
+        },
+        &namespace,
+        true,
+    )
+}
+
+/// The connector version installed at `directory`, its own plugin root: the
+/// exact package a registry published, named by the namespace it carries.
+/// It may be another version of an official connector.
+pub(crate) fn load_installed(
+    directory: &Path,
+) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+    let namespace =
+        plugin_namespace(directory).map_err(|message| ConnectorRegistryError::InvalidManifest {
+            path: directory.join(PLUGIN_METADATA_FILE),
+            message,
+        })?;
+    load_directory(
+        directory,
+        ConnectorOrigin::Installed {
+            directory: directory.to_path_buf(),
+        },
+        &namespace,
+        false,
+    )
 }
 
 fn load_directory(
     directory: &Path,
-    root: &Path,
+    origin: ConnectorOrigin,
     namespace: &PublisherNamespace,
     source: bool,
 ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
@@ -603,15 +841,7 @@ fn load_directory(
         })
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map_err(&invalid)?;
-    let connector = loaded(
-        namespace,
-        validated,
-        ConnectorOrigin::Plugin {
-            root: root.to_path_buf(),
-        },
-        tools,
-    )
-    .map_err(&invalid)?;
+    let connector = loaded(namespace, validated, origin, tools).map_err(&invalid)?;
     if let Some(official) = official()?.connectors.get(&connector.manifest.id)
         && official.connector_ref == connector.connector_ref
     {

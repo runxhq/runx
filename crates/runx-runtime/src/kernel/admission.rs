@@ -564,7 +564,9 @@ pub fn skill_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::at(skill_dir).map_err(|error| error.to_string())?;
+    let scope = ConnectorScope::at(skill_dir)
+        .map_err(|error| error.to_string())?
+        .with_installed(crate::paths::RunxPaths::resolve(env, cwd).installed_connectors());
     project(&scope, requirements, env, cwd)
 }
 
@@ -575,7 +577,9 @@ pub fn connector_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::at(cwd).map_err(|error| error.to_string())?;
+    let scope = ConnectorScope::at(cwd)
+        .map_err(|error| error.to_string())?
+        .with_installed(crate::paths::RunxPaths::resolve(env, cwd).installed_connectors());
     let requirement = ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
         manifest_digest: Some(connector.manifest_digest.clone()),
@@ -661,7 +665,7 @@ fn readiness(
         );
         return finish(readiness, reasons);
     }
-    let connector = match scope.connector(requirement_key) {
+    let connector = match scope.requirement(requirement_key, requirement) {
         Ok(connector) => connector,
         Err(error) => {
             reasons.push(
@@ -673,10 +677,6 @@ fn readiness(
         }
     };
     readiness.connector = Some(connector.connector_ref.clone());
-    if let Err(reason) = required_manifest(requirement, &connector) {
-        reasons.push(AdmissionCheck::Requirement, CheckOutcome::Fail, reason);
-        return finish(readiness, reasons);
-    }
     let Some((operation_name, spec, operation_digest)) = connector.operation(operation.as_str())
     else {
         reasons.push(
@@ -827,27 +827,9 @@ fn requirement(
     let connector = evaluation
         .context
         .scope
-        .connector(connector_id)
+        .requirement(connector_id, declared)
         .map_err(|error| error.to_string())?;
-    required_manifest(declared, &connector)?;
     Ok((connector, operation))
-}
-
-pub(crate) fn required_manifest(
-    requirement: &ConnectorRequirement,
-    connector: &LoadedConnector,
-) -> Result<(), String> {
-    if requirement
-        .manifest_digest
-        .as_ref()
-        .is_some_and(|digest| digest != &connector.manifest_digest)
-    {
-        return Err(format!(
-            "connector {} does not match the required manifest digest",
-            connector.connector_ref
-        ));
-    }
-    Ok(())
 }
 
 /// The instance still means what it meant when it was confirmed, and the
