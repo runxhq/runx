@@ -5,6 +5,7 @@ mod install;
 mod local;
 pub(crate) mod package_bundle;
 mod package_files;
+pub use package_files::skill_content_digest;
 mod package_metadata;
 mod payload;
 mod publish;
@@ -70,7 +71,8 @@ pub use types::{
     RegistryAttestation, RegistryLinkResolution, RegistryManifestSignature, RegistryManifestSigner,
     RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher, RegistrySearchResult,
     RegistrySignedManifest, RegistrySkill, RegistrySkillDetail, RegistrySkillResolution,
-    RegistrySkillVersion, RegistrySourceMetadata, ResolvedRegistryRef, TrustSignal, TrustTier,
+    RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind,
+    ResolvedRegistryRef, TrustSignal, TrustTier,
 };
 
 #[derive(Clone, Copy, Debug)]

@@ -31,7 +31,10 @@ runx-contracts-derive.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+# The registry signed-manifest vectors are verified with the runtime's own primitives.
+base64 = "0.23.1"
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+ring = "0.17.14"
 serde_json.workspace = true
 
 [[test]]

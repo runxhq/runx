@@ -20,7 +20,10 @@ use super::trust_anchor::{
     default_trusted_registry_manifest_keys, registry_manifest_key_allows,
     verify_registry_signed_manifest,
 };
-use super::types::{RegistryPackageFile, RegistrySignedManifest, TrustTier};
+use super::package_files::skill_content_digest;
+use super::types::{
+    RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstallCandidate {
@@ -236,7 +239,7 @@ fn validate_install_candidate(
 ) -> Result<ValidatedLocalInstall, InstallError> {
     let actual_digest = verify_signed_manifest_anchor(candidate, options, allow_unsigned_local)?;
     let profile_digest = validate_candidate_profile_digest(candidate, allow_unsigned_local)?;
-    validate_candidate_package_digest(candidate, allow_unsigned_local)?;
+    validate_candidate_package_digest(candidate)?;
     let origin = install_origin(candidate, &actual_digest, profile_digest.as_deref());
     let install = validate_skill_install(&candidate.markdown, origin)?;
     let package = validate_registry_skill_package(
@@ -257,25 +260,39 @@ fn validate_install_candidate(
     })
 }
 
+/// Checks the candidate's content against the registry's signed envelope (or,
+/// for an unsigned local registry, against nothing but an expected digest)
+/// and returns its manual digest for the install origin. The envelope signs
+/// one digest over every file, so the manual, profile and package files are
+/// all bound by it.
 fn verify_signed_manifest_anchor(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
     allow_unsigned_local: bool,
 ) -> Result<String, InstallError> {
+    let content_digest = skill_content_digest(
+        &candidate.markdown,
+        candidate.profile_document.as_deref(),
+        &candidate.package_files,
+    )
+    .map_err(|error| InstallError::InvalidPackageFile {
+        ref_name: candidate.r#ref.clone(),
+        reason: error.to_string(),
+    })?;
+    if let Some(expected) = options
+        .expected_digest
+        .as_ref()
+        .filter(|expected| !digest_matches(expected, &content_digest))
+    {
+        return Err(InstallError::DigestMismatch {
+            ref_name: candidate.r#ref.clone(),
+            expected: expected.clone(),
+            actual: content_digest,
+        });
+    }
+    let actual_digest = sha256_prefixed(candidate.markdown.as_bytes());
     let Some(manifest) = candidate.signed_manifest.as_ref() else {
         if allow_unsigned_local {
-            let actual_digest = sha256_prefixed(candidate.markdown.as_bytes());
-            if let Some(expected) = options
-                .expected_digest
-                .as_ref()
-                .filter(|expected| !digest_matches(expected, &actual_digest))
-            {
-                return Err(InstallError::DigestMismatch {
-                    ref_name: candidate.r#ref.clone(),
-                    expected: expected.clone(),
-                    actual: actual_digest,
-                });
-            }
             return Ok(actual_digest);
         }
         return Err(InstallError::UnsignedManifest(candidate.r#ref.clone()));
@@ -286,23 +303,11 @@ fn verify_signed_manifest_anchor(
     })?;
     validate_manifest_identity(candidate, manifest)?;
     validate_manifest_trust_scope(candidate, key)?;
-    let actual_digest = sha256_prefixed(candidate.markdown.as_bytes());
-    if !digest_matches(&manifest.digest, &actual_digest) {
+    if manifest.content_digest != content_digest {
         return Err(InstallError::DigestMismatch {
             ref_name: candidate.r#ref.clone(),
-            expected: manifest.digest.clone(),
-            actual: actual_digest,
-        });
-    }
-    if let Some(expected) = options
-        .expected_digest
-        .as_ref()
-        .filter(|expected| !digest_matches(expected, &manifest.digest))
-    {
-        return Err(InstallError::DigestMismatch {
-            ref_name: candidate.r#ref.clone(),
-            expected: expected.clone(),
-            actual: manifest.digest.clone(),
+            expected: manifest.content_digest.clone(),
+            actual: content_digest,
         });
     }
     Ok(actual_digest)
@@ -393,19 +398,16 @@ fn validate_candidate_profile_digest(
         .profile_document
         .as_ref()
         .map(|document| sha256_prefixed(document.as_bytes()));
-    let expected_profile_digest = candidate
-        .signed_manifest
-        .as_ref()
-        .and_then(|manifest| manifest.profile_digest.as_ref())
-        .or_else(|| {
-            allow_unsigned_local
-                .then_some(candidate.profile_digest.as_ref())
-                .flatten()
-        });
+    // A signed candidate's profile is bound by the envelope's content digest;
+    // an unsigned local record states its own profile digest.
+    if candidate.signed_manifest.is_some() || !allow_unsigned_local {
+        return Ok(profile_digest);
+    }
+    let expected_profile_digest = candidate.profile_digest.as_ref();
     check_digest_link(
         profile_digest.as_deref(),
         expected_profile_digest.map(String::as_str),
-        "signed manifest profile digest",
+        "local registry profile digest",
     )
     .map_err(|mismatch| InstallError::ProfileDigestMismatch {
         ref_name: candidate.r#ref.clone(),
@@ -415,32 +417,14 @@ fn validate_candidate_profile_digest(
     Ok(profile_digest)
 }
 
-fn validate_candidate_package_digest(
-    candidate: &InstallCandidate,
-    allow_unsigned_local: bool,
-) -> Result<(), InstallError> {
+/// The package digest the registry record states must be its files' digest.
+/// The signed envelope binds the files themselves through its content digest.
+fn validate_candidate_package_digest(candidate: &InstallCandidate) -> Result<(), InstallError> {
     let actual = registry_package_digest(&candidate.package_files);
-    let signed = candidate
-        .signed_manifest
-        .as_ref()
-        .and_then(|manifest| manifest.package_digest.as_ref());
     check_digest_link(
         actual.as_deref(),
         candidate.package_digest.as_deref(),
         "registry package digest",
-    )
-    .map_err(|mismatch| InstallError::PackageDigestMismatch {
-        ref_name: candidate.r#ref.clone(),
-        expected: mismatch.expected,
-        actual: mismatch.actual,
-    })?;
-    if allow_unsigned_local && candidate.signed_manifest.is_none() {
-        return Ok(());
-    }
-    check_digest_link(
-        candidate.package_digest.as_deref(),
-        signed.map(String::as_str),
-        "signed manifest package digest",
     )
     .map_err(|mismatch| InstallError::PackageDigestMismatch {
         ref_name: candidate.r#ref.clone(),
@@ -459,24 +443,26 @@ fn validate_manifest_identity(
             field: "skill_id",
         });
     };
-    if &manifest.skill_id != skill_id {
-        return Err(InstallError::ManifestIdentityMismatch {
-            ref_name: candidate.r#ref.clone(),
-            expected: skill_id.clone(),
-            actual: manifest.skill_id.clone(),
-        });
-    }
     let Some(version) = &candidate.version else {
         return Err(InstallError::ManifestIdentityMissing {
             ref_name: candidate.r#ref.clone(),
             field: "version",
         });
     };
-    if &manifest.version != version {
+    let subject = RegistrySubject {
+        kind: RegistrySubjectKind::Skill,
+        subject_ref: skill_id.clone(),
+    };
+    if !manifest.signs(&subject, version) {
         return Err(InstallError::ManifestIdentityMismatch {
             ref_name: candidate.r#ref.clone(),
-            expected: version.clone(),
-            actual: manifest.version.clone(),
+            expected: format!("skill {skill_id}@{version}"),
+            actual: format!(
+                "{} {}@{}",
+                manifest.subject.kind.as_str(),
+                manifest.subject.subject_ref,
+                manifest.version
+            ),
         });
     }
     Ok(())

@@ -132,6 +132,7 @@ fn registry_version_path(
         .join(format!("{version}.json")))
 }
 
+/// The envelope the registry serves for a stored record's exact files.
 fn signed_manifest(
     version_record: &serde_json::Value,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -141,46 +142,36 @@ fn signed_manifest(
     let version = version_record["version"]
         .as_str()
         .ok_or("missing version")?;
-    let digest = version_record["digest"].as_str().ok_or("missing digest")?;
-    let profile_digest = version_record["profile_digest"].as_str();
-    let package_digest = version_record["package_digest"].as_str();
-    let payload =
-        registry_manifest_payload(skill_id, version, digest, profile_digest, package_digest);
-    let signature = test_manifest_key_pair()?.sign(payload.as_bytes());
-    Ok(serde_json::json!({
-        "schema": runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA,
-        "skill_id": skill_id,
-        "version": version,
-        "digest": digest,
-        "profile_digest": profile_digest,
-        "package_digest": package_digest,
-        "signer": {
-            "id": TEST_MANIFEST_SIGNER_ID,
-            "key_id": TEST_MANIFEST_KEY_ID,
+    let markdown = version_record["markdown"]
+        .as_str()
+        .ok_or("missing markdown")?;
+    let package_files: Vec<runx_runtime::registry::RegistryPackageFile> =
+        serde_json::from_value(version_record["package_files"].clone()).unwrap_or_default();
+    let content_digest = runx_runtime::registry::skill_content_digest(
+        markdown,
+        version_record["profile_document"].as_str(),
+        &package_files,
+    )?;
+    let mut manifest = runx_contracts::RegistrySignedManifest {
+        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
+        subject: runx_contracts::RegistrySubject {
+            kind: runx_contracts::RegistrySubjectKind::Skill,
+            subject_ref: skill_id.to_owned(),
         },
-        "signature": {
-            "alg": "ed25519",
-            "value": format!(
-                "base64:{}",
-                URL_SAFE_NO_PAD.encode(signature.as_ref())
-            ),
+        version: version.to_owned(),
+        content_digest,
+        signer: runx_contracts::RegistryManifestSigner {
+            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
+            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
         },
-    }))
-}
-
-fn registry_manifest_payload(
-    skill_id: &str,
-    version: &str,
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-) -> String {
-    format!(
-        "{}\nskill_id={skill_id}\nversion={version}\ndigest={digest}\nprofile_digest={}\npackage_digest={}\nsigner_id={TEST_MANIFEST_SIGNER_ID}\nkey_id={TEST_MANIFEST_KEY_ID}\n",
-        runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA,
-        profile_digest.unwrap_or(""),
-        package_digest.unwrap_or("")
-    )
+        signature: runx_contracts::RegistryManifestSignature {
+            alg: "ed25519".to_owned(),
+            value: "base64:".to_owned(),
+        },
+    };
+    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
+    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
+    Ok(serde_json::to_value(manifest)?)
 }
 
 fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {

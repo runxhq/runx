@@ -10,7 +10,8 @@ use runx_contracts::{
 use serde::Deserialize;
 
 use super::super::package_files::{
-    normalize_registry_package_files, registry_package_digest, validate_registry_skill_package,
+    normalize_registry_package_files, registry_package_digest, skill_content_digest,
+    validate_registry_skill_package,
 };
 use super::super::types::{
     RegistryAttestation, RegistryPackageFile, RegistryPublisher, RegistrySkillVersion,
@@ -46,12 +47,16 @@ pub(super) fn build_registry_skill_version(
     // A local registry version keeps no connector bindings; it reads the
     // catalog fields below.
     let metadata = project_registry_package_metadata(skill, manifest, Vec::new());
-    let defaults = registry_version_defaults(
-        &digest,
-        profile_digest.as_deref(),
-        package_digest.as_deref(),
-        options,
-    );
+    let content_digest = skill_content_digest(
+        markdown,
+        options.profile_document.as_deref(),
+        &package_files,
+    )
+    .map_err(|error| LocalRegistryError::InvalidVersionPayload {
+        field: "package_files".to_owned(),
+        message: error.to_string(),
+    })?;
+    let defaults = registry_version_defaults(&content_digest, options);
     let skill_id = build_skill_id(&defaults.owner, &skill.name)?;
     let paid_listing = resolve_paid_listing(
         &metadata.marketplace_offers,
@@ -235,9 +240,7 @@ struct RegistryVersionDefaults {
 }
 
 fn registry_version_defaults(
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
+    content_digest: &str,
     options: &IngestSkillOptions,
 ) -> RegistryVersionDefaults {
     let owner = options.owner.clone().unwrap_or_else(|| "local".to_owned());
@@ -251,8 +254,10 @@ fn registry_version_defaults(
         .clone()
         .unwrap_or_else(|| derive_registry_trust_tier(&owner, None));
     let version = options.version.clone().unwrap_or_else(|| {
-        let seed = default_registry_version_seed(digest, profile_digest, package_digest);
-        format!("sha-{}", seed.chars().take(12).collect::<String>())
+        // A version without a label is named by its content digest, as the
+        // hosted registry names it.
+        let hex = content_digest.trim_start_matches("sha256:");
+        format!("sha-{}", &hex[..12.min(hex.len())])
     });
     let source_metadata = options.source_metadata.clone();
     let attestations = merge_registry_attestations(vec![
@@ -495,24 +500,6 @@ pub(super) struct RegistrySkillVersionPayload {
     publisher: Option<RegistryPublisher>,
     created_at: Option<String>,
     updated_at: Option<String>,
-}
-
-pub(super) fn default_registry_version_seed(
-    markdown_digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-) -> String {
-    match (profile_digest, package_digest) {
-        (None, None) => markdown_digest.to_owned(),
-        _ => sha256_hex(
-            format!(
-                "{{\"markdown_digest\":\"{markdown_digest}\",\"package_digest\":\"{}\",\"profile_digest\":\"{}\"}}",
-                package_digest.unwrap_or(""),
-                profile_digest.unwrap_or("")
-            )
-            .as_bytes(),
-        ),
-    }
 }
 
 fn normalize_package_files(

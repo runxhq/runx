@@ -8,8 +8,9 @@ use super::source_authority::{
     registry_manifest_source_key,
 };
 use super::types::{RegistrySignedManifest, TrustTier};
+use runx_contracts::{REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX};
 
-pub const REGISTRY_SIGNED_MANIFEST_SCHEMA: &str = "runx.registry.signed_manifest.v1";
+pub use runx_contracts::REGISTRY_SIGNED_MANIFEST_SCHEMA;
 pub const RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64";
 pub const RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID";
 pub const RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_OWNER";
@@ -17,7 +18,6 @@ pub const RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV: &str = "RUNX_REGISTRY_MANIFEST
 const RUNX_REGISTRY_MANIFEST_KEY_ID: &str = "runx-registry-ed25519-v1";
 const RUNX_REGISTRY_MANIFEST_PUBLIC_KEY_BASE64: &str =
     "u770bVZvqF7ULrnxWeTeLTSOsEwlbIkoOQJEAVy98No=";
-const REGISTRY_MANIFEST_SIGNATURE_BASE64_PREFIX: &str = "base64:";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrustedRegistryManifestKey {
@@ -98,6 +98,10 @@ pub enum RegistryManifestVerificationFailure {
     SignatureMismatch,
 }
 
+/// Verifies a registry envelope's terms and its signature by a trusted key:
+/// the key it names must sign the canonical envelope without its signature.
+/// The caller then checks the envelope names what it holds, and that the
+/// files hash to `content_digest`.
 pub fn verify_registry_signed_manifest<'a>(
     manifest: &RegistrySignedManifest,
     trusted_keys: &'a [TrustedRegistryManifestKey],
@@ -105,10 +109,12 @@ pub fn verify_registry_signed_manifest<'a>(
     if manifest.schema != REGISTRY_SIGNED_MANIFEST_SCHEMA {
         return Err(RegistryManifestVerificationFailure::UnsupportedSchema);
     }
-    if manifest.signature.alg != "ed25519" {
+    if manifest.signature.alg != REGISTRY_MANIFEST_SIGNATURE_ALG {
         return Err(RegistryManifestVerificationFailure::UnsupportedAlgorithm);
     }
-    validate_registry_manifest_payload_terms(manifest)?;
+    manifest
+        .validate()
+        .map_err(|_| RegistryManifestVerificationFailure::MalformedPayload)?;
     let key = trusted_keys
         .iter()
         .find(|key| key.key_id == manifest.signer.key_id)
@@ -120,17 +126,11 @@ pub fn verify_registry_signed_manifest<'a>(
     if signature.len() != 64 {
         return Err(RegistryManifestVerificationFailure::MalformedSignature);
     }
-    let payload = registry_manifest_payload(
-        &manifest.skill_id,
-        &manifest.version,
-        &manifest.digest,
-        manifest.profile_digest.as_deref(),
-        manifest.package_digest.as_deref(),
-        &manifest.signer.id,
-        &manifest.signer.key_id,
-    );
+    let payload = manifest
+        .signing_payload()
+        .map_err(|_| RegistryManifestVerificationFailure::MalformedPayload)?;
     UnparsedPublicKey::new(&ED25519, &key.public_key)
-        .verify(payload.as_bytes(), &signature)
+        .verify(&payload, &signature)
         .map_err(|_| RegistryManifestVerificationFailure::SignatureMismatch)?;
     Ok(key)
 }
@@ -279,53 +279,8 @@ fn validate_registry_source(value: String) -> Result<String, RegistryManifestKey
     Ok(source.to_owned())
 }
 
-fn registry_manifest_payload(
-    skill_id: &str,
-    version: &str,
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-    signer_id: &str,
-    key_id: &str,
-) -> String {
-    format!(
-        "{REGISTRY_SIGNED_MANIFEST_SCHEMA}\nskill_id={skill_id}\nversion={version}\ndigest={digest}\nprofile_digest={}\npackage_digest={}\nsigner_id={signer_id}\nkey_id={key_id}\n",
-        profile_digest.unwrap_or(""),
-        package_digest.unwrap_or("")
-    )
-}
-
-fn validate_registry_manifest_payload_terms(
-    manifest: &RegistrySignedManifest,
-) -> Result<(), RegistryManifestVerificationFailure> {
-    validate_registry_manifest_payload_term(&manifest.skill_id)?;
-    validate_registry_manifest_payload_term(&manifest.version)?;
-    validate_registry_manifest_payload_term(&manifest.digest)?;
-    if let Some(profile_digest) = &manifest.profile_digest {
-        validate_registry_manifest_payload_term(profile_digest)?;
-    }
-    if let Some(package_digest) = &manifest.package_digest {
-        validate_registry_manifest_payload_term(package_digest)?;
-    }
-    validate_registry_manifest_payload_term(&manifest.signer.id)?;
-    validate_registry_manifest_payload_term(&manifest.signer.key_id)
-}
-
-fn validate_registry_manifest_payload_term(
-    value: &str,
-) -> Result<(), RegistryManifestVerificationFailure> {
-    if value.is_empty()
-        || value
-            .bytes()
-            .any(|byte| matches!(byte, b'\n' | b'\r' | b'=' | 0))
-    {
-        return Err(RegistryManifestVerificationFailure::MalformedPayload);
-    }
-    Ok(())
-}
-
 fn decode_signature(value: &str) -> Result<Vec<u8>, RegistryManifestVerificationFailure> {
-    let Some(encoded) = value.strip_prefix(REGISTRY_MANIFEST_SIGNATURE_BASE64_PREFIX) else {
+    let Some(encoded) = value.strip_prefix(REGISTRY_MANIFEST_SIGNATURE_PREFIX) else {
         return Err(RegistryManifestVerificationFailure::MalformedSignature);
     };
     decode_base64(encoded).map_err(|_| RegistryManifestVerificationFailure::MalformedSignature)

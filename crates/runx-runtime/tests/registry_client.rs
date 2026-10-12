@@ -4,13 +4,13 @@ use std::path::Path;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::KeyPair;
-use runx_contracts::sha256_prefixed;
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
     RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
-    RegistryManifestSourceAuthority, RegistryResolveError, RegistrySignedManifest, TrustTier,
-    TrustedRegistryManifestKey, install_local_skill, materialization_cache_path,
-    materialization_digest_marker, parse_registry_ref,
+    RegistryManifestSourceAuthority, RegistryResolveError, RegistrySignedManifest, RegistrySubject,
+    RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_local_skill,
+    materialization_cache_path, materialization_digest_marker, parse_registry_ref,
+    skill_content_digest,
 };
 use runx_runtime::{
     HttpMethod, RuntimeHttpError, RuntimeHttpRequest as HttpRequest,
@@ -297,7 +297,8 @@ fn local_install_accepts_signed_registry_manifest() -> Result<(), Box<dyn std::e
     let candidate = install_candidate()?;
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
-        expected_digest: Some(skill_digest()),
+        // A pinned digest is the content digest the registry signs.
+        expected_digest: Some(candidate_content_digest(&candidate)?),
         trusted_manifest_keys: trusted_manifest_keys()?,
     };
 
@@ -350,16 +351,14 @@ fn local_install_rejects_bad_expected_digest() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
-fn profile_digest_mismatch_leaves_no_partial_install() -> Result<(), Box<dyn std::error::Error>> {
+fn a_profile_changed_after_signing_leaves_no_partial_install()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
-    candidate.signed_manifest = Some(signed_manifest(
-        "acme/echo",
-        "1.0.0",
-        &skill_digest(),
-        Some("sha256:wrong"),
-        None,
-    )?);
+    candidate.profile_document = Some(format!(
+        "{}\n# changed\n",
+        candidate.profile_document.unwrap_or_default()
+    ));
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         expected_digest: None,
@@ -367,11 +366,15 @@ fn profile_digest_mismatch_leaves_no_partial_install() -> Result<(), Box<dyn std
     };
 
     let error = match install_local_skill(&candidate, &options) {
-        Ok(_) => return Err("profile digest mismatch should fail".into()),
+        Ok(_) => return Err("a changed profile should fail".into()),
         Err(error) => error,
     };
 
-    assert!(error.to_string().contains("binding digest mismatch"));
+    // The envelope signs every file: a changed profile is a content mismatch.
+    assert!(
+        matches!(error, InstallError::DigestMismatch { .. }),
+        "{error}"
+    );
     assert!(!options.destination_root.exists());
     Ok(())
 }
@@ -429,7 +432,7 @@ fn command(argv: &[&str]) -> serde_json::Value {
 }
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
-    Ok(InstallCandidate {
+    let mut candidate = InstallCandidate {
         markdown: include_str!("../../../fixtures/registry/install/echo-SKILL.md").to_owned(),
         profile_document: Some(
             include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
@@ -441,28 +444,20 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
         r#ref: "acme/echo@1.0.0".to_owned(),
         skill_id: Some("acme/echo".to_owned()),
         version: Some("1.0.0".to_owned()),
-        signed_manifest: Some(signed_manifest(
-            "acme/echo",
-            "1.0.0",
-            &skill_digest(),
-            Some(&profile_digest()),
-            None,
-        )?),
+        signed_manifest: None,
         profile_digest: None,
         runner_names: vec!["default".to_owned()],
         trust_tier: Some(TrustTier::Community),
         manifest_source_authority: Some(RegistryManifestSourceAuthority::RegistrySource(
             "test-registry".to_owned(),
         )),
-    })
-}
-
-fn skill_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-SKILL.md").as_bytes())
-}
-
-fn profile_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-run.yaml").as_bytes())
+    };
+    candidate.signed_manifest = Some(signed_manifest(
+        "acme/echo",
+        "1.0.0",
+        &candidate_content_digest(&candidate)?,
+    )?);
+    Ok(candidate)
 }
 
 fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
@@ -480,47 +475,42 @@ fn manifest_public_key_base64() -> Result<String, Box<dyn std::error::Error>> {
         .encode(test_manifest_key_pair()?.public_key().as_ref()))
 }
 
+/// The envelope the registry serves for a candidate's exact files, signed by the test key.
 fn signed_manifest(
     skill_id: &str,
     version: &str,
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
+    content_digest: &str,
 ) -> Result<RegistrySignedManifest, Box<dyn std::error::Error>> {
-    let payload =
-        registry_manifest_payload(skill_id, version, digest, profile_digest, package_digest);
-    let signature = test_manifest_key_pair()?.sign(payload.as_bytes());
-    Ok(RegistrySignedManifest {
+    let mut manifest = RegistrySignedManifest {
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        skill_id: skill_id.to_owned(),
+        subject: RegistrySubject {
+            kind: RegistrySubjectKind::Skill,
+            subject_ref: skill_id.to_owned(),
+        },
         version: version.to_owned(),
-        digest: digest.to_owned(),
-        profile_digest: profile_digest.map(str::to_owned),
-        package_digest: package_digest.map(str::to_owned),
+        content_digest: content_digest.to_owned(),
         signer: RegistryManifestSigner {
             id: TEST_MANIFEST_SIGNER_ID.to_owned(),
             key_id: TEST_MANIFEST_KEY_ID.to_owned(),
         },
         signature: RegistryManifestSignature {
             alg: "ed25519".to_owned(),
-            value: format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref())),
+            value: "base64:".to_owned(),
         },
-    })
+    };
+    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
+    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
+    Ok(manifest)
 }
 
-fn registry_manifest_payload(
-    skill_id: &str,
-    version: &str,
-    digest: &str,
-    profile_digest: Option<&str>,
-    package_digest: Option<&str>,
-) -> String {
-    format!(
-        "{}\nskill_id={skill_id}\nversion={version}\ndigest={digest}\nprofile_digest={}\npackage_digest={}\nsigner_id={TEST_MANIFEST_SIGNER_ID}\nkey_id={TEST_MANIFEST_KEY_ID}\n",
-        runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA,
-        profile_digest.unwrap_or(""),
-        package_digest.unwrap_or("")
-    )
+fn candidate_content_digest(
+    candidate: &InstallCandidate,
+) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(skill_content_digest(
+        &candidate.markdown,
+        candidate.profile_document.as_deref(),
+        &candidate.package_files,
+    )?)
 }
 
 fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {

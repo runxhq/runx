@@ -1,0 +1,402 @@
+{
+  "schema": "runx.registry_signed_manifest.vectors.v1",
+  "public_key_base64": "IBLLkMpg6OXY2vZuInLSIz4EhtVX6MZhQe2JIBd9frc=",
+  "key_id": "vectors-ed25519",
+  "content_digests": [
+    {
+      "name": "skill",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "content": "---\nname: brief\ndescription: A research brief.\n---\n# Brief\n"
+        },
+        {
+          "path": "run.yaml",
+          "content": "skill: brief\nrunners:\n  default: {}\n"
+        },
+        {
+          "path": "references/catalog.md",
+          "content": "---\nschema: runx.catalog-presentation.v1\ntitle: Research brief\n---\n"
+        }
+      ],
+      "digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e"
+    },
+    {
+      "name": "connector-with-escapes",
+      "files": [
+        {
+          "path": "connector.yaml",
+          "content": "schema: runx.connector.v1\nid: ops-api\nruntime_capability: false\n"
+        },
+        {
+          "path": "plugin.json",
+          "content": "{\"namespace\":\"acme\"}\n"
+        },
+        {
+          "path": "tools/read/run.mjs",
+          "content": "process.stdout.write(\"{}\\n\");\n"
+        },
+        {
+          "path": "README.md",
+          "content": "# Ops API — café   \"quoted\" \\ tab\t\n"
+        }
+      ],
+      "digest": "sha256:058d550fd780401e1abb3fef3ebed6e569654774cb1f590a3381f380c7c89940"
+    },
+    {
+      "name": "order-is-path-bytes",
+      "files": [
+        {
+          "path": "b",
+          "content": "2"
+        },
+        {
+          "path": "a/x",
+          "content": "1"
+        },
+        {
+          "path": "Z",
+          "content": "0"
+        }
+      ],
+      "digest": "sha256:9a92a84e45c5441856b790c7a294a3485f469faeafb448fa6145d52a6148182c"
+    }
+  ],
+  "invalid_content": [
+    {
+      "name": "empty",
+      "files": []
+    },
+    {
+      "name": "duplicate-path",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "content": "a"
+        },
+        {
+          "path": "SKILL.md",
+          "content": "b"
+        }
+      ]
+    }
+  ],
+  "envelopes": [
+    {
+      "name": "skill",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "content": "---\nname: brief\ndescription: A research brief.\n---\n# Brief\n"
+        },
+        {
+          "path": "run.yaml",
+          "content": "skill: brief\nrunners:\n  default: {}\n"
+        },
+        {
+          "path": "references/catalog.md",
+          "content": "---\nschema: runx.catalog-presentation.v1\ntitle: Research brief\n---\n"
+        }
+      ],
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      },
+      "signing_payload": "{\"content_digest\":\"sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e\",\"schema\":\"runx.registry.signed_manifest.v1\",\"signer\":{\"id\":\"runx-registry\",\"key_id\":\"vectors-ed25519\"},\"subject\":{\"kind\":\"skill\",\"ref\":\"acme/brief\"},\"version\":\"1.2.0\"}"
+    },
+    {
+      "name": "connector",
+      "files": [
+        {
+          "path": "connector.yaml",
+          "content": "schema: runx.connector.v1\nid: ops-api\nruntime_capability: false\n"
+        },
+        {
+          "path": "plugin.json",
+          "content": "{\"namespace\":\"acme\"}\n"
+        },
+        {
+          "path": "tools/read/run.mjs",
+          "content": "process.stdout.write(\"{}\\n\");\n"
+        },
+        {
+          "path": "README.md",
+          "content": "# Ops API — café   \"quoted\" \\ tab\t\n"
+        }
+      ],
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "connector",
+          "ref": "acme/ops-api"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:058d550fd780401e1abb3fef3ebed6e569654774cb1f590a3381f380c7c89940",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:ujg6jT008_gdaTbJSk_RtnsnYFwUxvYh6-y-U9hNzlQrOylY4MYCGpF9h7_amzp3w1BDzWAd6Ch0b_NDlQqkBQ"
+        }
+      },
+      "signing_payload": "{\"content_digest\":\"sha256:058d550fd780401e1abb3fef3ebed6e569654774cb1f590a3381f380c7c89940\",\"schema\":\"runx.registry.signed_manifest.v1\",\"signer\":{\"id\":\"runx-registry\",\"key_id\":\"vectors-ed25519\"},\"subject\":{\"kind\":\"connector\",\"ref\":\"acme/ops-api\"},\"version\":\"1.2.0\"}"
+    }
+  ],
+  "invalid_envelopes": [
+    {
+      "name": "wrong-schema",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v2",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "skill-ref-of-connector-grammar",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/ops--api"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "ref-without-publisher",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "uppercase-publisher",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "Acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "bad-version",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.0=final",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "bad-digest",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:ABC",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "wrong-alg",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "rsa",
+          "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    },
+    {
+      "name": "unprefixed-signature",
+      "manifest": {
+        "schema": "runx.registry.signed_manifest.v1",
+        "subject": {
+          "kind": "skill",
+          "ref": "acme/brief"
+        },
+        "version": "1.2.0",
+        "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+        "signer": {
+          "id": "runx-registry",
+          "key_id": "vectors-ed25519"
+        },
+        "signature": {
+          "alg": "ed25519",
+          "value": "Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+        }
+      }
+    }
+  ],
+  "subject_bindings": [
+    {
+      "name": "skill-envelope-signs-its-skill",
+      "envelope": "skill",
+      "subject": {
+        "kind": "skill",
+        "ref": "acme/brief"
+      },
+      "version": "1.2.0",
+      "signs": true
+    },
+    {
+      "name": "connector-envelope-signs-its-connector",
+      "envelope": "connector",
+      "subject": {
+        "kind": "connector",
+        "ref": "acme/ops-api"
+      },
+      "version": "1.2.0",
+      "signs": true
+    },
+    {
+      "name": "connector-envelope-is-not-a-skill",
+      "envelope": "connector",
+      "subject": {
+        "kind": "skill",
+        "ref": "acme/ops-api"
+      },
+      "version": "1.2.0",
+      "signs": false
+    },
+    {
+      "name": "skill-envelope-is-not-a-connector",
+      "envelope": "skill",
+      "subject": {
+        "kind": "connector",
+        "ref": "acme/brief"
+      },
+      "version": "1.2.0",
+      "signs": false
+    },
+    {
+      "name": "other-subject",
+      "envelope": "skill",
+      "subject": {
+        "kind": "skill",
+        "ref": "acme/other"
+      },
+      "version": "1.2.0",
+      "signs": false
+    },
+    {
+      "name": "other-version",
+      "envelope": "skill",
+      "subject": {
+        "kind": "skill",
+        "ref": "acme/brief"
+      },
+      "version": "1.2.1",
+      "signs": false
+    }
+  ],
+  "unknown_field_envelope": {
+    "schema": "runx.registry.signed_manifest.v1",
+    "subject": {
+      "kind": "skill",
+      "ref": "acme/brief"
+    },
+    "version": "1.2.0",
+    "content_digest": "sha256:472a76042a6a1e9ca135557fb9680f21e4dd5ef336ac40c2b0c1032c73c09f6e",
+    "signer": {
+      "id": "runx-registry",
+      "key_id": "vectors-ed25519"
+    },
+    "signature": {
+      "alg": "ed25519",
+      "value": "base64:Lx1XB3koo40lr2KzFQZL95HiWJWVnjL9iGyXmyN1hMzJUZ_E9EiBDtvzMAo8xS7PN_3kgOGEHdrWZPiLTw5oCw"
+    },
+    "digest": "sha256:legacy"
+  }
+}

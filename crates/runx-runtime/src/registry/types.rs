@@ -53,31 +53,11 @@ pub struct RegistryPublisher {
     pub display_name: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryManifestSigner {
-    pub id: String,
-    pub key_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryManifestSignature {
-    pub alg: String,
-    pub value: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistrySignedManifest {
-    pub schema: String,
-    pub skill_id: String,
-    pub version: String,
-    pub digest: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_digest: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub package_digest: Option<String>,
-    pub signer: RegistryManifestSigner,
-    pub signature: RegistryManifestSignature,
-}
+/// The registry's one signed envelope for skills and connectors.
+pub use runx_contracts::{
+    RegistryManifestSignature, RegistryManifestSigner, RegistrySignedManifest, RegistrySubject,
+    RegistrySubjectKind,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryPackageFile {

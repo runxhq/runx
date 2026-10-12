@@ -47,6 +47,21 @@ export { officialConnectors } from "./generated/official-connectors.js";
 export { posixCommand, renderPosixCommand, type CopyableCommand } from "./copyable-command.js";
 export { isRegistryVersion, REGISTRY_VERSION_PATTERN } from "./registry-version.js";
 export {
+  REGISTRY_MANIFEST_SIGNATURE_ALG,
+  REGISTRY_MANIFEST_SIGNATURE_PREFIX,
+  REGISTRY_SIGNED_MANIFEST_SCHEMA,
+  isRegistrySubjectRef,
+  registryContentDigest,
+  registrySignedManifestPayload,
+  registrySignedManifestSigns,
+  validateRegistrySignedManifest,
+  type RegistryContentFile,
+  type RegistrySignedManifest,
+  type RegistrySubject,
+  type RegistrySubjectKind,
+  type UnsignedRegistryManifest,
+} from "./registry-signed-manifest.js";
+export {
   registryTaxonomy,
   type RegistryTaxonomy,
   type RegistryTaxonomyCategory,

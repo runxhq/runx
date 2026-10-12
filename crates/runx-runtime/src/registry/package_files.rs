@@ -25,6 +25,28 @@ pub(crate) fn normalize_registry_package_files(
     Ok(normalized)
 }
 
+/// The manual at the root of every skill package.
+pub(crate) const MANUAL_FILE: &str = "SKILL.md";
+
+/// A skill version's content digest, as the registry signs it: its manual,
+/// its profile when it has one, and every package file.
+pub fn skill_content_digest(
+    markdown: &str,
+    profile_document: Option<&str>,
+    files: &[RegistryPackageFile],
+) -> Result<String, runx_contracts::RegistryContentDigestError> {
+    let manual = runx_contracts::RegistryContentFile { path: MANUAL_FILE, content: markdown };
+    let profile = profile_document.map(|content| runx_contracts::RegistryContentFile {
+        path: runx_parser::PROFILE_FILE,
+        content,
+    });
+    runx_contracts::registry_content_digest(
+        std::iter::once(manual).chain(profile).chain(files.iter().map(|file| {
+            runx_contracts::RegistryContentFile { path: &file.path, content: &file.content }
+        })),
+    )
+}
+
 pub(crate) fn registry_package_digest(files: &[RegistryPackageFile]) -> Option<String> {
     if files.is_empty() {
         return None;

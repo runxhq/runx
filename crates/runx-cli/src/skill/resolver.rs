@@ -322,17 +322,22 @@ fn registry_cache_identity(candidate: &InstallCandidate) -> Result<RegistryCache
             candidate.r#ref
         )
     })?;
+    // The envelope signs one content digest over every file; install checks
+    // the candidate against it, so these digests derive from bound bytes.
     Ok(RegistryCacheIdentity {
         skill_id: candidate
             .skill_id
             .clone()
-            .or_else(|| Some(manifest.skill_id.clone())),
+            .or_else(|| Some(manifest.subject.subject_ref.clone())),
         version: candidate
             .version
             .clone()
             .or_else(|| Some(manifest.version.clone())),
-        digest: Some(manifest.digest.clone()),
-        profile_digest: manifest.profile_digest.clone(),
+        digest: Some(sha256_prefixed(candidate.markdown.as_bytes())),
+        profile_digest: candidate
+            .profile_document
+            .as_ref()
+            .map(|document| sha256_prefixed(document.as_bytes())),
         package_digest: candidate.package_digest.clone(),
     })
 }
