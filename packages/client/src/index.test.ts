@@ -81,7 +81,7 @@ describe("native invocation and decoding", () => {
   it("reads a connector's exact registry package and refuses another shape", async () => {
     const { root, config } = await setup();
     const capture = path.join(root, "connector.args");
-    const connector = { ref: "acme/ops-api", version: "sha-0123456789ab", content_digest: `sha256:${"a".repeat(64)}`, manifest_digest: `sha256:${"b".repeat(64)}`, connector_digest: `sha256:${"c".repeat(64)}`, manifest: { id: "ops-api" }, operation_digests: {}, files: [{ path: "connector.yaml", content: "id: ops-api\n" }] };
+    const connector = { ref: "acme/ops-api", version: "sha-0123456789ab", content_digest: `sha256:${"a".repeat(64)}`, manifest_digest: `sha256:${"b".repeat(64)}`, connector_digest: `sha256:${"c".repeat(64)}`, manifest: { id: "ops-api" }, digests: {}, files: [{ path: "connector.yaml", content: "id: ops-api\n" }] };
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
       process.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: ${JSON.stringify(connector)} } }));`);

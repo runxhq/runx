@@ -78,7 +78,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         const connector = record(output.registry) ? output.registry.connector : undefined;
         if (output.status !== "success" || !record(output.registry) || output.registry.action !== "connector_package" || !record(connector)
           || !["ref", "version", "content_digest", "manifest_digest", "connector_digest"].every((field) => typeof connector[field] === "string")
-          || !record(connector.manifest) || !record(connector.operation_digests) || !Array.isArray(connector.files)
+          || !record(connector.manifest) || !record(connector.digests) || !Array.isArray(connector.files)
           || !connector.files.every((file) => record(file) && typeof file.path === "string" && typeof file.content === "string")) {
           throw new RunxClientError("contract", "Invalid native connector package.");
         }

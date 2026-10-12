@@ -17,9 +17,9 @@ use serde::{Deserialize, Serialize};
 use super::RegistryPublishPackageError;
 use crate::LoadedSkillPackage;
 use crate::kernel::connectors::{
-    ConnectorScope, ConnectorTool, LoadedConnector, MANIFEST_FILE, PLUGIN_METADATA_FILE,
-    PluginMetadata, embedded_asset, embedded_manifest, load_connector_directory, plugin_root,
-    read_bounded,
+    ConnectorScope, ConnectorTool, LoadedConnector, MANIFEST_FILE, OperationDigests,
+    PLUGIN_METADATA_FILE, PluginMetadata, embedded_asset, embedded_manifest,
+    load_connector_directory, operation_digest_entries, plugin_root, read_bounded,
 };
 use crate::registry::RegistryPackageFile;
 use crate::registry::package_metadata::{RegistryConnectorMetadata, declared_connectors};
@@ -42,7 +42,8 @@ pub struct RegistryConnectorPackage {
     pub manifest_digest: Digest,
     /// The manifest and every tool its process operations run.
     pub connector_digest: Digest,
-    pub operation_digests: BTreeMap<OperationName, Digest>,
+    /// Each operation's digest and its implementation's, as runx Connect binds them.
+    pub digests: BTreeMap<OperationName, OperationDigests>,
     pub files: Vec<RegistryPackageFile>,
 }
 
@@ -182,7 +183,12 @@ pub(crate) fn connector_package(
         content_digest,
         connector_digest: connector.connector_digest.clone(),
         manifest_digest: connector.manifest_digest.clone(),
-        operation_digests: connector.operation_digests.clone(),
+        digests: operation_digest_entries(
+            &connector.manifest,
+            &connector.operation_digests,
+            |tool| connector.tools.get(tool).map(|loaded| &loaded.digest),
+        )
+        .map_err(RegistryPublishPackageError::invalid)?,
         manifest: connector.manifest.clone(),
         files,
     })

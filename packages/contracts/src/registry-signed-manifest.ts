@@ -17,17 +17,31 @@ export type RegistrySubjectKind = "skill" | "connector";
 
 export interface RegistrySubject {
   readonly kind: RegistrySubjectKind;
-  /** `publisher/name` for a skill, `publisher/id` for a connector. */
+  /**
+   * `publisher/name` for a skill, `publisher/id` for a connector.
+   * @pattern ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$
+   */
   readonly ref: string;
 }
 
 export interface RegistrySignedManifest {
   readonly schema: typeof REGISTRY_SIGNED_MANIFEST_SCHEMA;
   readonly subject: RegistrySubject;
+  /** @pattern ^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$ */
   readonly version: string;
+  /** @pattern ^sha256:[0-9a-f]{64}$ */
   readonly content_digest: `sha256:${string}`;
-  readonly signer: { readonly id: string; readonly key_id: string };
-  readonly signature: { readonly alg: typeof REGISTRY_MANIFEST_SIGNATURE_ALG; readonly value: string };
+  readonly signer: {
+    /** @pattern ^[\x21-\x7e]{1,128}$ */
+    readonly id: string;
+    /** @pattern ^[\x21-\x7e]{1,128}$ */
+    readonly key_id: string;
+  };
+  readonly signature: {
+    readonly alg: typeof REGISTRY_MANIFEST_SIGNATURE_ALG;
+    /** @pattern ^base64:[A-Za-z0-9_-]+$ */
+    readonly value: string;
+  };
 }
 
 export type UnsignedRegistryManifest = Omit<RegistrySignedManifest, "signature">;

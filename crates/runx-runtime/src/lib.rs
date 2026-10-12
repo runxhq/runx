@@ -131,7 +131,7 @@ pub use init::{
 };
 pub use kernel::authority::{ChildLimits, RunAuthority};
 pub use kernel::connectors::{
-    ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
+    ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector, OperationDigests,
 };
 pub use kernel::instances::{InstanceError, InstanceRecord, Instances};
 pub use kernel::operation::{

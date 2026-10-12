@@ -414,7 +414,7 @@ fn registry_connector_package_projects_a_connector_on_its_own()
         json!({"namespace": "acme"})
     );
     assert!(
-        packaged["operation_digests"]["item.read"]
+        packaged["digests"]["item.read"]["operation"]
             .as_str()
             .is_some_and(|digest| digest.starts_with("sha256:"))
     );

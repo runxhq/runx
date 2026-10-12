@@ -216,6 +216,61 @@ fn process_tools(manifest: &ConnectorManifest) -> impl Iterator<Item = &str> {
         .into_iter()
 }
 
+/// One operation's digests, in the shape runx Connect binds: its operation
+/// digest and, when it declares an implementation, that implementation's.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct OperationDigests {
+    pub operation: Digest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<Digest>,
+}
+
+/// Every operation's digests: the validated operation digest, and the
+/// implementation digest over its local MCP server or the digest of the tool
+/// package its process operation runs (`tool_digest`).
+pub(crate) fn operation_digest_entries<'a>(
+    manifest: &ConnectorManifest,
+    operation_digests: &BTreeMap<OperationName, Digest>,
+    tool_digest: impl Fn(&str) -> Option<&'a Digest>,
+) -> Result<BTreeMap<OperationName, OperationDigests>, String> {
+    let server = manifest
+        .placements
+        .local
+        .as_ref()
+        .and_then(|local| local.mcp_server.as_ref());
+    manifest
+        .operations
+        .iter()
+        .map(|(name, operation)| {
+            let implementation = operation
+                .implementation
+                .as_ref()
+                .map(|implementation| {
+                    let tool = match implementation {
+                        runx_contracts::connector::Implementation::Process(process) => {
+                            tool_digest(process.tool.as_str())
+                        }
+                        _ => None,
+                    };
+                    runx_contracts::connector::implementation_digest(implementation, server, tool)
+                        .map_err(|error| error.to_string())
+                })
+                .transpose()?;
+            let operation = operation_digests
+                .get(name)
+                .cloned()
+                .ok_or_else(|| format!("operation {name} has no operation digest"))?;
+            Ok((
+                name.clone(),
+                OperationDigests {
+                    operation,
+                    implementation,
+                },
+            ))
+        })
+        .collect()
+}
+
 /// The official connectors as runx Connect reads them: each manifest under
 /// `connectors_dir`, validated, beside its manifest digest and each
 /// operation's operation and implementation digests, the tool packages its
@@ -246,40 +301,16 @@ pub fn official_connectors_contract(connectors_dir: &Path) -> Result<serde_json:
             })
             .map_err(|message| format!("connectors/{id}: {message}"))?;
         let manifest = &validated.manifest;
-        let server = manifest
-            .placements
-            .local
-            .as_ref()
-            .and_then(|local| local.mcp_server.as_ref());
         let tools = process_tools(manifest)
             .map(|tool| {
                 ConnectorTool::in_plugin(&directory, tool).map(|loaded| (tool, loaded.digest))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()
             .map_err(|message| format!("connectors/{id}: {message}"))?;
-        let mut digests = serde_json::Map::new();
-        for (name, operation) in &manifest.operations {
-            let mut entry = serde_json::Map::from_iter([(
-                "operation".to_owned(),
-                serde_json::Value::from(validated.operation_digests[name].as_str()),
-            )]);
-            if let Some(implementation) = &operation.implementation {
-                let tool = match implementation {
-                    runx_contracts::connector::Implementation::Process(process) => {
-                        tools.get(process.tool.as_str())
-                    }
-                    _ => None,
-                };
-                let digest =
-                    runx_contracts::connector::implementation_digest(implementation, server, tool)
-                        .map_err(|error| error.to_string())?;
-                entry.insert(
-                    "implementation".to_owned(),
-                    serde_json::Value::from(digest.as_str()),
-                );
-            }
-            digests.insert(name.as_str().to_owned(), serde_json::Value::Object(entry));
-        }
+        let digests = operation_digest_entries(manifest, &validated.operation_digests, |tool| {
+            tools.get(tool)
+        })
+        .map_err(|message| format!("connectors/{id}: {message}"))?;
         connectors.push(serde_json::json!({
             "connector_binding": runx_contracts::connector::ConnectorBinding {
                 connector: ConnectorRef::qualified(&namespace, &manifest.id),
@@ -287,7 +318,7 @@ pub fn official_connectors_contract(connectors_dir: &Path) -> Result<serde_json:
                 connector_digest: connector_digest(&validated.manifest_digest, tools.iter().map(|(name, digest)| (*name, digest))).map_err(|error| error.to_string())?,
             },
             "manifest_digest": validated.manifest_digest.as_str(),
-            "digests": digests,
+            "digests": serde_json::to_value(&digests).map_err(|error| error.to_string())?,
             "manifest": serde_json::to_value(manifest).map_err(|error| error.to_string())?,
         }));
     }

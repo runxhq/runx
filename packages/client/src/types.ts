@@ -105,7 +105,8 @@ export interface NativeConnectorPackageOutput extends Readonly<Record<string, un
       readonly manifest_digest: string;
       readonly connector_digest: string;
       readonly manifest: Readonly<Record<string, unknown>>;
-      readonly operation_digests: Readonly<Record<string, string>>;
+      /** Each operation's digest and its implementation's, as runx Connect binds them. */
+      readonly digests: Readonly<Record<string, { readonly operation: string; readonly implementation?: string }>>;
       readonly files: readonly { readonly path: string; readonly content: string }[];
     };
   };
