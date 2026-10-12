@@ -93,6 +93,24 @@ export interface NativePackageOutput extends Readonly<Record<string, unknown>> {
   };
 }
 
+/** `runx registry connector package <dir> --json`: a connector's exact registry package. */
+export interface NativeConnectorPackageOutput extends Readonly<Record<string, unknown>> {
+  readonly status: "success";
+  readonly registry: {
+    readonly action: "connector_package";
+    readonly connector: Readonly<Record<string, unknown>> & {
+      readonly ref: string;
+      readonly version: string;
+      readonly content_digest: string;
+      readonly manifest_digest: string;
+      readonly connector_digest: string;
+      readonly manifest: Readonly<Record<string, unknown>>;
+      readonly operation_digests: Readonly<Record<string, string>>;
+      readonly files: readonly { readonly path: string; readonly content: string }[];
+    };
+  };
+}
+
 export interface NativeHarnessOutput {
   readonly status: "passed" | "failed" | "not_declared";
   readonly case_count: number;
@@ -117,7 +135,10 @@ export interface RunxClient {
   };
   readonly runs: { resume(options: RunResumeOptions): Promise<SkillRunOutput> };
   readonly turns: { server(options: TurnServerOptions): TurnServer };
-  readonly packages: { materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput> };
+  readonly packages: {
+    materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput>;
+    materializeConnector(options: InvocationOptions & { readonly connectorPath: string }): Promise<NativeConnectorPackageOutput>;
+  };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly receipts: {
     /**

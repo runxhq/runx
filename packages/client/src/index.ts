@@ -1,7 +1,7 @@
 import path from "node:path";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
-import type { ExecutionBinding, InvocationOptions, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
+import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
 
 export { hostEnvironmentFrom } from "./environment.js";
 export { RunxClientError } from "./process.js";
@@ -72,6 +72,17 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         const output = parseJson(await execute(["registry", "package", argument(options.skillPath), "--json"], options), [0]);
         if (output.status !== "success" || !record(output.registry) || output.registry.action !== "package" || !record(output.registry.package) || typeof output.registry.package.markdown !== "string") throw new RunxClientError("contract", "Invalid native package material.");
         return output as NativePackageOutput;
+      },
+      materializeConnector: async (options) => {
+        const output = parseJson(await execute(["registry", "connector", "package", argument(options.connectorPath), "--json"], options), [0]);
+        const connector = record(output.registry) ? output.registry.connector : undefined;
+        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "connector_package" || !record(connector)
+          || !["ref", "version", "content_digest", "manifest_digest", "connector_digest"].every((field) => typeof connector[field] === "string")
+          || !record(connector.manifest) || !record(connector.operation_digests) || !Array.isArray(connector.files)
+          || !connector.files.every((file) => record(file) && typeof file.path === "string" && typeof file.content === "string")) {
+          throw new RunxClientError("contract", "Invalid native connector package.");
+        }
+        return output as NativeConnectorPackageOutput;
       },
     },
     harness: {

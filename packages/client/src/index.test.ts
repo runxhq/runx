@@ -78,6 +78,20 @@ describe("native invocation and decoding", () => {
     await client.receipts.verify({ receipt: '{"receipt":"exact"}', trust: "configured" });
     expect(JSON.parse(await readFile(`${capture}.args`, "utf8"))).toEqual(["verify", "--receipt", "-", "--trust", "configured", "--json"]);
   });
+  it("reads a connector's exact registry package and refuses another shape", async () => {
+    const { root, config } = await setup();
+    const capture = path.join(root, "connector.args");
+    const connector = { ref: "acme/ops-api", version: "sha-0123456789ab", content_digest: `sha256:${"a".repeat(64)}`, manifest_digest: `sha256:${"b".repeat(64)}`, connector_digest: `sha256:${"c".repeat(64)}`, manifest: { id: "ops-api" }, operation_digests: {}, files: [{ path: "connector.yaml", content: "id: ops-api\n" }] };
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+      process.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: ${JSON.stringify(connector)} } }));`);
+    const client = createRunxClient(config);
+    await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).resolves.toMatchObject({ registry: { connector: { ref: "acme/ops-api" } } });
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["registry", "connector", "package", "/connectors/ops-api", "--json"]);
+    await expect(client.packages.materializeConnector({ connectorPath: "--help" })).rejects.toThrow("positional");
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { ref: 'acme/ops-api' } } }));`);
+    await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");
+  });
   it("sends inputs on stdin, never in argv or a file", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.json");
