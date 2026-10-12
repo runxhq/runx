@@ -2,8 +2,8 @@
   "connectors": [
     {
       "ref": "runx/apollo",
-      "version": "sha-6574827e853b",
-      "content_digest": "sha256:6574827e853b2ab5d4992b5be2aa94e7b6ecfcac64628b07154ce5c58da2a268"
+      "version": "sha-99f85a8669e9",
+      "content_digest": "sha256:99f85a8669e99d16d89e8161559d42b37c7830c28540d349a6b93702d7b4525d"
     },
     {
       "ref": "runx/aws",
@@ -22,13 +22,13 @@
     },
     {
       "ref": "runx/github",
-      "version": "sha-5480ac968dbf",
-      "content_digest": "sha256:5480ac968dbf6537ab56cad99337203b65d34082b99760ddff33b32950d93f73"
+      "version": "sha-6ca03a7d224d",
+      "content_digest": "sha256:6ca03a7d224d5ff3ff955928b0823fb5c62d46c731f7dd8ffc88abfe5eff2fef"
     },
     {
       "ref": "runx/google-analytics",
-      "version": "sha-238d2bf6bb18",
-      "content_digest": "sha256:238d2bf6bb18a984f5bd8bb48404feff0b295f8c5dad75f3b96cb062f14fcdc8"
+      "version": "sha-1b8362b6bb99",
+      "content_digest": "sha256:1b8362b6bb99fa39ce09c3b8872db1614482fdf0caab8da32a069abb5c8992f2"
     },
     {
       "ref": "runx/google-calendar",
@@ -37,8 +37,8 @@
     },
     {
       "ref": "runx/google-search-console",
-      "version": "sha-4b28e7098308",
-      "content_digest": "sha256:4b28e70983083f4c1074ee8d269163fa7f8328b923f0f83bdfe0caa6b3e66f38"
+      "version": "sha-6513afd0ec96",
+      "content_digest": "sha256:6513afd0ec96cdb5b26eecf6a2d77e1e66eb791eaece7c8b5c88c4fc46754c53"
     },
     {
       "ref": "runx/google-sheets",
@@ -47,8 +47,8 @@
     },
     {
       "ref": "runx/linear",
-      "version": "sha-2fafa1893d88",
-      "content_digest": "sha256:2fafa1893d882e8b50860da80c9639f553c4b66ccc6c4631978647bdc8dbef93"
+      "version": "sha-30b131d14602",
+      "content_digest": "sha256:30b131d146029c1187a91409a406b9bee00d44d43b53b7b32fab2301f79c27c0"
     },
     {
       "ref": "runx/moltbook",
@@ -72,8 +72,8 @@
     },
     {
       "ref": "runx/notion",
-      "version": "sha-06005426683c",
-      "content_digest": "sha256:06005426683caf776225526a858c77a85d0e2036ef6d868fceb1f97719668d85"
+      "version": "sha-0af8cf9bfe1f",
+      "content_digest": "sha256:0af8cf9bfe1f1b7ad84c85ef88fd8eca77ffba3f38d0f11c93991ddfca596a77"
     },
     {
       "ref": "runx/open-meteo",
@@ -87,8 +87,8 @@
     },
     {
       "ref": "runx/posthog",
-      "version": "sha-2adac5bdb52f",
-      "content_digest": "sha256:2adac5bdb52f3421355522315f0b5ac784d6e9c96ba1e8c442dff53dc2cc9537"
+      "version": "sha-918a85c247ee",
+      "content_digest": "sha256:918a85c247ee2e7a20c939833d565aa13c3d84962bb6efd5de0b08de5d1fa41b"
     },
     {
       "ref": "runx/reddit",
@@ -102,13 +102,13 @@
     },
     {
       "ref": "runx/sentry",
-      "version": "sha-66156d5d7b32",
-      "content_digest": "sha256:66156d5d7b3262e9d890a8e56668f4a8e6cdaff9ba87a04ebeb120cd6aa89d6f"
+      "version": "sha-3f38c799f50d",
+      "content_digest": "sha256:3f38c799f50d3098ad8ff4b339eee3ca49819ee9fbaf97f6d4e0494ccfa61f54"
     },
     {
       "ref": "runx/slack",
-      "version": "sha-8b2eb05b42bd",
-      "content_digest": "sha256:8b2eb05b42bd5f08bf6f47b0237bbb52f4412ef17fc43987adbbdb35c4be3190"
+      "version": "sha-215dd51bacb6",
+      "content_digest": "sha256:215dd51bacb6bfe4ac3054d86ee38deacbde168ea891cba78b46865a70fef383"
     },
     {
       "ref": "runx/store",

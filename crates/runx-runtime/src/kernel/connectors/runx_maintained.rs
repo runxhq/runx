@@ -4462,6 +4462,11 @@ Provider reference: [Apollo API authentication](https://docs.apollo.io/docs/api-
 "###,
     ),
     (
+        "apollo",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="9.600000000000001" fill="#252522" /><g fill="#f8ff2c" transform="translate(0 0) scale(0.774194)"><path d="M33.158 25.114l-.007-16.009L31 9a22.03 22.03 0 0 0-5.119.6l4.881 15.371c.275.865-.777 1.534-1.444.917L16.732 14.255a22.11 22.11 0 0 0-4.547 5.338l16.048 8.488a3.36 3.36 0 0 0 4.925-2.968zm-4.371 11.848l.007 15.928L31 53a22.06 22.06 0 0 0 5.045-.582l-4.863-15.313c-.275-.865.777-1.534 1.444-.917l12.57 11.618a22.11 22.11 0 0 0 4.57-5.32l-16.054-8.491a3.36 3.36 0 0 0-4.925 2.968h0zm7.335-7.578l11.657-12.612c-1.521-1.791-3.322-3.337-5.338-4.566l-8.512 16.093a3.36 3.36 0 0 0 2.968 4.925l15.993-.007L53 31a22.06 22.06 0 0 0-.584-5.055l-15.377 4.883c-.865.275-1.534-.776-.917-1.443zm-11.074-.532l-15.944.007L9 30.999a22.05 22.05 0 0 0 .598 5.109l15.308-4.861c.865-.275 1.534.777.917 1.444L14.229 45.236c1.516 1.784 3.312 3.324 5.32 4.551l8.468-16.01a3.36 3.36 0 0 0-2.968-4.925h0z" /></g></svg>"###,
+    ),
+    (
         "exa",
         "README.md",
         r###"# Exa
@@ -4491,6 +4496,33 @@ recovery.
 
 [Provider search/authentication contract](https://exa.ai/docs/reference/search).
 "###,
+    ),
+    (
+        "github",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g transform="translate(-8.348 -8.348) scale(1.04348)"><g><path fill-rule="evenodd" d="M30.934 9C18.805 9 9 18.878 9 31.097c0 9.768 6.283 18.036 14.998 20.963 1.09.22 1.489-.475 1.489-1.06l-.036-4.098c-6.102 1.317-7.372-2.634-7.372-2.634-.981-2.561-2.434-3.219-2.434-3.219-1.997-1.354.146-1.354.146-1.354 2.215.146 3.378 2.268 3.378 2.268 1.961 3.365 5.12 2.415 6.391 1.829.181-1.427.763-2.415 1.38-2.963-4.867-.512-9.987-2.415-9.987-10.903 0-2.415.871-4.39 2.251-5.927-.218-.549-.981-2.817.218-5.854 0 0 1.852-.585 6.028 2.268 1.788-.484 3.632-.73 5.484-.732s3.74.256 5.483.732c4.176-2.854 6.029-2.268 6.029-2.268 1.199 3.036.435 5.305.218 5.854 1.417 1.536 2.252 3.512 2.252 5.927 0 8.488-5.12 10.354-10.023 10.903.799.695 1.489 2.012 1.489 4.097l-.036 6.073c0 .586.4 1.281 1.489 1.061 8.716-2.927 14.998-11.195 14.998-20.963C52.868 18.878 43.027 9 30.934 9z" fill="#24292f" /></g></g></svg>"###,
+    ),
+    (
+        "google-analytics",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g transform="translate(0 0) scale(0.25)"><rect x="0" y="0" fill="none" width="192" height="192" />
+<g>
+	<g>
+		<path fill="#F9AB00" d="M130,29v132c0,14.77,10.19,23,21,23c10,0,21-7,21-23V30c0-13.54-10-22-21-22S130,17.33,130,29z" />
+	</g>
+	<g>
+		<path fill="#E37400" d="M75,96v65c0,14.77,10.19,23,21,23c10,0,21-7,21-23V97c0-13.54-10-22-21-22S75,84.33,75,96z" />
+	</g>
+	<g>
+		<circle fill="#E37400" cx="41" cy="163" r="21" />
+	</g>
+</g>
+</g></svg>"###,
+    ),
+    (
+        "google-search-console",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g transform="translate(0 0) scale(1.2)"><g><path d="M11.081 30.527l-4.72 4.721a.933.933 0 0 1-1.317 0l-.292-.292a.933.933 0 0 1 0-1.316l4.72-4.721a.933.933 0 0 1 1.318 0l.291.291a.93.93 0 0 1 0 1.317z" fill="#FBBC04" /><path d="M23.75 32.5h6.042a6.04 6.04 0 0 0 6.041-6.042v-16.25a6.04 6.04 0 0 0-6.041-6.041 6.04 6.04 0 0 0-6.042 6.041V32.5z" fill="#4285F4" /><path d="M13.75 32.5a6.04 6.04 0 0 0 6.042-6.042 6.04 6.04 0 0 0-6.042-6.041 6.04 6.04 0 0 0-6.042 6.041A6.04 6.04 0 0 0 13.75 32.5z" fill="#FBBC04" /><path d="M27.97 32.5h-5.887a6.04 6.04 0 0 1-6.041-6.042v-7.916a6.04 6.04 0 0 1 6.041-6.042 6.04 6.04 0 0 1 6.042 6.042v13.804a.154.154 0 0 1-.154.154z" fill="#34A853" /><path d="M28.125 32.346V18.542a6.042 6.042 0 0 0-4.375-5.807V32.5h4.22a.154.154 0 0 0 .155-.154z" fill="#1967D2" /><path d="M19.792 26.575a6.04 6.04 0 0 0-3.75-5.59v5.59c0 1.72.72 3.273 1.875 4.373a6.024 6.024 0 0 0 1.875-4.373z" fill="#EA4335" /></g></g></svg>"###,
     ),
     (
         "google-sheets",
@@ -4563,6 +4595,11 @@ No live account access has been verified for this source addition.
 "###,
     ),
     (
+        "linear",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="9.600000000000001" fill="#5d5ec7" /><g fill="#fff" transform="translate(8 8) scale(1.33333)"><path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z" /></g></svg>"###,
+    ),
+    (
         "notion",
         "README.md",
         r###"# Notion
@@ -4599,6 +4636,11 @@ No live account access has been verified for this source addition.
 "###,
     ),
     (
+        "notion",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g transform="translate(0 0) scale(2)"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" /></g></svg>"###,
+    ),
+    (
         "posthog",
         "README.md",
         r###"# PostHog
@@ -4625,6 +4667,11 @@ is sufficient.
 
 Provider contract: [Insights API](https://posthog.com/docs/api/insights).
 "###,
+    ),
+    (
+        "posthog",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><defs><linearGradient id="logo-jump-p0" x1="21.96" x2="33.28" y1="9.62" y2="9.62" gradientUnits="userSpaceOnUse"><stop stop-color="#ffd849" /><stop offset=".96" stop-color="#fbae01" /></linearGradient><linearGradient id="logo-jump-p1" x1="21.96" x2="33.28" y1="17.81" y2="17.81" gradientUnits="userSpaceOnUse"><stop stop-color="#ffb700" /><stop offset="1" stop-color="#f9aa01" /></linearGradient><linearGradient id="logo-jump-p2" x1="21.96" x2="31.03" y1="23.34" y2="23.34" gradientUnits="userSpaceOnUse"><stop stop-color="#ff9500" /><stop offset="1" stop-color="#f8aa00" /></linearGradient><linearGradient id="logo-jump-p3" x1="10.74" x2="21.96" y1="9.34" y2="9.34" gradientUnits="userSpaceOnUse"><stop stop-color="#ff651e" /><stop offset="1" stop-color="#e4400a" /></linearGradient><linearGradient id="logo-jump-p4" x1="10.74" x2="19.7" y1="23.34" y2="23.34" gradientUnits="userSpaceOnUse"><stop stop-color="#c42c00" /><stop offset="1" stop-color="#d63600" /></linearGradient><linearGradient id="logo-jump-p5" x1="10.74" x2="21.96" y1="17.58" y2="17.58" gradientUnits="userSpaceOnUse"><stop stop-color="#ef3c00" /><stop offset="1" stop-color="#d63601" /></linearGradient><linearGradient id="logo-jump-p6" x1="0" x2="10.74" y1="9.34" y2="9.34" gradientUnits="userSpaceOnUse"><stop stop-color="#3f80ff" /><stop offset="1" stop-color="#084fe0" /></linearGradient><linearGradient id="logo-jump-p7" x1="0" x2="10.74" y1="17.75" y2="17.75" gradientUnits="userSpaceOnUse"><stop stop-color="#0255ff" /><stop offset="1" stop-color="#0145d2" /></linearGradient><linearGradient id="logo-jump-p8" x1="0" x2="9.19" y1="23.11" y2="23.11" gradientUnits="userSpaceOnUse"><stop stop-color="#0041c6" /><stop offset="1" stop-color="#0045d0" /></linearGradient></defs><g transform="translate(0 11.08) scale(0.923077)"><path fill="url(#logo-jump-p6)" d="M10.74 7.16 4.54.8A2.66 2.66 0 0 0 0 2.66V7.5l10.74 11.18z" /><path fill="url(#logo-jump-p7)" d="M9.19 28h1.55v-9.32L0 7.5v10.73z" /><path fill="url(#logo-jump-p8)" d="M0 25.41A2.6 2.6 0 0 0 2.58 28H9.2L0 18.23z" /><path fill="url(#logo-jump-p3)" d="M10.74 2.66v4.5l11.22 11.52V7.63L15.3.8a2.66 2.66 0 0 0-4.56 1.86" /><path fill="url(#logo-jump-p4)" d="M10.74 28h8.96l-8.96-9.32z" /><path fill="url(#logo-jump-p5)" d="M10.74 7.16v11.52L19.7 28h2.26v-9.32z" /><path fill="url(#logo-jump-p0)" d="M21.96 2.67v4.96l11.3 11.6h.02V7.75L26.63.85a2.8 2.8 0 0 0-2-.85 2.67 2.67 0 0 0-2.67 2.67" /><path fill="url(#logo-jump-p1)" d="M21.96 7.63v11.05L31.03 28h2.25v-8.75z" /><path fill="url(#logo-jump-p2)" d="M21.96 28h9.07l-9.07-9.32z" /><path fill="#111" d="M51.66 25.22A1.9 1.9 0 0 0 50 23.33l-.34-.04c-1-.13-1.94-.6-2.65-1.33L33.28 7.75V28H49a2.66 2.66 0 0 0 2.67-2.67zM39.2 23.54h-.09a1.78 1.78 0 1 1 .1 0" /></g></svg>"###,
     ),
     (
         "sentry",
@@ -4655,5 +4702,15 @@ Provider references: [issue read](https://docs.sentry.io/api/events/retrieve-an-
 [project issues](https://docs.sentry.io/api/events/list-a-projects-issues/),
 [issue event](https://docs.sentry.io/api/events/retrieve-an-issue-event/).
 "###,
+    ),
+    (
+        "sentry",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="9.600000000000001" fill="#f0edf3" /><g transform="translate(4 4) scale(1.66667)"><path d="M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z" /></g></svg>"###,
+    ),
+    (
+        "slack",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g transform="translate(0 0) scale(0.377953)"><path fill="#e01e5a" d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2S.8 87.3.8 80 6.7 66.8 14 66.8h13.2zm6.6 0c0-7.3 5.9-13.2 13.2-13.2S60.2 72.7 60.2 80v33c0 7.3-5.9 13.2-13.2 13.2s-13.2-5.9-13.2-13.2z" /><path fill="#36c5f0" d="M47 27c-7.3 0-13.2-5.9-13.2-13.2S39.7.6 47 .6s13.2 5.9 13.2 13.2V27zm0 6.7c7.3 0 13.2 5.9 13.2 13.2S54.3 60.1 47 60.1H13.9C6.6 60.1.7 54.2.7 46.9s5.9-13.2 13.2-13.2z" /><path fill="#2eb67d" d="M99.9 46.9c0-7.3 5.9-13.2 13.2-13.2s13.2 5.9 13.2 13.2-5.9 13.2-13.2 13.2H99.9zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2s-13.2-5.9-13.2-13.2V13.8C66.9 6.5 72.8.6 80.1.6s13.2 5.9 13.2 13.2z" /><path fill="#ecb22e" d="M80.1 99.8c7.3 0 13.2 5.9 13.2 13.2s-5.9 13.2-13.2 13.2-13.2-5.9-13.2-13.2V99.8zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2s5.9-13.2 13.2-13.2h33.1c7.3 0 13.2 5.9 13.2 13.2s-5.9 13.2-13.2 13.2z" /></g></svg>"###,
     ),
 ];
