@@ -39,6 +39,17 @@ pub(super) enum RegistryPayload {
     ConnectorPackage {
         connector: Box<runx_runtime::registry::RegistryConnectorPackage>,
     },
+    ConnectorPublish {
+        publish: Box<runx_runtime::registry::HostedConnectorPublishResult>,
+    },
+    ConnectorRead {
+        source: &'static str,
+        connector: Box<runx_runtime::registry::RegistryConnectorDetail>,
+    },
+    ConnectorInstall {
+        source: &'static str,
+        install: Box<runx_runtime::registry::InstalledRegistryConnector>,
+    },
     Publish {
         publish: PublishPayload,
     },
@@ -187,6 +198,63 @@ fn install_run_command(install: &runx_runtime::registry::InstallLocalSkillResult
     };
     runx_contracts::CopyableCommand::posix(vec!["runx".to_owned(), "skill".to_owned(), skill])
         .map_or_else(|_| "unavailable".to_owned(), |command| command.copy_text)
+}
+
+pub(super) fn render_connector_publish(
+    published: &runx_runtime::registry::HostedConnectorPublishResult,
+) -> String {
+    format!(
+        "\n  registry connector publish  {}\n  connector        {}@{}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  install          {}\n  page             {}\n\n",
+        published.status,
+        published.connector_ref,
+        published.version,
+        published.content_digest,
+        published.manifest_digest,
+        trust_tier_label(&published.trust_tier),
+        published.install_command.copy_text,
+        published.public_url,
+    )
+}
+
+pub(super) fn render_connector_read(
+    connector: &runx_runtime::registry::RegistryConnectorDetail,
+) -> String {
+    let mut output = format!(
+        "\n  registry connector read  {}@{}\n  name             {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  operations       {}\n",
+        connector.connector_ref,
+        connector.version,
+        connector.name,
+        connector.content_digest,
+        connector.manifest_digest,
+        trust_tier_label(&connector.trust_tier),
+        connector.operations.len(),
+    );
+    for operation in &connector.operations {
+        output.push_str(&format!(
+            "    - {}  {}\n",
+            operation.name, operation.description
+        ));
+    }
+    output.push_str(&format!(
+        "  next             {}\n\n",
+        connector.install_command.copy_text
+    ));
+    output
+}
+
+pub(super) fn render_connector_install(
+    install: &runx_runtime::registry::InstalledRegistryConnector,
+) -> String {
+    format!(
+        "\n  registry connector install  {}@{}\n  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
+        install.connector_ref,
+        install.version,
+        install_status_label(&install.status),
+        install.content_digest,
+        install.manifest_digest,
+        trust_tier_label(&install.trust_tier),
+        install.destination.display(),
+    )
 }
 
 fn signed_manifest_label(

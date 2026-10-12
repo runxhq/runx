@@ -198,9 +198,11 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
     Ok(trusted_keys)
 }
 
+/// Whether `key` may sign `subject_ref` (`publisher/name`, a skill or a
+/// connector) at `trust_tier` from `source_authority`.
 pub fn registry_manifest_key_allows(
     key: &TrustedRegistryManifestKey,
-    skill_id: &str,
+    subject_ref: &str,
     trust_tier: &TrustTier,
     source_authority: Option<&RegistryManifestSourceAuthority>,
 ) -> Result<(), String> {
@@ -215,10 +217,8 @@ pub fn registry_manifest_key_allows(
                         .to_owned(),
                 );
             }
-            if matches!(trust_tier, TrustTier::FirstParty) && !skill_id.starts_with("runx/") {
-                return Err(
-                    "official key may only grant first_party trust to runx/* skills".to_owned(),
-                );
+            if matches!(trust_tier, TrustTier::FirstParty) && !subject_ref.starts_with("runx/") {
+                return Err("official key may only grant first_party trust to runx/*".to_owned());
             }
             Ok(())
         }
@@ -237,16 +237,14 @@ pub fn registry_manifest_key_allows(
                     "third-party key may only sign from registry source {allowed_source}"
                 ));
             }
-            let Some((owner, _name)) = skill_id.split_once('/') else {
-                return Err("skill id must include an owner namespace".to_owned());
+            let Some((owner, _name)) = subject_ref.split_once('/') else {
+                return Err("registry ref must include a publisher namespace".to_owned());
             };
             if owner == "runx" {
-                return Err("third-party keys may not sign runx/* skills".to_owned());
+                return Err("third-party keys may not sign runx/*".to_owned());
             }
             if owner != allowed_owner {
-                return Err(format!(
-                    "third-party key may only sign {allowed_owner}/* skills"
-                ));
+                return Err(format!("third-party key may only sign {allowed_owner}/*"));
             }
             Ok(())
         }

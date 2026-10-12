@@ -16,7 +16,7 @@ use crate::mcp::McpPlan;
 use crate::parser::ParserPlan;
 use crate::policy::{PolicyAction, PolicyPlan};
 use crate::publish::PublishPlan;
-use crate::registry::{RegistryAction, RegistryPlan};
+use crate::registry::{ConnectorAction, RegistryAction, RegistryPlan, parse_connector_subject};
 use crate::resume::ResumePlan;
 use crate::skill::SkillPlan;
 use runx_contracts::validate_registry_version;
@@ -1367,19 +1367,20 @@ fn utf8_tool_positionals(positionals: Vec<OsString>) -> Result<Vec<String>, Stri
 
 fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     let subcommand = os_arg(args, 1, "registry")?;
-    let action = parse_registry_action(subcommand)?;
-    let (action, subcommand, first_argument) = if action == RegistryAction::ConnectorPackage {
-        match os_arg(args, 2, "registry connector")? {
-            "package" => (action, "connector package", 3),
-            other => return Err(format!("unknown registry connector subcommand {other}")),
-        }
+    let (action, subcommand, first_argument) = if subcommand == "connector" {
+        let connector = os_arg(args, 2, "registry connector")?;
+        (
+            RegistryAction::Connector(ConnectorAction::parse(connector)?),
+            format!("connector {connector}"),
+            3,
+        )
     } else {
-        (action, subcommand, 2)
+        (parse_registry_action(subcommand)?, subcommand.to_owned(), 2)
     };
     let mut state = RegistryParseState::default();
     parse_registry_args(args, first_argument, &mut state)?;
-    validate_registry_action_flags(&action, &state)?;
-    let subject = registry_subject(&action, subcommand, &mut state.positionals)?;
+    validate_registry_action_flags(&action, &subcommand, &state)?;
+    let subject = registry_subject(&action, &subcommand, &mut state.positionals)?;
 
     Ok(RegistryPlan {
         action,
@@ -1400,13 +1401,32 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
 
 fn validate_registry_action_flags(
     action: &RegistryAction,
+    subcommand: &str,
     state: &RegistryParseState,
 ) -> Result<(), String> {
-    if *action == RegistryAction::ConnectorPackage {
-        return if state.profile.is_some() || registry_target_flags(state) {
-            Err("runx registry connector package accepts only --json".to_owned())
-        } else {
+    if let RegistryAction::Connector(connector) = action {
+        // Connectors have no local registry, owner override, profile or trust flag.
+        let (accepted, allowed) = match connector {
+            ConnectorAction::Package => ("--json", !registry_target_flags(state)),
+            ConnectorAction::Publish | ConnectorAction::Read => (
+                "--registry, --version and --json",
+                state.expected_digest.is_none(),
+            ),
+            ConnectorAction::Install => ("--registry, --version, --digest and --json", true),
+        };
+        let shared = state.profile.is_none()
+            && state.registry_dir.is_none()
+            && state.destination.is_none()
+            && state.owner.is_none()
+            && state.trust_tier.is_none()
+            && state.limit.is_none()
+            && !state.upsert;
+        return if allowed && shared {
             Ok(())
+        } else {
+            Err(format!(
+                "runx registry {subcommand} accepts only {accepted}"
+            ))
         };
     }
     if *action != RegistryAction::Package {
@@ -1455,7 +1475,6 @@ fn parse_registry_action(subcommand: &str) -> Result<RegistryAction, String> {
         "install" => Ok(RegistryAction::Install),
         "package" => Ok(RegistryAction::Package),
         "publish" => Ok(RegistryAction::Publish),
-        "connector" => Ok(RegistryAction::ConnectorPackage),
         _ => Err(format!("unknown registry subcommand {subcommand}")),
     }
 }
@@ -1635,13 +1654,23 @@ fn registry_subject(
             }
             Ok(positionals.remove(0))
         }
-        RegistryAction::ConnectorPackage => {
+        RegistryAction::Connector(ConnectorAction::Package | ConnectorAction::Publish) => {
             if positionals.len() != 1 {
                 return Err(format!(
                     "runx registry {subcommand} requires exactly one connector directory"
                 ));
             }
             Ok(positionals.remove(0))
+        }
+        RegistryAction::Connector(ConnectorAction::Read | ConnectorAction::Install) => {
+            if positionals.len() != 1 {
+                return Err(format!(
+                    "runx registry {subcommand} requires exactly one <publisher>/<id>[@version]"
+                ));
+            }
+            let subject = positionals.remove(0);
+            parse_connector_subject(&subject)?;
+            Ok(subject)
         }
     }
 }

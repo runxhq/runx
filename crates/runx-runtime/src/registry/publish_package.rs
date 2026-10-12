@@ -5,6 +5,7 @@ mod connectors;
 mod files;
 mod harness;
 
+pub(crate) use connectors::connector_package;
 pub use connectors::{RegistryConnectorPackage, prepare_registry_connector_package};
 
 use std::collections::BTreeMap;

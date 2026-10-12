@@ -1,10 +1,16 @@
 use serde_json::json;
 use url::Url;
 
-use super::payload::{parse_acquire, parse_read, parse_search};
+use runx_contracts::connector::ConnectorRef;
+
+use super::connector_install::RegistryConnectorVersion;
+use super::payload::{
+    parse_acquire, parse_connector, parse_connector_package, parse_read, parse_search,
+};
 use super::refs::{RegistryResolveError, resolve_remote_registry_ref};
 use super::types::{
-    AcquiredRegistrySkill, RegistrySearchResult, RegistrySkillDetail, ResolvedRegistryRef,
+    AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
+    ResolvedRegistryRef,
 };
 
 use crate::http::{
@@ -136,6 +142,51 @@ impl<T: Transport> RegistryClient<T> {
         parse_acquire(&route, &response.body)
     }
 
+    /// A published connector: `version`, or its current version.
+    pub fn read_connector(
+        &self,
+        connector_ref: &ConnectorRef,
+        version: Option<&str>,
+    ) -> Result<Option<RegistryConnectorDetail>, RegistryClientError> {
+        let mut route = connector_route(connector_ref);
+        if let Some(version) = version {
+            route.push_str(&format!("/versions/{}", encode_segment(version)));
+        }
+        self.get(&route, parse_connector)
+    }
+
+    /// The files and signed manifest of one published connector version.
+    pub fn connector_package(
+        &self,
+        connector_ref: &ConnectorRef,
+        version: &str,
+    ) -> Result<Option<RegistryConnectorVersion>, RegistryClientError> {
+        let route = format!(
+            "{}/versions/{}/package",
+            connector_route(connector_ref),
+            encode_segment(version)
+        );
+        self.get(&route, parse_connector_package)
+    }
+
+    fn get<V>(
+        &self,
+        route: &str,
+        parse: fn(&str, &str) -> Result<V, RegistryClientError>,
+    ) -> Result<Option<V>, RegistryClientError> {
+        let response = self.transport.send(HttpRequest {
+            method: HttpMethod::Get,
+            url: format!("{}{}", self.base_url, route),
+            headers: Vec::new(),
+            body: None,
+        })?;
+        if response.status == 404 {
+            return Ok(None);
+        }
+        ensure_success(route, response.status)?;
+        parse(route, &response.body).map(Some)
+    }
+
     pub fn resolve_ref(
         &self,
         registry_ref: &str,
@@ -188,10 +239,19 @@ fn validated_skill_id(skill_id: &str) -> Result<(&str, &str), RegistryClientErro
         .map_err(|_| RegistryClientError::InvalidSkillId(skill_id.to_owned()))
 }
 
+fn connector_route(connector_ref: &ConnectorRef) -> String {
+    format!(
+        "/v1/connectors/{}/{}",
+        encode_segment(connector_ref.namespace()),
+        encode_segment(connector_ref.id())
+    )
+}
+
 fn encode_segment(value: &str) -> String {
     let mut output = String::new();
     for byte in value.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'~');
+        // RFC 3986 unreserved characters stay as they are.
+        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~');
         if keep {
             output.push(char::from(byte));
         } else {

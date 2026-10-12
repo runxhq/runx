@@ -11,7 +11,8 @@ use runx_contracts::sha256_prefixed;
 use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install};
 
 use super::package_files::{
-    registry_package_digest, validate_registry_package_file_path, validate_registry_skill_package,
+    registry_package_digest, skill_content_digest, validate_registry_package_file_path,
+    validate_registry_skill_package,
 };
 use super::refs::safe_skill_package_parts;
 use super::source_authority::RegistryManifestSourceAuthority;
@@ -20,7 +21,6 @@ use super::trust_anchor::{
     default_trusted_registry_manifest_keys, registry_manifest_key_allows,
     verify_registry_signed_manifest,
 };
-use super::package_files::skill_content_digest;
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
 };
@@ -729,7 +729,7 @@ fn trust_tier_string(value: &TrustTier) -> String {
     .to_owned()
 }
 
-fn unique_suffix() -> String {
+pub(super) fn unique_suffix() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())

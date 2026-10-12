@@ -376,7 +376,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "registry",
         top_level_usage: &[
             "runx registry search|read|resolve|install|package|publish ... --json",
-            "runx registry connector package <connector-dir> --json",
+            "runx registry connector package|publish|read|install ... --json",
         ],
         usage: &[
             "runx registry search <query> [--registry url|path] [--registry-dir dir] [--limit n] [-j|--json]",
@@ -385,9 +385,14 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx registry install <ref> [--registry url|path] [--registry-dir dir] [--version version] [--digest sha256] [--to dir] [-j|--json]",
             "runx registry package <SKILL.md|skill-dir> [--profile run.yaml] [-j|--json]",
             "runx registry connector package <connector-dir> [-j|--json]",
+            "runx registry connector publish <connector-dir> [--registry url] [--version version] [-j|--json]",
+            "runx registry connector read <publisher>/<id>[@version] [--registry url] [--version version] [-j|--json]",
+            "runx registry connector install <publisher>/<id>[@version] [--registry url] [--version version] [--digest sha256] [-j|--json]",
             "runx registry publish <SKILL.md|skill-dir> [--registry url|path] [--owner owner] [--version version] [--profile run.yaml] [--trust-tier tier] [--upsert] [-j|--json]",
         ],
-        notes: &[],
+        notes: &[
+            "Connectors are published to a hosted registry; install writes the local package cache.",
+        ],
         options: &[
             "--registry url|path",
             "--registry-dir dir",

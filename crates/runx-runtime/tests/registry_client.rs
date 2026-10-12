@@ -530,3 +530,109 @@ fn acquire_success_fixture() -> Result<serde_json::Value, serde_json::Error> {
         "../../../fixtures/registry/remote/acquire-success.json"
     ))
 }
+
+#[test]
+fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn std::error::Error>> {
+    let detail = json!({
+        "status": "success",
+        "connector": {
+            "ref": "acme/ops-api",
+            "version": "1.0.0",
+            "name": "Ops API",
+            "description": "Reads ops items.",
+            "content_digest": format!("sha256:{}", "a".repeat(64)),
+            "manifest_digest": format!("sha256:{}", "b".repeat(64)),
+            "connector_digest": format!("sha256:{}", "c".repeat(64)),
+            "runtime_capability": false,
+            "trust_tier": "community",
+            "operations": [{ "name": "item.read", "description": "Read an item." }],
+            "install_command": command(&["runx", "registry", "connector", "install", "acme/ops-api@1.0.0"]),
+            "placements": []
+        }
+    });
+    let transport = MockTransport {
+        responses: RefCell::new(vec![
+            HttpResponse::new(200, detail.to_string()),
+            HttpResponse::new(200, detail.to_string()),
+            HttpResponse::new(404, "{}"),
+        ]),
+        requests: RefCell::new(Vec::new()),
+    };
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    let connector_ref =
+        runx_contracts::connector::ConnectorRef::new("acme/ops-api").ok_or("connector ref")?;
+
+    let current = client
+        .read_connector(&connector_ref, None)?
+        .ok_or("current version")?;
+    let pinned = client
+        .read_connector(&connector_ref, Some("1.0.0"))?
+        .ok_or("pinned version")?;
+    let missing = client.read_connector(&connector_ref, Some("2.0.0"))?;
+
+    assert_eq!(current.connector_ref, connector_ref);
+    assert_eq!(pinned.operations[0].name.as_str(), "item.read");
+    assert!(missing.is_none());
+    let urls = transport
+        .requests()
+        .into_iter()
+        .map(|request| request.url)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        urls,
+        [
+            "https://registry.example/v1/connectors/acme/ops-api",
+            "https://registry.example/v1/connectors/acme/ops-api/versions/1.0.0",
+            "https://registry.example/v1/connectors/acme/ops-api/versions/2.0.0",
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn a_connector_package_is_exactly_its_files_and_signed_manifest()
+-> Result<(), Box<dyn std::error::Error>> {
+    let manifest = signed_manifest(
+        "acme/ops-api",
+        "1.0.0",
+        &format!("sha256:{}", "a".repeat(64)),
+    )?;
+    let mut manifest = serde_json::to_value(manifest)?;
+    manifest["subject"]["kind"] = json!("connector");
+    let package = json!({
+        "ref": "acme/ops-api",
+        "version": "1.0.0",
+        "trust_tier": "community",
+        "files": [{ "path": "connector.yaml", "content": "schema: runx.connector.v1\n" }],
+        "signed_manifest": manifest
+    });
+    let transport = MockTransport::with(json!({ "status": "success", "package": package }));
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    let connector_ref =
+        runx_contracts::connector::ConnectorRef::new("acme/ops-api").ok_or("connector ref")?;
+
+    let published = client
+        .connector_package(&connector_ref, "1.0.0")?
+        .ok_or("package")?;
+
+    assert_eq!(published.files[0].path, "connector.yaml");
+    assert_eq!(
+        published.signed_manifest.subject.kind,
+        RegistrySubjectKind::Connector
+    );
+    assert_eq!(
+        transport.requests()[0].url,
+        "https://registry.example/v1/connectors/acme/ops-api/versions/1.0.0/package"
+    );
+
+    let mut extra = package;
+    extra["manifest_digest"] = json!(format!("sha256:{}", "b".repeat(64)));
+    let transport = MockTransport::with(json!({ "status": "success", "package": extra }));
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    let error = match client.connector_package(&connector_ref, "1.0.0") {
+        Ok(_) => return Err("a package with fields beyond its files must fail".into()),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("$.package"), "{error}");
+    Ok(())
+}

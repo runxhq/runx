@@ -1,8 +1,11 @@
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
+use super::connector_install::RegistryConnectorVersion;
 use super::http::RegistryClientError;
-use super::types::{AcquiredRegistrySkill, RegistrySearchResult, RegistrySkillDetail};
+use super::types::{
+    AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,6 +35,20 @@ struct AcquireEnvelope {
     acquisition: AcquiredRegistrySkill,
 }
 
+#[derive(Deserialize)]
+struct ConnectorEnvelope {
+    #[serde(rename = "status")]
+    _status: SuccessStatus,
+    connector: RegistryConnectorDetail,
+}
+
+#[derive(Deserialize)]
+struct ConnectorPackageEnvelope {
+    #[serde(rename = "status")]
+    _status: SuccessStatus,
+    package: RegistryConnectorVersion,
+}
+
 pub(crate) fn parse_search(
     route: &str,
     body: &str,
@@ -54,6 +71,20 @@ pub(crate) fn parse_acquire(
         install_count: envelope.install_count,
         ..envelope.acquisition
     })
+}
+
+pub(crate) fn parse_connector(
+    route: &str,
+    body: &str,
+) -> Result<RegistryConnectorDetail, RegistryClientError> {
+    decode::<ConnectorEnvelope>(route, body).map(|envelope| envelope.connector)
+}
+
+pub(crate) fn parse_connector_package(
+    route: &str,
+    body: &str,
+) -> Result<RegistryConnectorVersion, RegistryClientError> {
+    decode::<ConnectorPackageEnvelope>(route, body).map(|envelope| envelope.package)
 }
 
 fn decode<T: DeserializeOwned>(route: &str, body: &str) -> Result<T, RegistryClientError> {

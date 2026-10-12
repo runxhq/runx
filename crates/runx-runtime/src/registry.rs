@@ -1,4 +1,5 @@
 mod bundled;
+mod connector_install;
 mod http;
 mod index;
 mod install;
@@ -19,6 +20,10 @@ use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 pub(crate) use bundled::bundled_skills;
 pub use bundled::{bundled_runx_manual, materialize_bundled_skill};
+pub use connector_install::{
+    ConnectorInstallError, InstallRegistryConnectorOptions, InstalledRegistryConnector,
+    RegistryConnectorVersion, install_registry_connector,
+};
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
 pub use index::{
     IndexError, IndexRepositoryOptions, IndexResponse, IndexWarning, IndexedListing, IndexedRepo,
@@ -39,8 +44,9 @@ pub use package_metadata::{
     RegistryConnectorMetadata, RegistryHarnessCaseMetadata, RegistryPackageMetadata,
 };
 pub use publish::{
-    HostedAdminSkillPublishRequest, HostedSkillPublishRequest, HostedSkillPublishResult,
-    RegistryPublishError, publish_hosted_admin_skill, publish_hosted_skill,
+    HostedAdminSkillPublishRequest, HostedConnectorPublishRequest, HostedConnectorPublishResult,
+    HostedSkillPublishRequest, HostedSkillPublishResult, RegistryPublishError,
+    publish_hosted_admin_skill, publish_hosted_connector, publish_hosted_skill,
 };
 pub use publish_package::{
     RegistryConnectorPackage, RegistryPublishPackage, RegistryPublishPackageError,
@@ -68,11 +74,12 @@ pub use trust_anchor::{
 };
 pub use types::{
     AcquiredRegistrySkill, ProfileMode, PublishSkillMarkdownResult, PublishStatus,
-    RegistryAttestation, RegistryLinkResolution, RegistryManifestSignature, RegistryManifestSigner,
-    RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher, RegistrySearchResult,
-    RegistrySignedManifest, RegistrySkill, RegistrySkillDetail, RegistrySkillResolution,
-    RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind,
-    ResolvedRegistryRef, TrustSignal, TrustTier,
+    RegistryAttestation, RegistryConnectorDetail, RegistryConnectorOperation,
+    RegistryLinkResolution, RegistryManifestSignature, RegistryManifestSigner, RegistryPackageFile,
+    RegistryPublishHarnessReport, RegistryPublisher, RegistrySearchResult, RegistrySignedManifest,
+    RegistrySkill, RegistrySkillDetail, RegistrySkillResolution, RegistrySkillVersion,
+    RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind, ResolvedRegistryRef, TrustSignal,
+    TrustTier,
 };
 
 #[derive(Clone, Copy, Debug)]

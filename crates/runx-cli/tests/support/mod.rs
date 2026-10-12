@@ -408,6 +408,49 @@ impl MockConnect {
     }
 }
 
+/// A hosted registry on loopback that answers fixed `GET` routes with JSON;
+/// any other request is a 404.
+pub struct MockRegistry {
+    pub url: String,
+}
+
+impl MockRegistry {
+    pub fn serve(routes: &[(&str, serde_json::Value)]) -> Result<Self, Box<dyn std::error::Error>> {
+        use std::io::Write;
+
+        let routes = routes
+            .iter()
+            .map(|(path, body)| (format!("GET {path} "), body.to_string()))
+            .collect::<Vec<_>>();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let url = format!("http://{}", listener.local_addr()?);
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let Ok((request_line, _body)) = read_http_request(&mut stream) else {
+                    continue;
+                };
+                let (status, body) = routes
+                    .iter()
+                    .find(|(route, _)| request_line.starts_with(route.as_str()))
+                    .map_or(
+                        (
+                            "404 Not Found",
+                            r#"{"status":"error","error":{"code":"not_found"}}"#,
+                        ),
+                        |(_, body)| ("200 OK", body.as_str()),
+                    );
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        Ok(Self { url })
+    }
+}
+
 /// Read one HTTP request: its request line and its `content-length` body.
 fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(String, Vec<u8>)> {
     use std::io::Read;

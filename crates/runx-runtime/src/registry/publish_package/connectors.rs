@@ -35,7 +35,9 @@ pub struct RegistryConnectorPackage {
     #[serde(rename = "ref")]
     pub connector_ref: ConnectorRef,
     pub version: String,
-    pub package_digest: Digest,
+    /// The version's identity: the digest of every file it consists of,
+    /// which the registry's signed manifest names.
+    pub content_digest: Digest,
     pub manifest: ConnectorManifest,
     pub manifest_digest: Digest,
     /// The manifest and every tool its process operations run.
@@ -154,7 +156,9 @@ pub(super) fn package_connectors(
     Ok(canonical.into_values().collect())
 }
 
-fn connector_package(
+/// The package of a loaded connector: its files as the runtime admitted them
+/// from `directory` (the embedded table when `None`).
+pub(crate) fn connector_package(
     connector: &LoadedConnector,
     directory: Option<&Path>,
 ) -> Result<RegistryConnectorPackage, RegistryPublishPackageError> {
@@ -162,15 +166,21 @@ fn connector_package(
     ship_connector(directory, connector, &mut files)?;
     super::files::validate_package_limits(&files)?;
     let files = files.into_values().collect::<Vec<_>>();
-    let package_digest = crate::registry::package_files::registry_package_digest(&files)
-        .and_then(|digest| Digest::new(format!("sha256:{digest}")))
-        .ok_or_else(|| {
-            RegistryPublishPackageError::invalid("connector package has no content digest")
-        })?;
+    let content_digest = runx_contracts::registry_content_digest(files.iter().map(|file| {
+        runx_contracts::RegistryContentFile {
+            path: &file.path,
+            content: &file.content,
+        }
+    }))
+    .ok()
+    .and_then(Digest::new)
+    .ok_or_else(|| {
+        RegistryPublishPackageError::invalid("connector package has no content digest")
+    })?;
     Ok(RegistryConnectorPackage {
         connector_ref: connector.connector_ref.clone(),
-        version: format!("sha-{}", &package_digest.as_str()[7..19]),
-        package_digest,
+        version: format!("sha-{}", &content_digest.as_str()[7..19]),
+        content_digest,
         connector_digest: connector.connector_digest.clone(),
         manifest_digest: connector.manifest_digest.clone(),
         operation_digests: connector.operation_digests.clone(),

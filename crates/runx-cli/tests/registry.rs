@@ -435,6 +435,138 @@ fn registry_connector_package_projects_a_connector_on_its_own()
 }
 
 #[test]
+fn registry_connector_install_verifies_and_caches_a_published_version()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-connector-install");
+    let connector = root.join("acme-ops");
+    fs::create_dir_all(&connector)?;
+    fs::write(
+        connector.join("connector.yaml"),
+        "schema: runx.connector.v1\nid: acme-ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+    )?;
+    fs::write(connector.join("README.md"), "# Acme Ops\n")?;
+    fs::write(connector.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
+    let package = runx_runtime::registry::prepare_registry_connector_package(&connector)?;
+    let content_digest =
+        runx_contracts::registry_content_digest(package.files.iter().map(|file| {
+            runx_contracts::RegistryContentFile {
+                path: &file.path,
+                content: &file.content,
+            }
+        }))?;
+    let install_command = runx_contracts::CopyableCommand::posix(vec![
+        "runx".to_owned(),
+        "registry".to_owned(),
+        "connector".to_owned(),
+        "install".to_owned(),
+        "acme/acme-ops@1.0.0".to_owned(),
+    ])?;
+    let registry = crate::support::MockRegistry::serve(&[
+        (
+            "/v1/connectors/acme/acme-ops",
+            json!({"status": "success", "connector": {
+                "ref": "acme/acme-ops",
+                "version": "1.0.0",
+                "name": "Acme Ops",
+                "description": "Reads Acme items.",
+                "content_digest": content_digest,
+                "manifest_digest": package.manifest_digest,
+                "connector_digest": package.connector_digest,
+                "runtime_capability": false,
+                "trust_tier": "community",
+                "operations": [{"name": "item.read", "description": "Read an item."}],
+                "install_command": install_command,
+            }}),
+        ),
+        (
+            "/v1/connectors/acme/acme-ops/versions/1.0.0/package",
+            json!({"status": "success", "package": {
+                "ref": "acme/acme-ops",
+                "version": "1.0.0",
+                "trust_tier": "community",
+                "files": package.files,
+                "signed_manifest": sign_envelope(
+                    runx_contracts::RegistrySubjectKind::Connector,
+                    "acme/acme-ops",
+                    "1.0.0",
+                    content_digest.clone(),
+                )?,
+            }}),
+        ),
+    ])?;
+    let home = root.join("home");
+    let connector_command =
+        |args: &[&str]| -> Result<std::process::Output, Box<dyn std::error::Error>> {
+            Ok(runx_command()?
+                .env("RUNX_HOME", &home)
+                .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
+                .args(["registry", "connector"])
+                .args(args)
+                .output()?)
+        };
+
+    let read = connector_command(&[
+        "read",
+        "acme/acme-ops",
+        "--registry",
+        &registry.url,
+        "--json",
+    ])?;
+    assert_success_contains(
+        &read,
+        &[
+            "\"action\": \"connector_read\"",
+            "\"ref\": \"acme/acme-ops\"",
+        ],
+    )?;
+
+    let install = connector_command(&[
+        "install",
+        "acme/acme-ops",
+        "--registry",
+        &registry.url,
+        "--json",
+    ])?;
+    assert_success_contains(
+        &install,
+        &[
+            "\"action\": \"connector_install\"",
+            "\"status\": \"installed\"",
+        ],
+    )?;
+    let destination = home.join("connectors/acme/acme-ops/1.0.0");
+    let output: serde_json::Value = serde_json::from_slice(&install.stdout)?;
+    assert_eq!(
+        output["registry"]["install"]["destination"],
+        json!(destination.to_str().ok_or("non-utf8 destination")?)
+    );
+    assert_eq!(
+        output["registry"]["install"]["content_digest"],
+        json!(content_digest)
+    );
+    assert_eq!(
+        fs::read_to_string(destination.join("README.md"))?,
+        "# Acme Ops\n"
+    );
+
+    let again = connector_command(&[
+        "install",
+        "acme/acme-ops@1.0.0",
+        "--registry",
+        &registry.url,
+        "--digest",
+        &content_digest,
+        "--json",
+    ])?;
+    assert_success_contains(&again, &["\"status\": \"unchanged\""])?;
+
+    let unpinned = connector_command(&["install", "acme/acme-ops", "--json"])?;
+    assert_json_failure_contains(&unpinned, "needs a hosted registry")?;
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
     let registry_dir = root.join("registry");
@@ -859,11 +991,26 @@ fn signed_manifest(
         version_record["profile_document"].as_str(),
         &package_files,
     )?;
+    sign_envelope(
+        runx_contracts::RegistrySubjectKind::Skill,
+        skill_id,
+        version,
+        content_digest,
+    )
+}
+
+/// The envelope the registry serves for one subject's version and content.
+fn sign_envelope(
+    kind: runx_contracts::RegistrySubjectKind,
+    subject_ref: &str,
+    version: &str,
+    content_digest: String,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let mut manifest = runx_contracts::RegistrySignedManifest {
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: runx_contracts::RegistrySubject {
-            kind: runx_contracts::RegistrySubjectKind::Skill,
-            subject_ref: skill_id.to_owned(),
+            kind,
+            subject_ref: subject_ref.to_owned(),
         },
         version: version.to_owned(),
         content_digest,

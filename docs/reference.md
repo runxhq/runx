@@ -467,8 +467,28 @@ carries `runx.package.json`, which marks the installed package's root.
 
 `runx registry connector package <connector-dir> --json` projects a connector
 published on its own: the same files at the package root, the parsed manifest,
-and its manifest, connector and operation digests. Its publisher is the
-namespace the nearest `plugin.json` declares.
+its content digest (over every file, which names the version and which the
+registry signs), and its manifest, connector and operation digests. Its
+publisher is the namespace the nearest `plugin.json` declares.
+
+Connectors are published only to a hosted registry, so `publish`, `read` and
+`install` take `--registry <url>` or `RUNX_REGISTRY_URL`:
+
+- `runx registry connector publish <connector-dir> [--version <label>]` sends
+  that package; the registry reads it natively, publishes it under the
+  authenticated publisher's namespace, and the CLI checks the recorded ref and
+  content digest are the package's. A missing label is `sha-` and the first 12
+  hex digits of the content digest.
+- `runx registry connector read <publisher>/<id>[@version]` shows the current
+  version, or the one named.
+- `runx registry connector install <publisher>/<id>[@version] [--digest <content-digest>]`
+  writes the version to the local package cache,
+  `<runx home>/connectors/<publisher>/<id>/<version>/`. The signed manifest
+  must name that connector (never a skill), version and content digest under a
+  trusted key scoped to its publisher, and the staged files must load and
+  repackage as exactly those files before they are renamed into place. A
+  version directory is written once and never rewritten: installing it again
+  is `unchanged`, and other files under the same version are refused.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new

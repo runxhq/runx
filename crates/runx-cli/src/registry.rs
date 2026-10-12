@@ -16,16 +16,20 @@ use runx_runtime::registry::{
 };
 use runx_runtime::{InitGeneratedValues, WorkspaceEnv, ensure_runx_install_state};
 
+mod connector;
 mod output;
 mod remote_publish;
 mod target;
+
+pub use connector::ConnectorAction;
+pub(crate) use connector::parse_connector_subject;
 
 pub(crate) use target::{
     RegistryTarget, destination_root, official_skills_cache_root, registry_source_description,
     resolve_registry_target,
 };
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RegistryAction {
     Search,
     Read,
@@ -33,8 +37,8 @@ pub enum RegistryAction {
     Install,
     Package,
     Publish,
-    /// `runx registry connector package <dir>`: a connector packaged on its own.
-    ConnectorPackage,
+    /// `runx registry connector ...`.
+    Connector(ConnectorAction),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -81,11 +85,12 @@ fn run_registry(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    if plan.action == RegistryAction::Package {
-        return run_package(plan, env, cwd);
-    }
-    if plan.action == RegistryAction::ConnectorPackage {
-        return run_connector_package(plan, env, cwd);
+    match plan.action {
+        RegistryAction::Package => return run_package(plan, env, cwd),
+        RegistryAction::Connector(action) => {
+            return connector::run_connector(action, plan, env, cwd);
+        }
+        _ => {}
     }
     let target = resolve_registry_target(&plan, env, cwd);
     match plan.action {
@@ -93,8 +98,8 @@ fn run_registry(
         RegistryAction::Read => run_read(plan, target, env),
         RegistryAction::Resolve => run_resolve(plan, target, env),
         RegistryAction::Install => run_install(plan, target, env, cwd),
-        RegistryAction::Package | RegistryAction::ConnectorPackage => {
-            unreachable!("packaging handled before registry resolution")
+        RegistryAction::Package | RegistryAction::Connector(_) => {
+            unreachable!("packaging and connectors are handled before registry resolution")
         }
         RegistryAction::Publish => run_publish(plan, target, env, cwd),
     }
@@ -125,28 +130,6 @@ fn run_package(
             },
         },
         || "\n  registry package  ready\n\n".to_owned(),
-    )
-}
-
-// Function rationale: a standalone connector's package is the exact artifact
-// its publisher submits, read by the same loader the runtime uses.
-fn run_connector_package(
-    plan: RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<RegistryCliOutput, RegistryCliError> {
-    let directory = runx_runtime::RunxPaths::resolve(env, cwd).existing_input(&plan.subject);
-    let connector = runx_runtime::registry::prepare_registry_connector_package(&directory)
-        .map_err(|error| internal_error(error.to_string()))?;
-    output::write_output(
-        plan.json,
-        &output::RegistryEnvelope {
-            status: "success",
-            registry: output::RegistryPayload::ConnectorPackage {
-                connector: Box::new(connector),
-            },
-        },
-        || "\n  registry connector package  ready\n\n".to_owned(),
     )
 }
 

@@ -80,6 +80,57 @@ pub fn publish_hosted_skill(
     Ok(envelope.publish)
 }
 
+/// A connector package for the hosted registry, which re-reads the files
+/// natively and publishes them under the authenticated publisher's namespace.
+#[derive(Serialize)]
+pub struct HostedConnectorPublishRequest<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<&'a str>,
+    pub files: &'a [RegistryPackageFile],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HostedConnectorPublishResult {
+    /// `published`, or `unchanged` for these exact files under this version.
+    pub status: String,
+    #[serde(rename = "ref")]
+    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub version: String,
+    pub content_digest: runx_contracts::connector::Digest,
+    pub manifest_digest: runx_contracts::connector::Digest,
+    pub connector_digest: runx_contracts::connector::Digest,
+    pub trust_tier: super::TrustTier,
+    pub install_command: CopyableCommand,
+    pub public_url: String,
+}
+
+pub fn publish_hosted_connector(
+    transport: &impl RuntimeHttpTransport,
+    registry_url: &str,
+    token: &str,
+    request: &HostedConnectorPublishRequest<'_>,
+) -> Result<HostedConnectorPublishResult, RegistryPublishError> {
+    let body = serde_json::to_string(request).map_err(invalid_request_json)?;
+    let envelope: HostedConnectorPublishEnvelope = send_json(
+        transport,
+        registry_url,
+        "registry connector publish",
+        HttpMethod::Post,
+        "/v1/connectors",
+        Some(token),
+        Some(body),
+    )?;
+    if envelope.status != "success"
+        || !matches!(envelope.publish.status.as_str(), "published" | "unchanged")
+    {
+        return Err(RegistryPublishError::Contract(format!(
+            "unsuccessful status: envelope={}, publish={}",
+            envelope.status, envelope.publish.status
+        )));
+    }
+    Ok(envelope.publish)
+}
+
 pub fn publish_hosted_admin_skill(
     transport: &impl RuntimeHttpTransport,
     registry_url: &str,
@@ -127,6 +178,12 @@ fn is_false(value: &bool) -> bool {
 struct HostedSkillPublishEnvelope {
     status: String,
     publish: HostedSkillPublishResult,
+}
+
+#[derive(Deserialize)]
+struct HostedConnectorPublishEnvelope {
+    status: String,
+    publish: HostedConnectorPublishResult,
 }
 
 #[derive(Deserialize)]

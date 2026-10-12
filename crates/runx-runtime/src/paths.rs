@@ -164,6 +164,14 @@ impl RunxPaths {
         self.home.join("tools").join(digest.replace(':', "-"))
     }
 
+    /// The local package cache of published connectors:
+    /// `<publisher>/<id>/<version>/`, each version written once and never
+    /// rewritten.
+    #[must_use]
+    pub fn installed_connectors(&self) -> PathBuf {
+        self.home.join("connectors")
+    }
+
     #[must_use]
     pub fn official_skills(&self) -> PathBuf {
         self.home.join("official-skills")

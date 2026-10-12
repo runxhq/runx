@@ -7,7 +7,7 @@ use runx_cli::login::LoginPlan;
 use runx_cli::mcp::McpPlan;
 use runx_cli::parser::{ParserInputSource, ParserPlan};
 use runx_cli::policy::{PolicyAction, PolicyPlan};
-use runx_cli::registry::{RegistryAction, RegistryPlan};
+use runx_cli::registry::{ConnectorAction, RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
     AddUrlPlan, DevPlan, DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, InitPlan,
@@ -910,6 +910,68 @@ fn routes_registry_to_native_plan() {
             "https://runx.example",
         ]),
         RouterAction::Error("runx registry package accepts only --profile and --json".to_owned())
+    );
+}
+
+#[test]
+fn routes_registry_connector_subcommands() {
+    let digest = format!("sha256:{}", "a".repeat(64));
+    assert_eq!(
+        plan(&[
+            "registry",
+            "connector",
+            "install",
+            "acme/ops-api@1.0.0",
+            "--registry",
+            "https://runx.example",
+            "--digest",
+            &digest,
+            "--json",
+        ]),
+        RouterAction::RunRegistry(RegistryPlan {
+            action: RegistryAction::Connector(ConnectorAction::Install),
+            subject: "acme/ops-api@1.0.0".to_owned(),
+            registry: Some("https://runx.example".to_owned()),
+            registry_dir: None,
+            version: None,
+            expected_digest: Some(digest.clone()),
+            destination: None,
+            owner: None,
+            profile: None,
+            trust_tier: None,
+            limit: None,
+            upsert: false,
+            json: true,
+        })
+    );
+    assert_eq!(
+        plan(&["registry", "connector", "install", "acme/ops-api", "--to", "dir"]),
+        RouterAction::Error(
+            "runx registry connector install accepts only --registry, --version, --digest and --json"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        plan(&[
+            "registry",
+            "connector",
+            "publish",
+            "connectors/ops-api",
+            "--digest",
+            &digest
+        ]),
+        RouterAction::Error(
+            "runx registry connector publish accepts only --registry, --version and --json"
+                .to_owned()
+        )
+    );
+    assert!(matches!(
+        plan(&["registry", "connector", "read", "ops-api"]),
+        RouterAction::Error(message) if message.contains("not a connector ref")
+    ));
+    assert_eq!(
+        plan(&["registry", "connector", "remove", "acme/ops-api"]),
+        RouterAction::Error("unknown registry connector subcommand remove".to_owned())
     );
 }
 

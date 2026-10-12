@@ -365,3 +365,28 @@ pub struct ResolvedRegistryRef {
     pub skill_id: String,
     pub version: Option<String>,
 }
+
+/// A published connector as the registry reads it: its current version, or
+/// the one asked for.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegistryConnectorDetail {
+    #[serde(rename = "ref")]
+    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub version: String,
+    pub name: String,
+    pub description: String,
+    pub content_digest: runx_contracts::connector::Digest,
+    pub manifest_digest: runx_contracts::connector::Digest,
+    pub connector_digest: runx_contracts::connector::Digest,
+    pub runtime_capability: bool,
+    pub trust_tier: TrustTier,
+    pub operations: Vec<RegistryConnectorOperation>,
+    /// Carried as arguments; show and copy `copy_text`.
+    pub install_command: CopyableCommand,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegistryConnectorOperation {
+    pub name: runx_contracts::connector::OperationName,
+    pub description: String,
+}
