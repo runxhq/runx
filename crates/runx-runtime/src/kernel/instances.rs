@@ -391,6 +391,7 @@ pub(crate) fn delivered_credential<'a>(
         InstanceAuthority::Credential { credential, .. } => Some(credential),
         InstanceAuthority::Session {
             session: runx_contracts::connector::SessionKind::Command,
+            ..
         } => match manifest.auth.session.as_ref()? {
             runx_contracts::connector::SessionAuth::Command { credential, .. } => Some(credential),
             _ => None,

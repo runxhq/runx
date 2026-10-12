@@ -65,8 +65,9 @@ pub enum McpImport {
 pub enum UseChoice {
     /// An instance confirmed earlier.
     Instance(String),
-    /// The connector's local session, as signed in now.
-    Session,
+    /// The connector's local session, as signed in now, narrowed to
+    /// `scopes` when given.
+    Session { scopes: Vec<String> },
     /// An existing local credential profile.
     Profile {
         name: String,
@@ -214,7 +215,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
                 ([_, instance], false, None, None) if plain => {
                     UseChoice::Instance(instance.clone())
                 }
-                ([_], true, None, None) if plain => UseChoice::Session,
+                ([_], true, None, None) if parameters.is_empty() => UseChoice::Session { scopes },
                 ([_], false, Some(grant), None) if plain => UseChoice::Grant(grant),
                 ([_], false, None, Some(name)) => UseChoice::Profile {
                     name,
@@ -354,7 +355,9 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             let connector = in_workspace(workspace, connector)?;
             let (env, cwd) = (workspace.env(), workspace.cwd());
             let instance = match choice {
-                UseChoice::Session => setup::confirm_session(&instances, &connector, env, cwd)?,
+                UseChoice::Session { scopes } => {
+                    setup::confirm_session(&instances, &connector, scopes, env, cwd)?
+                }
                 UseChoice::Profile {
                     name,
                     scopes,

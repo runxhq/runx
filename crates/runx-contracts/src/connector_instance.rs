@@ -110,8 +110,13 @@ pub enum InstanceAuthority {
         material_ref: NonEmptyString,
     },
     /// A local session the runtime can identify. A command session pins its
-    /// account in the instance's `account_ref`.
-    Session { session: SessionKind },
+    /// account in the instance's `account_ref`. `scopes` is what the operator
+    /// grants it: every scope its credential serves unless narrowed when it
+    /// was confirmed. The provider enforces the account's own permissions.
+    Session {
+        session: SessionKind,
+        scopes: Vec<NonEmptyString>,
+    },
     /// A public API; reads only.
     Public,
 }

@@ -85,8 +85,9 @@ printf '%s' "$TWITTER_USER_AUTH" |
 # Reuse a profile already stored in Runx home without entering its secret again.
 runx connector use twitter --profile twitter --scope twitter:read
 
-# The account a local CLI is signed in to (for example `gh auth token`).
-runx connector use github --session
+# The account a local CLI is signed in to (for example `gh auth token`),
+# serving every scope its credential serves, or only those --scope names.
+runx connector use github --session --scope repo.read
 
 # An active runx Connect grant.
 runx connector use github --grant <grant-id>

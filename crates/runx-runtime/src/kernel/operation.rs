@@ -688,10 +688,7 @@ impl RuntimeEffect for OperationEffect {
         Ok(crate::receipts::SealAuthority {
             actor_ref: Some(admitted.actor_ref.clone()),
             mandate_ref: admitted.mandate_ref.clone(),
-            grant_refs: vec![Reference::runx(
-                ReferenceType::Grant,
-                &admitted.capability.grant_id,
-            )],
+            grant_refs: vec![admitted.capability.term.issued_by_ref.clone()],
             scope_refs: admitted
                 .operation()
                 .scopes
@@ -1009,6 +1006,7 @@ fn prepare(
             .map(|secret| Session::Local(Some(secret))),
             InstanceAuthority::Session {
                 session: runx_contracts::connector::SessionKind::Command,
+                ..
             } => signed_in(context, env, cwd).map(|secret| Session::Local(Some(secret))),
             _ => Ok(Session::Local(None)),
         },
@@ -1753,7 +1751,7 @@ fn finish(
                 finality: operation.finality(),
                 transport,
                 principal_ref: instance.principal_ref.as_str(),
-                grant_id: &admitted.capability.grant_id,
+                grant_id: admitted.capability.grant_id.as_deref(),
                 account_ref: instance.account_ref.as_deref(),
                 intent_digest: admitted.intent_digest().as_str(),
                 operation_digest: admitted.intent().operation_digest.as_str(),
@@ -1971,10 +1969,6 @@ fn human(
             JsonValue::String(admitted.instance.principal_ref.as_str().to_owned()),
         ),
         (
-            "grant_ref".to_owned(),
-            JsonValue::String(format!("runx:grant:{}", admitted.capability.grant_id)),
-        ),
-        (
             "target".to_owned(),
             JsonValue::String(intent.target.as_str().to_owned()),
         ),
@@ -1998,6 +1992,12 @@ fn human(
             JsonValue::String(admitted.intent_digest().as_str().to_owned()),
         ),
     ]);
+    if let Some(grant_id) = &admitted.capability.grant_id {
+        summary.insert(
+            "grant_ref".to_owned(),
+            JsonValue::String(format!("runx:grant:{grant_id}")),
+        );
+    }
     if let Some(account) = &admitted.instance.account_ref {
         summary.insert(
             "account_ref".to_owned(),

@@ -7911,6 +7911,13 @@ export const runxSchemaArtifacts = {
                 "const": "session",
                 "type": "string"
               },
+              "scopes": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "session": {
                 "enum": [
                   "command",
@@ -7921,7 +7928,8 @@ export const runxSchemaArtifacts = {
             },
             "required": [
               "kind",
-              "session"
+              "session",
+              "scopes"
             ],
             "type": "object"
           },

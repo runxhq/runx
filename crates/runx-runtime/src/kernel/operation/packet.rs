@@ -42,7 +42,8 @@ pub(crate) struct Seal<'a> {
     pub finality: &'static str,
     pub transport: &'static str,
     pub principal_ref: &'a str,
-    pub grant_id: &'a str,
+    /// The runx Connect grant the call ran under; a local instance has none.
+    pub grant_id: Option<&'a str>,
     pub account_ref: Option<&'a str>,
     pub intent_digest: &'a str,
     pub operation_digest: &'a str,
@@ -127,7 +128,7 @@ impl Readback {
             readback_ref: self.readback_ref,
             access: Some(seal.access.to_owned()),
             principal_ref: Some(seal.principal_ref.to_owned()),
-            grant_ref: Some(format!("runx:grant:{}", seal.grant_id)),
+            grant_ref: seal.grant_id.map(|grant_id| format!("runx:grant:{grant_id}")),
             finality: Some(seal.finality.to_owned()),
             plan_digest: Some(seal.intent_digest.to_owned()),
             result_digest: Some(result_digest.as_str().to_owned()),

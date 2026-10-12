@@ -21,9 +21,12 @@ use crate::credential_profiles::set_local_credential_profile;
 use crate::services::WorkspaceEnv;
 
 /// Confirm the connector's local session as signed in now, and select it.
+/// `scopes` narrows what the session may serve; empty grants every scope its
+/// credential serves.
 pub fn confirm_session(
     instances: &Instances,
     connector: &LoadedConnector,
+    scopes: &[String],
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
@@ -31,7 +34,7 @@ pub fn confirm_session(
         crate::hosted_private_network_allowed(false, env),
     )
     .map_err(|error| error.to_string())?;
-    confirm_session_over(instances, connector, &transport, env, cwd)
+    confirm_session_over(instances, connector, scopes, &transport, env, cwd)
 }
 
 /// [`confirm_session`], reading a command session's account through
@@ -39,6 +42,7 @@ pub fn confirm_session(
 pub(crate) fn confirm_session_over(
     instances: &Instances,
     connector: &LoadedConnector,
+    scopes: &[String],
     transport: &dyn crate::http::RuntimeHttpTransport,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -53,6 +57,7 @@ pub(crate) fn confirm_session_over(
         SessionKind::Command => {
             let session = super::session::CommandSession::of(manifest)
                 .ok_or_else(|| format!("connector {} declares no command session", manifest.id))?;
+            let scopes = served_scopes(connector, session.credential, scopes)?;
             let token = session.token(env, cwd)?;
             let principal = session.principal(&token, transport)?;
             pinned(
@@ -67,6 +72,7 @@ pub(crate) fn confirm_session_over(
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::Command,
+                    scopes: scopes.into_iter().map(Into::into).collect(),
                 },
             )
         }
@@ -276,6 +282,18 @@ fn credential_scopes(
             manifest.id
         ));
     }
+    served_scopes(connector, credential, scopes)
+}
+
+/// What the operator grants an instance holding `credential`: the requested
+/// scopes, each served by an operation that takes the credential, or every
+/// such scope when none is requested.
+fn served_scopes(
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    scopes: &[String],
+) -> Result<BTreeSet<String>, String> {
+    let manifest = &connector.manifest;
     let servable = manifest
         .operations
         .values()

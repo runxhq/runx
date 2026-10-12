@@ -97,6 +97,8 @@ pub struct ReceiptAuthority {
     /// A receipt with no admitted actor states none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_ref: Option<Reference>,
+    /// The capability evidence that admitted the receipt's effects: a runx
+    /// Connect grant, or the local connector instance the operator confirmed.
     pub grant_refs: Vec<Reference>,
     pub scope_refs: Vec<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -368,6 +368,7 @@ fn seed_harness_sessions(
         crate::kernel::setup::confirm_session_over(
             &instances,
             &connector,
+            &[],
             transport,
             &env,
             target_path,

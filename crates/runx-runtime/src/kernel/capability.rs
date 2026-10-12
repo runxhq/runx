@@ -4,14 +4,16 @@
 //!
 //! - a hosted grant: the grant runx Connect lists for the authenticated
 //!   principal;
-//! - a local credential: the scopes the operator granted when binding it;
-//! - a `gh` session: the signed-in account's permission on the target
-//!   repository;
+//! - a local credential or session: the scopes the operator granted when
+//!   confirming the instance; the provider enforces the account's own
+//!   permissions;
 //! - public: the connector's reads, and its writes too when it takes no
 //!   authority at all, since each of those requires exact approval.
 //!
-//! Evidence is read at admission, never cached across runs, and expressed as
-//! an [`AuthorityTerm`] that admission proves the call against.
+//! Only a hosted grant is a grant: a local instance's evidence is the
+//! operator's confirmation of that instance, and is named by it. Evidence is
+//! read at admission, never cached across runs, and expressed as an
+//! [`AuthorityTerm`] that admission proves the call against.
 
 use std::collections::BTreeSet;
 
@@ -27,9 +29,11 @@ use super::connectors::LoadedConnector;
 /// Capability evidence for one call.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Capability {
-    /// The grant the evidence names: a runx Connect grant id, or the local
-    /// credential, session or public grant it stands for.
-    pub grant_id: String,
+    /// The runx Connect grant the evidence is, for a hosted instance.
+    pub grant_id: Option<String>,
+    /// The evidence as admission names it: the grant, or the local instance
+    /// the operator confirmed.
+    pub source: String,
     pub scopes: Vec<String>,
     pub term: AuthorityTerm,
 }
@@ -45,7 +49,6 @@ pub(crate) struct CapabilityRequest<'a> {
 
 pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, String> {
     let instance = request.instance;
-    let connector = &request.connector.manifest;
     match &instance.authority {
         InstanceAuthority::HostedGrant { grant_id } => {
             let grant = request
@@ -65,7 +68,7 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             Ok(capability(
                 instance,
                 request.connector,
-                grant.grant_id,
+                Some(grant.grant_id),
                 grant.scopes,
                 grant.target_locator.into_iter().collect(),
             ))
@@ -89,7 +92,7 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             Ok(capability(
                 instance,
                 request.connector,
-                format!("local-credential:{}:{profile}", connector.id),
+                None,
                 scopes
                     .iter()
                     .map(|scope| scope.as_str().to_owned())
@@ -100,17 +103,20 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
         // A local session's account is checked where its authority is read:
         // the command session's token before each call, the browser by the
         // host tool that drives it.
-        InstanceAuthority::Session { .. } => Ok(capability(
+        InstanceAuthority::Session { scopes, .. } => Ok(capability(
             instance,
             request.connector,
-            format!("local-session:{}:{}", connector.id, instance.instance_id),
-            reachable_scopes(request.connector, |_| true),
+            None,
+            scopes
+                .iter()
+                .map(|scope| scope.as_str().to_owned())
+                .collect(),
             Vec::new(),
         )),
         InstanceAuthority::Public => Ok(capability(
             instance,
             request.connector,
-            format!("public:{}", connector.id),
+            None,
             reachable_scopes(request.connector, |operation| {
                 public_may(request.connector, operation)
             }),
@@ -153,13 +159,27 @@ fn reachable_scopes(
 /// The capability as a term: every verb the connector declares (reads only
 /// for a public instance of a connector that takes authority), its
 /// operations, the granted scopes and, when the grant pins one, its target.
+/// A hosted grant issues it; a local instance is its own issuer, as the
+/// operator confirmed it.
 fn capability(
     instance: &ConnectorInstance,
     connector: &LoadedConnector,
-    grant_id: String,
+    grant_id: Option<String>,
     scopes: Vec<String>,
     targets: Vec<String>,
 ) -> Capability {
+    let (term_id, issued_by_ref, source) = match &grant_id {
+        Some(grant_id) => (
+            format!("capability:{grant_id}"),
+            Reference::runx(ReferenceType::Grant, grant_id),
+            format!("grant {grant_id}"),
+        ),
+        None => (
+            format!("capability:{}", instance.instance_id),
+            instance_reference(instance),
+            format!("instance {}", instance.instance_id),
+        ),
+    };
     let public = matches!(instance.authority, InstanceAuthority::Public);
     let verbs = connector
         .manifest
@@ -175,7 +195,7 @@ fn capability(
         }
     }
     let term = AuthorityTerm {
-        term_id: NonEmptyString::from(format!("capability:{grant_id}")),
+        term_id: NonEmptyString::from(term_id),
         principal_ref: principal_reference(instance),
         resource_ref: instance_reference(instance),
         resource_family: AuthorityResourceFamily::Connector,
@@ -201,11 +221,12 @@ fn capability(
         },
         approvals: Vec::new(),
         expires_at: None,
-        issued_by_ref: Reference::runx(ReferenceType::Grant, &grant_id),
+        issued_by_ref,
         credential_ref: None,
     };
     Capability {
         grant_id,
+        source,
         scopes,
         term,
     }
@@ -220,4 +241,157 @@ pub(crate) fn instance_reference(instance: &ConnectorInstance) -> Reference {
         ReferenceType::ConnectorInstance,
         instance.instance_id.as_str(),
     )
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+
+    use runx_contracts::connector::SessionKind;
+    use runx_contracts::{InstanceAuthority, ReferenceType};
+
+    use super::{CapabilityRequest, evidence, instance_reference};
+    use crate::http::{
+        RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
+    };
+    use crate::kernel::operation::hosted::HostedClient;
+
+    const MANIFEST: &str = r#"schema: runx.connector.v1
+id: forge
+name: Forge
+description: A forge reached with the token its CLI prints.
+runtime_capability: false
+auth:
+  credentials:
+    token:
+      kind: api_key
+      fields: [{name: token}]
+      delivery: {env: FORGE_TOKEN}
+      audience: [api.forge.test]
+  session:
+    kind: command
+    command: [forge-cli, auth, token]
+    credential: token
+    principal: {url: "https://api.forge.test/user", id: id, login: login}
+placements:
+  local: {auth: [session, credentials]}
+operations:
+  user.read:
+    description: Read the signed-in user.
+    verb: read
+    scopes: [user.read]
+    credentials: [token]
+    target: {template: "https://api.forge.test/user"}
+  repo.write:
+    description: Write to a repository.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target: {template: "https://api.forge.test/repo"}
+"#;
+
+    /// The forge answers its user endpoint for the CLI's token.
+    struct Account;
+
+    impl RuntimeHttpTransport for Account {
+        fn send(
+            &self,
+            _request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            Ok(RuntimeHttpResponse::new(200, r#"{"id": 7, "login": "octo"}"#))
+        }
+    }
+
+    /// A plugin holding the forge connector, and a signed-in `forge-cli`.
+    fn plugin(root: &Path) -> BTreeMap<String, String> {
+        std::fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
+        let connector = root.join("connectors/forge");
+        std::fs::create_dir_all(&connector).unwrap();
+        std::fs::write(connector.join("connector.yaml"), MANIFEST).unwrap();
+        let tool = root.join("bin/forge-cli");
+        std::fs::create_dir_all(tool.parent().unwrap()).unwrap();
+        std::fs::write(&tool, "#!/bin/sh\necho tok-123\n").unwrap();
+        std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
+        BTreeMap::from([
+            (
+                "PATH".to_owned(),
+                format!("{}:/usr/bin:/bin", root.join("bin").display()),
+            ),
+            ("RUNX_CWD".to_owned(), root.display().to_string()),
+            (
+                "RUNX_HOME".to_owned(),
+                root.join("home").display().to_string(),
+            ),
+        ])
+    }
+
+    #[test]
+    fn a_session_serves_only_the_scopes_the_operator_confirmed_and_names_no_grant() {
+        let root = tempfile::tempdir().unwrap();
+        let env = plugin(root.path());
+        let instances = crate::Instances::new(
+            crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, root.path()))
+                .unwrap(),
+        );
+        let connector = crate::ConnectorScope::at(root.path())
+            .unwrap()
+            .connector("forge")
+            .unwrap();
+        let confirm = |scopes: &[String]| {
+            crate::kernel::setup::confirm_session_over(
+                &instances,
+                &connector,
+                scopes,
+                &Account,
+                &env,
+                root.path(),
+            )
+        };
+
+        let narrowed = confirm(&["user.read".to_owned()]).expect("a served scope narrows");
+        assert_eq!(
+            narrowed.authority,
+            InstanceAuthority::Session {
+                session: SessionKind::Command,
+                scopes: vec!["user.read".into()],
+            }
+        );
+        let capability = evidence(&CapabilityRequest {
+            connector: &connector,
+            instance: &narrowed,
+            hosted: &HostedClient::default(),
+            env: &env,
+            cwd: root.path(),
+        })
+        .expect("evidence");
+        assert_eq!(capability.scopes, vec!["user.read".to_owned()]);
+        assert_eq!(capability.grant_id, None);
+        assert_eq!(
+            capability.source,
+            format!("instance {}", narrowed.instance_id)
+        );
+        assert_eq!(capability.term.issued_by_ref, instance_reference(&narrowed));
+        assert_ne!(
+            capability.term.issued_by_ref.reference_type,
+            ReferenceType::Grant
+        );
+
+        let every = confirm(&[]).expect("no scope grants every served scope");
+        let scopes = match &every.authority {
+            InstanceAuthority::Session { scopes, .. } => {
+                scopes.iter().map(|scope| scope.as_str()).collect::<Vec<_>>()
+            }
+            other => vec![other.kind()],
+        };
+        assert_eq!(scopes, ["repo.write", "user.read"]);
+
+        assert!(
+            confirm(&["admin".to_owned()])
+                .unwrap_err()
+                .contains("serves no operation with scope admin")
+        );
+    }
 }

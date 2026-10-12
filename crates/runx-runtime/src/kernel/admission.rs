@@ -21,7 +21,7 @@ use runx_contracts::{
     Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, AuthorityApproval,
     AuthorityBounds, AuthorityDerivation, AuthorityEvidence, AuthorityEvidenceKind,
     AuthorityResourceFamily, AuthorityTerm, AuthorityUseLimit, CheckOutcome, ConnectorInstance,
-    InstanceAuthority, JsonObject, JsonValue, OperationIntent, Readiness, Reference, ReferenceType,
+    JsonObject, JsonValue, OperationIntent, Readiness, Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -445,8 +445,8 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     reasons.pass(
         AdmissionCheck::Capability,
         format!(
-            "grant {} covers {} on {target}",
-            capability.grant_id,
+            "{} covers {} on {target}",
+            capability.source,
             operation_spec
                 .scopes
                 .iter()
@@ -714,49 +714,39 @@ fn readiness(
         AdmissionCheck::Instance,
         format!("instance {}", instance.instance_id),
     );
-    match &instance.authority {
-        InstanceAuthority::Session { .. } => reasons.push(
-            AdmissionCheck::Capability,
-            CheckOutcome::Unknown,
-            "the session's permission depends on the call's target",
-        ),
-        _ => match capability::evidence(&CapabilityRequest {
-            connector: &connector,
-            instance: &instance,
-            hosted,
-            env,
-            cwd,
-        }) {
-            Ok(capability) => {
-                let missing = spec
-                    .scopes
-                    .iter()
-                    .filter(|scope| {
-                        !capability
-                            .scopes
-                            .iter()
-                            .any(|granted| granted == scope.as_str())
-                    })
-                    .map(|scope| scope.as_str())
-                    .collect::<Vec<_>>();
-                if missing.is_empty() {
-                    reasons.pass(
-                        AdmissionCheck::Capability,
-                        format!(
-                            "grant {} covers the operation's scopes",
-                            capability.grant_id
-                        ),
-                    );
-                } else {
-                    reasons.push(
-                        AdmissionCheck::Capability,
-                        CheckOutcome::Fail,
-                        format!("grant {} lacks {}", capability.grant_id, missing.join(", ")),
-                    );
-                }
+    match capability::evidence(&CapabilityRequest {
+        connector: &connector,
+        instance: &instance,
+        hosted,
+        env,
+        cwd,
+    }) {
+        Ok(capability) => {
+            let missing = spec
+                .scopes
+                .iter()
+                .filter(|scope| {
+                    !capability
+                        .scopes
+                        .iter()
+                        .any(|granted| granted == scope.as_str())
+                })
+                .map(|scope| scope.as_str())
+                .collect::<Vec<_>>();
+            if missing.is_empty() {
+                reasons.pass(
+                    AdmissionCheck::Capability,
+                    format!("{} covers the operation's scopes", capability.source),
+                );
+            } else {
+                reasons.push(
+                    AdmissionCheck::Capability,
+                    CheckOutcome::Fail,
+                    format!("{} lacks {}", capability.source, missing.join(", ")),
+                );
             }
-            Err(detail) => reasons.push(AdmissionCheck::Capability, CheckOutcome::Fail, detail),
-        },
+        }
+        Err(detail) => reasons.push(AdmissionCheck::Capability, CheckOutcome::Fail, detail),
     }
     reasons.pass(AdmissionCheck::Delegation, "the principal acts directly");
     if spec.approval == ApprovalFloor::Required {
@@ -1064,8 +1054,8 @@ fn derive(
         let parent = error.parent();
         let detail = match parent {
             DerivationParent::Capability => format!(
-                "grant {} does not cover this call: {error}",
-                capability.grant_id
+                "{} does not cover this call: {error}",
+                capability.source
             ),
             DerivationParent::Delegation(index) => {
                 format!("delegation link {index} does not cover this call: {error}")
