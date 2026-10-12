@@ -54,6 +54,41 @@ operations:
 }
 
 #[test]
+fn files_beside_a_plugins_connectors_are_not_connectors() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
+    let connector = root.path().join("connectors/acme-weather");
+    std::fs::create_dir_all(&connector).unwrap();
+    std::fs::write(
+        connector.join("connector.yaml"),
+        r#"schema: runx.connector.v1
+id: acme-weather
+name: Acme Weather
+description: Forecasts.
+runtime_capability: false
+auth: {none: {}}
+placements: {local: {auth: [none]}}
+operations:
+  forecast.read:
+    description: Read a forecast.
+    verb: read
+    scopes: [forecast.read]
+    target: {template: "acme://forecast"}
+"#,
+    )
+    .unwrap();
+    // A lock, a readme and a desktop file beside the connector directories.
+    std::fs::write(root.path().join("connectors/official.lock.json"), "{}").unwrap();
+    std::fs::write(root.path().join("connectors/README.md"), "# Connectors\n").unwrap();
+    std::fs::write(root.path().join("connectors/.DS_Store"), [0u8; 8]).unwrap();
+    let scope = ConnectorScope::at(&connector).unwrap();
+    assert!(matches!(
+        scope.connector("acme-weather").unwrap().origin,
+        ConnectorOrigin::Plugin { .. }
+    ));
+}
+
+#[test]
 fn plugin_connectors_are_visible_to_their_plugin_only() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();

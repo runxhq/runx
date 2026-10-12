@@ -773,10 +773,13 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
     for entry in entries {
         let entry = entry.map_err(uninspectable)?;
         let path = entry.path();
-        if path
-            .join(MANIFEST_FILE)
-            .try_exists()
-            .map_err(uninspectable)?
+        // A connector is a directory holding a manifest; a file beside them
+        // (a lock, a readme) is not one.
+        if path.is_dir()
+            && path
+                .join(MANIFEST_FILE)
+                .try_exists()
+                .map_err(uninspectable)?
         {
             directories.push((entry.file_name(), path));
         }
