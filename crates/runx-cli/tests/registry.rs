@@ -318,9 +318,9 @@ runners:
         String::from_utf8_lossy(&package.stderr)
     );
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
-    // A run-time choice names each connector it may choose; ids are sorted
-    // and operations keep the order the package lists them. Each official
-    // connector is named by the digests a closure binds it by.
+    // A run-time choice names each connector it may choose; refs are sorted
+    // and operations keep the order the package lists them. Each connector is
+    // named by its publisher and the digests a closure binds it by.
     let connectors = output["registry"]["package"]["metadata"]["connectors"]
         .as_array()
         .ok_or("connectors missing")?;
@@ -328,8 +328,7 @@ runners:
         .iter()
         .map(|connector| {
             json!({
-                "id": connector["id"],
-                "source": connector["source"],
+                "ref": connector["ref"],
                 "runtime_capability": connector["runtime_capability"],
                 "operations": connector["operations"],
             })
@@ -338,9 +337,9 @@ runners:
     assert_eq!(
         named,
         [
-            json!({"id": "github", "source": "official", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
-            json!({"id": "nitrosend", "source": "official", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
-            json!({"id": "slack", "source": "official", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
+            json!({"ref": "runx/github", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"ref": "runx/nitrosend", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
+            json!({"ref": "runx/slack", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
         ]
     );
     for connector in connectors {
@@ -369,6 +368,7 @@ fn registry_connector_package_projects_a_connector_on_its_own()
         "schema: runx.connector.v1\nid: acme-ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
+    fs::write(connector.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
 
     let package = runx_command()?
         .args([
@@ -388,16 +388,30 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
     let packaged = &output["registry"]["connector"];
     assert_eq!(output["registry"]["action"], "connector_package");
+    assert_eq!(packaged["ref"], "acme/acme-ops");
     assert_eq!(packaged["manifest"]["id"], "acme-ops");
     assert_eq!(packaged["manifest"]["runtime_capability"], false);
+    // The package carries the namespace it was published under, so it loads
+    // under that publisher wherever it is installed.
+    let files = packaged["files"].as_array().ok_or("files missing")?;
     assert_eq!(
-        packaged["files"]
-            .as_array()
-            .ok_or("files missing")?
+        files
             .iter()
             .map(|file| file["path"].clone())
             .collect::<Vec<_>>(),
-        [json!("README.md"), json!("connector.yaml")]
+        [
+            json!("README.md"),
+            json!("connector.yaml"),
+            json!("plugin.json")
+        ]
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(
+            files[2]["content"]
+                .as_str()
+                .ok_or("plugin.json has no content")?
+        )?,
+        json!({"namespace": "acme"})
     );
     assert!(
         packaged["operation_digests"]["item.read"]

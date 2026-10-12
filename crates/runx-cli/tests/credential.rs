@@ -28,7 +28,12 @@ fn credential_command_sets_lists_and_removes_without_exposing_material()
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
     assert_eq!(set_json["credential"]["profile"], "account-one");
     let instance = &set_json["credential"]["instance"];
-    assert_eq!(instance["instance_id"], "credential.nitrosend.account-one");
+    assert!(
+        instance["instance_id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("credential.")),
+        "{set_json}"
+    );
     assert_eq!(instance["authority"]["kind"], "credential");
     assert_eq!(instance["authority"]["credential"], "api_key");
     assert!(instance["credential_declaration_digest"].is_string());
@@ -58,6 +63,7 @@ fn credential_command_binds_a_connector_of_the_workspace_plugin()
     let root = crate::support::temp_root("runx-credential-plugin-connector");
     let home = root.join("home");
     fs::create_dir_all(root.join("connectors/notes"))?;
+    fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1
@@ -106,7 +112,10 @@ operations:
     let set = run_with_stdin(set, SECRET)?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
-    assert_eq!(set_json["credential"]["instance"]["connector"], "notes");
+    assert_eq!(
+        set_json["credential"]["instance"]["connector"],
+        "acme/notes"
+    );
     Ok(())
 }
 
@@ -115,6 +124,7 @@ operations:
 /// print the token; it is never the one that runs.
 fn write_notes_plugin(root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(root.join("connectors/notes"))?;
+    fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1

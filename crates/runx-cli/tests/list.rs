@@ -27,8 +27,14 @@ fn list_discovers_nested_repo_skills() -> Result<(), Box<dyn std::error::Error>>
         String::from_utf8_lossy(&output.stderr)
     );
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
-    let items = report["items"].as_array().ok_or("items must be an array")?;
-    assert_eq!(items.len(), 1);
+    // The bundled core skills are listed beside the repository's own.
+    let items = report["items"]
+        .as_array()
+        .ok_or("items must be an array")?
+        .iter()
+        .filter(|item| item["source"] == "local")
+        .collect::<Vec<_>>();
+    assert_eq!(items.len(), 1, "{report}");
     assert_eq!(items[0]["name"], "triage");
     assert_eq!(items[0]["path"], "skills/acme/triage/run.yaml");
 

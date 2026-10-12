@@ -552,7 +552,7 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
         .output()?;
     assert_eq!(text_output.status.code(), Some(2));
     let stdout = String::from_utf8(text_output.stdout)?;
-    assert!(stdout.contains("registry:"));
+    assert!(stdout.contains("entry:\n  kind: registry\n"), "{stdout}");
     assert!(stdout.contains("  skill_id: acme/echo"));
     assert!(stdout.contains("  version: 1.0.0"));
     assert!(stdout.contains(&format!(

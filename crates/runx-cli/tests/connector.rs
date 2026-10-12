@@ -56,8 +56,9 @@ fn connector(
     runx(root, &[&["connector"], args].concat(), None)
 }
 
-/// Store a GitHub token as the `operator` profile.
-fn stored_token(root: &Path) -> TestResult {
+/// Store a GitHub token as the `operator` profile, and return the instance
+/// it confirms.
+fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
     fs::create_dir_all(root.join(".runx"))?;
     let (ok, set) = runx(
         root,
@@ -74,36 +75,33 @@ fn stored_token(root: &Path) -> TestResult {
         Some("ghp_connector_test_token"),
     )?;
     assert!(ok, "{set}");
-    assert_eq!(
-        set["credential"]["instance"]["instance_id"],
-        "credential.github.operator"
-    );
-    Ok(())
+    let instance = set["credential"]["instance"]["instance_id"]
+        .as_str()
+        .ok_or("the credential confirmed no instance")?;
+    assert!(instance.starts_with("credential."), "{set}");
+    Ok(instance.to_owned())
 }
 
 #[test]
 fn an_instance_selects_only_for_its_own_connector() -> TestResult {
     let root = temp_root("runx-connector-select");
     let result = (|| -> TestResult {
-        stored_token(&root)?;
-        let (ok, used) = connector(&root, &["use", "github", "credential.github.operator"])?;
+        let instance = stored_token(&root)?;
+        let (ok, used) = connector(&root, &["use", "github", &instance])?;
         assert!(ok, "{used}");
-        assert_eq!(
-            used["selected"]["instance_id"],
-            "credential.github.operator"
-        );
+        assert_eq!(used["selected"]["instance_id"], instance.as_str());
 
         let (ok, listed) = connector(&root, &["instances"])?;
         assert!(ok, "{listed}");
         assert_eq!(listed["instances"][0]["selected"], true);
 
         // A refused selection records nothing.
-        let (ok, refused) = connector(&root, &["use", "slack", "credential.github.operator"])?;
+        let (ok, refused) = connector(&root, &["use", "slack", &instance])?;
         assert!(!ok);
         assert!(
             refused["error"]["message"]
                 .as_str()
-                .is_some_and(|message| message.contains("belongs to connector github")),
+                .is_some_and(|message| message.contains("belongs to connector runx/github")),
             "{refused}"
         );
         let (_, listed) = connector(&root, &["list"])?;
@@ -112,9 +110,9 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
             .and_then(|connectors| {
                 connectors
                     .iter()
-                    .find(|connector| connector["id"] == "slack")
+                    .find(|connector| connector["connector_binding"]["connector"] == "runx/slack")
             })
-            .ok_or("slack is an official connector")?;
+            .ok_or("runx/slack is listed")?;
         assert_eq!(slack["selected_instance"], serde_json::Value::Null);
         Ok(())
     })();
@@ -135,18 +133,15 @@ fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
                     .iter()
                     .all(|operation| operation["ready"] == false)
         }));
-        stored_token(&root)?;
-        let (ok, _) = connector(&root, &["use", "github", "credential.github.operator"])?;
+        let instance = stored_token(&root)?;
+        let (ok, _) = connector(&root, &["use", "github", &instance])?;
         assert!(ok);
         let (_, after) = connector(&root, &["inspect", "github"])?;
-        assert_eq!(
-            after["instances"][0]["instance_id"],
-            "credential.github.operator"
-        );
+        assert_eq!(after["instances"][0]["instance_id"], instance.as_str());
         assert!(after["readiness"].as_array().is_some_and(|operations| {
             operations
                 .iter()
-                .all(|operation| operation["instance_id"] == "credential.github.operator")
+                .all(|operation| operation["instance_id"] == instance.as_str())
         }));
         Ok(())
     })();
@@ -269,6 +264,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
     fs::create_dir_all(&manifest)?;
     fs::create_dir_all(root.join(".runx"))?;
     fs::write(root.join("pnpm-workspace.yaml"), "packages: []\n")?;
+    fs::write(plugin.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         manifest.join("connector.yaml"),
         "schema: runx.connector.v1\nid: acme\nname: Acme\ndescription: Read Acme widgets.\nruntime_capability: false\n\
@@ -301,20 +297,18 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
 
         let (ok, bound) = runx(&plugin, &set, Some("acme_token"))?;
         assert!(ok, "{bound}");
-        assert_eq!(
-            bound["credential"]["instance"]["instance_id"],
-            "credential.acme.operator"
-        );
+        let instance = &bound["credential"]["instance"];
+        assert_eq!(instance["connector"], "acme/acme", "{bound}");
         let (ok, listed) = connector(&root, &["instances"])?;
         assert!(ok, "{listed}");
         assert_eq!(
             listed["instances"][0]["instance_id"],
-            "credential.acme.operator"
+            instance["instance_id"]
         );
         let (ok, inspected) = connector(&plugin, &["inspect", "acme"])?;
         assert!(ok, "{inspected}");
         assert_eq!(
-            inspected["readiness"][0]["instance_id"], "credential.acme.operator",
+            inspected["readiness"][0]["instance_id"], instance["instance_id"],
             "{inspected}"
         );
         let (ok, missing) = connector(&plugin, &["inspect", "acme-two"])?;

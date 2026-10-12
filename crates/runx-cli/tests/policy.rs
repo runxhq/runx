@@ -112,7 +112,10 @@ fn policy_rejects_invalid_created_at_contract_value() -> Result<(), Box<dyn std:
 
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8(output.stderr)?;
-    assert!(stderr.contains("/created_at failed validation (date_time)"));
+    assert!(
+        stderr.contains("datetime must be YYYY-MM-DDTHH:MM:SS[.fraction]Z"),
+        "{stderr}"
+    );
     Ok(())
 }
 
