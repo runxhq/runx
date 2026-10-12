@@ -94,7 +94,10 @@ runx connector use github --grant <grant-id>
 
 A plugin's own connectors are bound from inside the plugin: run these
 commands in the plugin root or below it, and the instance is recorded in the
-workspace store as any other.
+workspace store as any other. Its `plugin.json` names the plugin's namespace,
+and an instance is recorded for the qualified connector, such as `acme/notes`,
+at the exact manifest and connector digests it was confirmed for; a changed
+connector needs its instance confirmed again.
 
 `runx credential set` checks the secret against the declaration's `kind` and
 `fields`, stores it as a profile (named after the connector unless `--profile`

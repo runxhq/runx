@@ -23,7 +23,10 @@ package, execution, authority, and receipt contracts. Bundling adds no privilege
 Users can load their own skills and connectors directly from local files.
 For example, `runx skill ./skills/my-skill` loads a local skill; its plugin can
 carry connector manifests in `connectors/<id>/connector.yaml` and their declared
-tool packages. Local use requires no publication or registry account. Bundled,
+tool packages. The plugin declares its namespace in `plugin.json`
+(`{"namespace": "acme"}`), so its connectors are `acme/<id>`; the namespace
+names them and grants no publisher authority, which publication checks
+separately. Local use requires no publication or registry account. Bundled,
 local and registry sources share native validation and execution contracts.
 `RUNX_SKILL_ROOTS` adds directories containing local skill packages, separated
 with the platform's path separator; execution and export read the same roots.
