@@ -208,19 +208,76 @@ pub struct AuthorityApproval {
 }
 
 /// How an act's legitimacy names the execution term it acts under.
-const AUTHORITY_TERM_LEGITIMACY: &str = "runx:authority_term:";
+const TERM_LEGITIMACY_PREFIX: &str = "runx:authority_term:";
+const TERM_LEGITIMACY_PATTERN: &str = r"^runx:authority_term:\S+$";
+const TERM_LEGITIMACY_MAX_LENGTH: usize = 512;
 
-/// The legitimacy of an act admitted under the execution term `term_id`: a
-/// reference to that term, never prose.
-#[must_use]
-pub fn authority_term_legitimacy(term_id: &str) -> String {
-    format!("{AUTHORITY_TERM_LEGITIMACY}{term_id}")
+/// An act's legitimacy: a reference to the execution term it was admitted
+/// under, `runx:authority_term:<term id>`, never prose. Every act carries one,
+/// and a verifier checks the receipt's authority holds the term it names.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct TermLegitimacy(String);
+
+impl TermLegitimacy {
+    /// The legitimacy of an act admitted under `term_id`; `None` when the id
+    /// is empty or holds whitespace.
+    #[must_use]
+    pub fn for_term(term_id: &str) -> Option<Self> {
+        Self::new(format!("{TERM_LEGITIMACY_PREFIX}{term_id}"))
+    }
+
+    /// `None` when `value` is not a reference to an execution term.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        let valid = value.len() <= TERM_LEGITIMACY_MAX_LENGTH
+            && value.strip_prefix(TERM_LEGITIMACY_PREFIX).is_some_and(|id| {
+                !id.is_empty() && !id.chars().any(|c| c.is_whitespace() || c.is_control())
+            });
+        valid.then_some(Self(value))
+    }
+
+    /// The execution term this legitimacy names.
+    #[must_use]
+    pub fn term_id(&self) -> &str {
+        &self.0[TERM_LEGITIMACY_PREFIX.len()..]
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
-/// The execution term an act's legitimacy names, when it names one.
-#[must_use]
-pub fn legitimacy_authority_term(legitimacy: &str) -> Option<&str> {
-    legitimacy.strip_prefix(AUTHORITY_TERM_LEGITIMACY)
+impl std::fmt::Display for TermLegitimacy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for TermLegitimacy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value.clone()).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "{value:?} is not a reference to an execution term"
+            ))
+        })
+    }
+}
+
+impl RunxSchema for TermLegitimacy {
+    fn json_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "string",
+            "pattern": TERM_LEGITIMACY_PATTERN,
+            "maxLength": TERM_LEGITIMACY_MAX_LENGTH,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

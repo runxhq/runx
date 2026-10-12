@@ -348,7 +348,8 @@ impl OperationAdmission {
             operation_intent: Some(self.admitted.intent().clone()),
             act: self.call.act.clone(),
             description: self.admitted.operation().description.clone(),
-            term_id: term.term_id.as_str().to_owned(),
+            legitimacy: runx_contracts::TermLegitimacy::for_term(term.term_id.as_str())
+                .ok_or_else(|| engine("the execution term id cannot name a legitimacy"))?,
             target_ref,
             effects,
             context_ref,

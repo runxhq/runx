@@ -1033,7 +1033,8 @@ mod tests {
                     operation_intent: None,
                     act: None,
                     description: "Post one message.".into(),
-                    term_id: "term_call".to_owned(),
+                    legitimacy: runx_contracts::TermLegitimacy::for_term("term_call")
+                        .ok_or_else(|| TestError("a term id names a legitimacy".to_owned()))?,
                     target_ref: None,
                     effects: Vec::new(),
                     context_ref: None,

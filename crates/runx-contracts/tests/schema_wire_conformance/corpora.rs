@@ -1012,6 +1012,21 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         ("missing decisions", drop_field(valid.clone(), "decisions")),
         ("missing lineage", drop_field(valid.clone(), "lineage")),
         (
+            "an act whose legitimacy is prose, not an execution term",
+            set_field(
+                valid.clone(),
+                "acts",
+                json!([{
+                    "id": "act_1",
+                    "form": "reply",
+                    "intent": { "purpose": "ship the change", "legitimacy": "trust me" },
+                    "criterion_bindings": [],
+                    "target_refs": [],
+                    "artifact_refs": [],
+                }]),
+            ),
+        ),
+        (
             "missing subject outcome",
             set_field(
                 valid.clone(),

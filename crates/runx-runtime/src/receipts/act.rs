@@ -11,7 +11,7 @@
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ActForm, CallAct, Criterion, CriterionBinding, CriterionStatus, DecisionChoice, Intent,
-    ReceiptAct, Reference, ReferenceType, authority_term_legitimacy,
+    ReceiptAct, Reference, ReferenceType, TermLegitimacy,
 };
 
 /// What a governed call's receipt records beyond its step: the act its caller
@@ -24,8 +24,9 @@ pub(crate) struct SealedCall {
     /// The operation's declared description: the call's purpose when its
     /// caller states none.
     pub(crate) description: NonEmptyString,
-    /// The execution term admission derived for the call.
-    pub(crate) term_id: String,
+    /// The execution term admission derived for the call, as the act's
+    /// legitimacy.
+    pub(crate) legitimacy: TermLegitimacy,
     /// Where the act's target lives, classified by the declared references.
     pub(crate) target_ref: Option<Reference>,
     /// What the call produced, as its operation declares it.
@@ -81,7 +82,7 @@ impl RuntimeAct {
             intent: Intent {
                 purpose: stated
                     .map_or_else(|| call.description.clone(), |stated| stated.purpose.clone()),
-                legitimacy: authority_term_legitimacy(&call.term_id).into(),
+                legitimacy: call.legitimacy.clone(),
             },
             reason: stated.and_then(|stated| stated.reason.clone()),
             verified_bindings: Vec::new(),

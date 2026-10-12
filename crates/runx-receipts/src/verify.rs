@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{
     Criterion, CriterionBinding, Decision, ProofKind, Receipt, ReceiptAct, Reference,
-    ReferenceType, Seal, legitimacy_authority_term,
+    ReferenceType, Seal,
 };
 
 mod finding;
@@ -95,13 +95,10 @@ impl Verifier {
         );
     }
 
-    /// An act whose legitimacy names an execution term acts under a term the
-    /// receipt's authority holds.
+    /// Every act acts under an execution term the receipt's authority holds.
     fn check_act_legitimacy(&mut self, receipt: &Receipt) {
         for (index, act) in receipt.acts.iter().enumerate() {
-            let Some(term_id) = legitimacy_authority_term(&act.intent.legitimacy) else {
-                continue;
-            };
+            let term_id = act.intent.legitimacy.term_id();
             if !receipt
                 .authority
                 .terms

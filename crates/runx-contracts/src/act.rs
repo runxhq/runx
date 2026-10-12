@@ -5,15 +5,16 @@ pub mod result;
 
 use serde::{Deserialize, Serialize};
 
-use crate::Reference;
 use crate::schema::{NonEmptyString, RunxSchema};
+use crate::{Reference, TermLegitimacy};
 
 /// Why an act was done and under what it was legitimate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Intent {
     pub purpose: NonEmptyString,
-    pub legitimacy: NonEmptyString,
+    /// The execution term the act was admitted under.
+    pub legitimacy: TermLegitimacy,
 }
 
 /// A check the runtime runs and binds to a receipt. The runtime is the only

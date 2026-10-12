@@ -18,7 +18,7 @@ use runx_contracts::{
     ExecutionBoundaryKind, ExecutionBoundaryObservation, Intent, JsonValue, Lineage,
     RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization,
     ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
-    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, authority_term_legitimacy,
+    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, TermLegitimacy,
     canonical_stable_json, receipt_subject_kind,
 };
 use runx_receipts::{
@@ -190,7 +190,7 @@ fn call_authority(receipt: &mut Receipt) {
 fn call_intent(purpose: &str) -> Intent {
     Intent {
         purpose: purpose.into(),
-        legitimacy: authority_term_legitimacy(TERM_ID).into(),
+        legitimacy: TermLegitimacy::for_term(TERM_ID).unwrap(),
     }
 }
 

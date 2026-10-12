@@ -92,7 +92,7 @@ pub use authority::{
     AuthorityEffectGuard, AuthorityEffectGuardKind, AuthorityEffectLimit, AuthorityEvidence,
     AuthorityEvidenceKind, AuthorityResourceFamily, AuthoritySubsetComparison,
     AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
-    AuthorityUseLimit, AuthorityVerb, authority_term_legitimacy, legitimacy_authority_term,
+    AuthorityUseLimit, AuthorityVerb, TermLegitimacy,
 };
 pub use canonical_json::{
     CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,

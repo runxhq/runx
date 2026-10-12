@@ -1469,7 +1469,8 @@ runners:
             operation_intent: None,
             act: None,
             description: "Post one message.".into(),
-            term_id: "term_prepared".to_owned(),
+            legitimacy: runx_contracts::TermLegitimacy::for_term("term_prepared")
+                .ok_or("a term id names a legitimacy")?,
             target_ref: None,
             effects: Vec::new(),
             context_ref: prepared_context_ref(&env),

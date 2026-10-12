@@ -1374,7 +1374,7 @@ fn a_call_carries_the_effect_its_operation_declares_and_admissions_authority() {
         .sealed_call(outcome.effects.clone(), None)
         .expect("sealed");
     let term = context.admitted.admission.execution_term.as_ref().unwrap();
-    assert_eq!(sealed.term_id, term.term_id.as_str());
+    assert_eq!(sealed.legitimacy.term_id(), term.term_id.as_str());
 }
 
 #[test]

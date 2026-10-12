@@ -22824,7 +22824,8 @@ export const runxSchemaArtifacts = {
               "additionalProperties": false,
               "properties": {
                 "legitimacy": {
-                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^runx:authority_term:\\S+$",
                   "type": "string"
                 },
                 "purpose": {
