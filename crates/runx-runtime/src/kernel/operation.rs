@@ -625,12 +625,18 @@ impl RuntimeEffect for OperationEffect {
                 ProofKind::EffectEvidence,
             ));
         }
+        // A write the provider cannot read back is acknowledged: its
+        // evidence never stands as the effect's finality.
         let readback_ref =
             field("readback_ref").ok_or_else(|| state("the packet has no readback"))?;
         refs.push(verification(
             readback_ref.to_owned(),
             provider,
-            ProofKind::EffectFinality,
+            if context.admitted.operation().finality() == "acknowledged" {
+                ProofKind::EffectEvidence
+            } else {
+                ProofKind::EffectFinality
+            },
         ));
         request
             .output

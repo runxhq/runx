@@ -10633,13 +10633,13 @@ export const officialConnectors: readonly OfficialConnector[] = [
   {
     "connector_binding": {
       "connector": "runx/store",
-      "connector_digest": "sha256:5561aa45a6fad29f37904c8372a62bd7f24bff04e1a161e4d14fd999c4c3b9b2",
-      "manifest_digest": "sha256:aef928195d95cb9441c9b55777e4b599a080888435cee87b509bb8ac7cc2e51e"
+      "connector_digest": "sha256:8e06db1f2833119991b98286ce45a7b43b22a9c4ccb7ffa17bb1a80871f72cab",
+      "manifest_digest": "sha256:2cae906d1a6e30059f72655a1098235b4331a1da7db08fa4c30407ad0b9022d3"
     },
     "digests": {
       "events.append": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
-        "operation": "sha256:2431ddf86c240def26e27974ef69db7eb1e9dc6d22018e7a592d38b8c02b383e"
+        "operation": "sha256:22d5b7efd45c40fd711662cfab9fd47b0ec666396d173906cb543b1ecc981b64"
       },
       "events.read": {
         "implementation": "sha256:8cec63da8d52309f196c5bb814b1bc7ab21286306300efbfb0a096975c816527",
@@ -10683,8 +10683,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
           ],
           "description": "Append one event to a stream when the stream is at the expected version. The event is keyed by the call's idempotency key, so a repeated call answers as a replay; at another version the answer is a conflict and nothing is appended.",
           "guarantees": {
-            "provider_idempotency": "enforced",
-            "readback": "exact"
+            "provider_idempotency": "enforced"
           },
           "implementation": {
             "store": {}
@@ -11018,7 +11017,7 @@ export const officialConnectors: readonly OfficialConnector[] = [
       "runtime_capability": true,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:aef928195d95cb9441c9b55777e4b599a080888435cee87b509bb8ac7cc2e51e"
+    "manifest_digest": "sha256:2cae906d1a6e30059f72655a1098235b4331a1da7db08fa4c30407ad0b9022d3"
   },
   {
     "connector_binding": {

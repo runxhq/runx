@@ -6,7 +6,9 @@
 //! in custody before anything is read back, every confirming read must match
 //! the acknowledged write, a write that may have reached the provider is
 //! never reported as refused, and a write's evidence is its confirming reads,
-//! never its own answer.
+//! never its own answer. A write the provider cannot read back declares no
+//! readbacks: its evidence is its recorded acknowledgement, which the receipt
+//! seals as evidence of the effect, never as its finality.
 //!
 //! A repeated write is one approved call over an exact list of items. Each
 //! item's outcome is recorded as it lands, a refused item does not stop the
@@ -17,7 +19,7 @@
 //! recorded item.
 
 use runx_contracts::connector::{ReadbackExpected, ReadbackMatch};
-use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
+use runx_contracts::{JsonObject, JsonValue, canonical_stable_json, sha256_prefixed};
 
 use super::credentials::CredentialSecret;
 use super::packet::Readback;
@@ -235,16 +237,35 @@ pub(super) fn run(
             true => Failure::ReadbackPending(reason),
             false => rejected("invalid_response", reason),
         })?;
+    let readback_ref = if call.mutation() && checks.readbacks.is_empty() {
+        // This write's acknowledgement: the act it answers and what it said.
+        let acknowledgement = canonical_stable_json(&serde_json::json!({
+            "operation": call.operation,
+            "target": call.target,
+            "idempotency_key": call.idempotency_key,
+            "acknowledgement": &write,
+        }))
+        .map_err(|error| {
+            Failure::ReadbackPending(format!("the acknowledgement cannot be digested: {error}"))
+        })?;
+        format!(
+            "runx:{}-acknowledgement:{}",
+            call.implementation,
+            sha256_prefixed(acknowledgement.as_bytes())
+        )
+    } else {
+        format!(
+            "runx:{}-readback:{}",
+            call.implementation,
+            sha256_prefixed(evidence.join("\n").as_bytes())
+        )
+    };
     Ok(Readback {
         provider: call.connector.to_owned(),
         operation: call.operation.to_owned(),
         target: call.target.to_owned(),
         result,
-        readback_ref: format!(
-            "runx:{}-readback:{}",
-            call.implementation,
-            sha256_prefixed(evidence.join("\n").as_bytes())
-        ),
+        readback_ref,
         operation_id,
         idempotency_key: call.idempotency_key.map(str::to_owned),
     })

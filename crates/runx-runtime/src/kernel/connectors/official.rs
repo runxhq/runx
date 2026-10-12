@@ -3672,7 +3672,6 @@ operations:
       template: {"$argument": "/data_source_ref"}
     guarantees:
       provider_idempotency: enforced
-      readback: exact
     input_schema:
       type: object
       additionalProperties: false

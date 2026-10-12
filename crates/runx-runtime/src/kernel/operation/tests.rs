@@ -992,13 +992,30 @@ fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
         "pending"
     );
     assert_eq!(fixture.provider.calls(), 0);
-    let (_, outcome) = fixture
+    let (admission, outcome) = fixture
         .run("deliver", &inputs, Some(ResolutionResponseActor::Human))
         .expect("runs");
     let acknowledged = packet(&outcome);
     assert_eq!(
         acknowledged["finality"],
         JsonValue::String("acknowledged".to_owned())
+    );
+    // Its evidence is its recorded acknowledgement, never a confirming read,
+    // and the receipt never seals it as the effect's finality.
+    let first_evidence = acknowledged["readback_ref"].as_str().unwrap().to_owned();
+    assert!(
+        first_evidence.starts_with("runx:http-acknowledgement:sha256:"),
+        "{first_evidence}"
+    );
+    let refs = sealed_refs(&fixture, "deliver", &admission, &outcome);
+    assert!(
+        refs.iter()
+            .any(|reference| reference.uri.as_str() == first_evidence
+                && reference.proof_kind == Some(ProofKind::EffectEvidence))
+    );
+    assert!(
+        refs.iter()
+            .all(|reference| reference.proof_kind != Some(ProofKind::EffectFinality))
     );
     let first = acknowledged["operation_id"].as_str().unwrap().to_owned();
     assert!(
@@ -1035,6 +1052,38 @@ fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
         .unwrap()
         .to_owned();
     assert_ne!(first, second);
+    assert_ne!(
+        first_evidence,
+        packet(&outcome)["readback_ref"].as_str().unwrap(),
+        "each acknowledgement is its own evidence"
+    );
+}
+
+/// The verification references the receipt seals for a step's outcome.
+fn sealed_refs(
+    fixture: &Fixture,
+    step: &str,
+    admission: &EffectAdmission,
+    outcome: &OperationOutcome,
+) -> Vec<Reference> {
+    let claim = JsonObject::from([(
+        "provider_operation".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "data".to_owned(),
+            JsonValue::Object(packet(outcome).clone()),
+        )])),
+    )]);
+    let mut output = crate::adapter::InvocationOutput::runtime_success(outcome.value.clone(), 0);
+    fixture
+        .effect
+        .prepare_output(crate::effects::EffectOutputRequest {
+            step: &fixture.steps[step],
+            admission,
+            claim: &claim,
+            output: &mut output,
+        })
+        .unwrap();
+    output.observations.effect_verification_refs
 }
 
 /// A plugin connector whose MCP server is a process the runtime starts over

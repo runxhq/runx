@@ -253,8 +253,6 @@
               },
               "readback": {
                 "enum": [
-                  "eventual",
-                  "exact",
                   "unavailable"
                 ],
                 "type": "string"

@@ -9622,8 +9622,6 @@ export const runxSchemaArtifacts = {
                 },
                 "readback": {
                   "enum": [
-                    "eventual",
-                    "exact",
                     "unavailable"
                   ],
                   "type": "string"

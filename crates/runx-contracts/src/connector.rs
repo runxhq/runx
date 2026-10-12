@@ -635,10 +635,9 @@ pub enum ProviderIdempotency {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadbackGuarantee {
+    /// The operation's declared readbacks confirm each write.
     #[default]
-    None,
-    Eventual,
-    Exact,
+    Confirmed,
     /// The provider offers no read of the effect, as with a webhook: its
     /// acknowledgement is the only evidence, and the call seals as
     /// acknowledged, never confirmed.
