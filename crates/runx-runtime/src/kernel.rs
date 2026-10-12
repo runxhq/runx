@@ -10,7 +10,6 @@
 //! - `capability`: what an instance's principal can do at the provider.
 //! - `admission`: the one evaluator that admits an operation call or projects
 //!   a requirement's readiness.
-//! - `standing`: standing approvals and their usage.
 //! - `custody`: effect custody for each act, across runs.
 //! - `operation`: operation steps, from admission to the sealed packet.
 
@@ -23,6 +22,5 @@ pub mod instances;
 pub mod operation;
 pub(crate) mod session;
 pub mod setup;
-pub mod standing;
 pub mod store;
 pub(crate) mod usage;

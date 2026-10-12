@@ -30,7 +30,6 @@ chrono = "0.4.45"
 ctrlc = "3.5.2"
 ring = "0.17.14"
 runx-contracts.workspace = true
-runx-assistant.workspace = true
 runx-parser.workspace = true
 runx-receipts.workspace = true
 runx-runtime = { workspace = true, features = ["mcp", "mcp-http-server", "agent", "store"] }

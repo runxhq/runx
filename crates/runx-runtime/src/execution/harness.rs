@@ -57,7 +57,7 @@ pub use runner::{
     HarnessOptions, HarnessReplayError, HarnessReplayOutput, replay_harness_fixture_with_adapter,
     run_harness_fixture, run_harness_fixture_with_adapter,
 };
-pub(crate) use transport::{effects_for_harness, provider_env};
+pub(crate) use transport::{effects_for_harness, provider_env, seed_provider_grant};
 
 #[cfg(test)]
 mod environment_tests {
@@ -71,8 +71,8 @@ mod environment_tests {
             ("PATH".to_owned(), "/usr/bin".to_owned()),
             ("EXAMPLE_TOKEN".to_owned(), "live-secret".to_owned()),
             (
-                "RUNX_PROVIDER_PERMISSION_GRANT_ID".to_owned(),
-                "live-grant".to_owned(),
+                "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON".to_owned(),
+                "{}".to_owned(),
             ),
             (
                 "RUNX_PUBLIC_API_TOKEN".to_owned(),

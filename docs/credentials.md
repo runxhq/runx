@@ -183,12 +183,11 @@ Connect credential forms for manifest-backed providers are projections of the
 same field declarations. Provider-specific verification does not imply account
 identity, paid entitlement or permissions the probe did not establish.
 
-A host may inject a grant instead: a complete `RUNX_PROVIDER_PERMISSION_GRANT_ID`,
-`RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES` (a JSON array), and
-`RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF` triplet stands for a hosted instance
-of every connector with a hosted placement. A partial triplet is refused.
-Provider tokens never enter `.env`, skill inputs, command arguments, or
-receipts.
+A grant is bound to one connector identity: its publisher and id, its manifest
+digest and its connector digest. `runx connector use` refuses a grant bound to
+any other, and admission reads the grant's status, binding, principal and
+scopes from Connect again for every call. Provider tokens never enter `.env`,
+skill inputs, command arguments, or receipts.
 
 An operation step may declare `expected_result` to require exact top-level
 resource identity fields and `result_fields` to allow only named provider

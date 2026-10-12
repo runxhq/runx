@@ -14,17 +14,18 @@ use runx_contracts::{
 use runx_parser::{ExecutionGraph, PROFILE_FILE, WorkerTool, parse_graph_yaml, validate_graph};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{
-    CredentialDelivery, Executable, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, Host,
-    HttpMethod, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV, INJECTED_PRINCIPAL_REF_ENV,
-    KernelStore, NoopHost, OperationEffect, RUNX_RECEIPT_DIR_ENV, RunLog, Runtime,
-    RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse,
-    RuntimeHttpTransport, RuntimeOptions, SkillAdapter, SkillInvocation, encode_injected_scopes,
+    ConnectorScope, CredentialDelivery, Executable, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV,
+    Host, HttpMethod, Instances, KernelStore, LoadedConnector, NoopHost, OperationEffect,
+    RUNX_HOME_ENV, RUNX_RECEIPT_DIR_ENV, RunLog, Runtime, RuntimeEffectRegistry, RuntimeHttpError,
+    RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport, RuntimeOptions, RunxPaths,
+    SkillAdapter, SkillInvocation,
 };
 use tempfile::TempDir;
 
 use super::{record_resource_metrics, session_metric};
 
 const CREATED_AT: &str = "2026-07-20T00:00:00Z";
+const BENCHMARK_GRANT: &str = "grant_runtime_perf";
 const LARGE_INPUT_BYTES: usize = 4 * 1024 * 1024 - 64;
 
 #[allow(clippy::expect_used)]
@@ -159,24 +160,13 @@ impl RuntimePathFixtures {
         );
         let module_adapter = JavaScriptAdapter::new_session();
 
-        let provider_transport = ProviderBenchmarkTransport::default();
+        let slack = ConnectorScope::at(directory.path())?.connector("slack")?;
+        let provider_transport = ProviderBenchmarkTransport::for_grant(&slack)?;
         let effects = RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(
             provider_transport.clone(),
         ))?;
         let mut provider_options = runtime_options(evaluation("run_provider_smoke")?);
         provider_options.effects = effects.clone();
-        provider_options.env.insert(
-            INJECTED_GRANT_ID_ENV.to_owned(),
-            "grant_runtime_perf".to_owned(),
-        );
-        provider_options.env.insert(
-            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-            encode_injected_scopes(&["thread.reply".to_owned()]).ok_or("scopes")?,
-        );
-        provider_options.env.insert(
-            INJECTED_PRINCIPAL_REF_ENV.to_owned(),
-            "runx:principal:operator:benchmark".to_owned(),
-        );
         provider_options.env.insert(
             HOSTED_API_BASE_URL_ENV.to_owned(),
             "https://api.runx.benchmark".to_owned(),
@@ -192,6 +182,21 @@ impl RuntimePathFixtures {
                 .to_string_lossy()
                 .into_owned(),
         );
+        provider_options.env.insert(
+            RUNX_HOME_ENV.to_owned(),
+            directory.path().join("home").to_string_lossy().into_owned(),
+        );
+        runx_runtime::kernel::setup::confirm_grant_over(
+            &Instances::new(KernelStore::for_project(&RunxPaths::resolve(
+                &provider_options.env,
+                directory.path(),
+            ))?),
+            &slack,
+            Arc::new(provider_transport.clone()),
+            BENCHMARK_GRANT,
+            &provider_options.env,
+            directory.path(),
+        )?;
         let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options);
         let provider_graph = runx_parser::validate_runner_manifest(
             runx_parser::parse_runner_manifest_yaml(PROVIDER_EFFECT_SKILL)?,
@@ -363,19 +368,41 @@ fn run_provider_graph<A: SkillAdapter>(
     Ok(black_box(run.steps.len()))
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct ProviderBenchmarkTransport {
     state: Arc<ProviderBenchmarkState>,
 }
 
-#[derive(Default)]
 struct ProviderBenchmarkState {
+    /// The `GET /v1/grants` answer: the benchmark's grant for `thread.reply`.
+    grants: String,
     operation_attempts: AtomicU64,
     logical_mutations: AtomicU64,
     mutations: Mutex<BTreeMap<String, JsonObject>>,
 }
 
 impl ProviderBenchmarkTransport {
+    fn for_grant(connector: &LoadedConnector) -> Result<Self, Box<dyn Error>> {
+        let grants = serde_json::to_string(&serde_json::json!({
+            "status": "success",
+            "grants": [{
+                "grant_id": BENCHMARK_GRANT,
+                "provider": connector.manifest.id.as_str(),
+                "connector_binding": connector.binding(),
+                "status": "active",
+                "scopes": ["thread.reply"],
+            }],
+        }))?;
+        Ok(Self {
+            state: Arc::new(ProviderBenchmarkState {
+                grants,
+                operation_attempts: AtomicU64::default(),
+                logical_mutations: AtomicU64::default(),
+                mutations: Mutex::default(),
+            }),
+        })
+    }
+
     fn operation_attempts(&self) -> u64 {
         self.state.operation_attempts.load(Ordering::Relaxed)
     }
@@ -388,6 +415,9 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
                 200,
                 r#"{"status":"success","principal":{"principal_id":"operator:benchmark"}}"#,
             ));
+        }
+        if request.method == HttpMethod::Get && request.url.ends_with("/v1/grants") {
+            return Ok(RuntimeHttpResponse::new(200, self.state.grants.clone()));
         }
         if request.method != HttpMethod::Post || !request.url.ends_with("/v1/provider-operations") {
             return Err(benchmark_transport_error("unexpected hosted API request"));

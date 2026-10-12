@@ -194,11 +194,6 @@ impl RunxPaths {
     }
 
     #[must_use]
-    pub fn assistant(&self) -> PathBuf {
-        self.project.join("assistant")
-    }
-
-    #[must_use]
     pub fn continuations(&self) -> PathBuf {
         self.project.join("continuations")
     }

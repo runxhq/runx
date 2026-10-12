@@ -122,8 +122,13 @@ fn run_inline_harness_case(
     // The case's exchanges stand in for the world before anything can end
     // the case, so however it ends, even refused at its inputs, it proves
     // only the requests its run made.
+    let scope = match crate::ConnectorScope::at(context.skill_dir) {
+        Ok(scope) => scope,
+        Err(error) => return inline_harness_case_error(&case.name, error),
+    };
     let effects =
-        match crate::execution::harness::effects_for_harness(context.effects, &case.caller) {
+        match crate::execution::harness::effects_for_harness(context.effects, &case.caller, &scope)
+        {
             Ok(effects) => effects,
             Err(error) => return inline_harness_case_error(&case.name, error),
         };
@@ -173,9 +178,16 @@ fn run_admitted_inline_harness_case(
         Ok(scope) => scope,
         Err(error) => return inline_harness_case_error(&case.name, error),
     };
-    match crate::execution::harness::provider_env(&case.caller, &scope) {
-        Ok(env) => request.env.extend(env),
-        Err(error) => return inline_harness_case_error(&case.name, error),
+    request
+        .env
+        .extend(crate::execution::harness::provider_env(&case.caller));
+    if let Err(error) = crate::execution::harness::seed_provider_grant(
+        &case.caller,
+        &scope,
+        &request.env,
+        &request.cwd,
+    ) {
+        return inline_harness_case_error(&case.name, error);
     }
     let seeded_answers = match seeded_answers_from_caller(&case.caller) {
         Ok(answers) => answers,

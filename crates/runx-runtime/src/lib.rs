@@ -133,20 +133,9 @@ pub use kernel::authority::{ChildLimits, RunAuthority};
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector,
 };
-pub use kernel::instances::{
-    INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
-    INJECTED_PRINCIPAL_REF_ENV, InstanceError, InstanceRecord, Instances,
-    decode_injected_connector_binding, decode_injected_scopes, encode_injected_scopes,
-};
-pub use kernel::operation::egress::{
-    CONFIDENTIAL_TERMS_ENV, REQUIRE_MUTATION_APPROVAL_ENV, outbound_text_is_safe,
-};
+pub use kernel::instances::{InstanceError, InstanceRecord, Instances};
 pub use kernel::operation::{
     OPERATION_EFFECT_FAMILY, OperationEffect, PAID_EXTERNAL_JOB_AUTHORITY_ENV,
-};
-pub use kernel::standing::{
-    STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApproval, StandingApprovals,
-    StandingError, StandingStatus,
 };
 pub use kernel::store::{KernelStore, KernelStoreError};
 pub use list::{
@@ -203,9 +192,7 @@ pub use services::{
 };
 pub use skill_front::PackageHarnessReport;
 pub use skill_package::{
-    LoadedSkillPackage, SkillInspectionError, SkillRetentionError, inspect_local_skill_binding,
-    inspect_skill_package, load_validated_skill_package, resolve_retained_skill_binding,
-    retain_skill_binding,
+    LoadedSkillPackage, SkillInspectionError, inspect_skill_package, load_validated_skill_package,
 };
 pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
 pub use tool_catalogs::{

@@ -285,8 +285,8 @@ fn rejection(error: &ProviderOperationError) -> Option<(u16, String, String)> {
     }
 }
 
-/// Refusal codes that prove the provider never executed the call, so a
-/// standing approval use it spent is released.
+/// Refusal codes that prove the provider never executed the call, so the
+/// bounded authority uses it spent are released.
 pub(crate) fn refused_before_execution(code: &str) -> bool {
     matches!(
         code,

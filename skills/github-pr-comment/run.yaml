@@ -37,13 +37,16 @@ harness:
   cases:
     - name: github-pr-comment-merge-refused
       runner: merge-refused
-      env:
-        RUNX_PROVIDER_PERMISSION_GRANT_ID: github-mcp-pr-comment
-        RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: '["pr.comment"]'
-        RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: runx:principal:operator
       inputs:
         repository: runxhq/runx
         pr_number: "42"
+      caller:
+        provider_responses:
+          principal_id: operator
+          grant:
+            grant_id: github-mcp-pr-comment
+            provider: github
+            scopes: [pr.comment]
       expect:
         status: policy_denied
         receipt:

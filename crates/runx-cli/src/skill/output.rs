@@ -709,8 +709,7 @@ mod tests {
         fs::create_dir(&workspace)?;
         let artifacts = workspace.join(".runx").join("artifacts");
         let exact = JsonValue::String("exact private update".to_owned());
-        let reference =
-            persist_json_artifact(&artifacts, "assistant", "assistant", "intent", &exact)?;
+        let reference = persist_json_artifact(&artifacts, "skill", "skill", "intent", &exact)?;
         assert_eq!(read_json_artifact(&artifacts, &reference)?, exact);
         let path = reference
             .as_object()

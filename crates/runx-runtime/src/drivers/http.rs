@@ -265,8 +265,8 @@ impl Http<'_> {
 
     /// Render one declared request, for `item` (its position and value) of a
     /// repeated request or at the `cursor` of a paged one, and send it. The
-    /// kernel renders on both placements, so the egress guard and every
-    /// rendering error stop a request before anything leaves.
+    /// kernel renders on both placements, so every rendering error stops a
+    /// request before anything leaves.
     fn send(
         &self,
         request: &HttpRequest,
@@ -387,23 +387,6 @@ impl Http<'_> {
             .map(|template| template.render(&inputs))
             .transpose()
             .map_err(|error| error.to_string())?;
-        // Everything rendered is guarded, URL and headers as well as the
-        // body: a later request can carry an earlier answer anywhere.
-        self.call.guard(&JsonValue::Object(JsonObject::from([
-            ("url".to_owned(), JsonValue::String(url.to_string())),
-            (
-                "headers".to_owned(),
-                JsonValue::Object(
-                    headers
-                        .iter()
-                        .map(|header| {
-                            (header.name.clone(), JsonValue::String(header.value.clone()))
-                        })
-                        .collect(),
-                ),
-            ),
-            ("body".to_owned(), body.clone().unwrap_or(JsonValue::Null)),
-        ])))?;
         let body = match body {
             Some(value) => {
                 headers.push(RuntimeHttpHeader::new("content-type", "application/json"));

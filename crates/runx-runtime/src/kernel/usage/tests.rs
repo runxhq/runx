@@ -21,7 +21,7 @@ fn a_retry_reuses_its_reservation_and_a_rejection_releases_it() {
         ledger
             .cover("term:one", &limit, "call-1", "intent-1", "run-1", 86_401)
             .unwrap()
-            .recorded()
+            .recorded
     );
     assert!(matches!(
         ledger.cover("term:one", &limit, "call-2", "intent-2", "run-2", 86_401),
@@ -31,7 +31,7 @@ fn a_retry_reuses_its_reservation_and_a_rejection_releases_it() {
     let second = ledger
         .cover("term:one", &limit, "call-2", "intent-2", "run-2", 86_401)
         .unwrap();
-    assert!(!second.recorded());
+    assert!(!second.recorded);
 }
 
 #[test]
@@ -53,12 +53,12 @@ fn another_run_recovering_the_sequence_reuses_its_use() {
         ledger
             .cover("term:one", &limit, "call-1", "intent-1", "run-2", 86_400)
             .unwrap()
-            .recorded()
+            .recorded
     );
 }
 
 #[test]
-fn a_fence_refuses_a_concurrent_use_and_consumption_keeps_the_use() {
+fn consumption_keeps_the_use() {
     let root = tempfile::tempdir().unwrap();
     let store = KernelStore::open(root.path()).unwrap();
     let ledger = UsageLedger::new(Arc::clone(&store));
@@ -66,25 +66,15 @@ fn a_fence_refuses_a_concurrent_use_and_consumption_keeps_the_use() {
         total: Some(1),
         per_day: None,
     };
-    let before = ledger.status("standing:one").unwrap();
-    let fence = ledger.fence("standing:one", before.version).unwrap();
     let cover = ledger
-        .cover(
-            "standing:one",
-            &limit,
-            "call-1",
-            "intent-1",
-            "run-1",
-            86_400,
-        )
+        .cover("term:one", &limit, "call-1", "intent-1", "run-1", 86_400)
         .unwrap();
     store
         .append(vec![cover.reservation().unwrap().unwrap()])
         .unwrap();
-    assert!(store.append(vec![fence]).is_err());
-    assert_eq!(ledger.status("standing:one").unwrap().open_total, 1);
+    assert_eq!(ledger.status("term:one").unwrap().open_total, 1);
     store.append(vec![cover.consume(&store).unwrap()]).unwrap();
-    let after = ledger.status("standing:one").unwrap();
+    let after = ledger.status("term:one").unwrap();
     assert_eq!(after.open_total, 0);
     assert_eq!(after.active_total, 1);
 }

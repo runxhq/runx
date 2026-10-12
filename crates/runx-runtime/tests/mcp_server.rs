@@ -826,7 +826,6 @@ fn fixed_tool(name: &str) -> McpServerTool {
             ("additionalProperties".to_owned(), JsonValue::Bool(false)),
         ]
         .into(),
-        required_scopes: Vec::new(),
         result: McpServerToolBehavior::Fixed(McpToolResult {
             content: vec![McpContent {
                 text: "hello from server".to_owned(),

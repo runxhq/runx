@@ -314,22 +314,27 @@ fn wire_operations(
     target_path: &Path,
     options: &mut HarnessOptions,
 ) -> Result<Arc<HarnessExchanges>, HarnessReplayError> {
-    let transport = super::transport::harness_transport(&fixture.caller);
+    let scope = crate::ConnectorScope::at(target_path.parent().unwrap_or(target_path))
+        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
+    let invalid_provider = |message: String| {
+        HarnessFixtureError::Parser(runx_parser::harness_fixture::HarnessFixtureError::Invalid {
+            field: "caller.provider_responses.grant".to_owned(),
+            message,
+        })
+    };
+    let transport =
+        super::transport::harness_transport(&fixture.caller, &scope).map_err(invalid_provider)?;
     options.effects =
         super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
             .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
-    let scope = crate::ConnectorScope::at(target_path.parent().unwrap_or(target_path))
-        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
-    let provider_env =
-        super::transport::provider_env(&fixture.caller, &scope).map_err(|message| {
-            HarnessFixtureError::Parser(
-                runx_parser::harness_fixture::HarnessFixtureError::Invalid {
-                    field: "caller.provider_responses.principal_id".to_owned(),
-                    message,
-                },
-            )
-        })?;
-    fixture.env.extend(provider_env);
+    fixture
+        .env
+        .extend(super::transport::provider_env(&fixture.caller));
+    let mut env = options.env.clone();
+    env.extend(fixture.env.clone());
+    resolve_fixture_path(&mut env, target_path)?;
+    super::transport::seed_provider_grant(&fixture.caller, &scope, &env, target_path)
+        .map_err(invalid_provider)?;
     seed_harness_sessions(fixture, target_path, options, &transport)?;
     seed_harness_credentials(fixture, target_path, options)?;
     Ok(transport.exchanges)

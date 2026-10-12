@@ -183,58 +183,6 @@
       "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
       "type": "string"
     },
-    "messages": {
-      "additionalProperties": false,
-      "properties": {
-        "active": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "actor": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "inert": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "pattern": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "replace": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "pattern",
-              "replace"
-            ],
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "mention": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "readback_normalization": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor",
-        "mention",
-        "active"
-      ],
-      "type": "object"
-    },
     "name": {
       "minLength": 1,
       "type": "string"
@@ -1516,33 +1464,6 @@
             },
             "minItems": 1,
             "type": "array"
-          },
-          "standing": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "const": "notification",
-                    "type": "string"
-                  },
-                  "target_field": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "text_field": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "target_field",
-                  "text_field"
-                ],
-                "type": "object"
-              }
-            ]
           },
           "target": {
             "additionalProperties": false,

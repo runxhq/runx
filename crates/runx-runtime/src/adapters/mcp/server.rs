@@ -1,7 +1,6 @@
 // Module rationale: the JSON-RPC dispatch loop, server
 // state, tool-result builders, and host-result projections for `runx mcp
 // serve` all sit on the same protocol surface.
-use std::collections::BTreeMap;
 #[cfg(test)]
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
@@ -12,13 +11,7 @@ use std::task::{Context, Poll};
 use std::thread;
 
 use runx_contracts::{JsonObject, JsonValue};
-use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes};
 use tokio::sync::mpsc;
-
-use crate::kernel::instances::{
-    INJECTED_CONNECTOR_BINDING_ENV, INJECTED_GRANT_ID_ENV, INJECTED_GRANTED_SCOPES_ENV,
-    decode_injected_connector_binding, decode_injected_scopes,
-};
 
 use super::server_skill::{execute_mcp_server_skill, identifier_segment};
 use super::stdio_transport::{StdioJsonRpcTransport, TransportErrorState};
@@ -295,72 +288,15 @@ fn prepare_rmcp_tool_call(
     };
     match tool.result {
         McpServerToolBehavior::Fixed(result) => Ok(PreparedMcpToolCall::Fixed(result)),
-        McpServerToolBehavior::Skill(execution) => {
-            admit_mcp_tool_scopes(&tool.name, &tool.required_scopes, &execution.env)?;
-            Ok(PreparedMcpToolCall::Skill {
-                run_id: state.next_run_id(&execution.skill_name),
-                execution,
-                arguments,
-                javascript: state.javascript.clone(),
-                effects: state.options.effects.clone(),
-            })
-        }
+        McpServerToolBehavior::Skill(execution) => Ok(PreparedMcpToolCall::Skill {
+            run_id: state.next_run_id(&execution.skill_name),
+            execution,
+            arguments,
+            javascript: state.javascript.clone(),
+            effects: state.options.effects.clone(),
+        }),
         McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn { tool, arguments }),
     }
-}
-
-fn admit_mcp_tool_scopes(
-    tool_name: &str,
-    required_scopes: &[String],
-    env: &BTreeMap<String, String>,
-) -> Result<(), rmcp::ErrorData> {
-    if required_scopes.is_empty() {
-        return Ok(());
-    }
-    let Some(grant_id) = env
-        .get(INJECTED_GRANT_ID_ENV)
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    else {
-        return Err(rmcp_invalid_params(format!(
-            "MCP tool '{tool_name}' requires scopes [{}], but no operator provider grant id was supplied in {INJECTED_GRANT_ID_ENV}",
-            required_scopes.join(", ")
-        )));
-    };
-    let granted_scopes = env
-        .get(INJECTED_GRANTED_SCOPES_ENV)
-        .map(|value| {
-            decode_injected_scopes(value).ok_or_else(|| {
-                rmcp_invalid_params(format!(
-                    "{INJECTED_GRANTED_SCOPES_ENV} must be a JSON array of non-blank scopes"
-                ))
-            })
-        })
-        .transpose()?
-        .unwrap_or_default();
-    if env
-        .get(INJECTED_CONNECTOR_BINDING_ENV)
-        .and_then(|value| decode_injected_connector_binding(value))
-        .is_none()
-    {
-        return Err(rmcp_invalid_params(format!(
-            "MCP tool '{tool_name}' needs an exact connector binding in {INJECTED_CONNECTOR_BINDING_ENV}"
-        )));
-    }
-    let missing = missing_granted_scopes(
-        required_scopes,
-        &granted_scopes,
-        ScopeGrantPolicy::Delegated,
-    );
-    if missing.is_empty() {
-        return Ok(());
-    }
-    Err(rmcp_invalid_params(format!(
-        "MCP tool '{tool_name}' requires scopes [{}], but operator grant '{}' only provides [{}]",
-        required_scopes.join(", "),
-        grant_id,
-        granted_scopes.join(", ")
-    )))
 }
 
 async fn execute_rmcp_tool_call(
@@ -738,51 +674,6 @@ mod tests {
                 state.session_id
             )));
         }
-        Ok(())
-    }
-
-    #[test]
-    fn scoped_mcp_tool_requires_operator_grant_before_dispatch()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let required_scopes = vec!["repo.read".to_owned(), "issues.write".to_owned()];
-        let result = admit_mcp_tool_scopes("github-write", &required_scopes, &BTreeMap::new());
-        assert!(
-            matches!(&result, Err(error) if error.message.contains("no operator provider grant id")),
-            "scoped MCP tool must deny without operator grant id; got: {result:?}"
-        );
-
-        let mut env = BTreeMap::from([
-            (INJECTED_GRANT_ID_ENV.to_owned(), "grant-gh".to_owned()),
-            (
-                INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-                crate::encode_injected_scopes(&["repo.read".to_owned()]).ok_or("scopes")?,
-            ),
-        ]);
-        let result = admit_mcp_tool_scopes("github-write", &required_scopes, &env);
-        assert!(
-            matches!(&result, Err(error) if error.message.contains("issues.write")),
-            "scoped MCP tool must deny missing granted scopes before dispatch; got: {result:?}"
-        );
-
-        env.insert(
-            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-            crate::encode_injected_scopes(&["repo.read".to_owned(), "issues.write".to_owned()])
-                .ok_or("scopes")?,
-        );
-        let result = admit_mcp_tool_scopes("github-write", &required_scopes, &env);
-        assert!(
-            result.is_ok(),
-            "matching operator grant scopes should admit the MCP tool; got: {result:?}"
-        );
-
-        env.insert(
-            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-            crate::encode_injected_scopes(&["repo:*".to_owned()]).ok_or("scopes")?,
-        );
-        assert!(admit_mcp_tool_scopes("github-read", &["repo:read".to_owned()], &env).is_ok());
-        assert!(
-            admit_mcp_tool_scopes("github-admin", &["repo:admin:keys".to_owned()], &env).is_err()
-        );
         Ok(())
     }
 }

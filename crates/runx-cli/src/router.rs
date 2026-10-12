@@ -2,7 +2,6 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
-use crate::assistant::AssistantPlan;
 use crate::cli_args::{flag_value, optional_flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
 use crate::connect::ConnectPlan;
@@ -53,7 +52,6 @@ pub enum RouterAction {
     RunSkill(SkillPlan),
     RunTool(ToolPlan),
     RunAddUrl(AddUrlPlan),
-    RunAssistant(AssistantPlan),
     PrintHelp,
     PrintHelpJson,
     PrintCommandHelp(&'static str),
@@ -236,14 +234,6 @@ fn route_args_with_optional_workspace(
             &args,
             crate::credential::parse_credential_plan(&args),
             RouterAction::RunCredential,
-        );
-    }
-
-    if first_arg_is(&args, "assistant") {
-        return route_parse(
-            &args,
-            crate::assistant::parse_assistant_plan(&args),
-            RouterAction::RunAssistant,
         );
     }
 

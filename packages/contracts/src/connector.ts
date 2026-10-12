@@ -119,7 +119,6 @@ export interface ConnectorOperation {
   readonly credentials?: readonly string[];
   readonly target: { readonly template: Template; readonly pattern?: string };
   readonly approval?: "none" | "required";
-  readonly standing?: JsonObject;
   readonly idempotency_key_format?: "runx" | "uuid";
   readonly guarantees?: JsonObject;
   readonly amount?: "none" | "required";
@@ -168,7 +167,6 @@ export interface ConnectorManifest {
     readonly local?: JsonObject;
   };
   readonly operations: { readonly [name: string]: ConnectorOperation };
-  readonly messages?: JsonObject;
   readonly references?: readonly ReferenceDeclaration[];
 }
 

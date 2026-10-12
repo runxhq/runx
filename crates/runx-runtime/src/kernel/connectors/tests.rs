@@ -10,7 +10,10 @@ fn official_connectors_load_with_digests() {
     let slack = scope.connector("slack").expect("slack");
     let (name, operation, digest) = slack.operation("channel.post").expect("channel.post");
     assert_eq!(name.as_str(), "channel.post");
-    assert!(operation.standing.is_some());
+    assert_eq!(
+        operation.approval,
+        runx_contracts::connector::ApprovalFloor::Required
+    );
     assert!(digest.as_str().starts_with("sha256:"));
     assert!(matches!(
         scope.connector("nope"),

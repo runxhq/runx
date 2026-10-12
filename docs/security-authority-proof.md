@@ -56,20 +56,15 @@ The local runner applies authority in this order:
 
 ## Hosted Grants
 
-Connector `operation` steps on the hosted placement authenticate the operator,
-read active grant metadata from Connect, and select the unique grant whose
-connector and authoritative scopes cover the operation. The selection is
-cached for the run. No provider token or credential body crosses into the
-skill, and granted scopes come only from grant evidence, never from the skill.
-
-A host that has already resolved the grant injects it as one complete tuple:
-
-- `RUNX_PROVIDER_PERMISSION_GRANT_ID`
-- `RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES`, encoded as a JSON array of exact
-  capability strings (for example `["repo.read","issues.write"]`)
-- `RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF`
-
-Partial tuples never report ready.
+Connector `operation` steps on the hosted placement run under the connector
+instance the operator confirmed with `runx connector use <connector> --grant
+<grant-id>`. Confirmation reads the grant from Connect and refuses one that is
+not active or is bound to another connector identity: another publisher or id,
+another manifest digest or another connector digest. Admission authenticates
+the operator and reads that grant from Connect again for every call; a grant
+that was revoked, rebound or is now held by another principal no longer admits
+the call. No provider token or credential body crosses into the skill, and
+granted scopes come only from grant evidence, never from the skill.
 
 An operation step can also require exact `expected_result` identity fields
 and project only declared `result_fields` before the result enters a receipt.
@@ -83,10 +78,6 @@ the exact intent and suspends for host-attested human resolution; the package
 must not place a second graph approval beside the same effect. Approval is
 therefore an explicit property of one act, not a generic consequence of write
 scope.
-
-When more than one active grant matches, resolution fails as ambiguous. Set
-`RUNX_PROVIDER_PERMISSION_GRANT_ID` to select one; Runx then reads that grant's
-current scopes from Connect.
 
 When a provider-permission effect is admitted, the sealed step receipt records
 the operator grant as a typed `runx:grant:*` reference under
@@ -154,10 +145,8 @@ view before exercising privileged effects. It reports:
   `RUNX_RECEIPT_SIGN_ISSUER_TYPE`
 - receipt verification readiness and whether it resolves from the explicit
   `RUNX_RECEIPT_VERIFY_*` pair or the complete signing identity
-- provider-permission grant readiness, reporting either authenticated Connect
-  discovery or the complete host-injected `RUNX_PROVIDER_PERMISSION_GRANT_ID`,
-  JSON-array `RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES`, and
-  `RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF` path
+- whether runx Connect is configured, which hosted operations need to read
+  the grant their connector instance was confirmed with
 
 The diagnostic may show key ids and resolved filesystem paths. It must not show
 signing seeds, public key material, provider scope values, grant ids, or

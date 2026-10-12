@@ -626,14 +626,22 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
     use crate::kernel::custody::{Attempt, EffectCustody};
 
     let (_root, store) = store();
-    let custody = EffectCustody::for_named_act(
-        Arc::clone(&store),
-        "slack",
-        "channel.post",
-        "slack-acme",
-        "slack://T123/C456",
-        "deliver-1",
-    );
+    let digest = |text: &str| runx_contracts::connector::Digest::of(text.as_bytes());
+    let intent = runx_contracts::OperationIntent {
+        connector: runx_contracts::connector::ConnectorRef::new("runx/slack").unwrap(),
+        manifest_digest: digest("manifest"),
+        connector_digest: digest("connector"),
+        operation: runx_contracts::connector::OperationName::new("channel.post").unwrap(),
+        operation_digest: digest("operation"),
+        instance_id: runx_contracts::connector::InstanceId::new("slack-acme").unwrap(),
+        target: "slack://T123/C456".into(),
+        payload_digest: digest("payload"),
+        request_key_digest: Some(digest("deliver-1")),
+        amount: None,
+        approval_digest: None,
+        act_digest: None,
+    };
+    let custody = EffectCustody::for_act(Arc::clone(&store), &intent, &digest("intent"), "run-1");
     custody
         .attempt(
             &Attempt {
@@ -647,7 +655,6 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
                 implementation_digest: None,
                 admitted_at: 0,
             },
-            None,
             &[],
         )
         .unwrap();
@@ -657,7 +664,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
     first.record_skipped(vec!["other".to_owned()]).unwrap();
 
     let mut run = step("run_triage_9", "deliver");
-    run.settlement = Some(custody.settlement(run.receipt.id.to_string(), None, &[]));
+    run.settlement = Some(custody.settlement(run.receipt.id.to_string(), &[]));
     assert!(matches!(
         stale.record_step(&run, &[]),
         Err(RunRecordError::Contended { .. })

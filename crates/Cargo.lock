@@ -2610,19 +2610,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "runx-assistant"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "ring",
- "runx-contracts",
- "runx-runtime",
- "serde",
- "serde_json",
- "url",
-]
-
-[[package]]
 name = "runx-cli"
 version = "0.10.0"
 dependencies = [
@@ -2630,7 +2617,6 @@ dependencies = [
  "chrono",
  "ctrlc",
  "ring",
- "runx-assistant",
  "runx-contracts",
  "runx-parser",
  "runx-receipts",

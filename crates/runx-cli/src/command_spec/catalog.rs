@@ -223,23 +223,6 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
-        name: "assistant",
-        top_level_usage: &[
-            "runx assistant check|tick|execute|status|report|pause|resume|grant|revoke|discard-notification|reconcile-notification|install-timer|remove-timer|work|retry-work|memories|remember|forget --profile path [-j|--json]",
-        ],
-        usage: &["runx assistant <action> --profile path [-j|--json]"],
-        notes: &[
-            "Runs a bounded local personal assistant from a private, operator-owned profile. Scheduled ticks use configured standing permissions and never prompt for action approval.",
-        ],
-        options: &[
-            "--profile path  Exact private assistant profile",
-            "--memory-id id  Stable confirmed-memory identifier for remember/forget",
-            "--text-file path  Private UTF-8 memory text for remember",
-            "--cursor value  Continue one bounded work-queue page",
-            "-j, --json",
-        ],
-    },
-    CommandSpec {
         name: "policy",
         top_level_usage: &["runx policy inspect|lint <policy.json> [--json]"],
         usage: &[

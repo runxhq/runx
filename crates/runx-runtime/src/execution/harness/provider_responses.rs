@@ -11,50 +11,15 @@ use crate::http::{
 pub(crate) const HARNESS_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
 pub(crate) const HARNESS_PROVIDER_TOKEN: &str = "runx-harness-provider-token";
 
-/// The fixture's grant, injected the way a hosted worker injects one, so the
-/// run resolves it as its instance.
-pub(crate) fn injected_grant_env(
-    fixture: &HarnessProviderResponsesFixture,
-    scope: &crate::ConnectorScope,
-) -> Result<BTreeMap<String, String>, String> {
-    let grant = &fixture.grant;
-    let principal_id = runx_contracts::RunxPrincipalId::new(fixture.principal_id.clone())
-        .ok_or("the fixture principal id is not a runx principal id")?;
-    let principal_ref = runx_contracts::PrincipalReference::from_runx_principal_id(principal_id)
-        .as_reference()
-        .uri
-        .as_str()
-        .to_owned();
-    Ok(BTreeMap::from([
-        (
-            crate::INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
-            serde_json::to_string(
-                &scope
-                    .connector(&grant.provider)
-                    .map_err(|error| error.to_string())?
-                    .binding(),
-            )
-            .map_err(|error| error.to_string())?,
-        ),
-        (
-            crate::INJECTED_GRANT_ID_ENV.to_owned(),
-            grant.grant_id.clone(),
-        ),
-        (
-            crate::INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-            crate::encode_injected_scopes(&grant.scopes)
-                .ok_or("the fixture grant needs at least one scope")?,
-        ),
-        (crate::INJECTED_PRINCIPAL_REF_ENV.to_owned(), principal_ref),
-    ]))
-}
-
 /// The harness's transport beneath operation steps. It answers the provider
 /// fixture's hosted endpoints and the case's exact HTTP exchanges, and refuses
 /// every other request: a harness run never reaches a live provider.
 #[derive(Clone, Debug)]
 pub(super) struct HarnessTransport {
     pub(super) provider: Option<HarnessProviderResponsesFixture>,
+    /// The exact connector the fixture's grant is for, as runx Connect
+    /// lists it.
+    pub(super) grant_binding: Option<runx_contracts::connector::ConnectorBinding>,
     pub(super) exchanges: Arc<HarnessExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
 }
@@ -81,6 +46,25 @@ impl RuntimeHttpTransport for HarnessTransport {
                         )])),
                     ),
                 ])))
+            }
+            (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
+                let binding = self.grant_binding.as_ref().ok_or_else(|| {
+                    transport_error("the provider fixture's grant names no connector".to_owned())
+                })?;
+                let grant = serde_json::json!({
+                    "grant_id": fixture.grant.grant_id,
+                    "provider": fixture.grant.provider,
+                    "connector_binding": binding,
+                    "status": "active",
+                    "scopes": fixture.grant.scopes,
+                });
+                json_response(
+                    JsonValue::from_serialize(&serde_json::json!({
+                        "status": "success",
+                        "grants": [grant],
+                    }))
+                    .map_err(|error| transport_error(error.to_string()))?,
+                )
             }
             (HttpMethod::Post, url)
                 if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-operations") =>

@@ -30,7 +30,6 @@ use runx_contracts::{JsonObject, JsonValue, OperationIntent, Reference, sha256_p
 use super::operation::packet::Readback;
 use serde::{Deserialize, Serialize};
 
-use super::standing::StandingCover;
 use super::store::{Append, Expected, KernelStore, KernelStoreError, StreamEvent};
 use super::usage::UseCover;
 
@@ -66,8 +65,6 @@ impl ApprovalRecord {
 pub(crate) enum ApprovalActor {
     /// A person approved this exact intent.
     Human,
-    /// A standing approval covered it.
-    Standing,
     /// A paid external job the host admitted carries it.
     PaidExternalJob,
 }
@@ -77,7 +74,6 @@ impl ApprovalActor {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Human => "human",
-            Self::Standing => "standing",
             Self::PaidExternalJob => "paid_external_job",
         }
     }
@@ -237,35 +233,6 @@ impl EffectCustody {
         Self { store, key }
     }
 
-    /// The custody of the act the caller names with `request_key`.
-    pub(crate) fn for_named_act(
-        store: Arc<KernelStore>,
-        connector: &str,
-        operation: &str,
-        instance_id: &str,
-        target: &str,
-        request_key: &str,
-    ) -> Self {
-        let key = named_act(
-            connector,
-            operation,
-            instance_id,
-            target,
-            &Digest::of(request_key.as_bytes()),
-        );
-        Self { store, key }
-    }
-
-    pub(crate) fn store(&self) -> &Arc<KernelStore> {
-        &self.store
-    }
-
-    /// Whether any attempt of the act was recorded. An attempt is recorded
-    /// before anything is sent.
-    pub(crate) fn attempted(&self) -> Result<bool, KernelStoreError> {
-        Ok(self.store.version::<EffectEvent>(&self.key)? > 0)
-    }
-
     /// The key of the use an attempt of `intent_digest` takes in `sequence`.
     pub(crate) fn use_key(&self, sequence: u64, intent_digest: &str) -> String {
         sha256_prefixed(format!("{}\0{sequence}\0{intent_digest}", self.key).as_bytes())
@@ -359,7 +326,6 @@ impl EffectCustody {
     pub(crate) fn attempt(
         &self,
         attempt: &Attempt<'_>,
-        standing: Option<&StandingCover>,
         bounded: &[UseCover],
     ) -> Result<(), CustodyError> {
         if let Some(pending) = self.pending()? {
@@ -379,18 +345,11 @@ impl EffectCustody {
                 ));
             }
         }
-        let mut batch = Vec::with_capacity(2 + bounded.len());
+        let mut batch = Vec::with_capacity(1 + bounded.len());
         for cover in bounded {
             if let Some(append) = cover.reservation()? {
                 batch.push(append);
             }
-        }
-        if let Some(append) = standing
-            .map(StandingCover::use_append)
-            .transpose()?
-            .flatten()
-        {
-            batch.push(append);
         }
         batch.push(Self::append_at(
             &self.key,
@@ -437,23 +396,15 @@ impl EffectCustody {
     pub(crate) fn rejected(
         &self,
         code: String,
-        standing: Option<&StandingCover>,
         bounded: &[UseCover],
         release: bool,
     ) -> Result<(), CustodyError> {
-        let mut batch = Vec::with_capacity(2 + bounded.len());
+        let mut batch = Vec::with_capacity(1 + bounded.len());
         for cover in bounded {
             batch.push(if release {
                 cover.release(&self.store)?
             } else {
                 cover.consume(&self.store)?
-            });
-        }
-        if let Some(cover) = standing {
-            batch.push(if release {
-                cover.release_append(&self.store)?
-            } else {
-                cover.consume_append(&self.store)?
             });
         }
         batch.push(self.append(&EffectEvent::Rejected { code })?);
@@ -463,16 +414,10 @@ impl EffectCustody {
 
     /// What settles the act once the step that consumed it is recorded: the
     /// receipt that sealed it and the evidence uses it consumes.
-    pub(crate) fn settlement(
-        &self,
-        receipt_id: String,
-        standing: Option<&StandingCover>,
-        bounded: &[UseCover],
-    ) -> Settlement {
+    pub(crate) fn settlement(&self, receipt_id: String, bounded: &[UseCover]) -> Settlement {
         Settlement {
             custody: self.clone(),
             receipt_id,
-            standing: standing.cloned(),
             bounded: bounded.to_vec(),
         }
     }
@@ -511,7 +456,6 @@ impl EffectCustody {
 pub struct Settlement {
     custody: EffectCustody,
     receipt_id: String,
-    standing: Option<StandingCover>,
     bounded: Vec<UseCover>,
 }
 
@@ -530,12 +474,9 @@ impl Settlement {
         {
             return Ok(Vec::new());
         }
-        let mut batch = Vec::with_capacity(2 + self.bounded.len());
+        let mut batch = Vec::with_capacity(1 + self.bounded.len());
         for cover in &self.bounded {
             batch.push(cover.consume(store)?);
-        }
-        if let Some(cover) = &self.standing {
-            batch.push(cover.consume_append(store)?);
         }
         batch.push(self.custody.append(&EffectEvent::Finalized {
             receipt_id: self.receipt_id.clone(),

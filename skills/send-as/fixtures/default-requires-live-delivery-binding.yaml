@@ -6,10 +6,6 @@ operator_journeys:
     confusors: [slack-notify, governed-outbound]
     request: Attempt to send this digest-bound release notice without approving the exact live effect.
     expected_outcome: Suspend at one exact live-send approval without claiming delivery.
-env:
-  RUNX_PROVIDER_PERMISSION_GRANT_ID: grant-send-demo
-  RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES: '["message.send"]'
-  RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF: runx:principal:release-bot
 inputs:
   objective: Send the digest-bound release notice.
   principal: account:release-bot
@@ -52,6 +48,12 @@ caller:
         success_checkpoint:
           milestone: send_ready_for_approval
           description: The exact digest-bound release notice awaits live-send approval.
+  provider_responses:
+    principal_id: release-bot
+    grant:
+        grant_id: grant-send-demo
+        provider: slack
+        scopes: [message.send]
 expect:
   status: needs_agent
 metadata:

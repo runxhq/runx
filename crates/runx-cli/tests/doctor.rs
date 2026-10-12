@@ -214,15 +214,8 @@ fn doctor_authority_json_redacts_secret_values() -> Result<(), Box<dyn std::erro
             "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=",
         )
         .env("RUNX_RECEIPT_SIGN_ISSUER_TYPE", "hosted")
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_prod")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["repo.read","repo.write"]"#,
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
+        .env("RUNX_PUBLIC_API_BASE_URL", "https://api.runx.test")
+        .env("RUNX_PUBLIC_API_TOKEN", "rxk-secret-token")
         .output()?;
 
     assert!(output.status.success());
@@ -233,44 +226,7 @@ fn doctor_authority_json_redacts_secret_values() -> Result<(), Box<dyn std::erro
     assert!(rendered.contains("kid_prod"));
     assert!(rendered.contains("configured_signer"));
     assert!(!rendered.contains("QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="));
-    assert!(!rendered.contains("repo.read"));
-    assert!(!rendered.contains("grant_prod"));
-    Ok(())
-}
-
-#[test]
-fn doctor_authority_rejects_malformed_provider_scope_transport()
--> Result<(), Box<dyn std::error::Error>> {
-    let output = authority_doctor_command()
-        .args(["doctor", "authority", "--json"])
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_prod")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            "repo.read,repo.write",
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
-        .output()?;
-
-    assert!(output.status.success());
-    let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
-    let diagnostic = report["diagnostics"]
-        .as_array()
-        .and_then(|diagnostics| {
-            diagnostics
-                .iter()
-                .find(|diagnostic| diagnostic["id"] == "runx.authority.provider_grant")
-        })
-        .ok_or("provider grant diagnostic missing")?;
-    assert_eq!(diagnostic["severity"], "warning");
-    assert_eq!(diagnostic["evidence"]["malformed_scopes"], true);
-    assert!(
-        diagnostic["message"]
-            .as_str()
-            .is_some_and(|message| message.contains("JSON array"))
-    );
+    assert!(!rendered.contains("rxk-secret-token"));
     Ok(())
 }
 
@@ -299,7 +255,7 @@ fn doctor_authority_reports_connect_grant_discovery_without_exposing_token()
     assert!(
         provider["message"]
             .as_str()
-            .is_some_and(|message| { message.contains("unique active provider/scope grant") })
+            .is_some_and(|message| message.contains("Runx Connect is configured"))
     );
     assert!(!serde_json::to_string(&report)?.contains("rxk-secret-token"));
     Ok(())
@@ -437,9 +393,7 @@ const AUTHORITY_ENV_NAMES: &[&str] = &[
     "RUNX_RECEIPT_VERIFY_ISSUER_TYPE",
     "RUNX_RECEIPT_VERIFY_KID",
     "RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64",
-    "RUNX_PROVIDER_PERMISSION_GRANT_ID",
-    "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-    "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
+    "RUNX_PUBLIC_API_TOKEN",
 ];
 
 const REGISTRY_ENV_NAMES: &[&str] = &[

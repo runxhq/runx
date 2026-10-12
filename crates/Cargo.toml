@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "runx-assistant",
     "runx-cli",
     "runx-contracts",
     "runx-core",
@@ -17,7 +16,6 @@ resolver = "3"
 [workspace.dependencies]
 dotenvy = "0.15.7"
 fs2 = "0.4.3"
-runx-assistant = { path = "runx-assistant", version = "0.1.0" }
 runx-contracts = { path = "runx-contracts", version = "0.1.0" }
 runx-contracts-derive = { path = "runx-contracts-derive", version = "0.1.0" }
 runx-core = { path = "runx-core", version = "0.1.0" }

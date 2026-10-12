@@ -21,7 +21,6 @@ use runx_contracts::connector::{
 use runx_parser::{ValidatedConnector, parse_connector_manifest, validate_connector_manifest};
 use thiserror::Error;
 
-pub mod messages;
 mod official;
 pub mod references;
 mod tools;

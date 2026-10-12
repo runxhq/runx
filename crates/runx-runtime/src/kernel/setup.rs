@@ -338,7 +338,45 @@ pub fn confirm_grant(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
-    let grant = HostedClient::default().grant(env, cwd, grant_id)?;
+    confirm_grant_from(
+        instances,
+        connector,
+        &HostedClient::default(),
+        grant_id,
+        env,
+        cwd,
+    )
+}
+
+/// [`confirm_grant`], reading the grant through `transport`: the wire an
+/// embedder gives [`super::operation::OperationEffect::with_http_transport`].
+pub fn confirm_grant_over(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    transport: std::sync::Arc<dyn crate::http::RuntimeHttpTransport + Send + Sync>,
+    grant_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<ConnectorInstance, String> {
+    confirm_grant_from(
+        instances,
+        connector,
+        &HostedClient::with_transport(transport),
+        grant_id,
+        env,
+        cwd,
+    )
+}
+
+fn confirm_grant_from(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    hosted: &HostedClient,
+    grant_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<ConnectorInstance, String> {
+    let grant = hosted.grant(env, cwd, grant_id)?;
     grant.check_binding(connector)?;
     if grant.status != "active" {
         return Err(format!("grant {grant_id} is {}", grant.status));

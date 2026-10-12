@@ -48,18 +48,16 @@ fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
 fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
     let (_root, instances) = instances();
     let slack = slack();
-    let env = BTreeMap::new();
     assert!(matches!(
-        instances.resolve(&slack, &env),
+        instances.resolve(&slack),
         Err(InstanceError::NotSelected { .. })
     ));
 
     instances
         .confirm(hosted("slack-acme", &slack), true)
         .expect("confirm");
-    let resolved = instances.resolve(&slack, &env).expect("resolves");
-    assert_eq!(resolved.instance.instance_id.as_str(), "slack-acme");
-    assert_eq!(resolved.source, InstanceSource::Selected);
+    let resolved = instances.resolve(&slack).expect("resolves");
+    assert_eq!(resolved.instance_id.as_str(), "slack-acme");
     assert!(
         instances
             .get("slack-acme")
@@ -73,9 +71,8 @@ fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
         .expect("confirm");
     assert_eq!(
         instances
-            .resolve(&slack, &env)
+            .resolve(&slack)
             .expect("still selected")
-            .instance
             .instance_id
             .as_str(),
         "slack-acme"
@@ -83,7 +80,7 @@ fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
 
     instances.revoke("slack-acme").expect("revoke");
     assert!(matches!(
-        instances.resolve(&slack, &env),
+        instances.resolve(&slack),
         Err(InstanceError::Revoked { .. })
     ));
     assert_eq!(instances.list().expect("list").len(), 2);
@@ -115,70 +112,6 @@ fn a_public_connector_needs_no_setup() {
         .unwrap()
         .connector("open-meteo")
         .unwrap();
-    let resolved = instances
-        .resolve(&public, &BTreeMap::new())
-        .expect("public");
-    assert_eq!(resolved.source, InstanceSource::Public);
-    assert_eq!(resolved.instance.authority, InstanceAuthority::Public);
-}
-
-#[test]
-fn an_injected_grant_wins_and_must_be_complete() {
-    let (_root, instances) = instances();
-    let slack = slack();
-    instances
-        .confirm(hosted("slack-acme", &slack), true)
-        .expect("confirm");
-    let mut env = BTreeMap::from([
-        (INJECTED_GRANT_ID_ENV.to_owned(), "grant_hosted".to_owned()),
-        (
-            INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
-            serde_json::to_string(&slack.binding()).unwrap(),
-        ),
-        (
-            INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-            encode_injected_scopes(&["channel.post".to_owned()]).unwrap(),
-        ),
-        (
-            INJECTED_PRINCIPAL_REF_ENV.to_owned(),
-            "runx:principal:worker".to_owned(),
-        ),
-    ]);
-    let resolved = instances.resolve(&slack, &env).expect("injected");
-    assert_eq!(
-        resolved.source,
-        InstanceSource::Injected {
-            granted_scopes: vec!["channel.post".to_owned()]
-        }
-    );
-    assert_eq!(
-        resolved.instance.instance_id,
-        instance_id(&["injected", slack.connector_ref.as_str()]).unwrap()
-    );
-
-    // A hosted grant cannot stand for a connector with no hosted placement.
-    let web = ConnectorScope::official_only()
-        .unwrap()
-        .connector("web")
-        .unwrap();
-    assert_eq!(
-        instances.resolve(&web, &env).expect("public").source,
-        InstanceSource::Public
-    );
-
-    env.remove(INJECTED_PRINCIPAL_REF_ENV);
-    assert!(matches!(
-        instances.resolve(&slack, &env),
-        Err(InstanceError::InjectedIncomplete(_))
-    ));
-}
-
-#[test]
-fn injected_scopes_travel_as_a_json_array() {
-    let scopes = vec!["a,b".to_owned(), "opaque scope".to_owned()];
-    let encoded = encode_injected_scopes(&scopes).unwrap();
-    assert_eq!(decode_injected_scopes(&encoded), Some(scopes));
-    assert_eq!(decode_injected_scopes("repo.read,repo.write"), None);
-    assert_eq!(decode_injected_scopes(r#"["repo.read", " "]"#), None);
-    assert_eq!(encode_injected_scopes(&[]), None);
+    let resolved = instances.resolve(&public).expect("public");
+    assert_eq!(resolved.authority, InstanceAuthority::Public);
 }

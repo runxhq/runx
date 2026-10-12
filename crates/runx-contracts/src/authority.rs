@@ -161,9 +161,9 @@ pub struct AuthorityBounds {
     pub uses: Option<AuthorityUseLimit>,
 }
 
-/// How many times a term may be used. An execution term is single use; a
-/// standing approval bounds its repeats. Usage is reserved atomically with
-/// each effect attempt, never counted from receipts.
+/// How many times a term may be used. An execution term is single use.
+/// Usage is reserved atomically with each effect attempt, never counted from
+/// receipts.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorityUseLimit {

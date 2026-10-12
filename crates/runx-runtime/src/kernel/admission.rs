@@ -20,8 +20,8 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, AuthorityApproval,
     AuthorityBounds, AuthorityDerivation, AuthorityEvidence, AuthorityEvidenceKind,
-    AuthorityResourceFamily, AuthorityTerm, AuthorityUseLimit, CheckOutcome, InstanceAuthority,
-    JsonObject, JsonValue, OperationIntent, Readiness, Reference, ReferenceType,
+    AuthorityResourceFamily, AuthorityTerm, AuthorityUseLimit, CheckOutcome, ConnectorInstance,
+    InstanceAuthority, JsonObject, JsonValue, OperationIntent, Readiness, Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -32,9 +32,9 @@ use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget};
 use super::capability::{self, Capability, CapabilityRequest};
 use super::connectors::{ConnectorScope, LoadedConnector};
 use super::custody::{EffectCustody, Pending};
-use super::instances::{Instances, ResolvedInstance};
+use super::instances::Instances;
 use super::operation::call::{ApprovalText, OperationCall};
-use super::operation::{egress, hosted::HostedClient};
+use super::operation::hosted::HostedClient;
 use super::store::KernelStore;
 use super::usage::{UsageError, UsageLedger, UseCover};
 
@@ -72,7 +72,7 @@ pub(crate) struct Admitted {
     pub admission: Admission,
     pub connector: Arc<LoadedConnector>,
     pub operation: OperationName,
-    pub instance: ResolvedInstance,
+    pub instance: ConnectorInstance,
     pub capability: Capability,
     /// Who makes the call: the capability's principal for a direct call, the
     /// delegated actor under a run authority.
@@ -87,15 +87,11 @@ pub(crate) struct Admitted {
     /// The custody stream's version when this call was admitted; its attempt
     /// appends onto exactly that.
     pub custody_head: u64,
-    /// The evidence use of the attempt sequence this call joins.
-    pub use_key: Option<String>,
     pub usage_covers: Vec<UseCover>,
     pub target: String,
     pub request_key: Option<String>,
     /// What a person is shown, when the call is gated.
     pub approval: Option<ApprovalText>,
-    /// The host's egress guard applies: approval shows the exact arguments.
-    pub guarded: bool,
     term_request: AttenuationRequest,
 }
 
@@ -245,11 +241,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     reasons.1 = Some(operation_spec.verb.authority_verb());
 
     // Instance: the one binding the call runs under, with its pins current.
-    let instance = match evaluation
-        .context
-        .instances
-        .resolve(&connector, evaluation.context.env)
-    {
+    let instance = match evaluation.context.instances.resolve(&connector) {
         Ok(instance) => instance,
         Err(error) => return Err(reasons.refuse(AdmissionCheck::Instance, error.to_string())),
     };
@@ -260,9 +252,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         AdmissionCheck::Instance,
         format!(
             "instance {} ({} placement, {} authority)",
-            instance.instance.instance_id,
-            instance.instance.placement.as_str(),
-            instance.instance.authority.kind()
+            instance.instance_id,
+            instance.placement.as_str(),
+            instance.authority.kind()
         ),
     );
 
@@ -274,17 +266,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Ok(shape) => shape,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
-    let arguments = JsonValue::Object(call.input.clone());
-    let scopes = operation_spec
-        .scopes
-        .iter()
-        .map(|scope| scope.as_str())
-        .collect::<Vec<_>>();
-    let guarded = match egress::admit(evaluation.context.env, &arguments, &scopes) {
-        Ok(guarded) => guarded && access == OperationAccess::Mutate,
-        Err(detail) => return Err(reasons.refuse(AdmissionCheck::Delegation, detail)),
-    };
-    let approval = approval_text(call, operation_spec, guarded);
+    let approval = approval_text(call, operation_spec);
 
     // Capability: what the principal can do at the provider.
     let capability = match capability::evidence(&CapabilityRequest {
@@ -301,7 +283,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         || capability.term.principal_ref.clone(),
         |authority| authority.actor_ref.clone(),
     );
-    let instance_ref = capability::instance_reference(&instance.instance);
+    let instance_ref = capability::instance_reference(&instance);
     let mut delegations = Vec::new();
     if let Some(authority) = evaluation.run_authority {
         let mut preceding = capability.term.clone();
@@ -352,7 +334,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             connector_digest: connector.connector_digest.clone(),
             operation: operation_name.clone(),
             operation_digest,
-            instance_id: instance.instance.instance_id.clone(),
+            instance_id: instance.instance_id.clone(),
             target: NonEmptyString::from(target.as_str()),
             payload_digest,
             request_key_digest: request_key.as_deref().map(|key| Digest::of(key.as_bytes())),
@@ -465,7 +447,12 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         format!(
             "grant {} covers {} on {target}",
             capability.grant_id,
-            scopes.join(", ")
+            operation_spec
+                .scopes
+                .iter()
+                .map(|scope| scope.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
     );
     reasons.pass(
@@ -477,7 +464,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         },
     );
 
-    // Approval: the operation's floor, the step's gate, or the host's guard.
+    // Approval: the operation's floor or the step's gate.
     let disposition = match &approval {
         Some(_) => {
             reasons.push(
@@ -485,8 +472,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 CheckOutcome::Required,
                 if operation_spec.approval == ApprovalFloor::Required {
                     "the operation requires approval of this exact intent"
-                } else if guarded {
-                    "the host requires approval of every outward mutation"
                 } else {
                     "the step requires approval of this exact intent"
                 },
@@ -501,9 +486,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
 
     // Implementation: the instance's placement executes the operation.
     let stood_in = evaluation.fixture_stand_in
-        && instance.instance.placement == Placement::Hosted
+        && instance.placement == Placement::Hosted
         && operation_spec.hosted.is_none();
-    if !stood_in && let Err(detail) = executable(operation_spec, instance.instance.placement) {
+    if !stood_in && let Err(detail) = executable(operation_spec, instance.placement) {
         return Err(reasons.refuse(
             AdmissionCheck::Implementation,
             format!("{}/{operation_name}: {detail}", manifest.id),
@@ -511,7 +496,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     }
     reasons.pass(
         AdmissionCheck::Implementation,
-        format!("{} placement", instance.instance.placement.as_str()),
+        format!("{} placement", instance.placement.as_str()),
     );
 
     // Tolerance: what this use accepts when the outcome is unknown.
@@ -543,12 +528,10 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         custody,
         pending,
         custody_head,
-        use_key,
         usage_covers,
         target,
         request_key,
         approval,
-        guarded,
         term_request,
     })
 }
@@ -710,7 +693,7 @@ fn readiness(
         AdmissionCheck::Requirement,
         format!("{}/{operation_name}", connector.manifest.id),
     );
-    let instance = match instances.resolve(&connector, env) {
+    let instance = match instances.resolve(&connector) {
         Ok(instance) => instance,
         Err(error) => {
             reasons.push(
@@ -721,17 +704,17 @@ fn readiness(
             return finish(readiness, reasons);
         }
     };
-    readiness.instance_id = Some(instance.instance.instance_id.clone());
-    readiness.placement = Some(instance.instance.placement);
+    readiness.instance_id = Some(instance.instance_id.clone());
+    readiness.placement = Some(instance.placement);
     if let Err(detail) = pins_current(&connector, operation_name, operation_digest, &instance) {
         reasons.push(AdmissionCheck::Instance, CheckOutcome::Fail, detail);
         return finish(readiness, reasons);
     }
     reasons.pass(
         AdmissionCheck::Instance,
-        format!("instance {}", instance.instance.instance_id),
+        format!("instance {}", instance.instance_id),
     );
-    match &instance.instance.authority {
+    match &instance.authority {
         InstanceAuthority::Session { .. } => reasons.push(
             AdmissionCheck::Capability,
             CheckOutcome::Unknown,
@@ -780,15 +763,15 @@ fn readiness(
         reasons.push(
             AdmissionCheck::Approval,
             CheckOutcome::Required,
-            "each call needs approval of its exact intent or a standing approval",
+            "each call needs approval of its exact intent",
         );
     } else {
         reasons.pass(AdmissionCheck::Approval, "no approval floor applies");
     }
-    match executable(spec, instance.instance.placement) {
+    match executable(spec, instance.placement) {
         Ok(()) => reasons.pass(
             AdmissionCheck::Implementation,
-            format!("{} placement", instance.instance.placement.as_str()),
+            format!("{} placement", instance.placement.as_str()),
         ),
         Err(detail) => reasons.push(AdmissionCheck::Implementation, CheckOutcome::Fail, detail),
     }
@@ -873,9 +856,9 @@ fn pins_current(
     connector: &LoadedConnector,
     operation: &OperationName,
     operation_digest: &Digest,
-    instance: &ResolvedInstance,
+    instance: &ConnectorInstance,
 ) -> Result<(), String> {
-    let instance = &instance.instance;
+    let instance = &instance;
     if instance.connector != connector.connector_ref {
         return Err(format!(
             "instance {} was confirmed for connector {}, not {}; confirm one for {}",
@@ -939,7 +922,7 @@ fn pins_current(
 fn call_shape(
     evaluation: &Evaluation<'_>,
     operation: &ConnectorOperation,
-    instance: &ResolvedInstance,
+    instance: &ConnectorInstance,
 ) -> Result<(String, Option<String>), String> {
     let call = evaluation.call;
     let access = operation.access();
@@ -950,7 +933,7 @@ fn call_shape(
         .template
         .render_string(&TemplateInputs {
             arguments: Some(&arguments),
-            parameters: Some(&instance.instance.parameters),
+            parameters: Some(&instance.parameters),
             ..TemplateInputs::default()
         })
         .map_err(|error| format!("the target cannot be rendered: {error}"))?;
@@ -1015,23 +998,13 @@ fn input_conforms(operation: &ConnectorOperation, input: &JsonObject) -> Result<
     }
 }
 
-fn approval_text(
-    call: &OperationCall,
-    operation: &ConnectorOperation,
-    guarded: bool,
-) -> Option<ApprovalText> {
+fn approval_text(call: &OperationCall, operation: &ConnectorOperation) -> Option<ApprovalText> {
     if let Some(text) = &call.approval {
         return Some(text.clone());
     }
-    if operation.approval == ApprovalFloor::Required {
-        return Some(ApprovalText {
-            reason: operation.description.as_str().to_owned(),
-            gate_type: Some("operation".to_owned()),
-        });
-    }
-    guarded.then(|| ApprovalText {
-        reason: "Approve this exact assistant provider mutation.".to_owned(),
-        gate_type: Some("assistant_outward".to_owned()),
+    (operation.approval == ApprovalFloor::Required).then(|| ApprovalText {
+        reason: operation.description.as_str().to_owned(),
+        gate_type: Some("operation".to_owned()),
     })
 }
 
@@ -1060,7 +1033,7 @@ fn tolerance(evaluation: &Evaluation<'_>, operation: &ConnectorOperation) -> Res
 /// The intent as the narrowest term: one verb, one operation, its scopes and
 /// the exact target. Use caps are admitted only after custody can reserve them.
 fn term_request(
-    instance: &ResolvedInstance,
+    instance: &ConnectorInstance,
     actor_ref: Reference,
     connector: &str,
     operation: &OperationName,
@@ -1070,7 +1043,7 @@ fn term_request(
 ) -> AttenuationRequest {
     AttenuationRequest {
         principal_ref: actor_ref,
-        resource_ref: capability::instance_reference(&instance.instance),
+        resource_ref: capability::instance_reference(instance),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![spec.verb.authority_verb()],
         capabilities: Vec::new(),
@@ -1165,7 +1138,7 @@ mod tests {
 
     use super::pins_current;
     use crate::ConnectorScope;
-    use crate::kernel::instances::{InstanceSource, ResolvedInstance, pinned};
+    use crate::kernel::instances::pinned;
 
     /// Two plugins ship a connector of the same id and the same operations.
     /// Its process tool is each plugin's own code, so an account confirmed
@@ -1227,22 +1200,19 @@ operations:
         let (_second_root, second) = plugin("other");
         assert_eq!(first.operation_digests, second.operation_digests);
 
-        let instance = ResolvedInstance {
-            instance: pinned(
-                &first,
-                runx_contracts::InstanceId::new("acme").unwrap(),
-                Placement::Local,
-                "runx:principal:operator".to_owned(),
-                None,
-                InstanceAuthority::Credential {
-                    profile: "acme".into(),
-                    credential: runx_contracts::connector::CredentialName::new("key").unwrap(),
-                    scopes: vec!["records.read".into()],
-                    material_ref: "material-1".into(),
-                },
-            ),
-            source: InstanceSource::Selected,
-        };
+        let instance = pinned(
+            &first,
+            runx_contracts::InstanceId::new("acme").unwrap(),
+            Placement::Local,
+            "runx:principal:operator".to_owned(),
+            None,
+            InstanceAuthority::Credential {
+                profile: "acme".into(),
+                credential: runx_contracts::connector::CredentialName::new("key").unwrap(),
+                scopes: vec!["records.read".into()],
+                material_ref: "material-1".into(),
+            },
+        );
         let (name, _, digest) = first.operation("records.read").unwrap();
         pins_current(&first, name, digest, &instance).unwrap();
         let refused = pins_current(&second, name, digest, &instance).unwrap_err();

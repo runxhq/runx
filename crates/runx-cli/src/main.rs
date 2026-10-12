@@ -113,9 +113,6 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunCredential(plan) => {
             runx_cli::credential::run_native_credential_with_workspace(plan, workspace)
         }
-        RouterAction::RunAssistant(plan) => {
-            runx_cli::assistant::run_native_assistant(plan, workspace)
-        }
         RouterAction::RunPolicy(plan) => runx_cli::policy::run_native_policy(plan, workspace),
         RouterAction::RunPublish(plan) => runx_cli::publish::run_native_publish(plan, workspace),
         RouterAction::RunRegistry(plan) => runx_cli::registry::run_native_registry(plan, workspace),

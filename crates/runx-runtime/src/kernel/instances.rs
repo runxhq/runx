@@ -30,13 +30,6 @@ use thiserror::Error;
 use super::connectors::LoadedConnector;
 use super::store::{Append, Expected, KernelStore, KernelStoreError, StreamEvent};
 
-/// A host-injected hosted grant: its id, its scopes and its principal. All
-/// three or none.
-pub const INJECTED_GRANT_ID_ENV: &str = "RUNX_PROVIDER_PERMISSION_GRANT_ID";
-pub const INJECTED_GRANTED_SCOPES_ENV: &str = "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES";
-pub const INJECTED_PRINCIPAL_REF_ENV: &str = "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF";
-pub const INJECTED_CONNECTOR_BINDING_ENV: &str = "RUNX_PROVIDER_PERMISSION_CONNECTOR_BINDING";
-
 const PAGE: usize = 500;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,8 +106,6 @@ pub enum InstanceError {
         placement: &'static str,
         authority: &'static str,
     },
-    #[error("host-injected grant authority is incomplete: {0}")]
-    InjectedIncomplete(&'static str),
     #[error(transparent)]
     Store(#[from] KernelStoreError),
 }
@@ -248,11 +239,7 @@ impl Instances {
     pub(crate) fn resolve(
         &self,
         connector: &LoadedConnector,
-        env: &BTreeMap<String, String>,
-    ) -> Result<ResolvedInstance, InstanceError> {
-        if let Some(injected) = injected(connector, env)? {
-            return Ok(injected);
-        }
+    ) -> Result<ConnectorInstance, InstanceError> {
         let Some(instance_id) = self.selected(connector.connector_ref.as_str())? else {
             return public(connector).ok_or_else(|| InstanceError::NotSelected {
                 connector: connector.connector_ref.clone(),
@@ -269,10 +256,7 @@ impl Instances {
             });
         }
         check_supported(connector, &record.instance)?;
-        Ok(ResolvedInstance {
-            instance: record.instance,
-            source: InstanceSource::Selected,
-        })
+        Ok(record.instance)
     }
 
     fn selection_append(
@@ -293,23 +277,6 @@ impl Instances {
             },
         )?)
     }
-}
-
-/// Where a resolved instance came from.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum InstanceSource {
-    /// A host-injected grant, with the scopes the host attests.
-    Injected {
-        granted_scopes: Vec<String>,
-    },
-    Selected,
-    Public,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ResolvedInstance {
-    pub instance: ConnectorInstance,
-    pub source: InstanceSource,
 }
 
 /// Whether the connector, as currently loaded, still supports the instance's
@@ -384,74 +351,10 @@ pub(crate) fn check_supported(
     }
 }
 
-fn injected(
-    connector: &LoadedConnector,
-    env: &BTreeMap<String, String>,
-) -> Result<Option<ResolvedInstance>, InstanceError> {
-    // A hosted grant can only stand for a connector that has a hosted
-    // placement; a local-only connector resolves as if none were injected.
-    if connector.manifest.placements.hosted.is_none() {
-        return Ok(None);
-    }
-    let value = |name: &str| {
-        env.get(name)
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-    };
-    let (grant_id, scopes, principal_ref, binding) = match (
-        value(INJECTED_GRANT_ID_ENV),
-        value(INJECTED_GRANTED_SCOPES_ENV),
-        value(INJECTED_PRINCIPAL_REF_ENV),
-        value(INJECTED_CONNECTOR_BINDING_ENV),
-    ) {
-        (None, None, None, None) => return Ok(None),
-        (Some(grant_id), Some(scopes), Some(principal_ref), Some(binding)) => {
-            (grant_id, scopes, principal_ref, binding)
-        }
-        _ => {
-            return Err(InstanceError::InjectedIncomplete(
-                "set the grant id, granted scopes, principal and exact connector binding together",
-            ));
-        }
-    };
-    let binding =
-        decode_injected_connector_binding(binding).ok_or(InstanceError::InjectedIncomplete(
-            "the connector binding must name a qualified connector and exact digests",
-        ))?;
-    if binding != connector.binding() {
-        return Err(InstanceError::InjectedIncomplete(
-            "the injected grant does not bind this connector revision",
-        ));
-    }
-    let granted_scopes =
-        decode_injected_scopes(scopes).ok_or(InstanceError::InjectedIncomplete(
-            "the granted scopes must be a JSON array of non-blank strings",
-        ))?;
-    let instance_id =
-        instance_id(&["injected", connector.connector_ref.as_str()]).map_err(|_| {
-            InstanceError::InjectedIncomplete("the connector reference is not an instance id")
-        })?;
-    let instance = pinned(
-        connector,
-        instance_id,
-        Placement::Hosted,
-        principal_ref.to_owned(),
-        None,
-        InstanceAuthority::HostedGrant {
-            grant_id: grant_id.to_owned().into(),
-        },
-    );
-    check_supported(connector, &instance)?;
-    Ok(Some(ResolvedInstance {
-        instance,
-        source: InstanceSource::Injected { granted_scopes },
-    }))
-}
-
 /// The instance a connector runs under when none is selected: its public
 /// one, when its local placement admits acting with no authority. The store's
 /// is the workspace store.
-fn public(connector: &LoadedConnector) -> Option<ResolvedInstance> {
+fn public(connector: &LoadedConnector) -> Option<ConnectorInstance> {
     let manifest = &connector.manifest;
     let admits_none = manifest.auth.none.is_some()
         && manifest.placements.local.as_ref().is_some_and(|local| {
@@ -472,10 +375,7 @@ fn public(connector: &LoadedConnector) -> Option<ResolvedInstance> {
         InstanceAuthority::Public,
     );
     instance.confirmed_at = IsoDateTime::from("1970-01-01T00:00:00Z".to_owned());
-    Some(ResolvedInstance {
-        instance,
-        source: InstanceSource::Public,
-    })
+    Some(instance)
 }
 
 /// An instance of `connector` as it is loaded now: its operations, and the
@@ -525,33 +425,6 @@ pub(crate) fn pinned(
         operation_digests: connector.operation_digests.clone(),
         confirmed_at: IsoDateTime::from(crate::time::now_iso8601()),
     }
-}
-
-/// The environment carries strings; scopes are opaque strings that may hold
-/// any delimiter, so they travel as a JSON array.
-#[must_use]
-pub fn encode_injected_scopes(scopes: &[String]) -> Option<String> {
-    valid_scopes(scopes)
-        .then(|| serde_json::to_string(scopes).ok())
-        .flatten()
-}
-
-#[must_use]
-pub fn decode_injected_scopes(value: &str) -> Option<Vec<String>> {
-    serde_json::from_str::<Vec<String>>(value)
-        .ok()
-        .filter(|scopes| valid_scopes(scopes))
-}
-
-#[must_use]
-pub fn decode_injected_connector_binding(
-    value: &str,
-) -> Option<runx_contracts::connector::ConnectorBinding> {
-    serde_json::from_str(value).ok()
-}
-
-fn valid_scopes(scopes: &[String]) -> bool {
-    !scopes.is_empty() && scopes.iter().all(|scope| !scope.trim().is_empty())
 }
 
 fn latest_instance(events: &[super::store::Recorded<InstanceEvent>]) -> Option<&ConnectorInstance> {

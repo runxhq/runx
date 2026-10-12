@@ -4,7 +4,7 @@ use std::sync::Arc;
 use runx_parser::{HarnessCaller, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture};
 
 use super::provider_responses::{
-    HARNESS_PROVIDER_BASE_URL, HARNESS_PROVIDER_TOKEN, HarnessTransport, injected_grant_env,
+    HARNESS_PROVIDER_BASE_URL, HARNESS_PROVIDER_TOKEN, HarnessTransport,
 };
 use crate::effects::{RuntimeEffectError, RuntimeEffectRegistry};
 use crate::http::{
@@ -22,8 +22,15 @@ use crate::kernel::operation::OperationEffect;
 pub(crate) fn effects_for_harness(
     effects: &RuntimeEffectRegistry,
     caller: &HarnessCaller,
+    scope: &crate::ConnectorScope,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
-    effects_over(effects, harness_transport(caller), caller)
+    let transport =
+        harness_transport(caller, scope).map_err(|message| RuntimeEffectError::Failed {
+            family: crate::kernel::operation::OPERATION_EFFECT_FAMILY.to_owned(),
+            operation: "binding the harness provider grant",
+            message,
+        })?;
+    effects_over(effects, transport, caller)
 }
 
 /// The registry with `transport` beneath operation steps and the caller's
@@ -41,7 +48,20 @@ pub(super) fn effects_over(
 }
 
 /// The transport the caller's fixtures stand in for the world with.
-pub(super) fn harness_transport(caller: &HarnessCaller) -> HarnessTransport {
+pub(super) fn harness_transport(
+    caller: &HarnessCaller,
+    scope: &crate::ConnectorScope,
+) -> Result<HarnessTransport, String> {
+    let grant_binding = caller
+        .provider_responses
+        .as_ref()
+        .map(|provider| {
+            scope
+                .connector(&provider.grant.provider)
+                .map(|connector| connector.binding())
+                .map_err(|error| error.to_string())
+        })
+        .transpose()?;
     let exchanges = Arc::new(HarnessExchanges::new(
         caller
             .http_exchanges
@@ -59,32 +79,60 @@ pub(super) fn harness_transport(caller: &HarnessCaller) -> HarnessTransport {
             })
             .collect(),
     ));
-    HarnessTransport {
+    Ok(HarnessTransport {
         provider: caller.provider_responses.clone(),
+        grant_binding,
         exchanges,
         mutation_keys: Arc::default(),
-    }
+    })
 }
 
 /// The environment a case's provider fixture runs under: the harness's hosted
-/// API and the fixture's grant, injected the way a hosted worker injects one.
-pub(crate) fn provider_env(
+/// API, authenticated as the fixture's principal.
+pub(crate) fn provider_env(caller: &HarnessCaller) -> BTreeMap<String, String> {
+    if caller.provider_responses.is_none() {
+        return BTreeMap::new();
+    }
+    BTreeMap::from([
+        (
+            crate::HOSTED_API_BASE_URL_ENV.to_owned(),
+            HARNESS_PROVIDER_BASE_URL.to_owned(),
+        ),
+        (
+            crate::HOSTED_API_TOKEN_ENV.to_owned(),
+            HARNESS_PROVIDER_TOKEN.to_owned(),
+        ),
+    ])
+}
+
+/// Confirm and select the fixture's grant as the instance the case's hosted
+/// operations run under, as `runx connector use --grant` would, in the kernel
+/// `env` resolves for `cwd`, reading the grant from the harness's Connect.
+pub(crate) fn seed_provider_grant(
     caller: &HarnessCaller,
     scope: &crate::ConnectorScope,
-) -> Result<BTreeMap<String, String>, String> {
+    env: &BTreeMap<String, String>,
+    cwd: &std::path::Path,
+) -> Result<(), String> {
     let Some(provider) = &caller.provider_responses else {
-        return Ok(BTreeMap::new());
+        return Ok(());
     };
-    let mut env = injected_grant_env(provider, scope)?;
-    env.insert(
-        crate::HOSTED_API_BASE_URL_ENV.to_owned(),
-        HARNESS_PROVIDER_BASE_URL.to_owned(),
+    let connector = scope
+        .connector(&provider.grant.provider)
+        .map_err(|error| error.to_string())?;
+    let instances = crate::Instances::new(
+        crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
+            .map_err(|error| error.to_string())?,
     );
-    env.insert(
-        crate::HOSTED_API_TOKEN_ENV.to_owned(),
-        HARNESS_PROVIDER_TOKEN.to_owned(),
-    );
-    Ok(env)
+    crate::kernel::setup::confirm_grant_over(
+        &instances,
+        &connector,
+        Arc::new(harness_transport(caller, scope)?),
+        &provider.grant.grant_id,
+        env,
+        cwd,
+    )
+    .map(|_| ())
 }
 
 fn runtime_response(fixture: &HarnessHttpResponseFixture) -> RuntimeHttpResponse {

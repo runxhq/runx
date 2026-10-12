@@ -1,8 +1,7 @@
 use super::*;
-use std::io::Read;
-use std::net::TcpListener;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
+
+use crate::support::MockConnect;
 
 const THREAD: &str = "slack://T123ABC/C123ABC/1750000000.000001";
 const OTHER_THREAD: &str = "slack://T123ABC/C123ABC/1750000000.000009";
@@ -10,181 +9,111 @@ const REPLY: &str = "I\u{2019}ll verify this now.";
 const REPLY_DIGEST: &str =
     "sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647";
 
-#[derive(Debug)]
+const SLACK_GRANT: &str = "grant-slack-demo";
+
+#[derive(Clone, Debug)]
 struct ProviderRequestTrace {
     operation: String,
     provider_target: String,
     idempotency_key: Option<String>,
 }
 
-type ConnectFixture = (
-    String,
-    thread::JoinHandle<Result<Vec<ProviderRequestTrace>, String>>,
-);
-
-/// A runx Connect stand-in for the Slack grant. It answers the operator's
-/// session and the first `answers` of `operations` provider operations; an
-/// operation past `answers` is read and its connection closed unanswered, as
-/// a transport failure after the provider may have acted.
-fn spawn_slack_connect(operations: usize, answers: usize) -> TestResult<ConnectFixture> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    listener
-        .set_nonblocking(true)
-        .map_err(|error| error.to_string())?;
-    let address = listener.local_addr()?;
-    let server = thread::spawn(move || -> Result<Vec<ProviderRequestTrace>, String> {
-        let deadline = Instant::now() + Duration::from_secs(30);
-        let mut traces = Vec::new();
-        while traces.len() < operations {
-            if Instant::now() >= deadline {
-                return Err(format!(
-                    "Connect fixture timed out after {} operations",
-                    traces.len()
-                ));
-            }
-            let (mut stream, _) = match listener.accept() {
-                Ok(connection) => connection,
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(5));
-                    continue;
-                }
-                Err(error) => return Err(error.to_string()),
-            };
-            stream
-                .set_read_timeout(Some(Duration::from_secs(5)))
-                .map_err(|error| error.to_string())?;
-            let request = read_http_request(&mut stream)?;
-            let request_line = request.lines().next().unwrap_or_default();
-            if request_line.starts_with("GET /v1/me HTTP/1.1") {
-                write_http_json(
-                    &mut stream,
-                    &serde_json::json!({
-                        "status": "success",
-                        "principal": {"principal_id": "operator:test", "role": "user"}
-                    }),
-                )?;
-                continue;
-            }
-            if !request_line.starts_with("POST /v1/provider-operations HTTP/1.1") {
-                return Err(format!("unexpected Connect request: {request_line}"));
-            }
-            let body = request
-                .split_once("\r\n\r\n")
-                .map(|(_, body)| body)
-                .ok_or_else(|| "Connect request omitted its body".to_owned())?;
-            let value: Value = serde_json::from_str(body)
-                .map_err(|error| format!("invalid Connect request JSON: {error}"))?;
-            let trace = ProviderRequestTrace {
-                operation: value["operation"].as_str().unwrap_or_default().to_owned(),
-                provider_target: value["target"].as_str().unwrap_or_default().to_owned(),
-                idempotency_key: value["input"]["idempotency_key"]
-                    .as_str()
-                    .map(str::to_owned),
-            };
-            if traces.len() >= answers {
-                traces.push(trace);
-                continue;
-            }
-            let mutation = trace.operation == "thread.reply";
-            let mut result = serde_json::json!({
-                "provider": "slack",
-                "external_tenant_ref": "slack:T123ABC",
-                "connected_subject_ref": "slack:U123ABC",
-                "conversation_locator": "slack://T123ABC/C123ABC",
-                "thread_locator": trace.provider_target.clone(),
-                "message_locator": "slack://T123ABC/C123ABC/1750000000.000002",
-                "occurred_at": "2026-08-11T00:00:00Z",
-                "content_digest": REPLY_DIGEST
-            });
-            let mut response = serde_json::json!({
-                "status": "success",
-                "provider": "slack",
-                "operation": trace.operation.clone(),
-                "target": trace.provider_target.clone(),
-                "access": if mutation { "mutate" } else { "read" },
-                "readback_ref": format!("runx:provider_readback:slack-reply:{}", traces.len() + 1)
-            });
-            if mutation {
-                let key = trace
-                    .idempotency_key
-                    .clone()
-                    .ok_or_else(|| "the reply omitted its idempotency key".to_owned())?;
-                result["idempotency_key"] = Value::String(key.clone());
-                response["operation_id"] = Value::String("slack-message-001".to_owned());
-                response["idempotency_key"] = Value::String(key);
-            }
-            response["result"] = result;
-            write_http_json(&mut stream, &response)?;
-            traces.push(trace);
-        }
-        Ok(traces)
-    });
-    Ok((format!("http://{address}"), server))
+/// A runx Connect stand-in holding the operator's Slack grant. It answers
+/// the first `answers` provider operations; a later one is read and its
+/// connection closed unanswered, as a transport failure after the provider
+/// may have acted.
+struct SlackConnect {
+    connect: MockConnect,
+    traces: Arc<Mutex<Vec<ProviderRequestTrace>>>,
 }
 
-fn read_http_request(stream: &mut std::net::TcpStream) -> Result<String, String> {
-    // Accepted sockets inherit the listener's nonblocking flag on macOS.
-    // Restore blocking reads so the configured timeout waits for request bytes.
-    stream
-        .set_nonblocking(false)
-        .map_err(|error| error.to_string())?;
-    let mut bytes = Vec::new();
-    let mut buffer = [0_u8; 4096];
-    let mut expected = None;
-    loop {
-        let length = stream
-            .read(&mut buffer)
-            .map_err(|error| error.to_string())?;
-        if length == 0 {
-            break;
-        }
-        bytes.extend_from_slice(&buffer[..length]);
-        if expected.is_none()
-            && let Some(header_end) = bytes.windows(4).position(|window| window == b"\r\n\r\n")
-        {
-            let headers = String::from_utf8_lossy(&bytes[..header_end]);
-            let content_length = headers.lines().find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                name.eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().ok())
-                    .flatten()
-            });
-            expected = Some(header_end + 4 + content_length.unwrap_or(0));
-        }
-        if expected.is_some_and(|expected| bytes.len() >= expected) {
-            break;
-        }
+impl SlackConnect {
+    fn serve(answers: usize) -> TestResult<Self> {
+        let traces = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&traces);
+        let connect = MockConnect::with_operations(
+            "operator:test",
+            &[(
+                SLACK_GRANT,
+                "runx/slack",
+                &["thread.reply", "thread.reply.read"],
+            )],
+            Box::new(move |request| {
+                let trace = ProviderRequestTrace {
+                    operation: request["operation"].as_str().unwrap_or_default().to_owned(),
+                    provider_target: request["target"].as_str().unwrap_or_default().to_owned(),
+                    idempotency_key: request["input"]["idempotency_key"]
+                        .as_str()
+                        .map(str::to_owned),
+                };
+                let mut traces = recorded.lock().ok()?;
+                traces.push(trace.clone());
+                (traces.len() <= answers).then(|| slack_answer(&trace, traces.len()))
+            }),
+        )?;
+        Ok(Self { connect, traces })
     }
-    String::from_utf8(bytes).map_err(|error| error.to_string())
+
+    fn traces(&self) -> TestResult<Vec<ProviderRequestTrace>> {
+        Ok(self
+            .traces
+            .lock()
+            .map_err(|_| "the Connect fixture panicked")?
+            .clone())
+    }
+
+    /// A command for the operator, reaching this Connect.
+    fn command(&self, root: &Path) -> Command {
+        let mut command = command(root);
+        self.connect.apply(&mut command);
+        command
+    }
+
+    /// Confirm the Slack grant as this project's Slack instance.
+    fn use_grant(&self, root: &Path) -> TestResult {
+        let output = self
+            .command(root)
+            .args([
+                "connector",
+                "use",
+                "slack",
+                "--grant",
+                SLACK_GRANT,
+                "--json",
+            ])
+            .output()?;
+        assert_json(&output, 0)?;
+        Ok(())
+    }
 }
 
-fn write_http_json(stream: &mut std::net::TcpStream, body: &Value) -> Result<(), String> {
-    let body = body.to_string();
-    write!(
-        stream,
-        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-        body.len(),
-        body
-    )
-    .map_err(|error| error.to_string())
-}
-
-fn provider_command(root: &Path, base_url: &str) -> Command {
-    let mut command = command(root);
-    command
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant-slack-demo")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["thread.reply","thread.reply.read"]"#,
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
-        .env("RUNX_PUBLIC_API_BASE_URL", base_url)
-        .env("RUNX_PUBLIC_API_TOKEN", "rxk_operator_journey")
-        .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1");
-    command
+fn slack_answer(trace: &ProviderRequestTrace, sequence: usize) -> Value {
+    let mutation = trace.operation == "thread.reply";
+    let mut result = serde_json::json!({
+        "provider": "slack",
+        "external_tenant_ref": "slack:T123ABC",
+        "connected_subject_ref": "slack:U123ABC",
+        "conversation_locator": "slack://T123ABC/C123ABC",
+        "thread_locator": trace.provider_target,
+        "message_locator": "slack://T123ABC/C123ABC/1750000000.000002",
+        "occurred_at": "2026-08-11T00:00:00Z",
+        "content_digest": REPLY_DIGEST
+    });
+    let mut response = serde_json::json!({
+        "status": "success",
+        "provider": "slack",
+        "operation": trace.operation,
+        "target": trace.provider_target,
+        "access": if mutation { "mutate" } else { "read" },
+        "readback_ref": format!("runx:provider_readback:slack-reply:{sequence}")
+    });
+    if mutation && let Some(key) = &trace.idempotency_key {
+        result["idempotency_key"] = Value::String(key.clone());
+        response["operation_id"] = Value::String("slack-message-001".to_owned());
+        response["idempotency_key"] = Value::String(key.clone());
+    }
+    response["result"] = result;
+    response
 }
 
 fn reply_inputs(thread_locator: &str, idempotency_key: &str) -> Value {
@@ -215,12 +144,13 @@ fn reply_inputs(thread_locator: &str, idempotency_key: &str) -> Value {
 
 fn deliver_reply(
     root: &Path,
-    base_url: &str,
+    connect: &SlackConnect,
     receipt_dir: &Path,
     inputs: &str,
 ) -> TestResult<Output> {
     let repo_root = crate::support::repo_root()?;
-    Ok(provider_command(root, base_url)
+    Ok(connect
+        .command(root)
         .arg("skill")
         .arg(repo_root.join("skills/slack"))
         .arg("deliver_reply")
@@ -235,11 +165,11 @@ fn deliver_reply(
 /// Start `deliver_reply` from `inputs` and expect its one exact approval.
 fn reply_pause(
     root: &Path,
-    base_url: &str,
+    connect: &SlackConnect,
     receipt_dir: &Path,
     inputs: &str,
 ) -> TestResult<(String, String)> {
-    let pause = assert_json(&deliver_reply(root, base_url, receipt_dir, inputs)?, 2)?;
+    let pause = assert_json(&deliver_reply(root, connect, receipt_dir, inputs)?, 2)?;
     assert_eq!(pause["status"], "needs_approval", "{pause}");
     let requests = pause["requests"]
         .as_array()
@@ -254,7 +184,7 @@ fn reply_pause(
 
 fn approve(
     root: &Path,
-    base_url: &str,
+    connect: &SlackConnect,
     receipt_dir: &Path,
     run_id: &str,
     approval_id: &str,
@@ -268,7 +198,7 @@ fn approve(
         }
     })
     .to_string();
-    let mut resume = provider_command(root, base_url);
+    let mut resume = connect.command(root);
     resume
         .arg("resume")
         .arg(run_id)
@@ -288,17 +218,15 @@ fn slack_reply_journey_gates_once_and_closes_on_provider_readback() -> TestResul
         root.join("reply.json"),
         reply_inputs(THREAD, "00000000-0000-4000-8000-000000000001").to_string(),
     )?;
-    let (base_url, server) = spawn_slack_connect(2, 2)?;
+    let connect = SlackConnect::serve(2)?;
+    connect.use_grant(&root)?;
 
-    let (run_id, approval_id) = reply_pause(&root, &base_url, &receipt_dir, "reply.json")?;
+    let (run_id, approval_id) = reply_pause(&root, &connect, &receipt_dir, "reply.json")?;
     let sent = assert_json(
-        &approve(&root, &base_url, &receipt_dir, &run_id, &approval_id)?,
+        &approve(&root, &connect, &receipt_dir, &run_id, &approval_id)?,
         0,
     )?;
-    let server = server
-        .join()
-        .map_err(|_| "Connect fixture panicked")?
-        .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+    let server = connect.traces()?;
 
     assert_eq!(sent["status"], "sealed", "{sent}");
     assert_eq!(sent["outcome"], "completed");
@@ -344,10 +272,11 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
     )?;
 
     // The reply reaches Connect and the connection drops before any answer.
-    let (ambiguous_url, ambiguous_server) = spawn_slack_connect(1, 0)?;
-    let (run_id, approval_id) = reply_pause(&root, &ambiguous_url, &receipt_dir, "reply.json")?;
+    let connect = SlackConnect::serve(0)?;
+    connect.use_grant(&root)?;
+    let (run_id, approval_id) = reply_pause(&root, &connect, &receipt_dir, "reply.json")?;
     let ambiguous = assert_json(
-        &approve(&root, &ambiguous_url, &receipt_dir, &run_id, &approval_id)?,
+        &approve(&root, &connect, &receipt_dir, &run_id, &approval_id)?,
         1,
     )?;
     assert_eq!(ambiguous["status"], "failure", "{ambiguous}");
@@ -357,10 +286,7 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
             .is_some_and(|message| message.contains("outcome is unknown")),
         "{ambiguous}"
     );
-    let ambiguous_trace = ambiguous_server
-        .join()
-        .map_err(|_| "ambiguous Connect fixture panicked")?
-        .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+    let ambiguous_trace = connect.traces()?;
     assert_eq!(ambiguous_trace.len(), 1);
     assert_eq!(ambiguous_trace[0].operation, "thread.reply");
 
@@ -369,7 +295,7 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
     // Each run asks at its own reply step, and a resume's approval answers
     // only its own run's waiting request.
     let (other_run, other_approval) =
-        reply_pause(&root, &ambiguous_url, &receipt_dir, "other-reply.json")?;
+        reply_pause(&root, &connect, &receipt_dir, "other-reply.json")?;
     assert_ne!(other_run, run_id);
     assert_eq!(other_approval, approval_id);
 
@@ -377,7 +303,7 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
     // posted and Slack does not deduplicate it, so the run holds for
     // reconciliation: it neither posts again nor asks for a new approval.
     let retried = assert_json(
-        &deliver_reply(&root, &ambiguous_url, &receipt_dir, "reply.json")?,
+        &deliver_reply(&root, &connect, &receipt_dir, "reply.json")?,
         1,
     )?;
     assert_eq!(retried["status"], "failure", "{retried}");
@@ -387,6 +313,7 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
             .is_some_and(|message| message.contains("reconcile")),
         "{retried}"
     );
+    assert_eq!(connect.traces()?.len(), 1, "the reply is never sent again");
     Ok(())
 }
 

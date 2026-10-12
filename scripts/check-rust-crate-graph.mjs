@@ -6,7 +6,6 @@ const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url))
 const cratesRoot = path.join(workspaceRoot, "crates");
 
 const expectedMembers = [
-  "runx-assistant",
   "runx-cli",
   "runx-contracts",
   "runx-contracts-derive",
@@ -38,12 +37,9 @@ const publishableLibraryCrates = new Set([
 ]);
 
 const allowedRunxDeps = new Map([
-  // The assistant is a host: it drives the runtime and never sits beneath it.
-  ["runx-assistant", new Set(["runx-runtime", "runx-contracts"])],
   [
     "runx-cli",
     new Set([
-      "runx-assistant",
       "runx-runtime",
       "runx-contracts",
       "runx-parser",
@@ -63,7 +59,6 @@ const allowedRunxDeps = new Map([
 ]);
 
 const requiredRunxDeps = new Map([
-  ["runx-assistant", new Set(["runx-runtime", "runx-contracts"])],
   ["runx-core", new Set(["runx-contracts"])],
   ["runx-js-worker", new Set(["runx-contracts", "runx-parser"])],
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
@@ -271,9 +266,6 @@ function checkPublishingReadiness(crateName, manifest) {
   if (crateName === "runx-cli" && !hasPublishFalse) {
     findings.push("runx-cli must remain unpublished until its internal Rust dependencies have a coordinated library release");
   }
-  if (crateName === "runx-assistant" && !hasPublishFalse) {
-    findings.push("runx-assistant is an application crate and must remain unpublished");
-  }
 }
 
 function checkRunxDependencies(crateName, manifest) {
@@ -347,7 +339,7 @@ function disallowedDependenciesFor(crateName) {
   if (crateName === "runx-runtime") {
     return runtimeDisallowedDeps;
   }
-  if (crateName === "runx-cli" || crateName === "runx-assistant") {
+  if (crateName === "runx-cli") {
     return cliDisallowedDeps;
   }
   return pureCrateDisallowedDeps;
@@ -360,8 +352,10 @@ function checkRuntimeHttpContract(crateName, manifest) {
 
   const featuresBody = sectionBody(manifest, "features");
   // The MCP client's streamable HTTP leg rides the guarded reqwest client (D25).
-  if (!/^mcp\s*=\s*\["dep:rmcp", "rmcp\/transport-streamable-http-client-reqwest", "tokio\/process", "tokio\/io-util", "tokio\/sync"\]\s*$/mu.test(featuresBody)) {
-    findings.push("runx-runtime mcp feature must be exactly [\"dep:rmcp\", \"rmcp/transport-streamable-http-client-reqwest\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\"]");
+  // The bounded MCP client reads a remote server's body itself, so the mcp
+  // feature also carries the SSE parser and the body types it hands rmcp.
+  if (!/^mcp\s*=\s*\["dep:rmcp", "rmcp\/transport-streamable-http-client-reqwest", "dep:sse-stream", "dep:bytes", "dep:http-body-util", "tokio\/process", "tokio\/io-util", "tokio\/sync"\]\s*$/mu.test(featuresBody)) {
+    findings.push("runx-runtime mcp feature must be exactly [\"dep:rmcp\", \"rmcp/transport-streamable-http-client-reqwest\", \"dep:sse-stream\", \"dep:bytes\", \"dep:http-body-util\", \"tokio/process\", \"tokio/io-util\", \"tokio/sync\"]");
   }
   if (!/^mcp-http-server\s*=\s*\[\s*"mcp",\s*"rmcp\/transport-streamable-http-server",\s*"dep:bytes",\s*"dep:http",\s*"dep:http-body-util",\s*"dep:hyper",\s*"dep:hyper-util",\s*"dep:tower-service",\s*\]\s*$/mu.test(featuresBody)) {
     findings.push("runx-runtime mcp-http-server feature must be exactly [\"mcp\", \"rmcp/transport-streamable-http-server\", \"dep:bytes\", \"dep:http\", \"dep:http-body-util\", \"dep:hyper\", \"dep:hyper-util\", \"dep:tower-service\"]");

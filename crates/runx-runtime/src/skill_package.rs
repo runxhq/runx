@@ -15,17 +15,12 @@ use crate::filesystem::{DirectoryEntry, find_files_named, read_dir_sorted};
 
 mod inspection;
 mod resolve;
-mod retention;
 
 pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::inspect_loaded_execution_closure_binding;
 pub(crate) use inspection::{LocalExecutionClosure, inspect_loaded_local_execution_closure};
 pub use inspection::{SkillInspectionError, inspect_skill_package};
 pub use resolve::resolve_local_skill_reference;
-pub use retention::{
-    SkillRetentionError, inspect_local_skill_binding, resolve_retained_skill_binding,
-    retain_skill_binding,
-};
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;
 pub(crate) const MAX_PACKAGE_BYTES: usize = 20 * 1024 * 1024;

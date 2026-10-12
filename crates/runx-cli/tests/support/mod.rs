@@ -301,3 +301,151 @@ fn governed_harness_document(
     }
     Ok(serde_json::to_string(&fixture)?)
 }
+
+/// How a [`MockConnect`] answers a provider operation's request body: with
+/// the response to write, or `None` to close the connection unanswered, as a
+/// transport failure after the provider may have acted.
+pub type ProviderOperations =
+    Box<dyn FnMut(&serde_json::Value) -> Option<serde_json::Value> + Send>;
+
+/// A runx Connect the operator's runs reach on loopback: it authenticates
+/// `principal_id` and lists `grants`, each `(grant id, connector, scopes)`
+/// with the connector's exact binding. A provider operation is refused
+/// unless [`MockConnect::with_operations`] answers it, so a run that sends
+/// an unexpected request fails loudly.
+pub struct MockConnect {
+    pub url: String,
+}
+
+impl MockConnect {
+    pub fn serve(
+        principal_id: &str,
+        grants: &[(&str, &str, &[&str])],
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::serve_with(principal_id, grants, None)
+    }
+
+    pub fn with_operations(
+        principal_id: &str,
+        grants: &[(&str, &str, &[&str])],
+        operations: ProviderOperations,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::serve_with(principal_id, grants, Some(operations))
+    }
+
+    fn serve_with(
+        principal_id: &str,
+        grants: &[(&str, &str, &[&str])],
+        mut operations: Option<ProviderOperations>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        use std::io::Write;
+
+        let scope = runx_runtime::ConnectorScope::official_only()?;
+        let grants = grants
+            .iter()
+            .map(|(grant_id, connector, scopes)| {
+                let connector = scope.connector(connector)?;
+                Ok(serde_json::json!({
+                    "grant_id": grant_id,
+                    "provider": connector.manifest.id.as_str(),
+                    "connector_binding": connector.binding(),
+                    "status": "active",
+                    "scopes": scopes,
+                }))
+            })
+            .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+        let me =
+            serde_json::json!({"status": "success", "principal": {"principal_id": principal_id}})
+                .to_string();
+        let listed = serde_json::json!({"status": "success", "grants": grants}).to_string();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let url = format!("http://{}", listener.local_addr()?);
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let Ok((request_line, body)) = read_http_request(&mut stream) else {
+                    continue;
+                };
+                let answered;
+                let (status, body) = if request_line.starts_with("GET /v1/me ") {
+                    ("200 OK", me.as_str())
+                } else if request_line.starts_with("GET /v1/grants ") {
+                    ("200 OK", listed.as_str())
+                } else if let (true, Some(operations)) = (
+                    request_line.starts_with("POST /v1/provider-operations "),
+                    operations.as_mut(),
+                ) {
+                    let Ok(request) = serde_json::from_slice(&body) else {
+                        continue;
+                    };
+                    let Some(response) = operations(&request) else {
+                        continue;
+                    };
+                    answered = response.to_string();
+                    ("200 OK", answered.as_str())
+                } else {
+                    (
+                        "404 Not Found",
+                        r#"{"status":"error","error":{"code":"not_found"}}"#,
+                    )
+                };
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        Ok(Self { url })
+    }
+
+    /// Point `command` at this Connect.
+    pub fn apply(&self, command: &mut Command) {
+        command
+            .env("RUNX_PUBLIC_API_BASE_URL", &self.url)
+            .env("RUNX_PUBLIC_API_TOKEN", "rxk_operator")
+            .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1");
+    }
+}
+
+/// Read one HTTP request: its request line and its `content-length` body.
+fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(String, Vec<u8>)> {
+    use std::io::Read;
+
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(5)))?;
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    let mut expected = None;
+    while expected.is_none_or(|expected| bytes.len() < expected) {
+        let length = stream.read(&mut buffer)?;
+        if length == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&buffer[..length]);
+        if expected.is_none()
+            && let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n")
+        {
+            let length = String::from_utf8_lossy(&bytes[..end])
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            expected = Some(end + 4 + length);
+        }
+    }
+    let end = bytes
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .unwrap_or(bytes.len());
+    let request_line = String::from_utf8_lossy(&bytes[..end])
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    let body = bytes.get(end + 4..).unwrap_or_default().to_vec();
+    Ok((request_line, body))
+}

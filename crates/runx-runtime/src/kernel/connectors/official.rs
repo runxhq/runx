@@ -3526,21 +3526,6 @@ placements:
     auth: delegated
 references:
   - {kind: thread, locator: "slack://[^/]+/[^/]+/[0-9]+\\.[0-9]+"}
-messages:
-  actor: "[UW][A-Z0-9]{2,99}"
-  mention: "<@{actor}>"
-  inert:
-    - {pattern: "<[^<>|]*\\|([^<>]+)>", replace: "$1"}
-    - {pattern: "<@[^<>]*>", replace: "person"}
-    - {pattern: "<![^<>]*>", replace: "group"}
-    - {pattern: "<[^<>]*>", replace: "link"}
-    - {pattern: "&", replace: " and "}
-    - {pattern: "<", replace: "("}
-    - {pattern: ">", replace: ")"}
-    - {pattern: "`", replace: "'"}
-    - {pattern: "@(channel|here|everyone)", replace: "＠$1"}
-  active: ["<", ">", "&", "@channel", "@here", "@everyone"]
-  readback_normalization: slack_bounded_preview
 operations:
   messages.search:
     description: Search messages the connected member can see.
@@ -3595,10 +3580,6 @@ operations:
       template: {"$argument": "/channel_locator"}
       pattern: "slack://[^/]+/[^/]+"
     approval: required
-    standing:
-      kind: notification
-      target_field: channel_locator
-      text_field: text
     idempotency_key_format: uuid
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
     effect:

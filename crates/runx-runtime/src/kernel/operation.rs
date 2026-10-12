@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use runx_contracts::connector::{
     ApprovalFloor, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
-    ProviderIdempotency, StandingEligibility, implementation_digest,
+    ProviderIdempotency, implementation_digest,
 };
 use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{
@@ -27,12 +27,8 @@ use runx_parser::{DuplicatePolicy, GraphStep};
 
 use super::admission::{self, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
-use super::custody::{Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, EffectCustody};
+use super::custody::{Acknowledgement, ApprovalActor, ApprovalRecord, Attempt};
 use super::instances::Instances;
-use super::standing::{
-    STANDING_APPROVAL_ID_ENV, STANDING_DELEGATE_DIGEST_ENV, StandingApprovals, StandingCall,
-    StandingCover,
-};
 use super::store::KernelStore;
 use crate::approval::ApprovalResolution;
 use crate::drivers::http::Egress;
@@ -46,7 +42,6 @@ use crate::{ProviderOperationRequest, RuntimeError};
 pub(crate) mod call;
 pub(crate) mod confirm;
 pub(crate) mod credentials;
-pub mod egress;
 pub(crate) mod hosted;
 pub(crate) mod packet;
 
@@ -224,11 +219,6 @@ impl AdmittedCall<'_> {
     pub(crate) fn mutation(&self) -> bool {
         self.access == OperationAccess::Mutate
     }
-
-    /// The host's egress guard over a payload the driver rendered.
-    pub(crate) fn guard(&self, payload: &JsonValue) -> Result<(), String> {
-        egress::check_rendered(self.env, payload)
-    }
 }
 
 /// Runs the tool package a `process` implementation names, from the
@@ -283,8 +273,6 @@ pub(crate) struct OperationAdmission {
 #[derive(Clone, Debug, Default)]
 struct LaneInputs {
     paid_job: Option<String>,
-    standing_id: Option<String>,
-    delegate_digest: String,
     run_id: String,
 }
 
@@ -293,8 +281,6 @@ impl LaneInputs {
         let value = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
         Self {
             paid_job: value(PAID_EXTERNAL_JOB_AUTHORITY_ENV),
-            standing_id: value(STANDING_APPROVAL_ID_ENV),
-            delegate_digest: value(STANDING_DELEGATE_DIGEST_ENV).unwrap_or_default(),
             run_id: run_id.to_owned(),
         }
     }
@@ -304,7 +290,6 @@ impl LaneInputs {
 struct AttemptPlan {
     number: u32,
     approval: Option<ApprovalRecord>,
-    standing: Option<StandingCover>,
     evidence_refs: Vec<Reference>,
 }
 
@@ -313,7 +298,7 @@ impl std::fmt::Debug for OperationAdmission {
         formatter
             .debug_struct("OperationAdmission")
             .field("intent_digest", self.admitted.intent_digest())
-            .field("instance", &self.admitted.instance.instance.instance_id)
+            .field("instance", &self.admitted.instance.instance_id)
             .finish_non_exhaustive()
     }
 }
@@ -394,7 +379,7 @@ impl OperationAdmission {
     /// requests on the hosted placement, whose private drivers are opaque.
     fn implementation_digest(&self) -> Option<String> {
         let operation = self.admitted.operation();
-        let implementation = match self.admitted.instance.instance.placement {
+        let implementation = match self.admitted.instance.placement {
             Placement::Local => operation.implementation.as_ref()?,
             Placement::Hosted => operation
                 .hosted_http()
@@ -431,7 +416,7 @@ impl OperationAdmission {
     ) -> Result<Option<PathBuf>, String> {
         let operation = self.admitted.operation();
         let (Placement::Local, Some(Implementation::Process(process))) = (
-            self.admitted.instance.instance.placement,
+            self.admitted.instance.placement,
             operation.implementation.as_ref(),
         ) else {
             return Ok(None);
@@ -563,7 +548,6 @@ impl RuntimeEffect for OperationEffect {
                 .as_ref()
                 .map_or(1, |pending| pending.attempt + 1),
             approval: None,
-            standing: None,
             evidence_refs: Vec::new(),
         };
         if context.admitted.admission.disposition == AdmissionDisposition::NeedsResolution {
@@ -574,7 +558,6 @@ impl RuntimeEffect for OperationEffect {
                         .admit_with(vec![approved.evidence])
                         .map_err(denied)?;
                     plan.approval = Some(approved.record);
-                    plan.standing = approved.standing;
                     plan.evidence_refs = approved.refs;
                 }
                 Lane::Pending { reason, request } => {
@@ -620,18 +603,6 @@ impl RuntimeEffect for OperationEffect {
             if let Some(record) = &plan.approval {
                 refs.push(verification(
                     record.uri(),
-                    provider,
-                    ProofKind::EffectEvidence,
-                ));
-            }
-            if let Some(cover) = &plan.standing {
-                refs.push(verification(
-                    format!("runx:standing_approval:{}", cover.approval_id),
-                    provider,
-                    ProofKind::EffectEvidence,
-                ));
-                refs.push(verification(
-                    cover.usage.receipt_ref(),
                     provider,
                     ProofKind::EffectEvidence,
                 ));
@@ -689,16 +660,10 @@ impl RuntimeEffect for OperationEffect {
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
-        Ok(Some(
-            custody.settlement(
-                request.receipt.id.as_str().to_owned(),
-                context
-                    .attempt
-                    .as_ref()
-                    .and_then(|plan| plan.standing.as_ref()),
-                &context.admitted.usage_covers,
-            ),
-        ))
+        Ok(Some(custody.settlement(
+            request.receipt.id.as_str().to_owned(),
+            &context.admitted.usage_covers,
+        )))
     }
 
     fn authority(
@@ -823,7 +788,6 @@ pub(crate) fn execute(
     let implementation_digest = context.implementation_digest();
     let instance_binding = admitted
         .instance
-        .instance
         .binding_digest()
         .map_err(|error| engine(format!("digesting the instance binding: {error}")))?;
     let authority_term_id = admitted
@@ -901,7 +865,6 @@ pub(crate) fn execute(
                     implementation_digest: implementation_digest.as_deref(),
                     admitted_at: admitted.custody_head,
                 },
-                plan.standing.as_ref(),
                 &admitted.usage_covers,
             )
             .map_err(|error| {
@@ -963,12 +926,7 @@ pub(crate) fn execute(
                     return Err(unknown(held.to_owned()));
                 }
                 custody
-                    .rejected(
-                        code.clone(),
-                        plan.standing.as_ref(),
-                        &admitted.usage_covers,
-                        release,
-                    )
+                    .rejected(code.clone(), &admitted.usage_covers, release)
                     .map_err(|error| {
                         RuntimeError::effect_state("recording the rejection", error.to_string())
                     })?;
@@ -1010,7 +968,7 @@ fn prepare(
     cwd: &Path,
 ) -> Result<Session, String> {
     let admitted = &context.admitted;
-    let instance = &admitted.instance.instance;
+    let instance = &admitted.instance;
     match instance.placement {
         Placement::Hosted => {
             let session = context.placements.hosted.session(env, cwd)?;
@@ -1054,7 +1012,7 @@ fn signed_in(
     cwd: &Path,
 ) -> Result<credentials::CredentialSecret, String> {
     let manifest = &context.admitted.connector.manifest;
-    let instance = &context.admitted.instance.instance;
+    let instance = &context.admitted.instance;
     let session = super::session::CommandSession::of(manifest)
         .ok_or("the connector no longer declares a command session")?;
     let token = session.token(env, cwd)?;
@@ -1153,7 +1111,7 @@ fn dispatch(
         implementation: implementation.kind(),
         target: &admitted.target,
         arguments: &arguments,
-        parameters: &admitted.instance.instance.parameters,
+        parameters: &admitted.instance.parameters,
         idempotency_key: provider_key.as_deref(),
         credential: secret.as_ref(),
         env,
@@ -1302,7 +1260,7 @@ fn dispatch(
 
 /// The grant a hosted instance holds.
 fn hosted_grant(admitted: &Admitted) -> Result<&str, Failure> {
-    match &admitted.instance.instance.authority {
+    match &admitted.instance.authority {
         InstanceAuthority::HostedGrant { grant_id } => Ok(grant_id.as_str()),
         _ => Err(rejected(
             "binding_unavailable",
@@ -1352,7 +1310,7 @@ fn stdio_server_delivery(
     context: &OperationAdmission,
 ) -> Option<runx_contracts::CredentialDeliveryObservation> {
     let admitted = &context.admitted;
-    let instance = &admitted.instance.instance;
+    let instance = &admitted.instance;
     let manifest = &admitted.connector.manifest;
     let stdio = matches!(
         admitted.operation().implementation.as_ref()?,
@@ -1387,7 +1345,7 @@ fn process_delivery(
         return Ok(crate::credentials::CredentialDelivery::none());
     };
     let manifest = &context.admitted.connector.manifest;
-    let instance = &context.admitted.instance.instance;
+    let instance = &context.admitted.instance;
     let declaration = super::instances::delivered_credential(manifest, &instance.authority)
         .and_then(|credential| manifest.auth.credentials.get(credential))
         .ok_or_else(|| {
@@ -1679,7 +1637,7 @@ fn effects(context: &OperationAdmission, result: &JsonValue) -> Result<Vec<Refer
         context.admitted.operation().repeated_write(),
         &runx_contracts::connector::TemplateInputs {
             arguments: Some(&JsonValue::Object(context.call.input.clone())),
-            parameters: Some(&context.admitted.instance.instance.parameters),
+            parameters: Some(&context.admitted.instance.parameters),
             result: Some(result),
             ..runx_contracts::connector::TemplateInputs::default()
         },
@@ -1772,7 +1730,7 @@ fn finish(
     effects: Vec<Reference>,
 ) -> Result<OperationOutcome, RuntimeError> {
     let admitted = &context.admitted;
-    let instance = &admitted.instance.instance;
+    let instance = &admitted.instance;
     let operation = admitted.operation();
     let (transport, _) = placement(context);
     let mut packet = readback
@@ -1817,7 +1775,7 @@ fn finish(
 /// The transport the operation's packet names and the boundary it runs in.
 fn placement(context: &OperationAdmission) -> (&'static str, ExecutionBoundaryKind) {
     let implementation = context.admitted.operation().implementation.as_ref();
-    match (context.admitted.instance.instance.placement, implementation) {
+    match (context.admitted.instance.placement, implementation) {
         (Placement::Hosted, _) => ("runx_connect", ExecutionBoundaryKind::RemoteProvider),
         (Placement::Local, Some(Implementation::Process(_))) => {
             ("local_process", ExecutionBoundaryKind::TrustedHostProcess)
@@ -1846,12 +1804,11 @@ enum Lane {
 struct Approved {
     record: ApprovalRecord,
     evidence: AuthorityApproval,
-    standing: Option<StandingCover>,
     refs: Vec<Reference>,
 }
 
 impl Approved {
-    fn new(record: ApprovalRecord, standing: Option<StandingCover>, refs: Vec<Reference>) -> Self {
+    fn new(record: ApprovalRecord, refs: Vec<Reference>) -> Self {
         let evidence = AuthorityApproval {
             approval_ref: Reference::with_uri(ReferenceType::Verification, record.uri()),
             approved_by_ref: None,
@@ -1861,15 +1818,13 @@ impl Approved {
         Self {
             record,
             evidence,
-            standing,
             refs,
         }
     }
 }
 
 /// Gather approval evidence. A recovered attempt keeps the lane it was
-/// approved under; otherwise a host-admitted paid job, then a standing
-/// approval the operation accepts, then a person.
+/// approved under; otherwise a host-admitted paid job, then a person.
 fn approve(
     context: &OperationAdmission,
     step: &GraphStep,
@@ -1877,12 +1832,8 @@ fn approve(
 ) -> Result<Lane, RuntimeEffectError> {
     let admitted = &context.admitted;
     let operation = admitted.operation();
-    let store = context.admitted.custody.as_ref().map(EffectCustody::store);
     let paid = context.lanes.paid_job.clone();
-    let standing_id = context.lanes.standing_id.clone();
-    let floored = operation.approval == ApprovalFloor::Required
-        || admitted.guarded
-        || context.call.approval.is_some();
+    let floored = operation.approval == ApprovalFloor::Required || context.call.approval.is_some();
     if let Some(record) = context
         .admitted
         .pending
@@ -1890,111 +1841,29 @@ fn approve(
         .and_then(|pending| pending.approval.clone())
     {
         return match record.actor {
-            ApprovalActor::Human => Ok(Lane::Approved(Box::new(Approved::new(
-                record,
-                None,
-                Vec::new(),
-            )))),
-            ApprovalActor::Standing => {
-                if context.call.approval.is_some() {
-                    return Err(denied(
-                        "the call's explicit approval gate cannot be satisfied by standing approval",
-                    ));
-                }
-                let id = standing_id
-                    .ok_or_else(|| denied("the pending attempt needs its standing approval"))?;
-                let cover = standing_cover(context, store, &id)?;
-                if cover.approval_key != record.key {
-                    return Err(denied("the pending attempt changed its standing approval"));
-                }
-                Ok(Lane::Approved(Box::new(Approved::new(
-                    record,
-                    Some(cover),
-                    Vec::new(),
-                ))))
-            }
+            ApprovalActor::Human => Ok(Lane::Approved(Box::new(Approved::new(record, Vec::new())))),
             ApprovalActor::PaidExternalJob => {
                 let (key, refs) = paid_authority(context, paid.as_deref())?;
                 if key != record.key {
                     return Err(denied("the pending attempt changed its paid job authority"));
                 }
-                Ok(Lane::Approved(Box::new(Approved::new(record, None, refs))))
+                Ok(Lane::Approved(Box::new(Approved::new(record, refs))))
             }
         };
     }
     if paid.is_some() {
         if floored {
             return Err(denied(
-                "an explicitly gated, guarded, or approval-floored operation needs exact or standing approval, not paid job authority",
+                "an explicitly gated or approval-floored operation needs exact approval, not paid job authority",
             ));
         }
         let (key, refs) = paid_authority(context, paid.as_deref())?;
         return Ok(Lane::Approved(Box::new(Approved::new(
             ApprovalRecord::new(ApprovalActor::PaidExternalJob, key),
-            None,
             refs,
         ))));
     }
-    if let Some(id) = standing_id
-        && operation.standing.is_some()
-        && context.call.approval.is_none()
-    {
-        let cover = standing_cover(context, store, &id)?;
-        let key = cover.approval_key.clone();
-        return Ok(Lane::Approved(Box::new(Approved::new(
-            ApprovalRecord::new(ApprovalActor::Standing, key),
-            Some(cover),
-            Vec::new(),
-        ))));
-    }
     human(context, step, host)
-}
-
-fn standing_cover(
-    context: &OperationAdmission,
-    store: Option<&Arc<KernelStore>>,
-    approval_id: &str,
-) -> Result<StandingCover, RuntimeEffectError> {
-    let admitted = &context.admitted;
-    let Some(StandingEligibility::Notification {
-        target_field,
-        text_field,
-    }) = &admitted.operation().standing
-    else {
-        return Err(denied("the operation accepts no standing approval"));
-    };
-    let store = store.ok_or_else(|| state("standing approval needs effect custody"))?;
-    let input = &context.call.input;
-    let text = input.get(text_field.as_str()).and_then(JsonValue::as_str);
-    if input.len() != 2
-        || input.get(target_field.as_str()).and_then(JsonValue::as_str)
-            != Some(admitted.target.as_str())
-        || text.is_none()
-    {
-        return Err(denied(format!(
-            "a standing notification carries exactly {target_field} equal to the target and {text_field}"
-        )));
-    }
-    let use_key = admitted
-        .use_key
-        .as_deref()
-        .ok_or_else(|| state("standing approval needs effect custody"))?;
-    StandingApprovals::new(Arc::clone(store))
-        .cover(
-            approval_id,
-            &StandingCall {
-                connector: admitted.connector.connector_ref.as_str(),
-                operation: admitted.operation.as_str(),
-                instance_id: admitted.instance.instance.instance_id.as_str(),
-                target: &admitted.target,
-                delegate_digest: &context.lanes.delegate_digest,
-                text: text.unwrap_or_default(),
-                intent_digest: admitted.intent_digest().as_str(),
-                use_key,
-                run_id: &context.lanes.run_id,
-            },
-        )
-        .map_err(|error| denied(error.to_string()))
 }
 
 fn paid_authority(
@@ -2011,7 +1880,7 @@ fn paid_authority(
         .uri
         .as_str()
         .to_owned();
-    if principal != context.admitted.instance.instance.principal_ref.as_str() {
+    if principal != context.admitted.instance.principal_ref.as_str() {
         return Err(denied(
             "the paid job authority belongs to another principal",
         ));
@@ -2073,7 +1942,7 @@ fn human(
         ),
         (
             "principal_ref".to_owned(),
-            JsonValue::String(admitted.instance.instance.principal_ref.as_str().to_owned()),
+            JsonValue::String(admitted.instance.principal_ref.as_str().to_owned()),
         ),
         (
             "grant_ref".to_owned(),
@@ -2103,7 +1972,7 @@ fn human(
             JsonValue::String(admitted.intent_digest().as_str().to_owned()),
         ),
     ]);
-    if let Some(account) = &admitted.instance.instance.account_ref {
+    if let Some(account) = &admitted.instance.account_ref {
         summary.insert(
             "account_ref".to_owned(),
             JsonValue::String(account.as_str().to_owned()),
@@ -2113,12 +1982,6 @@ fn human(
         summary.insert(
             "amount".to_owned(),
             JsonValue::from_serialize(amount).map_err(|error| state(error.to_string()))?,
-        );
-    }
-    if admitted.guarded {
-        summary.insert(
-            "exact_input".to_owned(),
-            JsonValue::Object(context.call.input.clone()),
         );
     }
     // A person approves the act with the call: the intent binds its digest.
@@ -2152,7 +2015,6 @@ fn human(
             idempotency_key, ..
         } => Ok(Lane::Approved(Box::new(Approved::new(
             ApprovalRecord::new(ApprovalActor::Human, idempotency_key),
-            None,
             Vec::new(),
         )))),
         ApprovalResolution::Denied { reason, .. } => {

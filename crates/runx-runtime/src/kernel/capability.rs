@@ -3,7 +3,7 @@
 //! Each instance authority has one source of capability:
 //!
 //! - a hosted grant: the grant runx Connect lists for the authenticated
-//!   principal, or the grant a host injected;
+//!   principal;
 //! - a local credential: the scopes the operator granted when binding it;
 //! - a `gh` session: the signed-in account's permission on the target
 //!   repository;
@@ -23,7 +23,6 @@ use runx_contracts::{
 };
 
 use super::connectors::LoadedConnector;
-use super::instances::{InstanceSource, ResolvedInstance};
 
 /// Capability evidence for one call.
 #[derive(Clone, Debug, PartialEq)]
@@ -38,27 +37,17 @@ pub(crate) struct Capability {
 /// What capability evidence needs from the caller.
 pub(crate) struct CapabilityRequest<'a> {
     pub connector: &'a LoadedConnector,
-    pub instance: &'a ResolvedInstance,
+    pub instance: &'a ConnectorInstance,
     pub hosted: &'a super::operation::hosted::HostedClient,
     pub env: &'a std::collections::BTreeMap<String, String>,
     pub cwd: &'a std::path::Path,
 }
 
 pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, String> {
-    let instance = &request.instance.instance;
+    let instance = request.instance;
     let connector = &request.connector.manifest;
-    match (&instance.authority, &request.instance.source) {
-        (
-            InstanceAuthority::HostedGrant { grant_id },
-            InstanceSource::Injected { granted_scopes },
-        ) => Ok(capability(
-            instance,
-            request.connector,
-            grant_id.as_str().to_owned(),
-            granted_scopes.clone(),
-            Vec::new(),
-        )),
-        (InstanceAuthority::HostedGrant { grant_id }, _) => {
+    match &instance.authority {
+        InstanceAuthority::HostedGrant { grant_id } => {
             let grant = request
                 .hosted
                 .grant(request.env, request.cwd, grant_id.as_str())
@@ -81,15 +70,12 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 grant.target_locator.into_iter().collect(),
             ))
         }
-        (
-            InstanceAuthority::Credential {
-                profile,
-                credential,
-                scopes,
-                material_ref,
-            },
-            _,
-        ) => {
+        InstanceAuthority::Credential {
+            profile,
+            credential,
+            scopes,
+            material_ref,
+        } => {
             super::operation::credentials::check_profile(
                 request.env,
                 request.cwd,
@@ -114,14 +100,14 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
         // A local session's account is checked where its authority is read:
         // the command session's token before each call, the browser by the
         // host tool that drives it.
-        (InstanceAuthority::Session { .. }, _) => Ok(capability(
+        InstanceAuthority::Session { .. } => Ok(capability(
             instance,
             request.connector,
             format!("local-session:{}:{}", connector.id, instance.instance_id),
             reachable_scopes(request.connector, |_| true),
             Vec::new(),
         )),
-        (InstanceAuthority::Public, _) => Ok(capability(
+        InstanceAuthority::Public => Ok(capability(
             instance,
             request.connector,
             format!("public:{}", connector.id),

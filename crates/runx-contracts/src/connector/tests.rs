@@ -20,7 +20,6 @@ const SLACK: &str = r#"{
       "scopes": ["channel.post"],
       "target": {"template": {"$argument": "/channel_locator"}, "pattern": "slack://[^/]+/[^/]+"},
       "approval": "required",
-      "standing": {"kind": "notification", "target_field": "channel_locator", "text_field": "text"},
       "idempotency_key_format": "uuid",
       "result_fields": ["message_locator"],
       "hosted": {"provider_scopes": ["chat:write"]}

@@ -488,12 +488,6 @@ impl Driver for Mcp<'_> {
                 code: "invalid_request",
                 reason: error.to_string(),
             })?;
-        self.call
-            .guard(&arguments)
-            .map_err(|reason| Unperformed::NotSent {
-                code: "egress_refused",
-                reason,
-            })?;
         self.session
             .call(self.spec.tool.as_str(), &arguments, self.call.mutation())
     }
@@ -520,7 +514,6 @@ impl Driver for Mcp<'_> {
             .arguments
             .render(&self.inputs(Some(&responses)))
             .map_err(|error| error.to_string())?;
-        self.call.guard(&arguments)?;
         self.session
             .call(readback.tool.as_str(), &arguments, false)
             .map_err(Unperformed::reason)

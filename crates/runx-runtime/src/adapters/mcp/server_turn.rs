@@ -77,7 +77,6 @@ impl McpServerOptions {
             name: name.to_owned(),
             description: description.to_owned(),
             input_schema,
-            required_scopes: Vec::new(),
             result: McpServerToolBehavior::Turn(McpTurnTool {
                 session: Arc::clone(&session),
                 action,

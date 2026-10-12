@@ -27,7 +27,6 @@ use super::{
     AmountRule, ApprovalFloor, ConnectorId, ConnectorManifest, ConnectorOperation,
     CredentialDeclaration, CredentialName, Digest, IdempotencyKeyFormat, Implementation, McpServer,
     NonEmptyString, OperationGuarantees, OperationName, OperationTarget, OperationVerb,
-    StandingEligibility,
 };
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
@@ -54,7 +53,6 @@ struct OperationAuthority<'a> {
     credentials: &'a [CredentialName],
     target: &'a OperationTarget,
     approval: ApprovalFloor,
-    standing: Option<&'a StandingEligibility>,
     idempotency_key_format: IdempotencyKeyFormat,
     guarantees: &'a OperationGuarantees,
     amount: AmountRule,
@@ -74,7 +72,6 @@ pub fn operation_digest(
         credentials: &operation.credentials,
         target: &operation.target,
         approval: operation.approval,
-        standing: operation.standing.as_ref(),
         idempotency_key_format: operation.idempotency_key_format,
         guarantees: &operation.guarantees,
         amount: operation.amount,

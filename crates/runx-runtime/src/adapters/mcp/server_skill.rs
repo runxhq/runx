@@ -65,7 +65,6 @@ pub(super) fn load_mcp_server_tool(
     )
     .map_err(|error| mcp_runner_error(&skill.name, error))?
     .ok_or_else(|| mcp_runner_error(&skill.name, "skill requires an execution-closure binding"))?;
-    let required_scopes = runner.declared_scopes();
     Ok(McpServerTool {
         name: skill.name.clone(),
         description: skill
@@ -73,7 +72,6 @@ pub(super) fn load_mcp_server_tool(
             .clone()
             .unwrap_or_else(|| format!("runx skill {}", skill.name)),
         input_schema: skill_inputs_to_json_schema(&runner.inputs)?,
-        required_scopes,
         result: McpServerToolBehavior::Skill(Box::new(McpServerSkillExecution {
             skill_path,
             skill_name: skill.name,

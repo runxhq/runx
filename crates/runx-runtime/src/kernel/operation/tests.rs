@@ -18,7 +18,6 @@ use crate::effects::{
     EffectPreparationOutcome, EffectStepRequest, ResolvedEffectTarget, RuntimeEffect,
 };
 use crate::http::{HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse};
-use crate::kernel::standing::{StandingApproval, StandingApprovals};
 use crate::{Host, RuntimeError};
 
 const BASE_URL: &str = "https://provider-fixture.runx.invalid";
@@ -63,7 +62,6 @@ enum Answer {
     Succeed,
     TimeOut,
     Reject,
-    Unbound,
     WrongProvider,
     /// Succeeds with a locator the connector's references do not declare.
     OffPattern,
@@ -73,6 +71,10 @@ enum Answer {
 struct Provider {
     answer: Arc<Mutex<Answer>>,
     calls: Arc<Mutex<Vec<JsonObject>>>,
+    /// The grants runx Connect lists for the principal.
+    grants: Arc<Mutex<Vec<serde_json::Value>>>,
+    /// The principal runx Connect authenticates.
+    principal: Arc<Mutex<String>>,
 }
 
 impl Provider {
@@ -80,7 +82,25 @@ impl Provider {
         Self {
             answer: Arc::new(Mutex::new(answer)),
             calls: Arc::new(Mutex::new(Vec::new())),
+            grants: Arc::new(Mutex::new(Vec::new())),
+            principal: Arc::new(Mutex::new(PRINCIPAL_ID.to_owned())),
         }
+    }
+
+    /// List an active grant of `scopes` for `connector`'s exact binding.
+    fn grant(
+        &self,
+        grant_id: &str,
+        connector: &super::super::connectors::LoadedConnector,
+        scopes: &[String],
+    ) {
+        self.grants.lock().unwrap().push(serde_json::json!({
+            "grant_id": grant_id,
+            "provider": connector.manifest.id.as_str(),
+            "connector_binding": connector.binding(),
+            "status": "active",
+            "scopes": scopes,
+        }));
     }
 
     fn answer(&self, answer: Answer) {
@@ -95,11 +115,18 @@ impl Provider {
 impl crate::http::RuntimeHttpTransport for Provider {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         if request.method == HttpMethod::Get && request.url == format!("{BASE_URL}/v1/me") {
+            let principal = self.principal.lock().unwrap().clone();
             return Ok(RuntimeHttpResponse::new(
                 200,
-                format!(
-                    r#"{{"status":"success","principal":{{"principal_id":"{PRINCIPAL_ID}"}}}}"#
-                ),
+                serde_json::json!({"status": "success", "principal": {"principal_id": principal}})
+                    .to_string(),
+            ));
+        }
+        if request.method == HttpMethod::Get && request.url == format!("{BASE_URL}/v1/grants") {
+            let grants = self.grants.lock().unwrap().clone();
+            return Ok(RuntimeHttpResponse::new(
+                200,
+                serde_json::json!({"status": "success", "grants": grants}).to_string(),
             ));
         }
         let body: JsonObject =
@@ -135,10 +162,6 @@ impl crate::http::RuntimeHttpTransport for Provider {
             Answer::Reject => Ok(RuntimeHttpResponse::new(
                 400,
                 r#"{"status":"error","error":{"code":"invalid_input","detail":"refused"}}"#,
-            )),
-            Answer::Unbound => Ok(RuntimeHttpResponse::new(
-                403,
-                r#"{"status":"error","error":{"code":"binding_unavailable","detail":"unbound"}}"#,
             )),
             answer => {
                 let operation = field("operation");
@@ -264,40 +287,59 @@ impl Fixture {
                 crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
                 root.path().join("receipts").to_string_lossy().into_owned(),
             ),
-            (
-                crate::INJECTED_GRANT_ID_ENV.to_owned(),
-                "grant_slack".to_owned(),
-            ),
-            (
-                crate::INJECTED_CONNECTOR_BINDING_ENV.to_owned(),
-                serde_json::to_string(
-                    &crate::ConnectorScope::official_only()
-                        .unwrap()
-                        .connector(connector)
-                        .unwrap()
-                        .binding(),
-                )
-                .unwrap(),
-            ),
-            (
-                crate::INJECTED_GRANTED_SCOPES_ENV.to_owned(),
-                crate::encode_injected_scopes(&scopes).unwrap(),
-            ),
-            (
-                crate::INJECTED_PRINCIPAL_REF_ENV.to_owned(),
-                PRINCIPAL_REF.to_owned(),
-            ),
         ]);
         let provider = Provider::new(Answer::Succeed);
         let effect = OperationEffect::with_http_transport(provider.clone());
-        Self {
+        let fixture = Self {
             root,
             steps,
             env,
             run_id: "run-1",
             provider,
             effect,
-        }
+        };
+        fixture.confirm_grant("grant_slack", connector, &scopes);
+        fixture
+    }
+
+    /// List a grant of `scopes` for `connector` and confirm it as the
+    /// connector's instance, as `runx connector use --grant` would.
+    fn confirm_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
+        self.list_grant(grant_id, connector, scopes);
+        self.select_grant(grant_id, connector);
+    }
+
+    /// List a grant runx Connect holds without confirming it yet.
+    fn list_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
+        let connector = ConnectorScope::official_only()
+            .unwrap()
+            .connector(connector)
+            .unwrap();
+        self.provider.grant(grant_id, &connector, scopes);
+    }
+
+    /// Confirm a listed grant as the connector's selected instance.
+    fn select_grant(&self, grant_id: &str, connector: &str) {
+        let connector = ConnectorScope::official_only()
+            .unwrap()
+            .connector(connector)
+            .unwrap();
+        let instances = Instances::new(
+            KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+                &self.env,
+                self.root.path(),
+            ))
+            .unwrap(),
+        );
+        crate::kernel::setup::confirm_grant_over(
+            &instances,
+            &connector,
+            Arc::new(self.provider.clone()),
+            grant_id,
+            &self.env,
+            self.root.path(),
+        )
+        .unwrap();
     }
 
     fn admit(
@@ -515,7 +557,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         principal_ref: actor_ref,
         resource_ref: Reference::runx(
             ReferenceType::ConnectorInstance,
-            crate::kernel::instances::instance_id(&["injected", "runx/slack"])
+            crate::kernel::instances::instance_id(&["hosted", "runx/slack", "grant_slack"])
                 .unwrap()
                 .as_str(),
         ),
@@ -698,107 +740,6 @@ fn a_definite_rejection_settles_and_the_next_attempt_starts_fresh() {
 }
 
 #[test]
-fn a_standing_approval_covers_only_the_pinned_post() {
-    use runx_contracts::connector::{ConnectorRef, OperationName};
-
-    let mut fixture = Fixture::new(&["channel.post"]);
-    let delegate = format!("sha256:{}", "a".repeat(64));
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    StandingApprovals::new(
-        KernelStore::for_project(&crate::paths::RunxPaths::resolve(
-            &fixture.env,
-            fixture.root.path(),
-        ))
-        .unwrap(),
-    )
-    .grant(StandingApproval {
-        approval_id: "notify".to_owned(),
-        connector: ConnectorRef::new("runx/slack").unwrap(),
-        operation: OperationName::new("channel.post").unwrap(),
-        instance_id: crate::kernel::instances::instance_id(&["injected", "runx/slack"]).unwrap(),
-        target: "slack://T123/C456".to_owned(),
-        delegate_digest: delegate.clone(),
-        expires_at_unix_seconds: now + 3_600,
-        max_total: 1,
-        max_per_day: 1,
-        max_text_bytes: 200,
-        allowed_mention: None,
-    })
-    .expect("grant");
-    fixture
-        .env
-        .insert(STANDING_APPROVAL_ID_ENV.to_owned(), "notify".to_owned());
-    fixture
-        .env
-        .insert(STANDING_DELEGATE_DIGEST_ENV.to_owned(), delegate);
-    let (admission, _) = fixture
-        .run("post", &post("deploy done"), None)
-        .expect("covered");
-    let plan = admission
-        .context::<OperationAdmission>()
-        .unwrap()
-        .attempt
-        .clone()
-        .unwrap();
-    assert_eq!(plan.approval.unwrap().actor, ApprovalActor::Standing);
-
-    let mut elsewhere = post("hi");
-    elsewhere.insert(
-        "input".to_owned(),
-        serde_json::from_value(
-            serde_json::json!({"channel_locator": "slack://T123/C999", "text": "hi"}),
-        )
-        .unwrap(),
-    );
-    elsewhere.insert(
-        "idempotency_key".to_owned(),
-        JsonValue::String("post-2".to_owned()),
-    );
-    fixture.run_id = "run-2";
-    let error = fixture
-        .run("post", &elsewhere, None)
-        .expect_err("another target");
-    assert!(error.contains("differs from the approval"), "{error}");
-
-    let mut again = post("again");
-    again.insert(
-        "idempotency_key".to_owned(),
-        JsonValue::String("post-3".to_owned()),
-    );
-    let error = fixture.run("post", &again, None).expect_err("quota spent");
-    assert!(error.contains("quota"), "{error}");
-    assert_eq!(fixture.provider.calls(), 1);
-}
-
-#[test]
-fn the_host_guard_shows_exact_input_and_refuses_protected_material() {
-    let mut fixture = Fixture::new(&["channel.post"]);
-    fixture.env.insert(
-        egress::REQUIRE_MUTATION_APPROVAL_ENV.to_owned(),
-        "required".to_owned(),
-    );
-    fixture.env.insert(
-        egress::CONFIDENTIAL_TERMS_ENV.to_owned(),
-        r#"["project-x"]"#.to_owned(),
-    );
-    let admission = fixture.admit("post", &post("ship it")).expect("admits");
-    let mut host = Approver::new(None);
-    fixture
-        .prepare("post", admission, &mut host)
-        .expect("pending");
-    let request = serde_json::to_string(&host.requests).unwrap();
-    assert!(request.contains("exact_input") && request.contains("ship it"));
-    let error = fixture
-        .admit("post", &post("about project-x"))
-        .expect_err("refused")
-        .to_string();
-    assert!(error.contains("protected"), "{error}");
-}
-
-#[test]
 fn the_approval_summary_carries_digests_not_payloads() {
     let fixture = Fixture::new(&["channel.post"]);
     const SECRET: &str = "credential-material-must-never-cross";
@@ -879,10 +820,11 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
     fixture
         .run("transcribe", &start, None)
         .expect_err("unknown");
-    fixture.env.insert(
-        crate::INJECTED_GRANT_ID_ENV.to_owned(),
-        "grant_other_account".to_owned(),
-    );
+    // The same grant is confirmed again, now held by another account, and
+    // the run resumes in a new process.
+    *fixture.provider.principal.lock().unwrap() = "operator-2".to_owned();
+    fixture.select_grant("grant_slack", "runx/aws");
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
     fixture.provider.answer(Answer::Succeed);
     let error = fixture.run("transcribe", &start, None).expect_err("held");
     assert!(error.contains("reconcile it before resuming"), "{error}");
@@ -913,57 +855,6 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
             .pending
             .is_some()
     );
-}
-
-#[test]
-fn a_standing_use_is_released_when_the_provider_refuses_before_executing() {
-    use runx_contracts::connector::{ConnectorRef, OperationName};
-
-    let mut fixture = Fixture::new(&["channel.post"]);
-    let delegate = format!("sha256:{}", "a".repeat(64));
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let approvals = StandingApprovals::new(
-        KernelStore::for_project(&crate::paths::RunxPaths::resolve(
-            &fixture.env,
-            fixture.root.path(),
-        ))
-        .unwrap(),
-    );
-    approvals
-        .grant(StandingApproval {
-            approval_id: "notify".to_owned(),
-            connector: ConnectorRef::new("runx/slack").unwrap(),
-            operation: OperationName::new("channel.post").unwrap(),
-            instance_id: crate::kernel::instances::instance_id(&["injected", "runx/slack"])
-                .unwrap(),
-            target: "slack://T123/C456".to_owned(),
-            delegate_digest: delegate.clone(),
-            expires_at_unix_seconds: now + 3_600,
-            max_total: 1,
-            max_per_day: 1,
-            max_text_bytes: 200,
-            allowed_mention: None,
-        })
-        .expect("grant");
-    fixture
-        .env
-        .insert(STANDING_APPROVAL_ID_ENV.to_owned(), "notify".to_owned());
-    fixture
-        .env
-        .insert(STANDING_DELEGATE_DIGEST_ENV.to_owned(), delegate);
-    fixture.provider.answer(Answer::Unbound);
-    fixture
-        .run("post", &post("hi"), None)
-        .expect_err("refused before executing");
-    assert_eq!(approvals.status("notify").unwrap().unwrap().used_total, 0);
-    fixture.provider.answer(Answer::Succeed);
-    fixture
-        .run("post", &post("hi"), None)
-        .expect("the released use is spent once");
-    assert_eq!(approvals.status("notify").unwrap().unwrap().used_total, 1);
 }
 
 #[test]
@@ -1034,7 +925,7 @@ fn a_hosted_declared_read_sends_one_request_per_item() {
 
 #[test]
 fn an_unauthenticated_write_is_acknowledged_once_behind_exact_approval() {
-    // The injected grant is Slack's; n8n takes no authority and runs public.
+    // The confirmed grant is Slack's; n8n takes no authority and runs public.
     let fixture = Fixture::new(&["channel.post"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {
@@ -1116,6 +1007,7 @@ fn a_stdio_mcp_server_receives_the_instance_credential_and_no_operator_secret() 
         .join("../../fixtures/connectors/mcp-echo/stdio-server.mjs")
         .canonicalize()
         .unwrap();
+    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let connector_dir = root.path().join("connectors/probe-mcp");
     std::fs::create_dir_all(&connector_dir).unwrap();
     std::fs::write(

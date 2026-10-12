@@ -1,4 +1,4 @@
-//! One usage ledger for bounded authority and standing approval evidence.
+//! One usage ledger for bounded authority evidence.
 //!
 //! A cover is checked before execution; its reservation is committed in the
 //! same batch as the effect attempt. The stream version makes concurrent
@@ -29,7 +29,6 @@ enum UsageEvent {
     Consumed {
         use_key: String,
     },
-    Fence,
 }
 
 impl StreamEvent for UsageEvent {
@@ -40,7 +39,6 @@ impl StreamEvent for UsageEvent {
             Self::Reserved { .. } => "reserved",
             Self::Released { .. } => "released",
             Self::Consumed { .. } => "consumed",
-            Self::Fence => "fence",
         }
     }
 }
@@ -123,7 +121,6 @@ impl UsageLedger {
                     };
                     used.consumed = true;
                 }
-                UsageEvent::Fence => {}
             }
             status.version = recorded.version;
         }
@@ -175,23 +172,6 @@ impl UsageLedger {
             recorded: false,
         })
     }
-
-    /// Fence an approval renewal against a concurrent reservation.
-    pub(crate) fn fence(
-        &self,
-        evidence_key: &str,
-        version: u64,
-    ) -> Result<Append, KernelStoreError> {
-        Append::kernel(
-            evidence_key.to_owned(),
-            if version == 0 {
-                Expected::Absent
-            } else {
-                Expected::Version(version)
-            },
-            &UsageEvent::Fence,
-        )
-    }
 }
 
 impl UseCover {
@@ -200,10 +180,6 @@ impl UseCover {
             "runx:evidence_use:{}",
             sha256_prefixed(format!("{}\0{}", self.evidence_key, self.use_key).as_bytes())
         )
-    }
-
-    pub(crate) fn recorded(&self) -> bool {
-        self.recorded
     }
 
     pub(crate) fn reservation(&self) -> Result<Option<Append>, KernelStoreError> {

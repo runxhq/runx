@@ -66,8 +66,7 @@ pub struct OperationAmount {
 #[serde(rename_all = "snake_case")]
 pub enum AdmissionDisposition {
     Admit,
-    /// A person or host must answer first (an approval floor without
-    /// standing approval).
+    /// A person or host must answer first: an approval floor applies.
     NeedsResolution,
     Refuse,
 }

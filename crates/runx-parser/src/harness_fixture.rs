@@ -139,8 +139,11 @@ pub struct HarnessProviderOperationFixture {
 #[serde(deny_unknown_fields)]
 pub struct HarnessProviderResponsesFixture {
     pub principal_id: String,
-    /// The grant the harness injects as the run's hosted instance.
+    /// The grant the case's hosted instance is confirmed with.
     pub grant: HarnessProviderGrantFixture,
+    /// The provider operations Connect answers. A case whose operations are
+    /// refused before any request leaves declares none.
+    #[serde(default)]
     pub operations: Vec<HarnessProviderOperationFixture>,
 }
 
@@ -469,10 +472,10 @@ fn validate_harness_provider_responses(
             "grant_id, provider, and every declared scope must be non-empty",
         ));
     }
-    if fixture.operations.is_empty() || fixture.operations.len() > MAX_OPERATIONS {
+    if fixture.operations.len() > MAX_OPERATIONS {
         return Err(invalid(
             format!("{field}.operations"),
-            "must contain between 1 and 32 operations",
+            "must contain at most 32 operations",
         ));
     }
     let mut operations = BTreeSet::new();

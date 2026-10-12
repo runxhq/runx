@@ -293,43 +293,57 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let skill_dir = crate::support::repo_root()?.join("skills/google-analytics");
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(&root)?;
+    let connect = crate::support::MockConnect::serve(
+        "operator-1",
+        &[
+            (
+                "grant_google_read",
+                "runx/google-analytics",
+                &["properties.read", "reports.read"],
+            ),
+            (
+                "grant_google_wrong_scope",
+                "runx/google-analytics",
+                &["reports.read"],
+            ),
+        ],
+    )?;
+    let operator = |root: &Path| {
+        let mut command = command(root);
+        connect.apply(&mut command);
+        command
+    };
 
-    let incomplete = command(&root)
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_google_read")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["properties.read","reports.read"]"#,
-        )
+    // With no confirmed grant, readiness names the setup the run needs.
+    let unset = operator(&root)
         .arg("skill")
         .arg("inspect")
         .arg(&skill_dir)
         .arg("properties")
         .arg("--json")
         .output()?;
-    let incomplete = assert_json(&incomplete, 0)?;
-    assert_eq!(incomplete["readiness"]["status"], "needs_connector_setup");
-    let refusal = incomplete["connector_readiness"][0]["reasons"]
+    let unset = assert_json(&unset, 0)?;
+    assert_eq!(unset["readiness"]["status"], "needs_connector_setup");
+    let refusal = unset["connector_readiness"][0]["reasons"]
         .as_array()
         .and_then(|reasons| reasons.iter().find(|reason| reason["outcome"] == "fail"))
-        .ok_or("an incomplete injected grant must fail readiness")?;
+        .ok_or("a connector with no instance must fail readiness")?;
     assert_eq!(refusal["check"], "instance");
-    assert!(
-        refusal["detail"]
-            .as_str()
-            .is_some_and(|detail| detail.contains("incomplete")),
-        "{refusal}"
-    );
 
-    let inspect = command(&root)
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_google_read")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["properties.read","reports.read"]"#,
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
+    let confirm = |grant: &str| {
+        operator(&root)
+            .args([
+                "connector",
+                "use",
+                "google-analytics",
+                "--grant",
+                grant,
+                "--json",
+            ])
+            .output()
+    };
+    assert_json(&confirm("grant_google_read")?, 0)?;
+    let inspect = operator(&root)
         .arg("skill")
         .arg("inspect")
         .arg(&skill_dir)
@@ -346,23 +360,18 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
                 .find(|operation| operation["operation"] == "properties.list")
         })
         .ok_or("properties.list readiness missing")?;
-    assert_eq!(readiness["connector"], "google-analytics");
-    assert_eq!(readiness["instance_id"], "injected.google-analytics");
+    assert_eq!(readiness["connector"], "runx/google-analytics");
+    assert!(
+        readiness["instance_id"]
+            .as_str()
+            .is_some_and(|instance| instance.starts_with("hosted.")),
+        "{readiness}"
+    );
     assert_eq!(readiness["ready"], true);
 
-    let denied = command(&root)
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANT_ID",
-            "grant_google_wrong_scope",
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["reports.read"]"#,
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
+    // A grant without the operation's scope is refused before anything is sent.
+    assert_json(&confirm("grant_google_wrong_scope")?, 0)?;
+    let denied = operator(&root)
         .arg("skill")
         .arg(&skill_dir)
         .arg("properties")
@@ -447,18 +456,33 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     )?;
     // Slack declares message.send but no placement implements it yet, so the
     // send refuses at admission, before any approval or request.
-    let send = command(&root)
-        .env("RUNX_PROVIDER_PERMISSION_GRANT_ID", "grant_slack_send")
-        .env(
-            "RUNX_PROVIDER_PERMISSION_GRANTED_SCOPES",
-            r#"["message.send","message.read"]"#,
-        )
-        .env(
-            "RUNX_PROVIDER_PERMISSION_PRINCIPAL_REF",
-            "runx:principal:operator:test",
-        )
-        .env("RUNX_PUBLIC_API_TOKEN", "not-used-before-admission")
-        .env("RUNX_PUBLIC_API_BASE_URL", "https://wrong-hosted.invalid")
+    let connect = crate::support::MockConnect::serve(
+        "operator-1",
+        &[(
+            "grant_slack_send",
+            "runx/slack",
+            &["message.send", "message.read"],
+        )],
+    )?;
+    let operator = || {
+        let mut command = command(&root);
+        connect.apply(&mut command);
+        command
+    };
+    assert_json(
+        &operator()
+            .args([
+                "connector",
+                "use",
+                "slack",
+                "--grant",
+                "grant_slack_send",
+                "--json",
+            ])
+            .output()?,
+        0,
+    )?;
+    let send = operator()
         .arg("skill")
         .arg(repo_root.join("skills/send-as"))
         .arg("apply")
@@ -505,9 +529,9 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         "issues.list"
     );
     assert!(
-        github["refusal"]["message"]
-            .as_str()
-            .is_some_and(|message| message.contains("no instance is selected for connector github")),
+        github["refusal"]["message"].as_str().is_some_and(
+            |message| message.contains("no instance is selected for connector runx/github")
+        ),
         "{github}"
     );
 

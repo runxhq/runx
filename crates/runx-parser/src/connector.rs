@@ -11,10 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
     CredentialName, Digest, HostedAuth, HttpAuth, HttpImplementation, HttpMethod, HttpReadback,
-    HttpRequest, Implementation, LocalAuth, McpServer, MessageRules, OperationAccess,
-    OperationName, OperationVerb, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
-    ReferenceDeclaration, SessionAuth, SessionPrincipal, Template, manifest_digest,
-    operation_digest,
+    HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
+    OperationVerb, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration,
+    SessionAuth, SessionPrincipal, Template, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -58,9 +57,6 @@ pub fn validate_connector_manifest(
         validate_operation(&manifest, name, operation, &mut errors);
     }
     validate_mcp_multiplexing(&manifest, &mut errors);
-    if let Some(messages) = &manifest.messages {
-        validate_messages(messages, &mut errors);
-    }
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
     validate_enforced(&manifest, &mut errors);
@@ -542,21 +538,9 @@ fn validate_operation(
                 "a read cannot require approval",
             );
         }
-        if operation.standing.is_some() {
-            errors.push(
-                &format!("{field}.standing"),
-                "a read has no standing approval",
-            );
-        }
         if operation.amount == AmountRule::Required {
             errors.push(&format!("{field}.amount"), "a read carries no amount");
         }
-    }
-    if operation.standing.is_some() && operation.approval != ApprovalFloor::Required {
-        errors.push(
-            &format!("{field}.standing"),
-            "standing approval stands in for a required approval; set approval: required",
-        );
     }
 
     for credential in &operation.credentials {
@@ -786,27 +770,6 @@ pub fn whole_match(pattern: &str) -> Result<regex::Regex, regex::Error> {
     regex::Regex::new(&format!("^(?:{pattern})$"))
 }
 
-fn validate_messages(messages: &MessageRules, errors: &mut Errors) {
-    if let Err(error) = whole_match(messages.actor.as_str()) {
-        errors.push(
-            "messages.actor",
-            format!("not a valid regular expression: {error}"),
-        );
-    }
-    if !messages.mention.as_str().contains("{actor}") {
-        errors.push("messages.mention", "the mention must place {actor}");
-    }
-    for (index, replacement) in messages.inert.iter().enumerate() {
-        if let Err(error) = regex::Regex::new(replacement.pattern.as_str()) {
-            errors.push(
-                &format!("messages.inert[{index}].pattern"),
-                format!("not a valid regular expression: {error}"),
-            );
-        }
-    }
-}
-
-/// Each declaration's locator pattern compiles, as both engines read it.
 fn validate_references(references: &[ReferenceDeclaration], errors: &mut Errors) {
     for (index, reference) in references.iter().enumerate() {
         if let Err(error) = whole_match(reference.locator.as_str()) {

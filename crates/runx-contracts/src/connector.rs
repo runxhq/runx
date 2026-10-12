@@ -120,10 +120,6 @@ pub struct ConnectorManifest {
     pub parameters: Option<JsonObject>,
     pub placements: ConnectorPlacements,
     pub operations: BTreeMap<OperationName, ConnectorOperation>,
-    /// How the provider's messages address people, for a connector a person
-    /// is notified through.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub messages: Option<MessageRules>,
     /// What the connector's locators name, so references to them are
     /// classified without the runtime knowing the provider.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -137,38 +133,6 @@ pub struct ReferenceDeclaration {
     pub kind: crate::ExternalReferenceKind,
     /// A regular expression the whole locator matches.
     pub locator: NonEmptyString,
-}
-
-/// How a provider's messages address people, and how untrusted text is made
-/// inert before it is sent. Whoever composes a message (the assistant) reads
-/// these instead of knowing any provider.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct MessageRules {
-    /// A regular expression an account id the provider addresses matches
-    /// whole.
-    pub actor: NonEmptyString,
-    /// How a message mentions an account, with `{actor}` where its id goes.
-    pub mention: NonEmptyString,
-    /// Replacements applied in order to untrusted text, so that what remains
-    /// addresses and links no one.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub inert: Vec<TextReplacement>,
-    /// Sequences that address or link someone. Inert text contains none.
-    pub active: NonEmptyVec<NonEmptyString>,
-    /// What a read that reconciles a sent message reports it compared, when
-    /// the provider shows a bounded preview rather than the exact text.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub readback_normalization: Option<NonEmptyString>,
-}
-
-/// One replacement: every match of `pattern`, a regular expression, becomes
-/// `replace`, where `$1` names the first group.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct TextReplacement {
-    pub pattern: NonEmptyString,
-    pub replace: String,
 }
 
 impl ConnectorManifest {
@@ -518,9 +482,6 @@ pub struct ConnectorOperation {
     pub target: OperationTarget,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub approval: ApprovalFloor,
-    /// Standing approval that may stand in for a per-call human approval.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub standing: Option<StandingEligibility>,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub idempotency_key_format: IdempotencyKeyFormat,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
@@ -634,22 +595,8 @@ pub struct OperationTarget {
 pub enum ApprovalFloor {
     #[default]
     None,
-    /// Every call needs one-shot approval of its exact intent, or standing
-    /// approval of a kind the operation lists.
+    /// Every call needs one-shot approval of its exact intent.
     Required,
-}
-
-/// The standing approval kinds that may stand in for a per-call approval, and
-/// the payload rule each enforces. A new kind is a contract change.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum StandingEligibility {
-    /// The payload is exactly `{<target_field>, <text_field>}` and the target
-    /// equals the standing approval's.
-    Notification {
-        target_field: NonEmptyString,
-        text_field: NonEmptyString,
-    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
