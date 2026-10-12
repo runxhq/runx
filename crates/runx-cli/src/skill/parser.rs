@@ -607,7 +607,7 @@ mod tests {
     fn execution_bindings_are_runtime_metadata_not_skill_inputs() -> Result<(), String> {
         let args = [
             "skill",
-            "skills/nitrosend",
+            "skills/issue-to-pr",
             "status",
             "--package-digest",
             "sha256:package",

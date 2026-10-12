@@ -31,8 +31,8 @@ def main() -> None:
     bridge = create_host_bridge(run=run, resume=resume)
     adapter = create_openai_host_adapter(bridge)
     response = adapter.run(
-        "skills/sourcey",
-        inputs={"project": "."},
+        "skills/issue-triage",
+        inputs={"repository": "acme/app", "issue_number": "7"},
         resolver=lambda context: True if context.request.get("kind") == "approval" else None,
     )
     print(response)

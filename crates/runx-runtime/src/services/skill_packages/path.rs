@@ -225,8 +225,8 @@ mod tests {
 
     #[test]
     fn secret_material_rejection_detects_declared_key_prefixes() {
-        let key = ["nskey", "live", "fixture"].join("_");
+        let key = ["phx", "fixture"].join("_");
         assert!(reject_secret_material("tools/provider.mjs", &key).is_err());
-        assert!(reject_secret_material("tools/provider.mjs", "nskey_fixture").is_ok());
+        assert!(reject_secret_material("tools/provider.mjs", "phx-fixture").is_ok());
     }
 }

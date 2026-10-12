@@ -119,7 +119,6 @@ function isAllowedCommittedBuildOutput(file) {
   return (
     /^dist\/packets\/[^/]+\.schema\.json$/u.test(file)
     || file.startsWith("fixtures/tool-catalogs/build/")
-    || file.startsWith("tools/sourcey/build/")
   );
 }
 

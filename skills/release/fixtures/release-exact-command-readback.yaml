@@ -4,7 +4,7 @@ target: support/release-fixture.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: release
-    confusors: [issue-to-pr, sourcey]
+    confusors: [issue-to-pr, github-sync]
     request: Release version 1.2.3 through this project-owned exact command profile and verify it.
     expected_outcome: Prepare notes, obtain exact approval, execute once, and return independent release readback.
   - mode: composed

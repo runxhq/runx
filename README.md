@@ -228,10 +228,10 @@ Credentials belong to connectors, and skills only name the connector
 operations they call. Bind an account once by piping material on stdin:
 
 ```bash
-printf '%s' "$NITROSEND_API_KEY" |
-  runx credential set nitrosend --credential api_key --from-stdin
+printf '%s' "$EXA_API_KEY" |
+  runx credential set exa --credential api_key --from-stdin
 
-runx skill ./skills/nitrosend status --json
+runx skill ./skills/web-search --input query="receipt verification" --json
 ```
 
 The kernel delivers the bound instance's credential to each operation it

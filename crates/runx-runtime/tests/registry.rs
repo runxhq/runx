@@ -82,11 +82,14 @@ fn registry_install_metadata_omits_absent_remote_fields() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A docs skill's `SKILL.md`, as a publisher would ship it.
+const SOURCEY_SKILL: &str = "---\nname: sourcey\ndescription: Generate documentation for a project with Sourcey.\n---\n# Sourcey\n\nBuild and verify a project's documentation site.\n";
+
 #[test]
 fn file_registry_store_covers_profiled_skill_surface() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let store = FileRegistryStore::new(temp.path());
-    let markdown = include_str!("../../../skills/sourcey/SKILL.md");
+    let markdown = SOURCEY_SKILL;
     let profile_document = r#"skill: sourcey
 version: "1.0.0"
 
@@ -297,7 +300,7 @@ fn local_registry_owner_runx_defaults_to_community_trust() -> Result<(), Box<dyn
     let store = FileRegistryStore::new(temp.path());
     let version = ingest_skill_markdown(
         &store,
-        include_str!("../../../skills/sourcey/SKILL.md"),
+        SOURCEY_SKILL,
         IngestSkillOptions {
             owner: Some("runx".to_owned()),
             version: Some("1.0.0".to_owned()),

@@ -188,7 +188,7 @@ for (const required of ["bin/runx", "native/supported-platforms.json", "package.
     throw new Error(`selector CLI package is missing ${required}`);
   }
 }
-for (const forbidden of ["bin/runx.js", "dist/index.js", "src/index.ts", "tools/sourcey/build/run.mjs"]) {
+for (const forbidden of ["bin/runx.js", "dist/index.js", "src/index.ts"]) {
   if (selectorFiles.has(forbidden)) {
     throw new Error(`selector CLI package unexpectedly includes ${forbidden}`);
   }
@@ -200,7 +200,7 @@ for (const required of [`bin/${stagedBinaryName}`, `bin/${platform.workerName}`,
     throw new Error(`native CLI package is missing ${required}`);
   }
 }
-for (const forbidden of ["bin/runx.js", "dist/index.js", "src/index.ts", "tools/sourcey/build/run.mjs"]) {
+for (const forbidden of ["bin/runx.js", "dist/index.js", "src/index.ts"]) {
   if (nativeFiles.has(forbidden)) {
     throw new Error(`native CLI package unexpectedly includes ${forbidden}`);
   }

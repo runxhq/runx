@@ -13,7 +13,7 @@ const registryBaseUrl = normalizeBaseUrl(
   process.env.RUNX_SMOKE_REGISTRY_BASE_URL,
   "https://api.runx.ai",
 );
-const skillId = process.env.RUNX_SMOKE_SKILL_ID?.trim() || "runx/sourcey";
+const skillId = process.env.RUNX_SMOKE_SKILL_ID?.trim() || "runx/issue-triage";
 const smokeInstallationId = process.env.RUNX_SMOKE_INSTALLATION_ID?.trim() || "inst_release_smoke";
 
 const [owner, name] = parseSkillId(skillId);

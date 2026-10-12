@@ -170,9 +170,9 @@ as the conceptual guide.
 Choose a skill by consequence, not by brand excitement alone.
 
 - For a full workflow, choose the domain skill: `spend`, `charge`, `refund`,
-  `send-as`, `release`, `sourcey`, or another project skill.
+  `send-as`, `release`, or another project skill.
 - For provider-specific evidence, choose the branded implementation skill:
-  `x402-pay`, `stripe-pay`, `nitrosend`, GitHub-backed sync, weather-provider
+  `x402-pay`, `stripe-pay`, GitHub-backed sync, weather-provider
   skills, and similar lanes.
 - For context-only work, choose a context skill such as `taste-profile` or
   `brand-voice`; those should inform a downstream skill, not perform a mutation.
@@ -222,7 +222,7 @@ runx registry search 'openapi weather forecast' --json
 Governed local run:
 
 ```bash
-runx skill ./skills/sourcey --input project=/path/to/project --json
+runx skill ./skills/issue-triage --input repository=acme/app --input issue_number=7 --json
 runx history
 ```
 

@@ -502,7 +502,7 @@ existing skill packages, but docs and code should describe it as the execution
 profile:
 
 ```text
-skills/sourcey/
+skills/issue-to-pr/
   SKILL.md
   run.yaml
 ```
@@ -647,8 +647,7 @@ The official catalog is explicit about why each package is public:
   `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
   `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `send-as`, `spend`,
   `weather-forecast`
-- branded provider skills: `nitrosend`, `nws-weather-forecast`, `stripe-pay`,
-  `x402-pay`
+- branded provider skills: `nws-weather-forecast`, `stripe-pay`, `x402-pay`
 - context skills: `brand-voice`, `taste-profile`
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are
@@ -702,7 +701,7 @@ Graph steps can execute local-registry skills too:
 ```yaml
 steps:
   - id: build_docs
-    skill: registry:runx/sourcey
+    skill: registry:sourcey/sourcey
     runner: sourcey
 ```
 
@@ -713,7 +712,7 @@ as generated runtime cache rather than source.
 Any runnable skill package can also be exposed locally as an MCP tool with:
 
 ```bash
-runx mcp serve ./skills/sourcey
+runx mcp serve ./skills/issue-triage
 ```
 
 That MCP surface is a thin facade over the normal runx kernel path, so receipts,

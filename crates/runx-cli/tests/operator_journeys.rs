@@ -461,7 +461,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         .arg(repo_root.join("skills/github-sync"))
         .args([
             "--input",
-            "repo=nitrosend/nitrosend",
+            "repo=acme/app",
             "--input",
             "direction=pull",
             "--input",

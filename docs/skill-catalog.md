@@ -188,7 +188,7 @@ evidence, not copied into the repo by default.
 | `code` | `github-pr-review`, `release`, `schema-guard` |
 | `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
 | `data` | `data-store`, `product-analytics`, `run-history`, `sql-analyst` |
-| `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify`, `nitrosend` |
+| `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify` |
 | `ops` | `github-sync`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
 | `payments` | `charge`, `dispute-respond`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
 | `research` | `ecosystem-brief`, `research`, `web-search` |

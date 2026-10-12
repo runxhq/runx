@@ -61,7 +61,6 @@ Skills that enforce policy, audit receipts, or review skill quality.
 | `brand-voice/` | Build a scoped brand voice packet from source material. |
 | `taste-profile/` | Build a scoped taste profile packet from examples and preferences. |
 | `prior-art/` | Compare existing approaches, catalog surfaces, and domain patterns. |
-| `sourcey/` | Generate documentation for a project using Sourcey. |
 
 ## Code & Dependency Security
 
@@ -103,7 +102,6 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `nitrosend/` | Govern Nitrosend campaign, flow, transactional, audience, and send operations. |
 | `dispute-respond/` | Prepare a governed dispute response artifact from a linked case. |
 | `helpdesk/` | Classify a bounded support request and choose the safe next path. |
 

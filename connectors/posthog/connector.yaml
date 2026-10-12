@@ -9,7 +9,7 @@ auth:
     personal_key:
       kind: api_key
       fields:
-        - {name: personal_key, label: PostHog personal API key with insight read access}
+        - {name: personal_key, label: PostHog personal API key with insight read access, prefixes: [phx_]}
       delivery: {env: POSTHOG_PERSONAL_API_KEY}
       audience: [us.posthog.com, eu.posthog.com]
 parameters:

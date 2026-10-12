@@ -136,12 +136,7 @@ export function checkHttpTransportOwnership(findings) {
   }
 
   const networkPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\b(?:https?|axios|undici|got)\.(?:get|request)\s*\(|from\s+["'](?:node:)?https?["']|require\(["'](?:node:)?https?["']\)/u;
-  const allowed = new Map([
-    [
-      "connectors/nitrosend/tools/nitrosend/bulk_import/run.mjs",
-      "runx-architecture-allow: transient-signed-upload",
-    ],
-  ]);
+  const allowed = new Map();
   for (const filePath of skillProductionFiles()) {
     const source = readFileSync(filePath, "utf8");
     if (!networkPattern.test(source)) continue;

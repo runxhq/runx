@@ -15,7 +15,7 @@ fn credential_command_sets_lists_and_removes_without_exposing_material()
     set.args([
         "credential",
         "set",
-        "nitrosend",
+        "exa",
         "--credential",
         "api_key",
         "--profile",

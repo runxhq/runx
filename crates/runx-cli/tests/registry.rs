@@ -285,10 +285,10 @@ fn registry_package_metadata_names_the_declared_connectors()
 connectors:
   github:
     operations: [issues.read, issue.read]
-  reply:
-    operations: [thread.reply, thread.reply.read]
+  pay:
+    operations: [payment.spend]
     connector_from: $input.provider
-    allowed_connectors: [slack, nitrosend]
+    allowed_connectors: [stripe-spt, mpp]
 runners:
   default:
     default: true
@@ -338,8 +338,8 @@ runners:
         named,
         [
             json!({"ref": "runx/github", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
-            json!({"ref": "runx/nitrosend", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
-            json!({"ref": "runx/slack", "runtime_capability": false, "operations": ["thread.reply", "thread.reply.read"]}),
+            json!({"ref": "runx/mpp", "runtime_capability": false, "operations": ["payment.spend"]}),
+            json!({"ref": "runx/stripe-spt", "runtime_capability": false, "operations": ["payment.spend"]}),
         ]
     );
     for connector in connectors {

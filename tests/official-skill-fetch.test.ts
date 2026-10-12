@@ -13,6 +13,15 @@ import {
   type UnsignedRegistryManifest,
 } from "@runxhq/contracts";
 
+/** One bounded source packet, as the research skill's default runner takes it. */
+const SOURCE_PACKETS = JSON.stringify([{
+  final_url: "https://example.com/api",
+  status: 200,
+  content_digest: `sha256:${"a".repeat(64)}`,
+  extracted: "The API exposes a stable bounded operation contract.",
+  provenance: { fetched_at: "2026-07-18T00:00:00Z", bytes: 52, redirects: [] },
+}]);
+
 describe("registry skill native fetch", () => {
   it("acquires, caches, and reruns a registry skill through the native resolver", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-official-fetch-"));
@@ -23,28 +32,30 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const sourceyLock = await officialSkillLock("runx/sourcey");
+      const officialLock = await officialSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/sourcey/SKILL.md"),
-        profile: path.resolve("skills/sourcey/run.yaml"),
+        subject: path.resolve("skills/research/SKILL.md"),
+        profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: sourceyLock.version,
+        version: officialLock.version,
         env,
       });
-      const skillRef = `acme/sourcey@${sourceyLock.version}`;
+      const skillRef = `acme/research@${officialLock.version}`;
 
       const first = runNativeSkill(env, [
         skillRef,
         "--registry",
         registryDir,
         "--input",
-        `project=${projectDir}`,
+        "objective=Decide whether the supplied evidence supports an integration.",
+        "--input-json",
+        `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
       const firstJson = parseJsonOutput(first, 2);
       expect((firstJson as { status?: string }).status).toBe("needs_agent");
-      const firstPath = findRegistrySkillCachePath(globalHomeDir, "acme/sourcey");
+      const firstPath = findRegistrySkillCachePath(globalHomeDir, "acme/research");
       expect((await stat(path.join(firstPath, "SKILL.md"))).isFile()).toBe(true);
       expect((await stat(path.join(firstPath, "run.yaml"))).isFile()).toBe(true);
 
@@ -53,7 +64,9 @@ describe("registry skill native fetch", () => {
         "--registry",
         registryDir,
         "--input",
-        `project=${projectDir}`,
+        "objective=Decide whether the supplied evidence supports an integration.",
+        "--input-json",
+        `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
       const secondJson = parseJsonOutput(second, 2);
@@ -73,24 +86,26 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const sourceyLock = await officialSkillLock("runx/sourcey");
+      const officialLock = await officialSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/sourcey/SKILL.md"),
-        profile: path.resolve("skills/sourcey/run.yaml"),
+        subject: path.resolve("skills/research/SKILL.md"),
+        profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: sourceyLock.version,
+        version: officialLock.version,
         env,
       });
 
       const result = runNativeSkill(env, [
-        `acme/sourcey@${sourceyLock.version}`,
+        `acme/research@${officialLock.version}`,
         "--registry",
         registryDir,
         "--digest",
         `sha256:${"0".repeat(64)}`,
         "--input",
-        `project=${projectDir}`,
+        "objective=Decide whether the supplied evidence supports an integration.",
+        "--input-json",
+        `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
       expect(result.status).toBe(1);
@@ -99,7 +114,7 @@ describe("registry skill native fetch", () => {
         (JSON.parse(result.stdout) as { error?: { message?: string } }).error?.message,
       ).toContain("digest mismatch");
       expect(
-        existsSync(path.join(globalHomeDir, "official-skills", "acme", "sourcey", "SKILL.md")),
+        existsSync(path.join(globalHomeDir, "official-skills", "acme", "research", "SKILL.md")),
       ).toBe(false);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
