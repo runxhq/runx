@@ -17,7 +17,6 @@ use runx_runtime::registry::{
 use runx_runtime::{InitGeneratedValues, WorkspaceEnv, ensure_runx_install_state};
 
 mod connector;
-mod mark;
 mod output;
 mod remote_publish;
 mod target;
@@ -39,8 +38,6 @@ pub enum RegistryAction {
     Publish,
     /// `runx registry connector ...`.
     Connector(ConnectorAction),
-    /// `runx registry mark check <file>`.
-    MarkCheck,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -92,7 +89,6 @@ fn run_registry(
         RegistryAction::Connector(action) => {
             return connector::run_connector(action, plan, env, cwd);
         }
-        RegistryAction::MarkCheck => return mark::run_mark_check(plan, env, cwd),
         _ => {}
     }
     let target = resolve_registry_target(&plan, env, cwd);
@@ -101,8 +97,8 @@ fn run_registry(
         RegistryAction::Read => run_read(plan, target, env),
         RegistryAction::Resolve => run_resolve(plan, target, env),
         RegistryAction::Install => run_install(plan, target, env, cwd),
-        RegistryAction::Package | RegistryAction::Connector(_) | RegistryAction::MarkCheck => {
-            unreachable!("packaging, connectors and marks are handled before registry resolution")
+        RegistryAction::Package | RegistryAction::Connector(_) => {
+            unreachable!("packaging and connectors are handled before registry resolution")
         }
         RegistryAction::Publish => run_publish(plan, target, env, cwd),
     }

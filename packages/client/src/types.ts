@@ -112,15 +112,6 @@ export interface NativeConnectorPackageOutput extends Readonly<Record<string, un
   };
 }
 
-/** A standalone mark the parser accepted, keyed by the SHA-256 of exactly its bytes. */
-export interface NativeMarkCheckOutput extends Readonly<Record<string, unknown>> {
-  readonly status: "success";
-  readonly registry: {
-    readonly action: "mark_check";
-    readonly mark: { readonly mark_sha256: string; readonly bytes: number };
-  };
-}
-
 export interface NativeHarnessOutput {
   readonly status: "passed" | "failed" | "not_declared";
   readonly case_count: number;
@@ -148,8 +139,6 @@ export interface RunxClient {
   readonly packages: {
     materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput>;
     materializeConnector(options: InvocationOptions & { readonly connectorPath: string }): Promise<NativeConnectorPackageOutput>;
-    /** Checks a standalone mark by the rule a package's `mark.svg` passes; a refusal is an exit error with the parser's reason. */
-    checkMark(options: InvocationOptions & { readonly markPath: string }): Promise<NativeMarkCheckOutput>;
   };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly receipts: {

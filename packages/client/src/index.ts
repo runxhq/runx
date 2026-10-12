@@ -1,7 +1,7 @@
 import path from "node:path";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
-import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativeMarkCheckOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
+import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
 
 export { hostEnvironmentFrom } from "./environment.js";
 export { RunxClientError } from "./process.js";
@@ -83,16 +83,6 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
           throw new RunxClientError("contract", "Invalid native connector package.");
         }
         return output as NativeConnectorPackageOutput;
-      },
-      checkMark: async (options) => {
-        const output = parseJson(await execute(["registry", "mark", "check", argument(options.markPath), "--json"], options), [0]);
-        const mark = record(output.registry) ? output.registry.mark : undefined;
-        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "mark_check" || !record(mark)
-          || typeof mark.mark_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(mark.mark_sha256)
-          || typeof mark.bytes !== "number" || !Number.isSafeInteger(mark.bytes) || mark.bytes <= 0) {
-          throw new RunxClientError("contract", "Invalid native mark check.");
-        }
-        return output as NativeMarkCheckOutput;
       },
     },
     harness: {

@@ -92,18 +92,6 @@ describe("native invocation and decoding", () => {
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { ref: 'acme/ops-api' } } }));`);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");
   });
-  it("checks a standalone mark through the registry cli, and refuses a malformed answer", async () => {
-    const { root, config } = await setup();
-    const capture = path.join(root, "capture.json");
-    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
-      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
-      process.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'mark_check', mark: { mark_sha256: '${"a".repeat(64)}', bytes: 91 } } }));`);
-    const client = createRunxClient(config);
-    await expect(client.packages.checkMark({ markPath: "/marks/acme.svg" })).resolves.toMatchObject({ registry: { mark: { mark_sha256: "a".repeat(64), bytes: 91 } } });
-    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["registry", "mark", "check", "/marks/acme.svg", "--json"]);
-    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'mark_check', mark: { mark_sha256: 'sha256:short', bytes: 91 } } }));`);
-    await expect(client.packages.checkMark({ markPath: "/marks/acme.svg" })).rejects.toThrow("Invalid native mark check");
-  });
   it("names why runx refused, from its failure envelope", async () => {
     const { config } = await setup();
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'registry_error', message: 'SKILL.md.runx is not supported' } })); process.stderr.write('ignored'); process.exitCode = 1;`);

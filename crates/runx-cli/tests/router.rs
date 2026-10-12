@@ -913,47 +913,6 @@ fn routes_registry_to_native_plan() {
 }
 
 #[test]
-fn routes_registry_mark_check() {
-    assert_eq!(
-        plan(&["registry", "mark", "check", "mark.svg", "--json"]),
-        RouterAction::RunRegistry(RegistryPlan {
-            action: RegistryAction::MarkCheck,
-            subject: "mark.svg".to_owned(),
-            registry: None,
-            registry_dir: None,
-            version: None,
-            expected_digest: None,
-            destination: None,
-            owner: None,
-            profile: None,
-            trust_tier: None,
-            limit: None,
-            upsert: false,
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&[
-            "registry",
-            "mark",
-            "check",
-            "mark.svg",
-            "--registry",
-            "https://runx.example"
-        ]),
-        RouterAction::Error("runx registry mark check accepts only --json".to_owned())
-    );
-    assert_eq!(
-        plan(&["registry", "mark", "check"]),
-        RouterAction::Error("runx registry mark check requires exactly one mark file".to_owned())
-    );
-    assert_eq!(
-        plan(&["registry", "mark", "upload", "mark.svg"]),
-        RouterAction::Error("unknown registry mark subcommand upload".to_owned())
-    );
-}
-
-#[test]
 fn routes_registry_connector_subcommands() {
     let digest = format!("sha256:{}", "a".repeat(64));
     assert_eq!(
