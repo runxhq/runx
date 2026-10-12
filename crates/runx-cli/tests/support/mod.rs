@@ -4,7 +4,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -87,15 +86,17 @@ pub fn isolate_project(command: &mut Command) {
     command.env("RUNX_PROJECT_DIR", test_project_dir());
 }
 
-/// nextest runs each test in its own process, so each test gets its own.
-fn test_project_dir() -> &'static Path {
-    static PROJECT: OnceLock<PathBuf> = OnceLock::new();
-    PROJECT.get_or_init(|| {
-        Path::new(env!("CARGO_TARGET_TMPDIR"))
+/// One project per test: nextest runs each test in its own process, and
+/// `cargo test` runs each on its own thread, so per-thread is per-test under
+/// both and the commands of one test still share their project.
+fn test_project_dir() -> PathBuf {
+    thread_local! {
+        static PROJECT: PathBuf = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join("runx-cli-projects")
             .join(unique_temp_suffix())
-            .join(".runx")
-    })
+            .join(".runx");
+    }
+    PROJECT.with(Clone::clone)
 }
 
 pub fn unsigned_runx_command_with_inherited_cwd() -> Command {
