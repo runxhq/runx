@@ -42,7 +42,6 @@ pub(super) fn publish_remote_skill_package(
                 markdown: package.markdown(),
                 profile_document: package.profile_document(),
                 version: plan.version.as_deref(),
-                upsert: plan.upsert,
                 package_files: package.package_files(),
                 harness,
             },
@@ -73,8 +72,11 @@ pub(super) fn publish_remote_skill_package(
     .map_err(|error| internal_error(error.to_string()))
 }
 
+/// `--owner` names the namespace an administrator publishes into; `--upsert`
+/// only rewrites a local registry's version and never selects the hosted
+/// admin route, which has no such field.
 fn admin_publish_requested(plan: &RegistryPlan) -> bool {
-    plan.owner.is_some() || plan.upsert
+    plan.owner.is_some()
 }
 
 fn admin_publish_token(env: &BTreeMap<String, String>) -> Option<String> {

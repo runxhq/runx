@@ -60,7 +60,7 @@ fn publish_skill_rejects_an_unsuccessful_success_status_envelope()
 }
 
 #[test]
-fn publish_admin_sends_owner_harness_and_upsert() -> Result<(), Box<dyn std::error::Error>> {
+fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn std::error::Error>> {
     let transport = StubTransport::new(RuntimeHttpResponse::new(
         200,
         serde_json::json!({
@@ -103,7 +103,6 @@ fn publish_admin_sends_owner_harness_and_upsert() -> Result<(), Box<dyn std::err
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: Some("skill: hello\nrunners: {}\n"),
             version: Some("sha-123"),
-            upsert: true,
             package_files: &files,
             harness: &harness,
         },
@@ -118,7 +117,7 @@ fn publish_admin_sends_owner_harness_and_upsert() -> Result<(), Box<dyn std::err
     );
     let body = request_body(&requests[0])?;
     assert_eq!(body["owner"], "runx");
-    assert_eq!(body["upsert"], true);
+    assert!(body.get("upsert").is_none());
     assert_eq!(body["harness"]["status"], "passed");
     Ok(())
 }

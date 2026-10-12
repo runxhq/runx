@@ -26,6 +26,13 @@ pub struct RegistryPackageMetadata {
     pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
     pub tags: Vec<String>,
     pub harness_cases: Vec<RegistryHarnessCaseMetadata>,
+    /// Every input name the package declares: its shared input definitions
+    /// and each runner's inputs, sorted and once each.
+    pub input_names: Vec<String>,
+    /// The child skills the package composes, as written: its graph steps'
+    /// skill targets and the skills an agent turn may run, sorted and once
+    /// each.
+    pub skill_refs: Vec<String>,
     /// The connectors the package's `run.yaml` declares, in id order. Its own
     /// declarations only: a skill it composes declares its own.
     pub connectors: Vec<RegistryConnectorMetadata>,
@@ -78,6 +85,8 @@ pub(crate) fn project_registry_package_metadata(
             .unwrap_or_default(),
         tags: registry_tags(&catalog),
         harness_cases: registry_harness_cases(manifest),
+        input_names: registry_input_names(manifest),
+        skill_refs: registry_skill_refs(manifest),
         connectors,
     }
 }
@@ -151,17 +160,43 @@ pub(crate) fn registry_catalog(manifest: Option<&SkillRunnerManifest>) -> Catalo
             role: runx_parser::CatalogRole::Context,
             canonical_skill: None,
             provider: None,
-            runtime_path: None,
             part_of: Vec::new(),
             execution: None,
             completion: None,
-            requires_adapter: None,
             approval: None,
             category: None,
             tags: Vec::new(),
             owner: None,
             links: BTreeMap::new(),
         })
+}
+
+fn registry_input_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+    let mut names = std::collections::BTreeSet::new();
+    if let Some(manifest) = manifest {
+        names.extend(manifest.input_definitions.keys().cloned());
+        for runner in manifest.runners.values() {
+            names.extend(runner.inputs.keys().cloned());
+        }
+    }
+    names.into_iter().collect()
+}
+
+fn registry_skill_refs(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+    let mut refs = std::collections::BTreeSet::new();
+    if let Some(manifest) = manifest {
+        refs.extend(manifest.skills.iter().cloned());
+        for runner in manifest.runners.values() {
+            refs.extend(
+                runner
+                    .graph
+                    .steps
+                    .iter()
+                    .filter_map(|step| step.skill().map(|target| target.reference.clone())),
+            );
+        }
+    }
+    refs.into_iter().collect()
 }
 
 fn registry_runner_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {

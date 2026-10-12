@@ -318,6 +318,10 @@ runners:
         String::from_utf8_lossy(&package.stderr)
     );
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
+    // The package states what it declares, so a registry checks a
+    // presentation's references against it: its inputs and child skills.
+    assert_eq!(output["registry"]["package"]["metadata"]["input_names"], json!(["provider"]));
+    assert_eq!(output["registry"]["package"]["metadata"]["skill_refs"], json!([]));
     // A run-time choice names each connector it may choose; refs are sorted
     // and operations keep the order the package lists them. Each connector is
     // named by its publisher and the digests a closure binds it by.

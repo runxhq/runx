@@ -24,8 +24,6 @@ pub struct HostedAdminSkillPublishRequest<'a> {
     pub profile_document: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<&'a str>,
-    #[serde(skip_serializing_if = "is_false")]
-    pub upsert: bool,
     #[serde(skip_serializing_if = "slice_empty")]
     pub package_files: &'a [RegistryPackageFile],
     pub harness: &'a RegistryPublishHarnessReport,
@@ -170,9 +168,6 @@ fn slice_empty<T>(values: &&[T]) -> bool {
     values.is_empty()
 }
 
-fn is_false(value: &bool) -> bool {
-    !*value
-}
 
 #[derive(Deserialize)]
 struct HostedSkillPublishEnvelope {
