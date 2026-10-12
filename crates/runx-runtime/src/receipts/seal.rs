@@ -152,14 +152,14 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .map(|(choice, act)| decision(step_id, choice, act))
         .into_iter()
         .collect();
-    let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
-    seal_criteria.extend(verification);
-    let seal = seal(disposition, reason_code, seal_criteria);
     let children = child_receipts
         .iter()
         .map(child_receipt_reference)
         .collect::<Vec<_>>();
-    let outcome = outcome_digest(output.succeeded(), claim, &children)?;
+    let outcome = outcome_digest(&disposition, claim, &children)?;
+    let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
+    seal_criteria.extend(verification);
+    let seal = seal(disposition, reason_code, seal_criteria);
     let mut receipt = build_unsealed_receipt(BuildReceipt {
         issuer: signature_policy.signer()?.issuer(),
         scope,
@@ -453,11 +453,7 @@ fn build_graph_receipt(
     created_at: &str,
     closure: &GraphClosure,
 ) -> Result<UnsealedReceipt, RuntimeError> {
-    let outcome = outcome_digest(
-        closure.disposition == ClosureDisposition::Closed,
-        &JsonObject::new(),
-        &children,
-    )?;
+    let outcome = outcome_digest(&closure.disposition, &JsonObject::new(), &children)?;
     Ok(build_unsealed_receipt(BuildReceipt {
         issuer,
         scope,
@@ -478,21 +474,21 @@ fn build_graph_receipt(
     }))
 }
 
-// A subject's outcome binds whether it succeeded, the claim it sealed (the
-// outputs it declared; a graph declares none) and the ids of its direct child
-// receipts. Raw transport values, diagnostics, and child proof envelopes
+// A subject's outcome binds how it closed (its seal's disposition, the one
+// rule for steps and graphs alike), the claim it sealed (the outputs it
+// declared; a graph declares none) and the ids of its direct child receipts. Raw transport values, diagnostics, and child proof envelopes
 // remain excluded: a replay of the same declared claim and child identities
 // keeps its outcome, while a changed nested execution propagates to every
 // ancestor.
 fn outcome_digest(
-    succeeded: bool,
+    disposition: &ClosureDisposition,
     claim: &JsonObject,
     children: &[Reference],
 ) -> Result<Digest, RuntimeError> {
     let mut outcome = JsonObject::from([
         (
-            "status".to_owned(),
-            JsonValue::String(if succeeded { "success" } else { "failure" }.to_owned()),
+            "disposition".to_owned(),
+            JsonValue::String(disposition.label().to_owned()),
         ),
         ("claim".to_owned(), JsonValue::Object(claim.clone())),
     ]);
@@ -517,10 +513,11 @@ fn outcome_digest(
 
 pub(crate) fn validate_step_receipt_claim(
     receipt: &Receipt,
-    succeeded: bool,
     claim: &JsonObject,
 ) -> Result<(), RuntimeError> {
-    if receipt.subject.outcome == outcome_digest(succeeded, claim, &receipt.lineage.children)? {
+    if receipt.subject.outcome
+        == outcome_digest(&receipt.seal.disposition, claim, &receipt.lineage.children)?
+    {
         return Ok(());
     }
     Err(RuntimeError::ReceiptInvalid {
@@ -546,17 +543,7 @@ fn validate_receipt_tree_with_policy<'a>(
 }
 
 fn step_reason_code(disposition: &ClosureDisposition) -> String {
-    let suffix = match disposition {
-        ClosureDisposition::Closed => "closed",
-        ClosureDisposition::Deferred => "deferred",
-        ClosureDisposition::Superseded => "superseded",
-        ClosureDisposition::Declined => "declined",
-        ClosureDisposition::Blocked => "blocked",
-        ClosureDisposition::Failed => "failed",
-        ClosureDisposition::Killed => "killed",
-        ClosureDisposition::TimedOut => "timed_out",
-    };
-    format!("step_{suffix}")
+    format!("step_{}", disposition.label())
 }
 
 /// The run a receipt belongs to, and the graph it ran.
@@ -1327,16 +1314,16 @@ mod tests {
         let claim = JsonObject::new();
 
         assert_eq!(
-            outcome_digest(true, &claim, &[first.clone()])?,
-            outcome_digest(true, &claim, &[same_id_new_digest])?
+            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
+            outcome_digest(&ClosureDisposition::Closed, &claim, &[same_id_new_digest])?
         );
         assert_ne!(
-            outcome_digest(true, &claim, &[first.clone()])?,
-            outcome_digest(true, &claim, &[second])?
+            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
+            outcome_digest(&ClosureDisposition::Closed, &claim, &[second])?
         );
         assert_ne!(
-            outcome_digest(true, &claim, &[first.clone()])?,
-            outcome_digest(false, &claim, &[first])?
+            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
+            outcome_digest(&ClosureDisposition::Failed, &claim, &[first])?
         );
         Ok(())
     }

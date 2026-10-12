@@ -871,6 +871,7 @@ where
         };
         if approval_run.skill != "ask"
             || !approval_run.outcome.succeeded()
+            || approval_run.receipt.seal.disposition != runx_contracts::ClosureDisposition::Closed
             || operand_value(&guard.value, runs) != Some(&JsonValue::Bool(true))
         {
             continue;
@@ -889,7 +890,6 @@ where
         })?;
         crate::receipts::seal::validate_step_receipt_claim(
             &approval_run.receipt,
-            true,
             &approval_run.contract,
         )?;
         references.push(crate::receipts::seal::child_receipt_reference(

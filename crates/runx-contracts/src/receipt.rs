@@ -74,10 +74,10 @@ pub struct Subject {
     /// What ran.
     #[serde(rename = "ref")]
     pub reference: Reference,
-    /// The digest of the subject's outcome: whether it succeeded, the
-    /// outputs it declared, and its direct children's receipt ids. The
-    /// receipt commits to that outcome; the produced content beyond its
-    /// declared outputs is not part of it.
+    /// The digest of the subject's outcome: how it closed (its seal's
+    /// disposition), the outputs it declared, and its direct children's
+    /// receipt ids. The receipt commits to that outcome; the produced content
+    /// beyond its declared outputs is not part of it.
     pub outcome: Digest,
 }
 
