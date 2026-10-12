@@ -21,7 +21,7 @@ use crate::connector::Digest;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{
     ActForm, AuthorityDerivation, AuthorityTerm, ClosureDisposition, CriterionBinding, Decision,
-    Intent, JsonObject, Reference,
+    Intent, Reference,
 };
 
 /// Logical schema name for the governance receipt.
@@ -53,24 +53,29 @@ pub enum ReceiptSchema {
     V1,
 }
 
-/// Canonical receipt subject kinds. The wire form on `Subject.kind` is an
-/// open `NonEmptyString` so receipts emitted by new subject categories (for
-/// example, tool build or hosted provider publication) do not require a
-/// contract edit.
-pub mod receipt_subject_kind {
-    /// A single skill invocation.
-    pub const SKILL: &str = "skill";
-    /// A graph execution composed of multiple acts.
-    pub const GRAPH: &str = "graph";
+/// What a receipt seals: one step's attempt, or the whole graph a run ran.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SubjectKind {
+    Step,
+    Graph,
+}
+
+impl SubjectKind {
+    /// Stable string label, identical to the serde `snake_case` representation.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Step => "step",
+            Self::Graph => "graph",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Subject {
-    /// Open subject kind identifier (e.g. `receipt_subject_kind::SKILL`). Any
-    /// non-empty string is accepted; new subject categories do not need a
-    /// contract edit.
-    pub kind: NonEmptyString,
+    pub kind: SubjectKind,
     /// What ran.
     #[serde(rename = "ref")]
     pub reference: Reference,
@@ -149,8 +154,61 @@ pub struct ReceiptAct {
 #[serde(deny_unknown_fields)]
 pub struct Seal {
     pub disposition: ClosureDisposition,
-    pub reason_code: NonEmptyString,
+    /// Why it closed so, where the disposition alone does not say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<SealReason>,
     pub criteria: Vec<CriterionBinding>,
+}
+
+/// Why a receipt closed as it did, beyond its disposition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SealReason {
+    /// The run was refused before any step ran.
+    PreflightRefused,
+    /// A harness case's inputs do not satisfy the runner's input contract.
+    InputContractInvalid,
+    /// The graph stopped because one of its steps failed.
+    GraphStepFailed,
+    /// The graph stopped at a step that could not proceed.
+    GraphBlocked,
+    /// A call's authority did not admit it.
+    AuthorityDenied,
+    /// The graph waits on a step's request its host has not yet answered.
+    ResolutionPending,
+    /// The managed agent's provider request failed.
+    ManagedAgentProviderFailed,
+    /// The managed agent could not resolve the turn it was given.
+    ManagedAgentResolutionFailed,
+    /// The managed agent's model answered without progress for every turn
+    /// it was allowed.
+    ManagedAgentEmptyTurnBudgetExhausted,
+    /// A tool the managed agent called failed.
+    ManagedAgentToolExecutionFailed,
+    /// The managed agent used every round its turn allowed.
+    ManagedAgentRoundBudgetExhausted,
+}
+
+impl SealReason {
+    /// Stable string label, identical to the serde `snake_case` representation.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::PreflightRefused => "preflight_refused",
+            Self::InputContractInvalid => "input_contract_invalid",
+            Self::GraphStepFailed => "graph_step_failed",
+            Self::GraphBlocked => "graph_blocked",
+            Self::AuthorityDenied => "authority_denied",
+            Self::ResolutionPending => "resolution_pending",
+            Self::ManagedAgentProviderFailed => "managed_agent_provider_failed",
+            Self::ManagedAgentResolutionFailed => "managed_agent_resolution_failed",
+            Self::ManagedAgentEmptyTurnBudgetExhausted => {
+                "managed_agent_empty_turn_budget_exhausted"
+            }
+            Self::ManagedAgentToolExecutionFailed => "managed_agent_tool_execution_failed",
+            Self::ManagedAgentRoundBudgetExhausted => "managed_agent_round_budget_exhausted",
+        }
+    }
 }
 
 /// What runx committed of a receipt's place among others.
@@ -215,13 +273,9 @@ pub struct ReceiptSignature {
 /// The single signed governance receipt: `runx.receipt.v1`.
 ///
 /// `decisions[]` (each choice and the act it selects) and `acts[]` (intent,
-/// the caller's reason, the checks bound to each act) are inline. `metadata` is a
-/// runtime-local read aid (the invocation's execution limits, a failure's
-/// public projection) and is NOT part of the canonical signed body (the
-/// canonicalizer strips it). It is non-authoritative and must never be the
-/// source of a trust-bearing identity label. Display identity comes from
-/// signed fields: `subject.kind`, `subject.ref`, `issuer` and
-/// `authority.actor_ref`.
+/// the caller's reason, the checks bound to each act) are inline. Every field
+/// is signed; display identity comes from `subject.kind`, `subject.ref`,
+/// `issuer` and `authority.actor_ref`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.receipt.v1")]
@@ -239,6 +293,4 @@ pub struct Receipt {
     pub acts: Vec<ReceiptAct>,
     pub seal: Seal,
     pub lineage: Lineage,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<JsonObject>,
 }

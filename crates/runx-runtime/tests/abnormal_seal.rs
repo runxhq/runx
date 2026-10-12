@@ -25,7 +25,10 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
 
     assert_eq!(output.status, HarnessExpectedStatus::PolicyDenied);
     assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Blocked);
-    assert_eq!(output.receipt.seal.reason_code, "graph_blocked");
+    assert_eq!(
+        output.receipt.seal.reason,
+        Some(runx_contracts::SealReason::GraphBlocked)
+    );
     assert_eq!(output.step_receipts.len(), 1);
     assert_eq!(
         output.step_receipts[0].seal.disposition,
@@ -177,7 +180,7 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: blocked
-    reason_code: graph_blocked
+    reason: graph_blocked
   steps:
     - act
 "#,

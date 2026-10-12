@@ -30,7 +30,6 @@ pub mod host_protocol;
 pub mod javascript_worker;
 pub mod json;
 pub mod ledger;
-pub mod limits;
 pub mod links;
 pub mod list;
 pub mod maturity;
@@ -158,10 +157,6 @@ pub use ledger::{
     LedgerEntrySchemaVersion, LedgerHashAlgorithm, LedgerPayload, LedgerPayloadVersion,
     LedgerProducer, LedgerSha256Hex,
 };
-pub use limits::{
-    EXECUTION_LIMITS_METADATA, ExecutionLimit, ExecutionLimitHit, ExecutionLimitUnit,
-    ExecutionLimits,
-};
 pub use links::{DuplicateCandidate, Links};
 pub use list::{
     RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
@@ -240,7 +235,7 @@ pub use provider_operation::ProviderOperationPacket;
 pub use receipt::{
     Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,
     ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,
-    ReceiptSignature, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
+    ReceiptSignature, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
 };
 pub use redaction::{HashAlgorithm, HashCommitment, REDACTION_SCHEMA, Redaction, RedactionSchema};
 pub use reference::{

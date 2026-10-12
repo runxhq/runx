@@ -64,7 +64,6 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: blocked
-    reason_code: agent_act_blocked
   output:
     subset:
       send_plan:

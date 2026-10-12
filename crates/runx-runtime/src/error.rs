@@ -66,8 +66,8 @@ pub enum RuntimeError {
     StepClosed {
         step_id: String,
         disposition: runx_contracts::ClosureDisposition,
-        /// The step receipt's own reason code, which the graph seal keeps.
-        reason_code: String,
+        /// The step receipt's own seal reason, which the graph seal keeps.
+        reason: Option<runx_contracts::SealReason>,
         summary: String,
     },
     #[error(transparent)]

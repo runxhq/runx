@@ -99,7 +99,7 @@
   },
   {
     "skill_id": "runx/diagnose-skill-run",
-    "version": "sha-b2fda89d6402",
+    "version": "sha-6a086ee93347",
     "digest": "44d25338b1d8e16b5f0ded7f2d30967e9d94a48d25389f4c30efa4bba2aeda26",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -134,7 +134,7 @@
   },
   {
     "skill_id": "runx/github-pr-comment",
-    "version": "sha-6c0a61dad750",
+    "version": "sha-00e9b8b7da0b",
     "digest": "9683d81590031dba5f423c3625dc200ea404324c29fde0dd183740f899725864",
     "catalog_visibility": "public",
     "catalog_role": "canonical"

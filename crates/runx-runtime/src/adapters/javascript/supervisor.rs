@@ -4,8 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    InvocationLimits, PROTOCOL_VERSION, WorkerDisposition, WorkerInvocationRequest, WorkerLimit,
-    WorkerRequest,
+    InvocationLimits, PROTOCOL_VERSION, WorkerDisposition, WorkerInvocationRequest, WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -31,7 +30,6 @@ pub(super) struct WorkerInvocation {
 pub(super) enum WorkerInvocationResult {
     Success(serde_json::Value),
     Failure {
-        limit: Option<WorkerLimit>,
         message: String,
         disposition: WorkerDisposition,
     },

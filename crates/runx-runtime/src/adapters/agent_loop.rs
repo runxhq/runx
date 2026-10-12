@@ -23,7 +23,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use runx_contracts::{JsonValue, OutputField, validate_output_value};
+use runx_contracts::{JsonValue, OutputField, SealReason, validate_output_value};
 
 use super::agent::{AgentExecutionTelemetry, AgentToolExecutionTrace};
 use crate::RuntimeError;
@@ -39,13 +39,14 @@ pub enum AgentLoopFailureReason {
 }
 
 impl AgentLoopFailureReason {
+    /// The reason a receipt seals a managed agent stopped for this.
     #[must_use]
-    pub const fn as_str(self) -> &'static str {
+    pub const fn seal_reason(self) -> SealReason {
         match self {
-            Self::ProviderFailed => "provider_failed",
-            Self::EmptyTurnBudgetExhausted => "empty_turn_budget_exhausted",
-            Self::ToolExecutionFailed => "tool_execution_failed",
-            Self::RoundBudgetExhausted => "round_budget_exhausted",
+            Self::ProviderFailed => SealReason::ManagedAgentProviderFailed,
+            Self::EmptyTurnBudgetExhausted => SealReason::ManagedAgentEmptyTurnBudgetExhausted,
+            Self::ToolExecutionFailed => SealReason::ManagedAgentToolExecutionFailed,
+            Self::RoundBudgetExhausted => SealReason::ManagedAgentRoundBudgetExhausted,
         }
     }
 }

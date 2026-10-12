@@ -11,15 +11,14 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::connector::Digest;
-use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ActForm, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb,
     ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
     ExecutionBoundaryKind, ExecutionBoundaryObservation, Intent, JsonValue, Lineage,
     RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization,
     ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
-    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, TermLegitimacy,
-    canonical_stable_json, receipt_subject_kind,
+    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, SubjectKind, TermLegitimacy,
+    canonical_stable_json,
 };
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
@@ -107,7 +106,7 @@ fn sealed(mut receipt: Receipt) -> Receipt {
     receipt
 }
 
-fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
+fn base(id: &str, kind: SubjectKind, subject_id: &str) -> Receipt {
     Receipt {
         schema: ReceiptSchema::V1,
         id: id.into(),
@@ -143,11 +142,10 @@ fn base(id: &str, kind: NonEmptyString, subject_id: &str) -> Receipt {
         acts: Vec::new(),
         seal: Seal {
             disposition: ClosureDisposition::Closed,
-            reason_code: "step_closed".into(),
+            reason: None,
             criteria: Vec::new(),
         },
         lineage: Lineage::default(),
-        metadata: None,
     }
 }
 
@@ -252,11 +250,7 @@ fn operator_context_ref() -> Reference {
 
 /// A governed call whose caller stated a reply that continues the thread.
 fn success_receipt() -> Receipt {
-    let mut receipt = base(
-        "rcpt_echo_success",
-        receipt_subject_kind::SKILL.into(),
-        "echo_success",
-    );
+    let mut receipt = base("rcpt_echo_success", SubjectKind::Step, "echo_success");
     let act = call_act(CallOutcome {
         form: ActForm::Reply,
         purpose: "Answer the question on the thread.",
@@ -285,11 +279,7 @@ fn success_receipt() -> Receipt {
 /// A governed call whose caller stated no act: an observation whose purpose
 /// is its operation's declared description.
 fn abnormal_receipt() -> Receipt {
-    let mut receipt = base(
-        "rcpt_echo_abnormal",
-        receipt_subject_kind::SKILL.into(),
-        "echo_abnormal",
-    );
+    let mut receipt = base("rcpt_echo_abnormal", SubjectKind::Step, "echo_abnormal");
     call_authority(&mut receipt);
     receipt.acts = vec![call_act(CallOutcome {
         form: ActForm::Observation,
@@ -301,7 +291,6 @@ fn abnormal_receipt() -> Receipt {
         status: CriterionStatus::Failed,
     })];
     receipt.seal.disposition = ClosureDisposition::Failed;
-    receipt.seal.reason_code = "step_failed".into();
     receipt.seal.criteria = vec![outcome_binding(CriterionStatus::Failed)];
     receipt
 }

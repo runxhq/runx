@@ -49,7 +49,6 @@ pub fn serve() -> Result<(), WorkerServerError> {
                     protocol_version: PROTOCOL_VERSION,
                     invocation_id: None,
                     code: WorkerFailureCode::InvalidProtocol,
-                    limit: None,
                     message: "worker protocol handshake mismatch".to_owned(),
                     disposition: WorkerDisposition::Discard,
                 },
@@ -128,7 +127,6 @@ fn engine_failure(invocation_id: String, error: &EngineError) -> WorkerResponse 
         protocol_version: PROTOCOL_VERSION,
         invocation_id: Some(invocation_id),
         code: error.code,
-        limit: error.limit,
         message: error.message.clone(),
         // Each invocation receives a fresh Boa context and module loader. A
         // typed module/execution failure therefore invalidates only this
@@ -151,7 +149,6 @@ fn send_failure(
             protocol_version: PROTOCOL_VERSION,
             invocation_id,
             code,
-            limit: None,
             message: message.to_owned(),
             disposition,
         },

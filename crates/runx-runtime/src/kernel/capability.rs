@@ -301,7 +301,10 @@ operations:
             &self,
             _request: RuntimeHttpRequest,
         ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-            Ok(RuntimeHttpResponse::new(200, r#"{"id": 7, "login": "octo"}"#))
+            Ok(RuntimeHttpResponse::new(
+                200,
+                r#"{"id": 7, "login": "octo"}"#,
+            ))
         }
     }
 
@@ -381,9 +384,10 @@ operations:
 
         let every = confirm(&[]).expect("no scope grants every served scope");
         let scopes = match &every.authority {
-            InstanceAuthority::Session { scopes, .. } => {
-                scopes.iter().map(|scope| scope.as_str()).collect::<Vec<_>>()
-            }
+            InstanceAuthority::Session { scopes, .. } => scopes
+                .iter()
+                .map(|scope| scope.as_str())
+                .collect::<Vec<_>>(),
             other => vec![other.kind()],
         };
         assert_eq!(scopes, ["repo.write", "user.read"]);

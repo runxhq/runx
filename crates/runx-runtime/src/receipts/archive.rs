@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use runx_contracts::{ClosureDisposition, Receipt};
+use runx_contracts::{ClosureDisposition, Receipt, SealReason};
 use runx_core::policy::parse_rfc3339_moment;
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContextProvider, signed_display_identity, verify_receipt_proof,
@@ -56,8 +56,10 @@ pub struct ReceiptRow {
     pub name: String,
     pub status: String,
     pub created_at: String,
-    /// Why the receipt's seal closed as it did.
-    pub reason_code: String,
+    /// Why the receipt's seal closed as it did, when its disposition alone
+    /// does not say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<SealReason>,
     pub issuer_type: String,
     /// The actor the receipt's authority names, when it names one.
     pub actor: Option<String>,
@@ -170,7 +172,7 @@ fn row(receipt: &Receipt, signature_policy: RuntimeReceiptSignaturePolicy<'_>) -
         name,
         status: closure_status(&receipt.seal.disposition),
         created_at: receipt.created_at.to_string(),
-        reason_code: receipt.seal.reason_code.to_string(),
+        reason: receipt.seal.reason,
         issuer_type: identity.issuer_type,
         actor: identity.actor,
         verification: ReceiptVerification {

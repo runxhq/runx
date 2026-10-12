@@ -494,13 +494,13 @@ impl GraphExecution {
             // list agrees with the run record's step failure; a failed attempt
             // must never be silently absent from the execution record.
             let disposition = run.receipt.seal.disposition.clone();
-            let reason_code = run.receipt.seal.reason_code.to_string();
+            let reason = run.receipt.seal.reason;
             self.push_run(runtime, run, answers)?;
             if super::is_governed_step_closure(&disposition) {
                 return Err(RuntimeError::StepClosed {
                     step_id: plan.step_id.to_owned(),
                     disposition,
-                    reason_code,
+                    reason,
                     summary: message,
                 });
             }

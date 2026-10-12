@@ -393,8 +393,15 @@ pub(crate) fn prepare_skill_run_with_effects(
         if let Some(stage) = context.trace.last().map(|entry| entry.stage.clone()) {
             failure.insert("stage".to_owned(), JsonValue::String(stage));
         }
+        // Inputs that failed their contract are refused as that; any other
+        // blocked preparation is a preflight refusal.
+        let reason = if input_failure.is_some() {
+            runx_contracts::SealReason::InputContractInvalid
+        } else {
+            runx_contracts::SealReason::PreflightRefused
+        };
         Some(super::skill_front::seal_skill_preflight_refusal(
-            &request, &manifest, &runner, failure,
+            &request, &manifest, &runner, failure, reason,
         )?)
     } else {
         None
@@ -1458,9 +1465,8 @@ runners:
                     descendant_receipts: &[],
                     closure: Some(StepSealClosure {
                         disposition: ClosureDisposition::Closed,
-                        reason_code: "prepared_complete".to_owned(),
+                        reason: None,
                     }),
-                    receipt_metadata: None,
                 },
                 signature.signature_policy(),
             )

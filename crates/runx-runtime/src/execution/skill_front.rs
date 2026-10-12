@@ -365,12 +365,13 @@ fn bind_resolved(
 }
 
 /// Seal the refusal of a run that never started: its request failed
-/// preparation before admission.
+/// preparation before admission, for `reason`.
 pub(super) fn seal_skill_preflight_refusal(
     request: &SkillRunRequest,
     manifest: &SkillRunnerManifest,
     runner: &SkillRunnerDefinition,
     failure: JsonObject,
+    reason: runx_contracts::SealReason,
 ) -> Result<String, SkillRunError> {
     let workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
@@ -385,8 +386,6 @@ pub(super) fn seal_skill_preflight_refusal(
         .and_then(JsonValue::as_str)
         .unwrap_or("skill preparation was refused")
         .to_owned();
-    let mut receipt_metadata = failure.clone();
-    receipt_metadata.remove("accepted_schema");
     let output = InvocationOutput::runtime_failure(JsonValue::Object(failure), message.clone(), 0);
     let receipt = seal_refusal(
         RunScope {
@@ -398,9 +397,8 @@ pub(super) fn seal_skill_preflight_refusal(
         &output,
         StepSealClosure {
             disposition: ClosureDisposition::Blocked,
-            reason_code: "preflight_refused".to_owned(),
+            reason: Some(reason),
         },
-        receipt_metadata,
     )?;
     runner_manifest::write_skill_receipt(request, &workspace, &receipts, &receipt)?;
     Ok(receipt.id.to_string())
@@ -433,7 +431,13 @@ fn prepare_skill_execution(
                 "stage".to_owned(),
                 JsonValue::String("validate_inputs".to_owned()),
             );
-            let receipt_id = seal_skill_preflight_refusal(&request, manifest, runner, failure)?;
+            let receipt_id = seal_skill_preflight_refusal(
+                &request,
+                manifest,
+                runner,
+                failure,
+                runx_contracts::SealReason::InputContractInvalid,
+            )?;
             return Err(SkillRunError::PreflightRefused {
                 source: Box::new(source),
                 receipt_id,
@@ -584,7 +588,6 @@ fn seal_refusal(
     signature_config: &RuntimeReceiptSignatureConfig,
     output: &InvocationOutput,
     closure: StepSealClosure,
-    receipt_metadata: JsonObject,
 ) -> Result<runx_contracts::Receipt, SkillRunError> {
     Ok(seal_step(
         StepSeal {
@@ -600,7 +603,6 @@ fn seal_refusal(
             child_receipts: &[],
             descendant_receipts: &[],
             closure: Some(closure),
-            receipt_metadata: Some(receipt_metadata),
         },
         signature_config.signature_policy(),
     )?)
@@ -684,10 +686,12 @@ fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
         "disposition".to_owned(),
         JsonValue::String(seal.disposition.label().to_owned()),
     );
-    closure.insert(
-        "reason_code".to_owned(),
-        JsonValue::String(seal.reason_code.to_string()),
-    );
+    if let Some(reason) = seal.reason {
+        closure.insert(
+            "reason".to_owned(),
+            JsonValue::String(reason.label().to_owned()),
+        );
+    }
     closure
 }
 

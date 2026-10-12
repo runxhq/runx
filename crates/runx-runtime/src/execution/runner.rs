@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, Receipt};
+use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, Receipt, SealReason};
 use runx_core::state_machine::{GraphStatus, SequentialGraphState, StepAdmissionWitness};
 use runx_parser::ExecutionGraph;
 use serde::{Deserialize, Serialize};
@@ -282,35 +282,35 @@ pub(crate) fn failed_step_id(graph: &ExecutionGraph, error: &RuntimeError) -> Op
 pub(crate) fn graph_stop_closure(
     error: &RuntimeError,
 ) -> Option<(String, crate::receipts::GraphClosure)> {
-    let (step_id, disposition, reason_code) = match error {
+    let (step_id, disposition, reason) = match error {
         RuntimeError::GraphBlocked { step_id, .. } => (
             step_id,
             ClosureDisposition::Blocked,
-            "graph_blocked".to_owned(),
+            Some(SealReason::GraphBlocked),
         ),
         RuntimeError::AuthorityDenied { step_id, .. } => (
             step_id,
             ClosureDisposition::Blocked,
-            "authority_denied".to_owned(),
+            Some(SealReason::AuthorityDenied),
         ),
         RuntimeError::ResolutionPending { step_id, .. } => (
             step_id,
             ClosureDisposition::Deferred,
-            "resolution_pending".to_owned(),
+            Some(SealReason::ResolutionPending),
         ),
         RuntimeError::StepClosed {
             step_id,
             disposition,
-            reason_code,
+            reason,
             ..
-        } => (step_id, disposition.clone(), reason_code.clone()),
+        } => (step_id, disposition.clone(), *reason),
         _ => return None,
     };
     Some((
         step_id.clone(),
         crate::receipts::GraphClosure {
             disposition,
-            reason_code,
+            reason,
         },
     ))
 }
@@ -560,7 +560,7 @@ where
             &self.options.clock.now(),
             crate::receipts::GraphClosure {
                 disposition: ClosureDisposition::Failed,
-                reason_code: "graph_step_failed".to_owned(),
+                reason: Some(SealReason::GraphStepFailed),
             },
             self.options.signature_policy(),
         )?;

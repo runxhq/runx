@@ -169,9 +169,6 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
         matches!(
             slow.result,
             WorkerInvocationResult::Failure {
-                limit: Some(
-                    runx_contracts::javascript_worker::WorkerLimit::WallMilliseconds
-                ),
                 ref message,
                 disposition: runx_contracts::javascript_worker::WorkerDisposition::Discard,
             } if message.contains("exceeded 1 ms wall limit")

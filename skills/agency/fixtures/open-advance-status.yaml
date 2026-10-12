@@ -28,7 +28,6 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: closed
-    reason_code: graph_closed
     child_receipt_count: 3
   steps:
     - open

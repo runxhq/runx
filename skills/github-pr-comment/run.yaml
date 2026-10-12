@@ -53,7 +53,7 @@ harness:
           schema: runx.receipt.v1
           state: sealed
           disposition: blocked
-          reason_code: authority_denied
+          reason: authority_denied
 
 connectors:
   github:

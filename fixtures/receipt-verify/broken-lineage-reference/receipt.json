@@ -14,8 +14,8 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "created_at": "2026-05-18T00:00:00Z",
   "decisions": [],
-  "digest": "sha256:6a691e4f56344c52a5bb16c26b2936cab680a7332cabb802678ca8142887ff64",
-  "id": "sha256:76bd97080a924b788480df19d72f6bac2be087523e1d1c40466eee4e851fd0d6",
+  "digest": "sha256:94c34c0888e73802cb76b8a326ef501df1771a3f5c5fa510995fff3ae04066fb",
+  "id": "sha256:a90dcc565d76a79d30b4a1da214d2774204e9355375ea081639cfdc418478f55",
   "issuer": {
     "kid": "local-87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
     "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
@@ -34,15 +34,14 @@
         "verification_refs": []
       }
     ],
-    "disposition": "closed",
-    "reason_code": "step_closed"
+    "disposition": "closed"
   },
   "signature": {
     "alg": "Ed25519",
-    "value": "base64:1Ae4yDBznd5r9Bt54LJ69WCzWbMynW-IxN75masKEIFxDMFNvVpYgNaT03IXxqsn_ByK7YZoxkNPFRWwTezEBQ"
+    "value": "base64:acCwDFEjanLnQnjl2KweF-qFsX3CE1A_G18uhjkEGQHxzxpUU9zJ0AsD5FV4oGyo8AMoUZsIq97CXzYIE9Q2Aw"
   },
   "subject": {
-    "kind": "skill",
+    "kind": "step",
     "outcome": "sha256:35cfef0160a69e9403c92d4c1e69e7527ea1acd7805cd31e5b22f7da7c48274d",
     "ref": {
       "label": "sequential-echo",

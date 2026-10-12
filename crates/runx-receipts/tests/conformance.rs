@@ -17,13 +17,13 @@
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use jsonschema::Validator;
-use runx_contracts::{JsonObject, Receipt};
+use runx_contracts::Receipt;
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_body_json, canonical_receipt_digest,
-    canonical_receipt_json, signed_display_identity,
+    canonical_receipt_json,
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 const RECEIPT_SCHEMA: &str = include_str!("../../../schemas/receipt.schema.json");
 const SUCCESS_RECEIPT: &str =
@@ -127,23 +127,4 @@ fn conformance_canonical_json_is_byte_identical_to_oracle() {
             case.name
         );
     }
-}
-
-#[test]
-fn conformance_display_identity_ignores_unsigned_metadata() {
-    let mut receipt = fixture_receipt(SUCCESS_RECEIPT);
-    let original = signed_display_identity(&receipt);
-    let forged_metadata: JsonObject = serde_json::from_value(json!({
-        "skill_name": "forged-skill",
-        "source_type": "forged-source",
-        "runner": {
-            "provider": "forged-runner"
-        },
-        "actor": "forged-actor"
-    }))
-    .expect("forged metadata parses as contract JSON");
-
-    receipt.metadata = Some(forged_metadata);
-
-    assert_eq!(signed_display_identity(&receipt), original);
 }

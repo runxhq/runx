@@ -31,7 +31,6 @@ harness:
           schema: runx.receipt.v1
           state: sealed
           disposition: closed
-          reason_code: graph_closed
 
 runners:
   default:

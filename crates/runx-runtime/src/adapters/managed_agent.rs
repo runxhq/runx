@@ -136,7 +136,7 @@ impl ManagedAgent {
         let end =
             run_agent_loop(&loop_config, model.as_ref(), &mut calls, prompt).map_err(|error| {
                 fail(ManagedAgentError::bounded_failure(
-                    error.reason().as_str(),
+                    error.reason().seal_reason(),
                     error.sanitized_message(),
                     error.telemetry().clone(),
                 ))

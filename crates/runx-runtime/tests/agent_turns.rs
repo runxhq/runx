@@ -923,7 +923,7 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
     let output = object(&sealed.output)?;
     let closure = object(output.get("closure").ok_or("missing closure")?)?;
     assert_eq!(text(closure, "disposition"), Some("blocked"));
-    assert_eq!(text(closure, "reason_code"), Some("authority_denied"));
+    assert_eq!(text(closure, "reason"), Some("authority_denied"));
     // Why authority refused rides the run's output, outside the signed receipt.
     let refusal = object(output.get("refusal").ok_or("missing refusal")?)?;
     assert!(

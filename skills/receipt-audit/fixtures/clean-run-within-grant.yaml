@@ -26,7 +26,7 @@ inputs:
   receipt_details:
     - id: rcpt_issue_triage_4471
       receipt_ref: runx:receipt:rcpt_issue_triage_4471
-      subject_kind: skill
+      subject_kind: graph
       subject_ref: issue-triage
       created_at: "2026-07-16T00:00:00Z"
       status: closed
@@ -52,17 +52,12 @@ inputs:
           form: observation
           purpose: Read the issue thread.
           legitimacy: Held repo.read.
-          summary: Read issue evidence.
-          disposition: closed
-          reason_code: process_closed
           target_refs: []
           artifact_refs: []
           criterion_statuses: []
           context_ref_present: false
       artifact_refs: []
       lineage_refs: []
-      seal_reason_code: process_closed
-      seal_summary: Read completed.
   granted_scopes:
     - repo:read
   objective: Confirm the triage run stayed within its read-only grant.

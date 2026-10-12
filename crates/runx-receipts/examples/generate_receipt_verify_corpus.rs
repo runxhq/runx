@@ -49,7 +49,7 @@ fn main() {
     write_receipt(&valid_path, &valid);
 
     let mut tampered_body = valid.clone();
-    tampered_body.seal.reason_code = "tampered_receipt_body".into();
+    tampered_body.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
     write_receipt(&root.join("tampered-body/receipt.json"), &tampered_body);
 
     let mut tampered_signature = valid.clone();

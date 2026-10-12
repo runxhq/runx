@@ -113,8 +113,6 @@ pub enum WorkerResponse {
         protocol_version: u16,
         invocation_id: Option<String>,
         code: WorkerFailureCode,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        limit: Option<WorkerLimit>,
         message: String,
         disposition: WorkerDisposition,
     },
@@ -137,32 +135,6 @@ pub enum WorkerFailureCode {
     ExecutionFailed,
     OutputRejected,
     InternalFailure,
-}
-
-/// Exact worker ceiling responsible for a resource-limit failure. The
-/// supervisor adds `wall_milliseconds`; the worker reports only limits it can
-/// identify structurally.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkerLimit {
-    SourceBytes,
-    InputBytes,
-    OutputBytes,
-    WallMilliseconds,
-    QueuedJobs,
-}
-
-impl WorkerLimit {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SourceBytes => "source_bytes",
-            Self::InputBytes => "input_bytes",
-            Self::OutputBytes => "output_bytes",
-            Self::WallMilliseconds => "wall_milliseconds",
-            Self::QueuedJobs => "queued_jobs",
-        }
-    }
 }
 
 impl WorkerFailureCode {

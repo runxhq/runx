@@ -1053,10 +1053,9 @@ fn derive(
     .map_err(|error| {
         let parent = error.parent();
         let detail = match parent {
-            DerivationParent::Capability => format!(
-                "{} does not cover this call: {error}",
-                capability.source
-            ),
+            DerivationParent::Capability => {
+                format!("{} does not cover this call: {error}", capability.source)
+            }
             DerivationParent::Delegation(index) => {
                 format!("delegation link {index} does not cover this call: {error}")
             }

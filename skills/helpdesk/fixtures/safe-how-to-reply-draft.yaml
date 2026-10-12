@@ -46,7 +46,6 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     disposition: closed
-    reason_code: graph_closed
 metadata:
   public_skill: helpdesk
   source_case: safe-how-to-reply-draft

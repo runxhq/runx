@@ -2,23 +2,20 @@
 //!
 //! An invocation's result is its status, value and diagnostics. Beside it the
 //! runtime records what it observed itself: where the invocation ran, the
-//! limits that bounded it, the credentials it delivered, the contract checks
-//! it ran and the verification of its effect. Only the runtime writes these.
+//! credentials it delivered, the contract checks it ran and the verification
+//! of its effect. Only the runtime writes these.
 //! An adapter answers with a value; it cannot state an observation, so a
 //! receipt seals only what the runtime earned.
 
 use std::collections::BTreeMap;
 
-use runx_contracts::{
-    CredentialDeliveryObservation, ExecutionBoundaryKind, ExecutionLimits, Reference,
-};
+use runx_contracts::{CredentialDeliveryObservation, ExecutionBoundaryKind, Reference};
 
 use crate::RuntimeError;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Observations {
     pub(crate) boundary: Option<ExecutionBoundaryKind>,
-    pub(crate) limits: Option<ExecutionLimits>,
     pub(crate) credentials: Vec<CredentialDeliveryObservation>,
     pub(crate) contract: ContractChecks,
     pub(crate) effect_verification_refs: Vec<Reference>,
@@ -29,12 +26,6 @@ impl Observations {
     #[must_use]
     pub fn boundary(&self) -> Option<ExecutionBoundaryKind> {
         self.boundary
-    }
-
-    /// The ceilings that bounded the invocation, and the one it hit.
-    #[must_use]
-    pub fn limits(&self) -> Option<&ExecutionLimits> {
-        self.limits.as_ref()
     }
 
     /// The credentials the runtime delivered to the invocation.

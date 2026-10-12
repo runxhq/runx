@@ -176,9 +176,9 @@ runx treats it like every other governed action, with no special-casing:
   `?include=unverified` when intentionally browsing the full frontier.
 - `first_party`, `verified`, and established `community` rows appear in normal
   discovery; ranking prefers hosted verified-run evidence first, then trust tier,
-  install evidence, and recency. A verified run is counted only from a sealed
-  hosted-issued receipt that carries runx-written registry metadata for the
-  skill/version. Publisher self-runs are excluded when the publisher id is known.
+  install evidence, and recency. A verified run is a hosted run that sealed
+  closed and executed a package a published version of the skill carries.
+  Publisher self-runs are excluded.
 - Confirm it resolves:
   ```bash
   runx registry search <your-skill>

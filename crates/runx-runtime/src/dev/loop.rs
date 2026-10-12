@@ -86,23 +86,6 @@ pub fn discover_fixture_paths(unit_path: &Path, root: &Path) -> Result<Vec<PathB
     Ok(paths)
 }
 
-#[must_use]
-pub fn dev_receipt_metadata(lane: &str, fixture_path: Option<&Path>) -> JsonObject {
-    let mut dev = JsonObject::new();
-    dev.insert("mode".to_owned(), JsonValue::String("dev".to_owned()));
-    dev.insert("dev_mode".to_owned(), JsonValue::Bool(true));
-    dev.insert("lane".to_owned(), JsonValue::String(lane.to_owned()));
-    if let Some(path) = fixture_path {
-        dev.insert(
-            "fixture_path".to_owned(),
-            JsonValue::String(path.to_string_lossy().into_owned()),
-        );
-    }
-    let mut metadata = JsonObject::new();
-    metadata.insert("runx".to_owned(), JsonValue::Object(dev));
-    metadata
-}
-
 impl DevFixtureExecutor for LocalDevFixtureExecutor {
     fn run_fixture(
         &self,

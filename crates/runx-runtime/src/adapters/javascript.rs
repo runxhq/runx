@@ -109,7 +109,7 @@ impl JavaScriptAdapter {
     ) -> Result<InvocationOutput, RuntimeError> {
         let started = Instant::now();
         let outcome = self.supervisor.invoke(prepared.with_inputs(inputs)?)?;
-        project_worker_outcome(started, outcome, prepared.limits)
+        project_worker_outcome(started, outcome)
     }
 
     pub(crate) fn invoke_with_artifacts(
@@ -154,7 +154,6 @@ impl SkillAdapter for JavaScriptAdapter {
 fn project_worker_outcome(
     started: Instant,
     outcome: supervisor::WorkerInvocationOutcome,
-    limits: runx_contracts::javascript_worker::InvocationLimits,
 ) -> Result<InvocationOutput, RuntimeError> {
     match outcome.result {
         supervisor::WorkerInvocationResult::Success(output) => {
@@ -166,16 +165,16 @@ fn project_worker_outcome(
                     InvocationStatus::Success,
                     value,
                     None,
-                    worker_observations(outcome.execution_boundary, limits, None),
+                    worker_observations(outcome.execution_boundary),
                 ),
             )
         }
-        supervisor::WorkerInvocationResult::Failure { limit, message, .. } => Ok(
+        supervisor::WorkerInvocationResult::Failure { message, .. } => Ok(
             AdapterProjection::from_duration_ms(elapsed_ms(started)).runtime_output(
                 InvocationStatus::Failure,
                 JsonValue::Null,
                 Some(message),
-                worker_observations(outcome.execution_boundary, limits, limit),
+                worker_observations(outcome.execution_boundary),
             ),
         ),
     }
@@ -202,149 +201,12 @@ fn validate_pure_javascript_boundary(request: &SkillInvocation) -> Result<(), Ru
     Ok(())
 }
 
-/// Where a worker invocation ran and the ceilings that bounded it.
-fn worker_observations(
-    boundary: runx_contracts::ExecutionBoundaryKind,
-    limits: runx_contracts::javascript_worker::InvocationLimits,
-    hit: Option<runx_contracts::javascript_worker::WorkerLimit>,
-) -> Observations {
+/// Where a worker invocation ran.
+fn worker_observations(boundary: runx_contracts::ExecutionBoundaryKind) -> Observations {
     Observations {
         boundary: Some(boundary),
-        limits: Some(javascript_execution_limits(limits, hit)),
         ..Observations::default()
     }
-}
-
-fn javascript_execution_limits(
-    limits: runx_contracts::javascript_worker::InvocationLimits,
-    hit: Option<runx_contracts::javascript_worker::WorkerLimit>,
-) -> runx_contracts::ExecutionLimits {
-    use runx_contracts::javascript_worker::{InvocationLimits, WorkerLimit};
-    use runx_contracts::{ExecutionLimitHit, ExecutionLimitUnit, ExecutionLimits};
-
-    let ceiling = InvocationLimits::default();
-    let configured = std::collections::BTreeMap::from([
-        (
-            "javascript.source_bytes".to_owned(),
-            execution_limit(
-                usize_as_u64(limits.source_bytes),
-                usize_as_u64(ceiling.source_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-        ),
-        (
-            "javascript.input_bytes".to_owned(),
-            execution_limit(
-                usize_as_u64(limits.input_bytes),
-                usize_as_u64(ceiling.input_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-        ),
-        (
-            "javascript.output_bytes".to_owned(),
-            execution_limit(
-                usize_as_u64(limits.output_bytes),
-                usize_as_u64(ceiling.output_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-        ),
-        (
-            "javascript.heap_bytes".to_owned(),
-            execution_limit(
-                limits.heap_bytes,
-                ceiling.heap_bytes,
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-        ),
-        (
-            "javascript.stack_bytes".to_owned(),
-            execution_limit(
-                usize_as_u64(limits.stack_bytes),
-                usize_as_u64(ceiling.stack_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-        ),
-        (
-            "javascript.wall_milliseconds".to_owned(),
-            execution_limit(
-                limits.wall_milliseconds,
-                runx_contracts::javascript_worker::MAX_WALL_MILLISECONDS,
-                ExecutionLimitUnit::Milliseconds,
-                Some("tool.timeout_seconds"),
-            ),
-        ),
-        (
-            "javascript.queued_jobs".to_owned(),
-            execution_limit(
-                u64::from(limits.queued_jobs),
-                u64::from(ceiling.queued_jobs),
-                ExecutionLimitUnit::Jobs,
-                None,
-            ),
-        ),
-    ]);
-    let hit = hit.map(|limit| {
-        let (configured, maximum, unit, manifest_field) = match limit {
-            WorkerLimit::SourceBytes => (
-                usize_as_u64(limits.source_bytes),
-                usize_as_u64(ceiling.source_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-            WorkerLimit::InputBytes => (
-                usize_as_u64(limits.input_bytes),
-                usize_as_u64(ceiling.input_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-            WorkerLimit::OutputBytes => (
-                usize_as_u64(limits.output_bytes),
-                usize_as_u64(ceiling.output_bytes),
-                ExecutionLimitUnit::Bytes,
-                None,
-            ),
-            WorkerLimit::WallMilliseconds => (
-                limits.wall_milliseconds,
-                runx_contracts::javascript_worker::MAX_WALL_MILLISECONDS,
-                ExecutionLimitUnit::Milliseconds,
-                Some("tool.timeout_seconds"),
-            ),
-            WorkerLimit::QueuedJobs => (
-                u64::from(limits.queued_jobs),
-                u64::from(ceiling.queued_jobs),
-                ExecutionLimitUnit::Jobs,
-                None,
-            ),
-        };
-        ExecutionLimitHit {
-            id: format!("javascript.{}", limit.as_str()),
-            limit: execution_limit(configured, maximum, unit, manifest_field),
-        }
-    });
-    ExecutionLimits { configured, hit }
-}
-
-fn execution_limit(
-    configured: u64,
-    maximum: u64,
-    unit: runx_contracts::ExecutionLimitUnit,
-    manifest_field: Option<&str>,
-) -> runx_contracts::ExecutionLimit {
-    runx_contracts::ExecutionLimit {
-        configured,
-        maximum,
-        unit,
-        manifest_field: manifest_field.map(str::to_owned),
-    }
-}
-
-fn usize_as_u64(value: usize) -> u64 {
-    u64::try_from(value).unwrap_or(u64::MAX)
 }
 
 fn elapsed_ms(started: Instant) -> u64 {

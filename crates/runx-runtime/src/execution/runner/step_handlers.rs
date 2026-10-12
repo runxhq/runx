@@ -504,7 +504,6 @@ where
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
             closure: None,
-            receipt_metadata: None,
         },
         context.runtime.options.signature_policy(),
     )?;
@@ -721,7 +720,6 @@ fn seal_agent_act_step<A>(
     let projection = build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
     let mut output = agent_task_output(response, &disposition)?;
     output.observations.contract = contract_checks;
-    let disposition_label = disposition.label();
     let receipt = seal_executed_step(
         StepSeal {
             scope: runtime.scope(graph_name),
@@ -737,9 +735,8 @@ fn seal_agent_act_step<A>(
             descendant_receipts: &lineage.descendants,
             closure: Some(StepSealClosure {
                 disposition,
-                reason_code: format!("agent_act_{disposition_label}"),
+                reason: None,
             }),
-            receipt_metadata: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -1034,7 +1031,6 @@ where
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
-            receipt_metadata: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -1318,7 +1314,6 @@ where
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
-            receipt_metadata: None,
         },
         runtime.options.signature_policy(),
     )?;
@@ -1459,9 +1454,13 @@ pub(super) fn runtime_error_step_run<A>(
 where
     A: SkillAdapter,
 {
-    let receipt_metadata = match &error {
+    // A managed agent that stopped seals why it stopped.
+    let closure = match &error {
         #[cfg(feature = "agent")]
-        RuntimeError::ManagedAgentResolution { source, .. } => Some(source.receipt_metadata()),
+        RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealClosure {
+            disposition: ClosureDisposition::Failed,
+            reason: Some(source.reason()),
+        }),
         _ => None,
     };
     let output = InvocationOutput::runtime_failure(
@@ -1497,8 +1496,7 @@ where
             approval_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
-            closure: None,
-            receipt_metadata,
+            closure,
         },
         runtime.options.signature_policy(),
     )?;

@@ -7,13 +7,12 @@ use crate::adapter::InvocationOutput;
 use crate::observations::{ContractChecks, Observations};
 use crate::{RuntimeError, StepRun};
 use runx_contracts::connector::Digest;
-use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
-    EXECUTION_LIMITS_METADATA, ExecutionBoundaryObservation, JsonObject, JsonValue, Lineage,
-    Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement,
-    ReceiptIssuer, ReceiptSchema, Reference, ReferenceType, Seal, SignatureAlgorithm, Subject,
-    canonical_stable_json, receipt_subject_kind,
+    ExecutionBoundaryObservation, JsonObject, JsonValue, Lineage, Receipt, ReceiptAct,
+    ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptSchema,
+    Reference, ReferenceType, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
+    canonical_stable_json,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -48,7 +47,7 @@ pub(crate) struct StepReceiptWithDisposition<'a> {
     pub(crate) output: &'a InvocationOutput,
     pub(crate) created_at: &'a str,
     pub(crate) disposition: ClosureDisposition,
-    pub(crate) reason_code: String,
+    pub(crate) reason: Option<SealReason>,
 }
 
 struct StepReceiptSeal<'a> {
@@ -59,15 +58,14 @@ struct StepReceiptSeal<'a> {
     descendant_receipts: &'a [Receipt],
     authority: SealAuthority,
     call: Option<SealedCall>,
-    receipt_metadata: Option<JsonObject>,
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
 }
 
 impl<'a> StepReceiptWithDisposition<'a> {
     /// A step-receipt request whose closure is derived from the output (the
-    /// process-exit default): `Closed`/`Failed` by exit status and the
-    /// matching reason code. This is the single source of that derivation for
-    /// the process-exit step receipts.
+    /// process-exit default): `Closed`/`Failed` by exit status, with no
+    /// reason. This is the single source of that derivation for the
+    /// process-exit step receipts.
     pub(crate) fn with_default_closure(
         scope: RunScope<'a>,
         step_id: &'a str,
@@ -77,7 +75,7 @@ impl<'a> StepReceiptWithDisposition<'a> {
     ) -> Self {
         let StepSealClosure {
             disposition,
-            reason_code,
+            reason,
         } = StepSealClosure::default_for(output);
         Self {
             scope,
@@ -86,7 +84,7 @@ impl<'a> StepReceiptWithDisposition<'a> {
             output,
             created_at,
             disposition,
-            reason_code,
+            reason,
         }
     }
 }
@@ -104,7 +102,6 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
         descendant_receipts: &[],
         authority: SealAuthority::default(),
         call: None,
-        receipt_metadata: None,
         signature_policy,
     })
 }
@@ -120,7 +117,6 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         descendant_receipts,
         authority,
         call,
-        receipt_metadata,
         signature_policy,
     } = request;
     let StepReceiptWithDisposition {
@@ -130,7 +126,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         output,
         created_at,
         disposition,
-        reason_code,
+        reason,
     } = params;
     let evidence = step_evidence(&output.observations, approval_refs);
     let verification = contract_criteria(&output.observations.contract);
@@ -159,12 +155,16 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     let outcome = outcome_digest(&disposition, claim, &children)?;
     let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
     seal_criteria.extend(verification);
-    let seal = seal(disposition, reason_code, seal_criteria);
+    let seal = Seal {
+        disposition,
+        reason,
+        criteria: seal_criteria,
+    };
     let mut receipt = build_unsealed_receipt(BuildReceipt {
         issuer: signature_policy.signer()?.issuer(),
         scope,
         node: Node::Step { step_id, attempt },
-        kind: receipt_subject_kind::SKILL.into(),
+        kind: SubjectKind::Step,
         outcome,
         created_at,
         decisions,
@@ -177,8 +177,6 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .observations
         .boundary
         .map(|kind| ExecutionBoundaryObservation { kind });
-    receipt.as_mut().metadata =
-        receipt_metadata_with_execution_limits(receipt_metadata, &output.observations)?;
     let receipt = receipt.seal(signature_policy)?;
     if !child_receipts.is_empty() {
         validate_receipt_tree_with_policy(
@@ -188,23 +186,6 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         )?;
     }
     Ok(receipt)
-}
-
-/// The runtime's ceilings for the invocation ride the receipt's unsigned
-/// metadata, beside whatever runtime-authored metadata the step carries.
-fn receipt_metadata_with_execution_limits(
-    receipt_metadata: Option<JsonObject>,
-    observations: &Observations,
-) -> Result<Option<JsonObject>, RuntimeError> {
-    let Some(limits) = &observations.limits else {
-        return Ok(receipt_metadata);
-    };
-    let limits = serde_json::to_value(limits)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::json("serializing execution limits", source))?;
-    let mut metadata = receipt_metadata.unwrap_or_default();
-    metadata.insert(EXECUTION_LIMITS_METADATA.to_owned(), limits);
-    Ok(Some(metadata))
 }
 
 /// The single step-receipt seal. Every runtime step (regular skill, tool,
@@ -235,27 +216,23 @@ pub(crate) struct StepSeal<'a> {
     /// validate the complete tree. They are not direct children of this step.
     pub(crate) descendant_receipts: &'a [Receipt],
     pub(crate) closure: Option<StepSealClosure>,
-    /// Runtime-authored, public receipt metadata. Adapter-owned `output.metadata`
-    /// is deliberately not copied wholesale across this trust boundary.
-    pub(crate) receipt_metadata: Option<JsonObject>,
 }
 
-/// A step's own disposition and reason code when it does not derive them
-/// from a process exit.
+/// A step's own disposition, and the reason it closed that way when one
+/// applies, when it does not derive them from a process exit.
 pub(crate) struct StepSealClosure {
     pub(crate) disposition: ClosureDisposition,
-    pub(crate) reason_code: String,
+    pub(crate) reason: Option<SealReason>,
 }
 
 impl StepSealClosure {
     /// The process-exit default closure derived from the output: `Closed`/`Failed`
-    /// by exit status and the matching reason code. The single source of this
-    /// derivation.
+    /// by exit status, with no reason beyond the exit. The single source of
+    /// this derivation.
     pub(crate) fn default_for(output: &InvocationOutput) -> Self {
-        let disposition = disposition(output);
         Self {
-            reason_code: step_reason_code(&disposition),
-            disposition,
+            disposition: disposition(output),
+            reason: None,
         }
     }
 }
@@ -277,11 +254,10 @@ pub(crate) fn seal_step(
         child_receipts,
         descendant_receipts,
         closure,
-        receipt_metadata,
     } = params;
     let StepSealClosure {
         disposition,
-        reason_code,
+        reason,
     } = closure.unwrap_or_else(|| StepSealClosure::default_for(output));
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithDisposition {
@@ -291,7 +267,7 @@ pub(crate) fn seal_step(
             output,
             created_at,
             disposition,
-            reason_code,
+            reason,
         },
         claim,
         approval_refs,
@@ -299,7 +275,6 @@ pub(crate) fn seal_step(
         descendant_receipts,
         authority,
         call,
-        receipt_metadata,
         signature_policy,
     })
 }
@@ -395,14 +370,14 @@ pub fn graph_receipt(
 
 pub(crate) struct GraphClosure {
     pub(crate) disposition: ClosureDisposition,
-    pub(crate) reason_code: String,
+    pub(crate) reason: Option<SealReason>,
 }
 
 impl GraphClosure {
     pub(crate) fn completed() -> Self {
         Self {
             disposition: ClosureDisposition::Closed,
-            reason_code: "graph_closed".to_owned(),
+            reason: None,
         }
     }
 }
@@ -457,16 +432,16 @@ fn build_graph_receipt(
         issuer,
         scope,
         node: Node::Graph,
-        kind: receipt_subject_kind::GRAPH.into(),
+        kind: SubjectKind::Graph,
         outcome,
         created_at,
         decisions: Vec::new(),
         acts: Vec::new(),
-        seal: seal(
-            closure.disposition.clone(),
-            closure.reason_code.clone(),
-            Vec::new(),
-        ),
+        seal: Seal {
+            disposition: closure.disposition.clone(),
+            reason: closure.reason,
+            criteria: Vec::new(),
+        },
         children,
         authority: SealAuthority::default(),
     }))
@@ -540,10 +515,6 @@ fn validate_receipt_tree_with_policy<'a>(
     .map_err(receipt_error)
 }
 
-fn step_reason_code(disposition: &ClosureDisposition) -> String {
-    format!("step_{}", disposition.label())
-}
-
 /// The run a receipt belongs to, and the graph it ran.
 #[derive(Clone, Copy, Debug)]
 pub struct RunScope<'a> {
@@ -579,7 +550,7 @@ struct BuildReceipt<'a> {
     issuer: ReceiptIssuer,
     scope: RunScope<'a>,
     node: Node<'a>,
-    kind: NonEmptyString,
+    kind: SubjectKind,
     /// The digest of the subject's outcome.
     outcome: Digest,
     created_at: &'a str,
@@ -606,7 +577,7 @@ impl UnsealedReceipt {
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<Receipt, RuntimeError> {
         // Content-address the id over the canonical body (id = hash(canonical_body),
-        // excluding id/signature/digest/metadata) before the digest commits it.
+        // excluding id/signature/digest) before the digest commits it.
         self.0.id = content_addressed_receipt_id(&self.0)
             .map_err(|error| RuntimeError::ReceiptInvalid {
                 message: error.to_string(),
@@ -656,7 +627,6 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         acts,
         seal,
         lineage,
-        metadata: None,
     })
 }
 
@@ -672,20 +642,8 @@ fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision
     }
 }
 
-fn seal(
-    disposition: ClosureDisposition,
-    reason_code: String,
-    criteria: Vec<CriterionBinding>,
-) -> Seal {
-    Seal {
-        disposition,
-        reason_code: reason_code.into(),
-        criteria,
-    }
-}
-
 /// The run node a receipt seals, labelled with the graph that ran.
-fn subject(scope: RunScope<'_>, uri: String, kind: NonEmptyString, outcome: Digest) -> Subject {
+fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome: Digest) -> Subject {
     let mut reference = Reference::with_uri(ReferenceType::Run, uri);
     reference.label = Some(scope.graph_name.into());
     Subject {
@@ -1039,7 +997,6 @@ mod tests {
                     effects: Vec::new(),
                     context_ref: None,
                 }),
-                receipt_metadata: None,
                 signature_policy: fixture()?.signature_policy(),
             })?;
         assert_eq!(call.acts[0].intent.purpose.as_str(), "Post one message.");
@@ -1068,8 +1025,7 @@ mod tests {
             "contract_verification": { "output_contract_sha256": "sha256:forged" },
             "execution_boundary": { "kind": "native_capability" },
             "credential_delivery_observations": [],
-            "runx_effect_verification_refs": { "refs": [] },
-            "execution_limits": {}
+            "runx_effect_verification_refs": { "refs": [] }
         });
         let output = InvocationOutput::runtime_success(serde_json::from_value(claims)?, 1);
 
@@ -1090,7 +1046,6 @@ mod tests {
         );
         assert!(receipt.seal.criteria[0].verification_refs.is_empty());
         assert_eq!(receipt.authority.enforcement.execution_boundary, None);
-        assert_eq!(receipt.metadata, None);
         Ok(())
     }
 
@@ -1131,49 +1086,6 @@ mod tests {
             verification_refs
                 .iter()
                 .all(|reference| reference.uri != "runx:verification:stdout-verification")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn execution_limit_hit_is_copied_into_receipt_read_metadata() -> Result<(), TestError> {
-        let limit = runx_contracts::ExecutionLimit {
-            configured: 7_000,
-            maximum: 30_000,
-            unit: runx_contracts::ExecutionLimitUnit::Milliseconds,
-            manifest_field: None,
-        };
-        let limits = runx_contracts::ExecutionLimits {
-            configured: BTreeMap::from([(
-                "javascript.wall_milliseconds".to_owned(),
-                limit.clone(),
-            )]),
-            hit: Some(runx_contracts::ExecutionLimitHit {
-                id: "javascript.wall_milliseconds".to_owned(),
-                limit,
-            }),
-        };
-        let mut output =
-            InvocationOutput::runtime_failure(JsonValue::Null, "wall limit reached", 7_000);
-        output.observations.limits = Some(limits.clone());
-
-        let receipt = step_receipt(
-            test_scope("limit_graph"),
-            "limit_step",
-            1,
-            &output,
-            &JsonObject::new(),
-            "2026-05-28T00:00:00Z",
-            fixture()?.signature_policy(),
-        )?;
-        assert_eq!(
-            receipt
-                .metadata
-                .as_ref()
-                .and_then(|metadata| metadata.get(EXECUTION_LIMITS_METADATA))
-                .map(serde_json::to_value)
-                .transpose()?,
-            Some(serde_json::to_value(&limits)?)
         );
         Ok(())
     }
@@ -1220,7 +1132,6 @@ mod tests {
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
                 call: None,
-                receipt_metadata: None,
                 signature_policy: fixture()?.signature_policy(),
             })?,
         )
@@ -1285,7 +1196,6 @@ mod tests {
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
                 call: None,
-                receipt_metadata: None,
                 signature_policy: signature.signature_policy(),
             })
         };

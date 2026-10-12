@@ -63,7 +63,7 @@ impl Host for MisidentifiedManagedFailureHost {
             step_id: "referenced-agent-runner".to_owned(),
             request_id,
             source: Box::new(ManagedAgentError::bounded_failure(
-                "round_budget_exhausted",
+                runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,
                 "Managed agent exhausted its bounded run.",
                 AgentExecutionTelemetry::default(),
             )),

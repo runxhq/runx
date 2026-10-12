@@ -11,5 +11,4 @@ expect:
     subject_ref: runx:run:harness-graph
     state: sealed
     disposition: closed
-    reason_code: graph_closed
     child_receipt_count: 2

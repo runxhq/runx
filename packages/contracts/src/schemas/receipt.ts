@@ -26,12 +26,15 @@ import type {
 /** The canonicalization byte contract this receipt's digest commits under. */
 export const RECEIPT_CANONICALIZATION = "runx.receipt.c14n.v1" as const;
 
+/** What a receipt seals: one step's attempt, or the whole graph a run ran. */
+export type ReceiptSubjectKindContract = "step" | "graph";
+
 /**
  * What ran, and the digest of its outcome: whether it succeeded, the outputs
  * it declared and its direct children's receipt ids.
  */
 export type ReceiptSubjectContract = DeepReadonly<{
-  kind: string;
+  kind: ReceiptSubjectKindContract;
   ref: ReferenceContract;
   outcome: string;
 }>;
@@ -85,9 +88,23 @@ export type ReceiptOperationContract = DeepReadonly<{
   act_digest?: string;
 }>;
 
+/** Why a receipt closed as it did, beyond its disposition. */
+export type ReceiptSealReasonContract =
+  | "preflight_refused"
+  | "input_contract_invalid"
+  | "graph_step_failed"
+  | "graph_blocked"
+  | "authority_denied"
+  | "resolution_pending"
+  | "managed_agent_provider_failed"
+  | "managed_agent_resolution_failed"
+  | "managed_agent_empty_turn_budget_exhausted"
+  | "managed_agent_tool_execution_failed"
+  | "managed_agent_round_budget_exhausted";
+
 export type ReceiptSealContract = DeepReadonly<{
   disposition: ClosureDispositionContract;
-  reason_code: string;
+  reason?: ReceiptSealReasonContract;
   criteria: readonly ReceiptCriterionContract[];
 }>;
 

@@ -31,7 +31,7 @@ function hasFlag(name) {
   return process.argv.includes(name);
 }
 
-// runx.receipt.c14n.v1: strip the envelope's own signature/digest/metadata,
+// runx.receipt.c14n.v1: strip the envelope's own signature and digest,
 // then serialize with keys sorted by Unicode code point, compact, standard
 // JSON escaping. (oss/crates/runx-contracts/src/canonical_json/serializer.rs)
 function canon(v) {
@@ -231,7 +231,6 @@ function receiptBody(r) {
   const body = { ...r };
   delete body.signature;
   delete body.digest;
-  delete body.metadata;
   return body;
 }
 
@@ -308,7 +307,7 @@ function verifyOne(filePath, depth, seen, receipt) {
   const prefix = depth === 0 ? "receipt" : `child depth=${depth}`;
   console.log(`${prefix}: ${filePath}`);
   console.log(`  id         : ${r.id}`);
-  console.log(`  disposition: ${r.seal?.disposition} (${r.seal?.reason_code})`);
+  console.log(`  disposition: ${r.seal?.disposition}${r.seal?.reason ? ` (${r.seal.reason})` : ""}`);
   console.log(`  issuer     : ${r.issuer?.type}/${r.issuer?.kid}`);
   console.log("");
 

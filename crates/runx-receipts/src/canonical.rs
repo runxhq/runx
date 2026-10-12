@@ -53,8 +53,7 @@ fn canonical_string<T: Serialize + ?Sized>(value: &T) -> Result<String, ReceiptE
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Commitment {
-    /// The signed body: every field except `signature`, `digest` and the
-    /// runtime-local `metadata` read aid.
+    /// The signed body: every field except `signature` and `digest`.
     Body,
     /// The content address: the body without `id`.
     Identity,
@@ -96,7 +95,6 @@ impl<'a> ReceiptView<'a> {
             acts,
             seal,
             lineage,
-            metadata: _,
         } = receipt;
         let identity = commitment == Commitment::Identity;
         Self {
@@ -117,7 +115,7 @@ impl<'a> ReceiptView<'a> {
 
 #[cfg(test)]
 mod tests {
-    use runx_contracts::{JsonValue, Receipt};
+    use runx_contracts::Receipt;
     use serde::Deserialize;
 
     use super::{
@@ -175,20 +173,6 @@ mod tests {
         receipt.digest = "sha256:changed".into();
 
         assert_eq!(canonical_receipt_body_json(&receipt)?, baseline_json);
-        assert_eq!(canonical_receipt_body_digest(&receipt)?, baseline_digest);
-        Ok(())
-    }
-
-    #[test]
-    fn body_commitment_excludes_metadata_read_aid() -> Result<(), ReceiptError> {
-        let mut receipt = fixture()?;
-        let baseline_digest = canonical_receipt_body_digest(&receipt)?;
-
-        receipt.metadata.get_or_insert_default().insert(
-            "skill_name".to_owned(),
-            JsonValue::String("changed-read-aid".to_owned()),
-        );
-
         assert_eq!(canonical_receipt_body_digest(&receipt)?, baseline_digest);
         Ok(())
     }

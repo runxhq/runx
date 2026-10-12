@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{
     ClosureDisposition, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, TurnCallOutcome, TurnCallResult, TurnStatus,
+    ResolutionResponseActor, SealReason, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 
@@ -199,12 +199,12 @@ impl BoundRun {
             Err(RuntimeError::StepClosed {
                 step_id,
                 disposition,
-                reason_code,
+                reason,
                 ..
-            }) => run.seal_stopped(&step_id, &reason_code, Stop::Closed(disposition)),
+            }) => run.seal_stopped(&step_id, reason, Stop::Closed(disposition)),
             Err(RuntimeError::GraphBlocked { step_id, reason }) => run.seal_stopped(
                 &step_id.clone(),
-                "graph_blocked",
+                Some(SealReason::GraphBlocked),
                 Stop::Blocked(RuntimeError::GraphBlocked { step_id, reason }),
             ),
             Err(RuntimeError::AuthorityDenied {
@@ -213,7 +213,7 @@ impl BoundRun {
                 reason,
             }) => run.seal_stopped(
                 &step_id.clone(),
-                "authority_denied",
+                Some(SealReason::AuthorityDenied),
                 Stop::Blocked(RuntimeError::AuthorityDenied {
                     verb,
                     step_id,
@@ -245,13 +245,13 @@ impl BoundRun {
                 request_id,
                 source,
             }) => {
-                let reason_code = format!("managed_agent_{}", source.reason_code());
+                let reason = source.reason();
                 let error = RuntimeError::ManagedAgentResolution {
                     step_id: step_id.clone(),
                     request_id,
                     source,
                 };
-                run.seal_stopped(&step_id, &reason_code, Stop::Failed(error))
+                run.seal_stopped(&step_id, Some(reason), Stop::Failed(error))
             }
             Err(error) if !error.is_fatal_step_fault() => {
                 let step_id =
@@ -263,7 +263,11 @@ impl BoundRun {
                             ),
                         }
                     })?;
-                run.seal_stopped(&step_id, "graph_step_failed", Stop::Failed(error))
+                run.seal_stopped(
+                    &step_id,
+                    Some(SealReason::GraphStepFailed),
+                    Stop::Failed(error),
+                )
             }
             Err(error) => Err(error.into()),
         }
@@ -483,7 +487,7 @@ impl Driven<'_> {
     fn seal_stopped(
         &self,
         step_id: &str,
-        reason_code: &str,
+        reason: Option<SealReason>,
         stop: Stop,
     ) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
@@ -503,7 +507,7 @@ impl Driven<'_> {
         };
         let closure = crate::receipts::GraphClosure {
             disposition,
-            reason_code: reason_code.to_owned(),
+            reason,
         };
         let run = match failure {
             Some(error) => self.runtime.seal_failed_with_host(
@@ -977,7 +981,7 @@ steps:
                 crate::execution::runner::RunClock::Fixed("2026-07-24T00:00:00Z".to_owned());
             let runtime = Runtime::new(ExecutableAdapter, options);
             let error = ManagedAgentError::bounded_failure(
-                "round_budget_exhausted",
+                runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,
                 "Managed agent exceeded 3 tool-call rounds without finalizing.",
                 AgentExecutionTelemetry {
                     rounds: Some(3),
@@ -1005,7 +1009,7 @@ steps:
                 runtime_error,
                 crate::receipts::GraphClosure {
                     disposition: ClosureDisposition::Failed,
-                    reason_code: "managed_agent_round_budget_exhausted".to_owned(),
+                    reason: Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted),
                 },
                 &mut host,
             )?;
@@ -1017,15 +1021,11 @@ steps:
             let step = &run.steps[0];
             assert_eq!(step.attempt, 1);
             assert_eq!(step.receipt.seal.disposition, ClosureDisposition::Failed);
-            let metadata = step
-                .receipt
-                .metadata
-                .as_ref()
-                .ok_or("managed-agent failure metadata missing from child receipt")?;
-            let encoded = serde_json::to_string(metadata)?;
-            assert!(encoded.contains("\"reason_code\":\"round_budget_exhausted\""));
-            assert!(encoded.contains("\"model_calls\":4"));
-            assert!(encoded.contains("\"tool_calls\":3"));
+            assert_eq!(
+                step.receipt.seal.reason,
+                Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted)
+            );
+            let encoded = serde_json::to_string(&step.receipt)?;
             assert!(!encoded.contains("prompt"));
             assert!(!encoded.contains("credential"));
             assert!(!encoded.contains("raw_output"));

@@ -209,27 +209,6 @@ fn dev_watch_ignores_generated_paths_and_debounces_changes()
     Ok(())
 }
 
-#[test]
-fn dev_receipt_metadata_marks_dev_mode_without_secret_material()
--> Result<(), Box<dyn std::error::Error>> {
-    let metadata =
-        runx_runtime::dev_receipt_metadata("deterministic", Some(Path::new("fixtures/a.yaml")));
-    let Some(JsonValue::Object(runx)) = metadata.get("runx") else {
-        return Err("metadata.runx should be an object".into());
-    };
-
-    assert_eq!(runx.get("dev_mode"), Some(&JsonValue::Bool(true)));
-    assert_eq!(
-        runx.get("lane"),
-        Some(&JsonValue::String("deterministic".to_owned()))
-    );
-    assert_eq!(
-        runx.get("fixture_path"),
-        Some(&JsonValue::String("fixtures/a.yaml".to_owned()))
-    );
-    Ok(())
-}
-
 struct FixtureRoot {
     path: PathBuf,
     _temp_dir: TempDir,

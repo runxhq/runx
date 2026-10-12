@@ -128,7 +128,9 @@ impl Readback {
             readback_ref: self.readback_ref,
             access: Some(seal.access.to_owned()),
             principal_ref: Some(seal.principal_ref.to_owned()),
-            grant_ref: seal.grant_id.map(|grant_id| format!("runx:grant:{grant_id}")),
+            grant_ref: seal
+                .grant_id
+                .map(|grant_id| format!("runx:grant:{grant_id}")),
             finality: Some(seal.finality.to_owned()),
             plan_digest: Some(seal.intent_digest.to_owned()),
             result_digest: Some(result_digest.as_str().to_owned()),

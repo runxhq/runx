@@ -59,7 +59,7 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       // The full artifact precedes the CLI's outcome/pending-status projection.
       const nativeStatus = full.status === "needs_agent" && compact.status === "needs_approval" ? "needs_approval" : full.status;
       if (nativeStatus !== compact.status) throw new Error("Full-output artifact disagrees on status.");
-      if (record(compact.closure) && (!record(full.closure) || full.closure.disposition !== compact.closure.disposition || full.closure.reason_code !== compact.closure.reason_code)) throw new Error("Full-output artifact disagrees on closure.");
+      if (record(compact.closure) && (!record(full.closure) || full.closure.disposition !== compact.closure.disposition || full.closure.reason !== compact.closure.reason)) throw new Error("Full-output artifact disagrees on closure.");
       output = validateSkillOutputContract({ ...full, status: compact.status, outcome: compact.outcome });
     } else if (compact.diagnostics_ref) {
       const diagnostics = await artifact(compact.diagnostics_ref);

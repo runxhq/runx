@@ -309,15 +309,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
@@ -350,15 +349,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
@@ -396,15 +394,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
@@ -442,15 +439,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
         "ref": {
           "type": "run",
@@ -483,15 +479,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:14644dbfff3e029d8732c55b513d67563fec83a1dfb3b1c707a0511a0bebe0f3",
         "ref": {
           "type": "run",
@@ -524,15 +519,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
@@ -570,15 +564,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
@@ -616,15 +609,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
@@ -666,15 +658,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",
@@ -712,15 +703,14 @@
       "schema": "runx.receipt.v1",
       "seal": {
         "criteria": [],
-        "disposition": "closed",
-        "reason_code": "closed"
+        "disposition": "closed"
       },
       "signature": {
         "alg": "Ed25519",
         "value": "unsealed"
       },
       "subject": {
-        "kind": "skill",
+        "kind": "step",
         "outcome": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
         "ref": {
           "type": "run",

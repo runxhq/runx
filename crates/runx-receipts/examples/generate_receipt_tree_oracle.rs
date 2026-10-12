@@ -12,7 +12,7 @@ use std::path::Path;
 use runx_contracts::{
     ClosureDisposition, Lineage, Receipt, ReceiptAuthority, ReceiptCanonicalization,
     ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
-    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, receipt_subject_kind,
+    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, SubjectKind,
 };
 use serde_json::{Value, json};
 
@@ -259,7 +259,7 @@ fn base(id: &str) -> Receipt {
         },
         digest: format!("sha256:{}", "9".repeat(64)).into(),
         subject: Subject {
-            kind: receipt_subject_kind::SKILL.into(),
+            kind: SubjectKind::Step,
             reference: Reference::runx(ReferenceType::Run, id),
             outcome: runx_contracts::connector::Digest::of(id.as_bytes()),
         },
@@ -276,10 +276,9 @@ fn base(id: &str) -> Receipt {
         acts: Vec::new(),
         seal: Seal {
             disposition: ClosureDisposition::Closed,
-            reason_code: "closed".into(),
+            reason: None,
             criteria: Vec::new(),
         },
         lineage: Lineage::default(),
-        metadata: None,
     }
 }

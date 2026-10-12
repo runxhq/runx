@@ -426,7 +426,7 @@ fn compact_identity(object: &JsonObject) -> JsonObject {
     }
     if let Some(JsonValue::Object(closure)) = object.get("closure") {
         let mut compact = JsonObject::new();
-        for key in ["disposition", "reason_code"] {
+        for key in ["disposition", "reason"] {
             if let Some(value) = closure.get(key) {
                 compact.insert(key.to_owned(), compact_scalar(value));
             }

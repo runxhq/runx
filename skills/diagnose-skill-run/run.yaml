@@ -40,7 +40,7 @@ harness:
         receipt_details:
           - id: rcpt_context_flattening
             receipt_ref: runx:receipt:rcpt_context_flattening
-            subject_kind: skill
+            subject_kind: graph
             subject_ref: skills/skill-build
             created_at: "2026-07-16T00:00:00Z"
             status: failed
@@ -56,10 +56,6 @@ harness:
                 form: execution
                 purpose: Produce the bounded skill proposal.
                 legitimacy: Held fs.read.
-                summary: Downstream authoring context was flattened to JSON text.
-                disposition: failed
-                reason_code: schema_mismatch
-                source_refs: []
                 target_refs: []
                 artifact_refs: []
                 criterion_statuses:
@@ -70,8 +66,7 @@ harness:
                 context_ref_present: true
             artifact_refs: []
             lineage_refs: []
-            seal_reason_code: schema_mismatch
-            seal_summary: Structured context was not preserved.
+            seal_reason: graph_step_failed
         harness_output: Context edge pointed at stdout and flattened the payload.
         skill_path: skills/skill-build
       caller:
@@ -105,7 +100,7 @@ harness:
                   receipt_details:
                     - id: rcpt_context_flattening
                       subject_ref: skills/skill-build
-                      seal_reason_code: schema_mismatch
+                      seal_reason: graph_step_failed
         receipt:
           schema: runx.receipt.v1
 
@@ -121,7 +116,7 @@ harness:
         receipt_details:
           - id: rcpt_paused
             receipt_ref: runx:receipt:rcpt_paused
-            subject_kind: skill
+            subject_kind: graph
             subject_ref: skills/research
             created_at: "2026-07-16T00:00:00Z"
             status: deferred
@@ -133,8 +128,7 @@ harness:
             acts: []
             artifact_refs: []
             lineage_refs: []
-            seal_reason_code: needs_agent
-            seal_summary: Waiting for bounded caller cognitive work.
+            seal_reason: resolution_pending
         harness_output: needs_agent
         skill_path: skills/research
       caller:

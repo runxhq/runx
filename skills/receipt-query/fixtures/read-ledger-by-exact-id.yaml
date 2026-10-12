@@ -20,7 +20,7 @@ inputs:
   receipt_details:
     - id: rcpt_target
       receipt_ref: runx:receipt:rcpt_target
-      subject_kind: skill
+      subject_kind: graph
       subject_ref: runx/skill-build
       created_at: "2026-07-16T00:00:00Z"
       status: closed
@@ -34,7 +34,6 @@ inputs:
       acts: []
       artifact_refs: []
       lineage_refs: []
-      seal_reason_code: graph_closed
 expect:
   status: sealed
   steps: [prepare, finalize-replay]

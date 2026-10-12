@@ -1,12 +1,12 @@
 {
   "content_address": {
-    "actual": "sha256:8314ee51a78194b85b3f5e8f1024c45d0cb43f2eb6b37526af83c6d67451158b",
-    "expected": "sha256:e75c1fd8fcaef94abdf6275a722f56c2e1d5ed5679cfb83fae9ee231bcd62688",
+    "actual": "sha256:198f4a482a8482e1d443af485c397eaaac230050d1040212b7d73848bce7ffc2",
+    "expected": "sha256:2fab158590235433a647d4f3b9fdb9a666e1a597bf93630f27090184fbe8a7c9",
     "status": "invalid"
   },
   "digest": {
-    "actual": "sha256:3f80d043d1c4b3c728c407a79cf38fb68deee76e4eae58f9c4d8f4069e61745a",
-    "expected": "sha256:96957ed7fa92b947e36ff46a550d7238052e71991df17e2bc61c69e5a57d254c",
+    "actual": "sha256:5fec3754cc68f5a69a7381528eb5258eff81f1c2783d9c91e9a7e519977b9bcf",
+    "expected": "sha256:029c9c13bc97e6c6989480f61ee9dd6b58b586e1a135e989e6933dec186a4a47",
     "status": "invalid"
   },
   "findings": [
@@ -30,7 +30,7 @@
     "message": "single receipt verification cannot prove receipt-tree lineage",
     "status": "unverified"
   },
-  "receipt_id": "sha256:8314ee51a78194b85b3f5e8f1024c45d0cb43f2eb6b37526af83c6d67451158b",
+  "receipt_id": "sha256:198f4a482a8482e1d443af485c397eaaac230050d1040212b7d73848bce7ffc2",
   "schema": "runx.verify_verdict.v1",
   "signature": {
     "issuer_type": "hosted",

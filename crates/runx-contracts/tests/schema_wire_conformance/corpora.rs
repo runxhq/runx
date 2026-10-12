@@ -916,7 +916,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         "signature": { "alg": "Ed25519", "value": "sig:abc" },
         "digest": "sha256:abc",
         "subject": {
-            "kind": "skill",
+            "kind": "step",
             "ref": a_ref(),
             "outcome": format!("sha256:{}", "3".repeat(64)),
         },
@@ -932,7 +932,6 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         "acts": [],
         "seal": {
             "disposition": "closed",
-            "reason_code": "process_closed",
             "criteria": [],
         },
         "lineage": { "children": [] },
@@ -1031,7 +1030,19 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "subject",
-                json!({ "kind": "skill", "ref": a_ref() }),
+                json!({ "kind": "step", "ref": a_ref() }),
+            ),
+        ),
+        (
+            "subject kind outside the vocabulary",
+            set_field(
+                valid.clone(),
+                "subject",
+                json!({
+                    "kind": "skill",
+                    "ref": a_ref(),
+                    "outcome": format!("sha256:{}", "3".repeat(64)),
+                }),
             ),
         ),
         (
@@ -1041,11 +1052,26 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 "seal",
                 json!({
                     "disposition": "closed",
-                    "reason_code": "process_closed",
                     "summary": "closed",
                     "criteria": [],
                 }),
             ),
+        ),
+        (
+            "seal reason outside the vocabulary",
+            set_field(
+                valid.clone(),
+                "seal",
+                json!({
+                    "disposition": "closed",
+                    "reason": "process_closed",
+                    "criteria": [],
+                }),
+            ),
+        ),
+        (
+            "unsigned metadata rejected",
+            set_field(valid.clone(), "metadata", json!({ "skill_name": "forged" })),
         ),
         (
             "criterion outside the runtime's vocabulary",
@@ -1054,7 +1080,6 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 "seal",
                 json!({
                     "disposition": "closed",
-                    "reason_code": "process_closed",
                     "criteria": [{
                         "criterion_id": "c1",
                         "status": "verified",

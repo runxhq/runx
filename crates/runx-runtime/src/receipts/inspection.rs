@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use runx_contracts::{AuthorityTerm, CriterionBinding, Receipt, ReceiptIssuerType, Reference};
+use runx_contracts::{
+    AuthorityTerm, CriterionBinding, Receipt, ReceiptIssuerType, Reference, SealReason, SubjectKind,
+};
 use serde::{Deserialize, Serialize};
 
 use super::RuntimeReceiptSignaturePolicy;
@@ -26,7 +28,7 @@ pub struct ReceiptInspectionProjection {
 pub struct ReceiptInspection {
     pub id: String,
     pub receipt_ref: String,
-    pub subject_kind: String,
+    pub subject_kind: SubjectKind,
     pub subject_ref: String,
     pub created_at: String,
     pub status: String,
@@ -39,7 +41,8 @@ pub struct ReceiptInspection {
     pub acts: Vec<ReceiptActInspection>,
     pub artifact_refs: Vec<String>,
     pub lineage_refs: Vec<String>,
-    pub seal_reason_code: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal_reason: Option<SealReason>,
     /// The seal's criteria: how the step ended and the evidence of it,
     /// whether or not the step made a governed call.
     pub seal_criteria: Vec<ReceiptCriterionInspection>,
@@ -122,7 +125,7 @@ pub fn project_receipt_inspection(
     ReceiptInspection {
         id: receipt.id.to_string(),
         receipt_ref: receipt_uri(&receipt.id),
-        subject_kind: receipt.subject.kind.to_string(),
+        subject_kind: receipt.subject.kind,
         subject_ref: receipt.subject.reference.uri.to_string(),
         created_at: receipt.created_at.to_string(),
         status: closure_status(&receipt.seal.disposition),
@@ -135,7 +138,7 @@ pub fn project_receipt_inspection(
         acts,
         artifact_refs,
         lineage_refs: inspection_lineage_refs(receipt),
-        seal_reason_code: receipt.seal.reason_code.to_string(),
+        seal_reason: receipt.seal.reason,
         seal_criteria: criterion_inspections(&receipt.seal.criteria),
     }
 }

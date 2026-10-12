@@ -9,9 +9,7 @@ mod tool;
 pub mod types;
 pub mod watch;
 
-pub use r#loop::{
-    dev_receipt_metadata, discover_fixture_paths, run_dev_once, run_dev_once_with_executor,
-};
+pub use r#loop::{discover_fixture_paths, run_dev_once, run_dev_once_with_executor};
 pub use presentation::{DevRenderTheme, render_dev_result, render_dev_result_with_theme};
 pub use runx_parser::DevFixtureLane;
 pub use types::{

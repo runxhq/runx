@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema};
+use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema, SealReason};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -261,7 +261,7 @@ pub struct ReceiptExpectation {
     pub subject_ref: Option<String>,
     pub state: Option<String>,
     pub disposition: Option<ClosureDisposition>,
-    pub reason_code: Option<String>,
+    pub reason: Option<SealReason>,
     /// Each list is asserted when present, an empty one included: `[]`
     /// asserts there is none.
     pub act_ids: Option<Vec<String>>,
@@ -316,7 +316,7 @@ struct RawReceiptExpectation {
     subject_ref: Option<String>,
     state: Option<String>,
     disposition: Option<ClosureDisposition>,
-    reason_code: Option<String>,
+    reason: Option<SealReason>,
     act_ids: Option<Vec<String>>,
     decision_ids: Option<Vec<String>>,
     child_receipt_refs: Option<Vec<String>>,
@@ -810,7 +810,7 @@ fn validate_receipt_expectation(
         subject_ref: receipt.subject_ref,
         state: receipt.state,
         disposition: receipt.disposition,
-        reason_code: receipt.reason_code,
+        reason: receipt.reason,
         act_ids: receipt.act_ids,
         decision_ids: receipt.decision_ids,
         child_receipt_refs: receipt.child_receipt_refs,

@@ -14,8 +14,8 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "created_at": "2026-06-10T00:00:00Z",
   "decisions": [],
-  "digest": "sha256:3f80d043d1c4b3c728c407a79cf38fb68deee76e4eae58f9c4d8f4069e61745a",
-  "id": "sha256:8314ee51a78194b85b3f5e8f1024c45d0cb43f2eb6b37526af83c6d67451158b",
+  "digest": "sha256:5fec3754cc68f5a69a7381528eb5258eff81f1c2783d9c91e9a7e519977b9bcf",
+  "id": "sha256:198f4a482a8482e1d443af485c397eaaac230050d1040212b7d73848bce7ffc2",
   "issuer": {
     "kid": "runx-cli-verify-fixture-key",
     "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
@@ -34,15 +34,14 @@
         "verification_refs": []
       }
     ],
-    "disposition": "closed",
-    "reason_code": "step_closed"
+    "disposition": "closed"
   },
   "signature": {
     "alg": "Ed25519",
     "value": "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
   },
   "subject": {
-    "kind": "skill",
+    "kind": "step",
     "outcome": "sha256:8f8f6c0b23bac127b29527ba38dfbf23854c7c13f8f371de7891c2576fd209cd",
     "ref": {
       "label": "receipt-verify",

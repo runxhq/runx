@@ -17,7 +17,9 @@ The act model lives in `crates/runx-contracts`:
 - **Decision** (`src/decision.rs`): a governed choice a call's caller states,
   naming the act that carries it out. A seal's **`ClosureDisposition`** is
   `closed`, `deferred`, `superseded`, `declined`, `blocked`, `failed`,
-  `killed` or `timed_out`, with a `reason_code`.
+  `killed` or `timed_out`. When the disposition alone does not say why, the
+  seal adds a **`SealReason`** from a closed vocabulary, such as
+  `graph_step_failed`, `authority_denied` or `input_contract_invalid`.
 - **Signal** (`src/signal.rs`): an inbound observation, with a `SignalSchema`
   and a `SignalTrustLevel`. Receipts do not carry signals.
 - **Receipt** (`src/receipt.rs`): the sealed, flat record of a run node. It

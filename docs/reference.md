@@ -184,8 +184,9 @@ being flattened into one misleading global number: a provider operation request
 timeout, a managed-agent request timeout, a native command argument budget, and
 a file-bundle budget are different contracts. Their constants use capability-qualified names. Limits
 that are selectable per invocation or materially shape a sealed execution are
-typed at the invocation boundary; deterministic-module limits and any limit hit
-are copied into the receipt's unsigned metadata.
+typed at the invocation boundary. An invocation that hits one fails, and its
+failure message names the ceiling it hit; the receipt seals the failure, not
+the limits.
 
 Credential redaction and untrusted-data admission are also distinct. Exact
 values delivered by Runx enter the run-scoped taint set and are scrubbed at
@@ -263,7 +264,8 @@ independent inspection:
 a graph's terminal successful producer. When a guard or an authority refused a
 step, `refusal` carries why (`code` and `message`) beside what the steps
 produced; a failed run's `result` is its failure. Neither is part of the signed
-receipt, whose seal records the typed `disposition` and `reason_code`. `trace` deliberately carries
+receipt, whose seal records the typed `disposition` and, when the
+disposition alone does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
 references rather than step payloads. Intermediate graph state, child receipts,
 and the full signed receipt are written to the local Runx state and receipt
 stores; process output identity is committed by the receipt. Inspect proof

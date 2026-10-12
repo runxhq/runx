@@ -10,5 +10,4 @@ expect:
     subject_ref: runx:run:harness-cli-parity-echo-skill
     state: sealed
     disposition: closed
-    reason_code: graph_closed
     child_receipt_count: 1

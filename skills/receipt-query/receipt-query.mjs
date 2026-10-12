@@ -128,7 +128,7 @@ function projectReceiptDetail(value) {
     acts: records(detail.acts).map(projectAct),
     artifact_refs: stringArray(detail.artifact_refs, 500),
     lineage_refs: stringArray(detail.lineage_refs, 500),
-    seal_reason_code: stringValue(detail.seal_reason_code) || "",
+    seal_reason: stringValue(detail.seal_reason),
   };
 }
 

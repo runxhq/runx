@@ -1863,19 +1863,11 @@ export const runxSchemaArtifacts = {
                           "write",
                           "comment",
                           "review",
-                          "approve",
                           "merge",
                           "create",
                           "update",
                           "delete",
                           "execute",
-                          "verify",
-                          "estimate",
-                          "prepare",
-                          "commit",
-                          "reverse",
-                          "publish",
-                          "spawn_child",
                           "revoke"
                         ],
                         "type": "string"
@@ -2675,19 +2667,11 @@ export const runxSchemaArtifacts = {
                 "write",
                 "comment",
                 "review",
-                "approve",
                 "merge",
                 "create",
                 "update",
                 "delete",
                 "execute",
-                "verify",
-                "estimate",
-                "prepare",
-                "commit",
-                "reverse",
-                "publish",
-                "spawn_child",
                 "revoke"
               ],
               "type": "string"
@@ -5949,19 +5933,11 @@ export const runxSchemaArtifacts = {
                       "write",
                       "comment",
                       "review",
-                      "approve",
                       "merge",
                       "create",
                       "update",
                       "delete",
                       "execute",
-                      "verify",
-                      "estimate",
-                      "prepare",
-                      "commit",
-                      "reverse",
-                      "publish",
-                      "spawn_child",
                       "revoke"
                     ],
                     "type": "string"
@@ -6961,19 +6937,11 @@ export const runxSchemaArtifacts = {
             "write",
             "comment",
             "review",
-            "approve",
             "merge",
             "create",
             "update",
             "delete",
             "execute",
-            "verify",
-            "estimate",
-            "prepare",
-            "commit",
-            "reverse",
-            "publish",
-            "spawn_child",
             "revoke"
           ],
           "type": "string"
@@ -22410,19 +22378,11 @@ export const runxSchemaArtifacts = {
                                 "write",
                                 "comment",
                                 "review",
-                                "approve",
                                 "merge",
                                 "create",
                                 "update",
                                 "delete",
                                 "execute",
-                                "verify",
-                                "estimate",
-                                "prepare",
-                                "commit",
-                                "reverse",
-                                "publish",
-                                "spawn_child",
                                 "revoke"
                               ],
                               "type": "string"
@@ -23469,19 +23429,11 @@ export const runxSchemaArtifacts = {
                       "write",
                       "comment",
                       "review",
-                      "approve",
                       "merge",
                       "create",
                       "update",
                       "delete",
                       "execute",
-                      "verify",
-                      "estimate",
-                      "prepare",
-                      "commit",
-                      "reverse",
-                      "publish",
-                      "spawn_child",
                       "revoke"
                     ],
                     "type": "string"
@@ -23679,10 +23631,6 @@ export const runxSchemaArtifacts = {
         "required": [
           "children"
         ],
-        "type": "object"
-      },
-      "metadata": {
-        "additionalProperties": {},
         "type": "object"
       },
       "schema": {
@@ -23892,14 +23840,25 @@ export const runxSchemaArtifacts = {
             ],
             "type": "string"
           },
-          "reason_code": {
-            "minLength": 1,
+          "reason": {
+            "enum": [
+              "preflight_refused",
+              "input_contract_invalid",
+              "graph_step_failed",
+              "graph_blocked",
+              "authority_denied",
+              "resolution_pending",
+              "managed_agent_provider_failed",
+              "managed_agent_resolution_failed",
+              "managed_agent_empty_turn_budget_exhausted",
+              "managed_agent_tool_execution_failed",
+              "managed_agent_round_budget_exhausted"
+            ],
             "type": "string"
           }
         },
         "required": [
           "disposition",
-          "reason_code",
           "criteria"
         ],
         "type": "object"
@@ -23928,7 +23887,10 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "properties": {
           "kind": {
-            "minLength": 1,
+            "enum": [
+              "step",
+              "graph"
+            ],
             "type": "string"
           },
           "outcome": {

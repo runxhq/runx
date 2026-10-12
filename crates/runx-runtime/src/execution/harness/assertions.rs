@@ -1,4 +1,4 @@
-use runx_contracts::{ClosureDisposition, JsonValue, Receipt, ReceiptSchema};
+use runx_contracts::{ClosureDisposition, JsonValue, Receipt, ReceiptSchema, SealReason};
 use runx_receipts::{
     ReceiptProofContextProvider, canonical_receipt_body_digest, canonical_receipt_digest,
     verify_receipt_proof,
@@ -19,7 +19,7 @@ pub struct HarnessReplayReceipt {
     pub subject_ref: String,
     pub state: String,
     pub disposition: ClosureDisposition,
-    pub reason_code: String,
+    pub reason: Option<SealReason>,
     pub act_ids: Vec<String>,
     pub decision_ids: Vec<String>,
     pub child_receipt_refs: Vec<String>,
@@ -157,11 +157,11 @@ fn assert_receipt_identity(
             disposition_name(&summary.disposition),
         )?;
     }
-    if let Some(expected_reason_code) = &expected.reason_code {
+    if let Some(expected_reason) = expected.reason {
         assert_equal(
-            "expect.receipt.reason_code",
-            expected_reason_code,
-            &summary.reason_code,
+            "expect.receipt.reason",
+            expected_reason.label(),
+            summary.reason.map_or("none", SealReason::label),
         )?;
     }
     Ok(())
@@ -257,7 +257,7 @@ fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
         subject_ref: receipt.subject.reference.uri.clone().into_string(),
         state,
         disposition: receipt.seal.disposition.clone(),
-        reason_code: receipt.seal.reason_code.to_string(),
+        reason: receipt.seal.reason,
         act_ids: receipt.acts.iter().map(|act| act.id.to_string()).collect(),
         decision_ids: receipt
             .decisions

@@ -292,7 +292,7 @@ fn governed_harness_document(
             subject_ref: None,
             state: None,
             disposition: None,
-            reason_code: None,
+            reason: None,
             act_ids: None,
             decision_ids: None,
             child_receipt_refs: None,

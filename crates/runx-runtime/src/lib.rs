@@ -91,8 +91,8 @@ pub use credential_profiles::{
 pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
 pub use dev::{
     DevFixtureLane, DevFixtureResult, DevFixtureStatus, DevLoopOptions, DevReport, DevReportStatus,
-    DevWatchOptions, DevWatchTrigger, PollingDevWatcher, dev_receipt_metadata,
-    discover_fixture_paths, render_dev_result, run_dev_once, should_ignore_dev_watch_path,
+    DevWatchOptions, DevWatchTrigger, PollingDevWatcher, discover_fixture_paths, render_dev_result,
+    run_dev_once, should_ignore_dev_watch_path,
 };
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
 pub use effects::{

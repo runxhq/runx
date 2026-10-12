@@ -608,7 +608,7 @@ describe("@runxhq/contracts", () => {
       },
       digest: "sha256:receipt",
       subject: {
-        kind: "skill",
+        kind: "step",
         ref: { type: "run", uri: "runx:run:run_123#reply@1" },
         outcome: `sha256:${"3".repeat(64)}`,
       },
@@ -647,7 +647,6 @@ describe("@runxhq/contracts", () => {
       }],
       seal: {
         disposition: "closed",
-        reason_code: "step_closed",
         criteria: [outcome],
       },
       lineage: {

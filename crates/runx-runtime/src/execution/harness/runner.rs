@@ -162,13 +162,13 @@ pub enum HarnessReplayError {
 
 #[derive(Debug, Error)]
 #[error(
-    "{message}; receipt={receipt_id}; disposition={disposition}; reason={reason_code}; skill_value={skill_value}; skill_failure={skill_failure}"
+    "{message}; receipt={receipt_id}; disposition={disposition}; reason={reason}; skill_value={skill_value}; skill_failure={skill_failure}"
 )]
 pub struct HarnessExpectationFailure {
     pub message: String,
     pub receipt_id: String,
     pub disposition: String,
-    pub reason_code: String,
+    pub reason: String,
     pub skill_value: String,
     pub skill_failure: String,
 }
@@ -445,7 +445,12 @@ fn expectation_error_with_output(
         message: error.to_string(),
         receipt_id: output.receipt.id.to_string(),
         disposition: format!("{:?}", output.receipt.seal.disposition),
-        reason_code: output.receipt.seal.reason_code.to_string(),
+        reason: output
+            .receipt
+            .seal
+            .reason
+            .map_or("none", runx_contracts::SealReason::label)
+            .to_owned(),
         skill_value: output
             .skill_output
             .as_ref()
@@ -522,7 +527,7 @@ fn seal_admission_failure(
             output: &output,
             created_at: &options.clock.now(),
             disposition: ClosureDisposition::Failed,
-            reason_code: "input_contract_invalid".to_owned(),
+            reason: Some(runx_contracts::SealReason::InputContractInvalid),
         },
         &projection.outputs,
         options.signature_policy(),

@@ -9,7 +9,7 @@ use boa_engine::object::IntegrityLevel;
 use boa_engine::{Context, JsError, JsValue, Module, Source, js_string};
 use thiserror::Error;
 
-use crate::protocol::{InvocationLimits, WorkerFailureCode, WorkerLimit};
+use crate::protocol::{InvocationLimits, WorkerFailureCode};
 
 mod globals;
 mod jobs;
@@ -28,7 +28,6 @@ const ERROR_MESSAGE_BYTES: usize = 4_096;
 #[error("{message}")]
 pub(crate) struct EngineError {
     pub(crate) code: WorkerFailureCode,
-    pub(crate) limit: Option<WorkerLimit>,
     pub(crate) message: String,
 }
 
@@ -36,17 +35,13 @@ impl EngineError {
     pub(super) fn new(code: WorkerFailureCode, message: impl Into<String>) -> Self {
         Self {
             code,
-            limit: None,
             message: bounded_message(message.into()),
         }
     }
 
-    pub(super) fn limit(limit: WorkerLimit, message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerFailureCode::ResourceLimit,
-            limit: Some(limit),
-            message: bounded_message(message.into()),
-        }
+    /// A failure at one of the invocation's ceilings; the message names it.
+    pub(super) fn limit(message: impl Into<String>) -> Self {
+        Self::new(WorkerFailureCode::ResourceLimit, message)
     }
 }
 
@@ -115,14 +110,11 @@ pub(crate) fn evaluate(
     let output_bytes = serde_json::to_vec(&output)
         .map_err(|error| EngineError::new(WorkerFailureCode::OutputRejected, error.to_string()))?;
     if output_bytes.len() > limits.output_bytes {
-        return Err(EngineError::limit(
-            WorkerLimit::OutputBytes,
-            format!(
-                "JavaScript output is {} bytes; limit is {} bytes",
-                output_bytes.len(),
-                limits.output_bytes
-            ),
-        ));
+        return Err(EngineError::limit(format!(
+            "JavaScript output is {} bytes; limit is {} bytes",
+            output_bytes.len(),
+            limits.output_bytes
+        )));
     }
     Ok(output)
 }

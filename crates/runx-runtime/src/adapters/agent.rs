@@ -1,6 +1,6 @@
 //! The managed agent's telemetry and its sanitized failures.
 
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{JsonNumber, JsonObject, JsonValue, SealReason};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentExecutionTelemetry {
@@ -64,7 +64,7 @@ pub struct AgentToolExecutionTrace {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ManagedAgentError {
-    reason_code: String,
+    reason: SealReason,
     sanitized_message: String,
     telemetry: Option<Box<AgentExecutionTelemetry>>,
 }
@@ -73,7 +73,7 @@ impl ManagedAgentError {
     #[must_use]
     pub fn provider_error(_message: impl Into<String>) -> Self {
         Self {
-            reason_code: "provider_failed".to_owned(),
+            reason: SealReason::ManagedAgentProviderFailed,
             sanitized_message: "Managed agent provider request failed.".to_owned(),
             telemetry: None,
         }
@@ -82,7 +82,7 @@ impl ManagedAgentError {
     #[must_use]
     pub fn sanitized(message: impl Into<String>) -> Self {
         Self {
-            reason_code: "resolution_failed".to_owned(),
+            reason: SealReason::ManagedAgentResolutionFailed,
             sanitized_message: message.into(),
             telemetry: None,
         }
@@ -90,20 +90,21 @@ impl ManagedAgentError {
 
     #[must_use]
     pub fn bounded_failure(
-        reason_code: impl Into<String>,
+        reason: SealReason,
         sanitized_message: impl Into<String>,
         telemetry: AgentExecutionTelemetry,
     ) -> Self {
         Self {
-            reason_code: reason_code.into(),
+            reason,
             sanitized_message: sanitized_message.into(),
             telemetry: Some(Box::new(telemetry)),
         }
     }
 
+    /// Why the managed agent stopped, as the receipt seals it.
     #[must_use]
-    pub fn reason_code(&self) -> &str {
-        &self.reason_code
+    pub const fn reason(&self) -> SealReason {
+        self.reason
     }
 
     #[must_use]
@@ -125,8 +126,8 @@ impl ManagedAgentError {
             ),
             ("status".to_owned(), JsonValue::String("failed".to_owned())),
             (
-                "reason_code".to_owned(),
-                JsonValue::String(self.reason_code.clone()),
+                "reason".to_owned(),
+                JsonValue::String(self.reason.label().to_owned()),
             ),
             (
                 "message".to_owned(),
@@ -140,14 +141,6 @@ impl ManagedAgentError {
             );
         }
         projection
-    }
-
-    #[must_use]
-    pub(crate) fn receipt_metadata(&self) -> JsonObject {
-        JsonObject::from([(
-            "managed_agent_failure".to_owned(),
-            JsonValue::Object(self.public_failure_projection()),
-        )])
     }
 }
 

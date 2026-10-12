@@ -1392,7 +1392,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     assert_eq!(string_field(output, "status"), Some("sealed"));
     let closure = object_field(output, "closure").ok_or("missing closure")?;
     assert_eq!(string_field(closure, "disposition"), Some("blocked"));
-    assert_eq!(string_field(closure, "reason_code"), Some("graph_blocked"));
+    assert_eq!(string_field(closure, "reason"), Some("graph_blocked"));
     // Why the guard refused rides the run's output, outside the signed receipt.
     let refusal = object_field(output, "refusal").ok_or("missing refusal")?;
     assert!(

@@ -5,17 +5,16 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
-    body_digest: sha256:08bd2a0d553c605731ee38e516e892551d8c760a63a746992cf8599557cf5f5d
-    receipt_digest: sha256:fc92022ce0e8d3f470164e5fbeb7b2b9984c0d974fa167ef1b98f84d736513eb
+    body_digest: sha256:75f24b97ed7c4cf6af74d4438287b34050d1db77b773ee7a830b93080a3e00d3
+    receipt_digest: sha256:1257a5343fe678dddedcace23261a25cc0ddafcd65e7099d17c661ecafc734fa
     subject_ref: runx:run:harness-graph
     state: sealed
     disposition: closed
-    reason_code: graph_closed
     act_ids: []
     decision_ids: []
     child_receipt_refs:
-      - runx:receipt:sha256:85c7b68fbc004b92c917c5dd31f12e89557945c7084ef8efbc0bafb2cf614d32
-      - runx:receipt:sha256:d2c2f4729e8b9cc97ceb54f274e70fa30f08bfe53b045282d40060a680a310e3
+      - runx:receipt:sha256:d54182d17e654b19be38993dde5a48c3d2706f9c374c2e2469b741adb87d9e01
+      - runx:receipt:sha256:28af0a811d768b576ea4b21f49755cc0a689ab89e90ce7b96af7a165b2733a24
     child_receipt_count: 2
   steps:
     - first

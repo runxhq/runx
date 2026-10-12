@@ -54,7 +54,7 @@ fn parses_harness_skill_fixture_contract() -> Result<(), Box<dyn std::error::Err
         receipt.subject_ref.as_deref(),
         Some("runx:run:harness-echo-skill")
     );
-    assert_eq!(receipt.reason_code.as_deref(), Some("graph_closed"));
+    assert_eq!(receipt.reason, None);
     assert_eq!(receipt.child_receipt_count, Some(1));
     Ok(())
 }
@@ -78,9 +78,9 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(
         receipt.child_receipt_refs,
         Some(vec![
-            "runx:receipt:sha256:85c7b68fbc004b92c917c5dd31f12e89557945c7084ef8efbc0bafb2cf614d32"
+            "runx:receipt:sha256:d54182d17e654b19be38993dde5a48c3d2706f9c374c2e2469b741adb87d9e01"
                 .to_owned(),
-            "runx:receipt:sha256:d2c2f4729e8b9cc97ceb54f274e70fa30f08bfe53b045282d40060a680a310e3"
+            "runx:receipt:sha256:28af0a811d768b576ea4b21f49755cc0a689ab89e90ce7b96af7a165b2733a24"
                 .to_owned()
         ])
     );

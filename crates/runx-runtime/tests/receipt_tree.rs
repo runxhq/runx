@@ -86,7 +86,7 @@ fn runtime_resolver_reports_conflicting_same_id_children() -> Result<(), Box<dyn
 {
     let (root, mut children) = graph_with_steps("tree_runtime_ambiguous", &["child"])?;
     let mut conflicting = children[0].clone();
-    conflicting.seal.reason_code = "different_signed_body".into();
+    conflicting.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
     children.push(conflicting);
 
     let verification = verify_runtime_receipt_tree(
@@ -160,7 +160,7 @@ fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::
 fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, mut children) = graph_with_steps("tree_runtime_child_tamper", &["child"])?;
-    children[0].seal.reason_code = "tampered_child_body".into();
+    children[0].seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
 
     assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     let verification = verify_runtime_receipt_tree(
@@ -188,7 +188,7 @@ fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, children) = graph_with_steps("tree_runtime_child_digest", &["child"])?;
     let mut alternate = children[0].clone();
-    alternate.seal.reason_code = "alternate_child_body".into();
+    alternate.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
     refresh_local_digest_and_signature(&mut alternate)?;
 
     let verification = verify_runtime_receipt_tree(
