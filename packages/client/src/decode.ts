@@ -11,13 +11,24 @@ export function record(value: unknown): value is Record<string, unknown> {
 
 export function parseJson(result: ProcessResult, exits: readonly number[]): Record<string, unknown> {
   if (result.exitCode === null || !exits.includes(result.exitCode)) {
-    throw new RunxClientError("exit", `Runx exited with code ${result.exitCode}: ${result.stderr.trim().slice(0, 2048)}`);
+    throw new RunxClientError("exit", `Runx exited with code ${result.exitCode}: ${failureDetail(result)}`);
   }
   try {
     const output: unknown = JSON.parse(result.stdout);
     if (!record(output)) throw new Error("Expected a JSON object.");
     return output;
   } catch (error) { throw new RunxClientError("contract", "Runx did not return a JSON object.", { cause: error }); }
+}
+
+/** Why runx failed, in its own words: the `--json` failure envelope it wrote, else its stderr. */
+function failureDetail(result: ProcessResult): string {
+  try {
+    const output: unknown = JSON.parse(result.stdout);
+    if (record(output) && record(output.error) && typeof output.error.message === "string") return output.error.message.slice(0, 2048);
+  } catch {
+    // Not an envelope: stderr is all runx said.
+  }
+  return result.stderr.trim().slice(0, 2048);
 }
 
 export async function decodeSkill(result: ProcessResult, config: { projectDir: string; receiptDir: string; maxArtifactBytes: number }): Promise<SkillRunOutput> {

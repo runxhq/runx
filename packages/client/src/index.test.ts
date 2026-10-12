@@ -92,6 +92,12 @@ describe("native invocation and decoding", () => {
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { ref: 'acme/ops-api' } } }));`);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");
   });
+  it("names why runx refused, from its failure envelope", async () => {
+    const { config } = await setup();
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'registry_error', message: 'SKILL.md.runx is not supported' } })); process.stderr.write('ignored'); process.exitCode = 1;`);
+    const client = createRunxClient(config);
+    await expect(client.packages.materialize({ skillPath: "/skills/old" })).rejects.toThrow("Runx exited with code 1: SKILL.md.runx is not supported");
+  });
   it("sends inputs on stdin, never in argv or a file", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.json");
