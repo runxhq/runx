@@ -51,23 +51,28 @@ fn receipt_schema_refuses_an_omitted_default_written_out() -> Result<(), String>
         })
         .build(&<Receipt as RunxSchema>::json_schema())
         .map_err(|error| error.to_string())?;
-    let with_bounds = |bounds: Value| {
+    let with_term = |bounds: Value, approvals: Option<Value>| {
         let mut receipt = valid.clone();
-        receipt["authority"]["terms"] = json!([{
+        let mut term = json!({
             "term_id": "term_1",
             "principal_ref": { "type": "principal", "uri": "runx:principal:p" },
-            "resource_ref": { "type": "repository", "uri": "runx:repository:r" },
-            "resource_family": "workspace",
+            "resource_ref": { "type": "connector_instance", "uri": "runx:connector_instance:i" },
+            "resource_family": "connector",
             "verbs": ["read"],
             "bounds": bounds,
             "issued_by_ref": { "type": "principal", "uri": "runx:principal:issuer" },
-        }]);
+        });
+        if let Some(approvals) = approvals {
+            term["approvals"] = approvals;
+        }
+        receipt["authority"]["terms"] = json!([term]);
         receipt
     };
 
-    assert!(validator.is_valid(&with_bounds(json!({}))));
-    assert!(!validator.is_valid(&with_bounds(json!({ "operations": [] }))));
-    assert!(!validator.is_valid(&with_bounds(json!({ "repo_path_globs": [] }))));
+    assert!(validator.is_valid(&with_term(json!({}), None)));
+    assert!(!validator.is_valid(&with_term(json!({ "operations": [] }), None)));
+    assert!(!validator.is_valid(&with_term(json!({ "scopes": [] }), None)));
+    assert!(!validator.is_valid(&with_term(json!({}), Some(json!([])))));
     Ok(())
 }
 

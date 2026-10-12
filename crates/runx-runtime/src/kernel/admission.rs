@@ -1028,13 +1028,11 @@ fn term_request(
         resource_ref: capability::instance_reference(instance),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![spec.verb.authority_verb()],
-        capabilities: Vec::new(),
         bounds: AuthorityBounds {
             operations: vec![NonEmptyString::from(format!("{connector}/{operation}"))],
             scopes: spec.scopes.iter().cloned().collect(),
             targets: vec![NonEmptyString::from(target)],
             uses,
-            ..AuthorityBounds::default()
         },
         expires_at: None,
     }

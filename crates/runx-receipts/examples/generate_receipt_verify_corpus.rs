@@ -60,27 +60,14 @@ fn main() {
         &tampered_signature,
     );
 
-    // Keys past the Basic Multilingual Plane and a small float: an independent
-    // verifier must order keys by code point and write numbers as the
-    // canonical writer does to reproduce this receipt's id and digest.
+    // Text past the Basic Multilingual Plane in a signed value: an
+    // independent verifier must write it as the canonical writer does to
+    // reproduce this receipt's id and digest.
     let mut wide = serde_json::to_value(&valid).unwrap();
-    wide["authority"]["terms"] = serde_json::json!([{
-        "term_id": "term_wide",
-        "principal_ref": { "type": "principal", "uri": "runx:principal:local_runtime" },
-        "resource_ref": { "type": "repository", "uri": "runx:repository:fixture" },
-        "resource_family": "workspace",
-        "verbs": ["read"],
-        "bounds": {},
-        "conditions": [{
-            "condition_id": "budget",
-            "predicate": "within_budget",
-            "parameters": { "\u{E000}": 1, "\u{10000}": 0.000001234, "limit": 1.5e20 },
-        }],
-        "issued_by_ref": { "type": "principal", "uri": "runx:principal:local_runtime" },
-    }]);
+    wide["subject"]["ref"]["label"] = serde_json::json!("receipt-verify \u{E000}\u{10000}");
     let mut wide: Receipt = serde_json::from_value(wide).unwrap();
     hosted.seal(&mut wide).unwrap();
-    write_receipt(&root.join("valid-wide-keys/receipt.json"), &wide);
+    write_receipt(&root.join("valid-wide-text/receipt.json"), &wide);
 
     let mut unknown_kid = valid.clone();
     unknown_kid.issuer.kid = "unknown-fixture-key".into();
@@ -105,7 +92,7 @@ fn write_expected_verdicts(root: &Path, keys: &FixtureKeys<'_>) {
     };
     for name in [
         "valid-production",
-        "valid-wide-keys",
+        "valid-wide-text",
         "tampered-body",
         "tampered-signature",
         "unknown-kid",

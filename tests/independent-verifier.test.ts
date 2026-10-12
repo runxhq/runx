@@ -50,7 +50,7 @@ describe("the independent receipt verifier", () => {
   it("agrees with Rust on every hosted-signed corpus receipt", async () => {
     for (const [name, valid] of [
       ["valid-production", true],
-      ["valid-wide-keys", true],
+      ["valid-wide-text", true],
       ["tampered-body", false],
       ["tampered-signature", false],
     ] as const) {

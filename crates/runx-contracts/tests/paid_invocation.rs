@@ -70,23 +70,6 @@ fn vectors_cover_identity_replay_terms_binding_and_outcomes()
         vector("cancel-after-settlement.json")?.pointer("/payload/value/invocation/payment_state"),
         Some(&Value::String("settled".to_owned()))
     );
-    let authority = vector("execute-authority-values.json")?;
-    assert_eq!(
-        authority.pointer("/authority_mapping/effect_limit/family"),
-        Some(&Value::String("payment".to_owned()))
-    );
-    assert_eq!(
-        authority.pointer("/authority_mapping/effect_limit/unit"),
-        Some(&Value::String("USD".to_owned()))
-    );
-    assert_eq!(
-        authority.pointer("/authority_mapping/effect_limit/operation"),
-        authority.get("operation")
-    );
-    assert_eq!(
-        authority.pointer("/authority_mapping/idempotency_binding"),
-        authority.pointer("/payload/idempotency")
-    );
     Ok(())
 }
 

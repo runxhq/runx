@@ -83,7 +83,6 @@ struct Vector {
     schema_id: &'static str,
     expectation: &'static str,
     payload: Value,
-    authority_mapping: Option<Value>,
 }
 
 fn main() -> io::Result<()> {
@@ -222,24 +221,12 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "runx.payment.quote_paid_invocation.result.v1",
             refusal("quote_expired", "The quote has expired."),
         )?,
-        valid_with_authority::<ExecutePaidInvocationRequest>(
-            "execute-authority-values.json",
-            "Execution carries values directly comparable with the generic payment AuthorityEffectLimit.",
+        valid::<ExecutePaidInvocationRequest>(
+            "execute-request.json",
+            "Execution names the invocation, its payment proof, its settlement family and the idempotency binding of the quote it executes.",
             "ExecutePaidInvocation",
             "runx.payment.execute_paid_invocation.request.v1",
             execute_request(),
-            json!({
-                "effect_limit": {
-                    "channels": ["hosted"],
-                    "family": "payment",
-                    "idempotency_required": true,
-                    "max_per_call_units": 1250,
-                    "operation": "ExecutePaidInvocation",
-                    "peer": "https://vendor.example/offers/transcribe-v1",
-                    "unit": "USD"
-                },
-                "idempotency_binding": idempotency("execute_direct")
-            }),
         )?,
         valid::<ExecutePaidInvocationResult>(
             "execute-admitted.json",
@@ -431,21 +418,7 @@ fn valid<T: DeserializeOwned + Serialize>(
         schema_id,
         expectation: "valid",
         payload,
-        authority_mapping: None,
     })
-}
-
-fn valid_with_authority<T: DeserializeOwned + Serialize>(
-    file: &'static str,
-    description: &'static str,
-    operation: &'static str,
-    schema_id: &'static str,
-    payload: Value,
-    authority_mapping: Value,
-) -> io::Result<Vector> {
-    let mut vector = valid::<T>(file, description, operation, schema_id, payload)?;
-    vector.authority_mapping = Some(authority_mapping);
-    Ok(vector)
 }
 
 fn invalid(
@@ -462,7 +435,6 @@ fn invalid(
         schema_id,
         expectation: "invalid",
         payload,
-        authority_mapping: None,
     }
 }
 
@@ -885,19 +857,13 @@ fn reconcile_vectors(options: &Options, vectors: &[Vector]) -> io::Result<()> {
         fs::create_dir_all(&options.out_dir)?;
     }
     for vector in vectors {
-        let mut document = json!({
+        let document = json!({
             "description": vector.description,
             "expectation": vector.expectation,
             "operation": vector.operation,
             "payload": vector.payload,
             "schema_id": vector.schema_id
         });
-        if let Some(authority_mapping) = &vector.authority_mapping {
-            document
-                .as_object_mut()
-                .ok_or_else(|| io::Error::other("fixture envelope must be an object"))?
-                .insert("authority_mapping".to_owned(), authority_mapping.clone());
-        }
         reconcile_file(
             &options.out_dir.join(vector.file),
             canonical_bytes(&document)?,

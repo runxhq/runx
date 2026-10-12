@@ -87,9 +87,7 @@ pub use agent_context::{
 };
 pub use artifact::{ARTIFACT_SCHEMA, Artifact, ArtifactProducedBy, ArtifactSchema};
 pub use authority::{
-    AuthorityApproval, AuthorityBounds, AuthorityCapability, AuthorityCondition,
-    AuthorityConditionPredicate, AuthorityDerivation, AuthorityEffectCredentialForm,
-    AuthorityEffectGuard, AuthorityEffectGuardKind, AuthorityEffectLimit, AuthorityEvidence,
+    AuthorityApproval, AuthorityBounds, AuthorityDerivation, AuthorityEvidence,
     AuthorityEvidenceKind, AuthorityResourceFamily, AuthoritySubsetComparison,
     AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
     AuthorityUseLimit, AuthorityVerb, TermLegitimacy,

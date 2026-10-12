@@ -41,9 +41,6 @@ export type CriterionStatusContract = string;
 export type CriterionContract = string;
 export type AuthorityResourceFamilyContract = string;
 export type AuthorityVerbContract = string;
-export type AuthorityCapabilityContract = string;
-export type AuthorityConditionPredicateContract = string;
-export type AuthorityEffectCredentialFormContract = string;
 export type ProofKindContract = string;
 
 export type ReferenceContract = DeepReadonly<{
@@ -69,9 +66,7 @@ export type RedactionContract = ContractObject;
 export type LinksContract = ContractObject;
 export type SignalAuthenticityContract = ContractObject;
 export type SignalContract = ContractObject;
-export type AuthorityEffectLimitContract = ContractObject;
 export type AuthorityBoundsContract = ContractObject;
-export type AuthorityConditionContract = ContractObject;
 export type AuthorityApprovalContract = ContractObject;
 export type AuthorityTermContract = ContractObject;
 export type AuthoritySubsetProofContract = ContractObject;
@@ -178,11 +173,6 @@ export const authorityBoundsSchema = schemaAt<AuthorityBoundsContract>(
   ["properties", "bounds"],
   "authority.terms[].bounds",
 );
-export const authorityEffectLimitSchema = schemaAt<AuthorityEffectLimitContract>(
-  authorityBoundsSchema,
-  ["properties", "effect_limits", "items"],
-  "authority.terms[].bounds.effect_limits[]",
-);
 export const authorityResourceFamilySchema = schemaAt<AuthorityResourceFamilyContract>(
   authorityTermSchema,
   ["properties", "resource_family"],
@@ -193,21 +183,6 @@ export const authorityVerbSchema = schemaAt<AuthorityVerbContract>(
   ["properties", "verbs", "items"],
   "authority.terms[].verbs[]",
 );
-export const authorityCapabilitySchema = schemaAt<AuthorityCapabilityContract>(
-  authorityTermSchema,
-  ["properties", "capabilities", "items"],
-  "authority.terms[].capabilities[]",
-);
-export const authorityConditionSchema = schemaAt<AuthorityConditionContract>(
-  authorityTermSchema,
-  ["properties", "conditions", "items"],
-  "authority.terms[].conditions[]",
-);
-export const authorityConditionPredicateSchema = schemaAt<AuthorityConditionPredicateContract>(
-  authorityConditionSchema,
-  ["properties", "predicate"],
-  "authority.terms[].conditions[].predicate",
-);
 export const authorityApprovalSchema = schemaAt<AuthorityApprovalContract>(
   authorityTermSchema,
   ["properties", "approvals", "items"],
@@ -217,11 +192,6 @@ export const authoritySubsetComparisonSchema = schemaAt<ContractObject>(
   authoritySubsetProofSchema,
   ["properties", "compared_terms", "items"],
   "authority_subset_proof.compared_terms[]",
-);
-export const authorityEffectCredentialFormSchema = schemaAt<AuthorityEffectCredentialFormContract>(
-  authorityEffectLimitSchema,
-  ["properties", "authorization_form"],
-  "authority.terms[].bounds.effect_limits[].authorization_form",
 );
 const receiptActSchema = schemaAt<ContractObject>(
   receiptRootSchema,
@@ -303,9 +273,6 @@ export const criterionStatuses = enumValues(criterionStatusSchema, "receipt.acts
 export const criteria = enumValues(criterionSchema, "receipt.acts[].criterion_bindings[].criterion_id");
 export const authorityResourceFamilies = enumValues(authorityResourceFamilySchema, "authority.terms[].resource_family");
 export const authorityVerbs = enumValues(authorityVerbSchema, "authority.terms[].verbs[]");
-export const authorityCapabilities = enumValues(authorityCapabilitySchema, "authority.terms[].capabilities[]");
-export const authorityConditionPredicates = enumValues(authorityConditionPredicateSchema, "authority.terms[].conditions[].predicate");
-export const authorityEffectCredentialForms = enumValues(authorityEffectCredentialFormSchema, "authority.terms[].bounds.effect_limits[].authorization_form");
 export const proofKinds = enumValues(proofKindSchema, "reference.proof_kind");
 export const redactionCommitmentAlgorithms = enumValues(redactionCommitmentAlgorithmSchema, "redaction.hash_commitments[].algorithm");
 

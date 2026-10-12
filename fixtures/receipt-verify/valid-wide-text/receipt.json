@@ -1,0 +1,53 @@
+{
+  "acts": [],
+  "authority": {
+    "actor_ref": {
+      "type": "principal",
+      "uri": "runx:principal:local_runtime"
+    },
+    "derivations": [],
+    "enforcement": {},
+    "grant_refs": [],
+    "scope_refs": [],
+    "terms": []
+  },
+  "canonicalization": "runx.receipt.c14n.v1",
+  "created_at": "2026-06-10T00:00:00Z",
+  "decisions": [],
+  "digest": "sha256:54edcd21e37abc96bdaba34ce7e2fc83bf42306703e87f7358599e42ef7acca6",
+  "id": "sha256:259e4d2e970321934b812f61daeffdd7c85303c22f5d53259b9ae13ceff36412",
+  "issuer": {
+    "kid": "runx-cli-verify-fixture-key",
+    "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
+    "type": "hosted"
+  },
+  "lineage": {
+    "children": []
+  },
+  "schema": "runx.receipt.v1",
+  "seal": {
+    "criteria": [
+      {
+        "criterion_id": "step_outcome",
+        "evidence_refs": [],
+        "status": "verified",
+        "verification_refs": []
+      }
+    ],
+    "disposition": "closed",
+    "reason_code": "step_closed"
+  },
+  "signature": {
+    "alg": "Ed25519",
+    "value": "base64:uEzYVSsjD6mwxTBNm5UXlqLcNoK7b5u_81I6-1ukBB2HC-bD0158ExrFb6kqCKUtASwQ337jkMdOUpVCF1ViAw"
+  },
+  "subject": {
+    "kind": "skill",
+    "outcome": "sha256:8f8f6c0b23bac127b29527ba38dfbf23854c7c13f8f371de7891c2576fd209cd",
+    "ref": {
+      "label": "receipt-verify 𐀀",
+      "type": "run",
+      "uri": "runx:run:receipt-verify#production-verified"
+    }
+  }
+}

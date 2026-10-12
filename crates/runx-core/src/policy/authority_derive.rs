@@ -12,16 +12,17 @@
 
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
-    AuthorityApproval, AuthorityCondition, AuthoritySubsetComparison, AuthoritySubsetProof,
-    AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm, Reference, sha256_hex,
+    AuthorityApproval, AuthoritySubsetComparison, AuthoritySubsetProof, AuthoritySubsetRelation,
+    AuthoritySubsetResult, AuthorityTerm, Reference, sha256_hex,
 };
 use thiserror::Error;
 
 use super::authority_algebra::{items_subset, same_reference_address};
 use super::authority_mint::{
-    AttenuationRequest, FamilySubsetComparator, authority_live, expiry_subset, is_authority_subset,
-    mint_attenuated,
+    AttenuationRequest, FamilySubsetComparator, authority_live, expiry_subset, inherited_expiry,
+    is_authority_subset, mint_attenuated,
 };
+use super::rfc3339::parse_rfc3339_moment;
 
 /// The evidence and the intent to derive a term for.
 pub struct ExecutionTermRequest<'a> {
@@ -61,8 +62,6 @@ pub enum DerivationError {
     ResourceMismatch { parent: DerivationParent },
     #[error("{parent:?} does not grant the intent's verbs")]
     VerbsNotCovered { parent: DerivationParent },
-    #[error("{parent:?} does not grant the intent's capabilities")]
-    CapabilitiesNotCovered { parent: DerivationParent },
     #[error("{parent:?} expires before the intent")]
     ExpiryNotCovered { parent: DerivationParent },
     #[error("{parent:?} does not cover the intent's bounds")]
@@ -78,7 +77,6 @@ impl DerivationError {
             | Self::ActorMismatch { parent }
             | Self::ResourceMismatch { parent }
             | Self::VerbsNotCovered { parent }
-            | Self::CapabilitiesNotCovered { parent }
             | Self::ExpiryNotCovered { parent }
             | Self::BoundsNotCovered { parent } => *parent,
         }
@@ -107,7 +105,6 @@ pub fn derive_execution_term(
             resource_ref: delegation.resource_ref.clone(),
             resource_family: delegation.resource_family.clone(),
             verbs: delegation.verbs.clone(),
-            capabilities: delegation.capabilities.clone(),
             bounds: delegation.bounds.clone(),
             expires_at: delegation.expires_at.clone(),
         };
@@ -149,10 +146,8 @@ pub fn derive_execution_term(
         precheck(request.intent, term, *parent)?;
     }
 
-    let mut conditions: Vec<AuthorityCondition> = Vec::new();
     let mut approvals: Vec<AuthorityApproval> = Vec::new();
     for (_, term) in &parents {
-        extend_unique(&mut conditions, &term.conditions);
         extend_unique(&mut approvals, &term.approvals);
     }
     extend_unique(&mut approvals, &request.approvals);
@@ -165,10 +160,8 @@ pub fn derive_execution_term(
         resource_family: intent.resource_family.clone(),
         verbs: intent.verbs.clone(),
         bounds: intent.bounds.clone(),
-        conditions,
         approvals,
-        capabilities: intent.capabilities.clone(),
-        expires_at: intent.expires_at.clone(),
+        expires_at: inherited_expiry(intent.expires_at.as_ref(), earliest_expiry(&parents).as_ref()),
         issued_by_ref: request.issued_by_ref.clone(),
         credential_ref: request.capability.credential_ref.clone(),
     };
@@ -223,13 +216,21 @@ fn precheck(
     if !items_subset(&intent.verbs, &parent_term.verbs) {
         return Err(DerivationError::VerbsNotCovered { parent });
     }
-    if !items_subset(&intent.capabilities, &parent_term.capabilities) {
-        return Err(DerivationError::CapabilitiesNotCovered { parent });
-    }
-    if !expiry_subset(intent.expires_at.as_ref(), parent_term.expires_at.as_ref()) {
+    let expires_at = inherited_expiry(intent.expires_at.as_ref(), parent_term.expires_at.as_ref());
+    if !expiry_subset(expires_at.as_ref(), parent_term.expires_at.as_ref()) {
         return Err(DerivationError::ExpiryNotCovered { parent });
     }
     Ok(())
+}
+
+/// The earliest expiry among the parents: an execution term never outlives
+/// any authority it derives from.
+fn earliest_expiry(parents: &[(DerivationParent, &AuthorityTerm)]) -> Option<IsoDateTime> {
+    parents
+        .iter()
+        .filter_map(|(_, term)| term.expires_at.as_ref())
+        .min_by_key(|expiry| parse_rfc3339_moment(expiry.as_str()))
+        .cloned()
 }
 
 fn extend_unique<T: Clone + PartialEq>(into: &mut Vec<T>, items: &[T]) {
@@ -262,8 +263,8 @@ fn derive_term_id(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use runx_contracts::{
-        AuthorityApproval, AuthorityBounds, AuthorityCapability, AuthorityResourceFamily,
-        AuthorityTerm, AuthorityUseLimit, AuthorityVerb, Reference, ReferenceType,
+        AuthorityApproval, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm,
+        AuthorityUseLimit, AuthorityVerb, Reference, ReferenceType,
     };
 
     use super::{DerivationError, DerivationParent, ExecutionTermRequest, derive_execution_term};
@@ -283,9 +284,7 @@ mod tests {
             resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![AuthorityVerb::Read, AuthorityVerb::Write],
             bounds,
-            conditions: Vec::new(),
             approvals: Vec::new(),
-            capabilities: vec![AuthorityCapability::ProviderMutation],
             expires_at: Some("2026-12-31T00:00:00Z".into()),
             issued_by_ref: Reference::with_uri(ReferenceType::Principal, "runx:principal:connect"),
             credential_ref: None,
@@ -315,7 +314,6 @@ mod tests {
                 resource_ref: instance(),
                 resource_family: AuthorityResourceFamily::Connector,
                 verbs: vec![AuthorityVerb::Write],
-                capabilities: vec![AuthorityCapability::ProviderMutation],
                 bounds: AuthorityBounds {
                     operations: vec!["slack/channel.post".into()],
                     scopes: vec!["channel.post".into()],
@@ -324,7 +322,6 @@ mod tests {
                         total: Some(100),
                         per_day: Some(5),
                     }),
-                    ..AuthorityBounds::default()
                 },
                 expires_at: capability.expires_at.clone(),
             },
@@ -344,7 +341,6 @@ mod tests {
             resource_ref: instance(),
             resource_family: AuthorityResourceFamily::Connector,
             verbs: vec![AuthorityVerb::Write],
-            capabilities: vec![AuthorityCapability::ProviderMutation],
             bounds: AuthorityBounds {
                 operations: vec!["slack/channel.post".into()],
                 scopes: vec!["channel.post".into()],
@@ -353,7 +349,6 @@ mod tests {
                     total: Some(1),
                     per_day: Some(1),
                 }),
-                ..AuthorityBounds::default()
             },
             expires_at: Some("2026-10-06T01:00:00Z".into()),
         }
@@ -392,6 +387,34 @@ mod tests {
             assert_eq!(proof.compared_terms[0].child_term_id, term.term_id);
             assert_eq!(proof.compared_terms[0].parent_term_id, parent.term_id);
         }
+    }
+
+    #[test]
+    fn an_intent_naming_no_expiry_expires_with_its_earliest_parent() {
+        let capability = capability();
+        let mut delegation_request = intent("slack://acme/*");
+        delegation_request.bounds.uses = Some(AuthorityUseLimit {
+            total: Some(100),
+            per_day: Some(5),
+        });
+        delegation_request.expires_at = Some("2026-10-06T00:30:00Z".into());
+        let delegations = [mint_attenuated(
+            &capability,
+            &delegation_request,
+            &ConnectorBoundsComparator,
+            "2026-10-06T00:00:00Z".into(),
+        )
+        .expect("delegation")
+        .0];
+        let mut intent = intent("slack://acme/C1");
+        intent.expires_at = None;
+        let (term, _) = derive_execution_term(
+            &request(&capability, &delegations, &intent),
+            &ConnectorBoundsComparator,
+            "2026-10-06T00:00:00Z".into(),
+        )
+        .expect("an expiring delegation still authorizes a call that names no expiry");
+        assert_eq!(term.expires_at, Some("2026-10-06T00:30:00Z".into()));
     }
 
     #[test]

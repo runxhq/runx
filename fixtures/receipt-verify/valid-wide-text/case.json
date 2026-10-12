@@ -1,6 +1,6 @@
 {
   "expected": "expected.json",
   "issuer_type": "hosted",
-  "name": "valid-wide-keys",
+  "name": "valid-wide-text",
   "receipt": "receipt.json"
 }

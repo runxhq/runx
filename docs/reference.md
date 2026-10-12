@@ -163,7 +163,7 @@ answers that request with `{"retry": true}`, which runs the call again with the
 same input. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
-and the run continues. A run whose delegation sets `max_fanout` or
+and the run continues. A run whose host authority sets `max_fanout` or
 `max_child_depth` refuses a skill call that would start more child runs in one
 turn, or nest them deeper, than it allows. A run started with `--managed-agent` is worked by the
 managed agent: `runx turn` refuses it, and `--managed-agent` cannot take over a

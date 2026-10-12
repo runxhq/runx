@@ -554,6 +554,8 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         actor_ref: actor_ref.clone(),
         mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
         delegations: Vec::new(),
+        max_fanout: None,
+        max_child_depth: None,
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -567,12 +569,11 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         ),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
-        capabilities: Vec::new(),
         bounds: AuthorityBounds {
             operations: vec!["runx/slack/channel.post.read".into()],
             scopes: vec!["channel.post.read".into()],
             targets: vec!["slack://T123/C456".into()],
-            ..AuthorityBounds::default()
+            uses: None,
         },
         expires_at: None,
     });

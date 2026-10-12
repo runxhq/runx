@@ -805,31 +805,15 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
     Ok(())
 }
 
-/// An actor's authority whose one delegation bounds how far it spreads.
+/// An actor's authority that bounds how far its child runs spread.
 fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthority {
-    use runx_contracts::{
-        AuthorityBounds, AuthorityResourceFamily, AuthorityVerb, Reference, ReferenceType,
-    };
-    let actor = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant");
+    use runx_contracts::{Reference, ReferenceType};
     runx_runtime::RunAuthority {
-        actor_ref: actor.clone(),
+        actor_ref: Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant"),
         mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
-        delegations: vec![runx_core::policy::AttenuationRequest {
-            principal_ref: actor,
-            resource_ref: Reference::with_uri(
-                ReferenceType::ConnectorInstance,
-                "runx:connector_instance:any",
-            ),
-            resource_family: AuthorityResourceFamily::Connector,
-            verbs: vec![AuthorityVerb::Read],
-            capabilities: Vec::new(),
-            bounds: AuthorityBounds {
-                max_fanout: fanout,
-                max_child_depth: depth,
-                ..AuthorityBounds::default()
-            },
-            expires_at: None,
-        }],
+        delegations: Vec::new(),
+        max_fanout: fanout,
+        max_child_depth: depth,
     }
 }
 

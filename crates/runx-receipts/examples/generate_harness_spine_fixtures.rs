@@ -174,11 +174,9 @@ fn call_authority(receipt: &mut Receipt) {
             operations: vec!["github/comments.create".into()],
             scopes: vec!["issues:write".into()],
             targets: vec!["github://acme/app".into()],
-            ..AuthorityBounds::default()
+            uses: None,
         },
-        conditions: Vec::new(),
         approvals: Vec::new(),
-        capabilities: Vec::new(),
         expires_at: None,
         issued_by_ref: Reference::runx(ReferenceType::Host, "runx-kernel"),
         credential_ref: None,

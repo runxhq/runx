@@ -1,21 +1,12 @@
-//! Authority algebra: terms, capabilities, verbs, attenuation, and effect bounds.
+//! Authority algebra: terms, verbs, bounds and attenuation.
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{JsonNumber, JsonObject, ProofKind, Reference};
+use crate::Reference;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorityResourceFamily {
-    Workspace,
-    Filesystem,
-    Network,
-    Deployment,
-    Credential,
-    Effect,
-    Artifact,
-    Harness,
-    Publication,
     /// Operations on one connector instance.
     Connector,
 }
@@ -43,111 +34,9 @@ pub enum AuthorityVerb {
     Revoke,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorityCapability {
-    FilesystemRead,
-    FilesystemWrite,
-    NetworkEgress,
-    SecretRead,
-    ProcessSpawn,
-    ProviderMutation,
-    PublicPublication,
-    ChildHarnessSpawn,
-    EffectSingleUseCapability,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorityEffectCredentialForm {
-    SingleUseCapability,
-    ExternalSigner,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct AuthorityEffectLimit {
-    pub family: NonEmptyString,
-    pub unit: NonEmptyString,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_per_call_units: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_per_run_units: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_per_period_units: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub period: Option<NonEmptyString>,
-    pub channels: Vec<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub realm: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub operation: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preflight_ttl_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub approval_threshold_units: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_form: Option<AuthorityEffectCredentialForm>,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub preflight_required: bool,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub commitment_required: bool,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub idempotency_required: bool,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub recovery_required: bool,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub receipt_before_success: bool,
-    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
-    pub single_use_capability: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorityEffectGuardKind {
-    ReceiptBeforeSuccess,
-    NonReplay,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct AuthorityEffectGuard {
-    pub family: NonEmptyString,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub guard_kinds: Vec<AuthorityEffectGuardKind>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub proof_kinds: Vec<ProofKind>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorityBounds {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub repo_path_globs: Vec<NonEmptyString>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub branch_patterns: Vec<NonEmptyString>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub filesystem_roots: Vec<NonEmptyString>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub network_destinations: Vec<NonEmptyString>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub deployment_environments: Vec<NonEmptyString>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub token_audiences: Vec<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_cost_units: Option<JsonNumber>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub effect_limits: Vec<AuthorityEffectLimit>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub effects: Vec<AuthorityEffectGuard>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_runtime_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_fanout: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_child_depth: Option<u32>,
     /// Connector operations, as `<connector>/<operation>` or `<connector>/*`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operations: Vec<NonEmptyString>,
@@ -171,30 +60,6 @@ pub struct AuthorityUseLimit {
     pub total: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub per_day: Option<u64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorityConditionPredicate {
-    SignalVerified,
-    DecisionSelected,
-    HostPostureValid,
-    ApprovalPresent,
-    WithinTimeWindow,
-    WithinBudget,
-    EffectProofPresent,
-    EffectRecoveryAvailable,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct AuthorityCondition {
-    pub condition_id: NonEmptyString,
-    pub predicate: AuthorityConditionPredicate,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub refs: Vec<Reference>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<JsonObject>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -293,12 +158,8 @@ pub struct AuthorityTerm {
     pub resource_family: AuthorityResourceFamily,
     pub verbs: Vec<AuthorityVerb>,
     pub bounds: AuthorityBounds,
-    #[serde(default)]
-    pub conditions: Vec<AuthorityCondition>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub approvals: Vec<AuthorityApproval>,
-    #[serde(default)]
-    pub capabilities: Vec<AuthorityCapability>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<IsoDateTime>,
     pub issued_by_ref: Reference,

@@ -197,11 +197,9 @@ fn capability(
                     .map(|target| NonEmptyString::from(target.as_str()))
                     .collect()
             },
-            ..AuthorityBounds::default()
+            uses: None,
         },
-        conditions: Vec::new(),
         approvals: Vec::new(),
-        capabilities: Vec::new(),
         expires_at: None,
         issued_by_ref: Reference::runx(ReferenceType::Grant, &grant_id),
         credential_ref: None,

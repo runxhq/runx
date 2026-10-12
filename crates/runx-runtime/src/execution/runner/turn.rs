@@ -239,7 +239,7 @@ where
         let Some(limit) = options
             .run_authority
             .as_ref()
-            .and_then(|authority| authority.child_limits().fanout)
+            .and_then(|authority| authority.max_fanout)
         else {
             return Ok(None);
         };

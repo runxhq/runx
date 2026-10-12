@@ -1357,9 +1357,6 @@ fn authority_term() -> Value {
         "resource_family": "connector",
         "verbs": ["read", "write"],
         "bounds": {},
-        "conditions": [],
-        "approvals": [],
-        "capabilities": [],
         "issued_by_ref": a_ref(),
     })
 }

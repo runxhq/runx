@@ -45,7 +45,7 @@ pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 
 /// Why the run's delegation refuses a child run one level below this run.
 pub(crate) fn child_depth_refusal(options: &RuntimeOptions) -> Option<String> {
-    let limit = options.run_authority.as_ref()?.child_limits().depth?;
+    let limit = options.run_authority.as_ref()?.max_child_depth?;
     (options.run.depth() + 1 > limit)
         .then(|| format!("the run's delegation lets child runs nest at most {limit} deep"))
 }
