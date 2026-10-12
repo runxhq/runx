@@ -358,6 +358,65 @@ runners:
 }
 
 #[test]
+fn registry_mark_check_keys_a_valid_mark_and_refuses_with_the_parsers_reason()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-mark-check");
+    fs::create_dir_all(&root)?;
+    let mark = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/></svg>"#;
+    let good = root.join("mark.svg");
+    fs::write(&good, mark)?;
+    let checked = runx_command()?
+        .args([
+            "registry",
+            "mark",
+            "check",
+            good.to_str().ok_or("non-utf8 path")?,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(
+        checked.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&checked.stderr)
+    );
+    let output: serde_json::Value = serde_json::from_slice(&checked.stdout)?;
+    assert_eq!(output["registry"]["action"], "mark_check");
+    // The SHA-256 of exactly the bytes checked: the key a registry serves the mark under.
+    assert_eq!(
+        output["registry"]["mark"]["mark_sha256"],
+        runx_contracts::sha256_hex(mark.as_bytes())
+    );
+    assert_eq!(output["registry"]["mark"]["bytes"], mark.len());
+
+    let hostile = root.join("hostile.svg");
+    fs::write(
+        &hostile,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><script>alert(1)</script></svg>"#,
+    )?;
+    let refused = runx_command()?
+        .args([
+            "registry",
+            "mark",
+            "check",
+            hostile.to_str().ok_or("non-utf8 path")?,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(refused.status.code(), Some(1));
+    let output: serde_json::Value = serde_json::from_slice(&refused.stdout)?;
+    assert_eq!(output["status"], "failure");
+    assert_eq!(output["error"]["code"], "registry_error");
+    // The parser's own reason, the same one a package's mark.svg would get.
+    let reason = output["error"]["message"].as_str().ok_or("no reason")?;
+    assert_eq!(
+        Err(reason.to_owned()),
+        runx_parser::mark::validate_mark_svg(&fs::read(&hostile)?)
+    );
+    Ok(())
+}
+
+#[test]
 fn registry_connector_package_projects_a_connector_on_its_own()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-connector-package");

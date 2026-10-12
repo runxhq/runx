@@ -490,6 +490,12 @@ Connectors are published only to a hosted registry, so `publish`, `read` and
   version directory is written once and never rewritten: installing it again
   is `unchanged`, and other files under the same version are refused.
 
+`runx registry mark check <file> --json` checks a standalone mark by the same
+rule a package's `mark.svg` passes, so a registry can admit an image (a
+publisher's profile mark) on the parser's word. A valid mark reports
+`mark_sha256`, the SHA-256 of exactly the bytes checked and the key a registry
+serves it under, and its size; a refused one fails with the parser's reason.
+
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new
 first-party skill.

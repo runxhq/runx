@@ -1374,6 +1374,12 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
             format!("connector {connector}"),
             3,
         )
+    } else if subcommand == "mark" {
+        let mark = os_arg(args, 2, "registry mark")?;
+        if mark != "check" {
+            return Err(format!("unknown registry mark subcommand {mark}"));
+        }
+        (RegistryAction::MarkCheck, "mark check".to_owned(), 3)
     } else {
         (parse_registry_action(subcommand)?, subcommand.to_owned(), 2)
     };
@@ -1427,6 +1433,14 @@ fn validate_registry_action_flags(
             Err(format!(
                 "runx registry {subcommand} accepts only {accepted}"
             ))
+        };
+    }
+    if *action == RegistryAction::MarkCheck {
+        let only_json = !registry_target_flags(state) && state.profile.is_none();
+        return if only_json {
+            Ok(())
+        } else {
+            Err("runx registry mark check accepts only --json".to_owned())
         };
     }
     if *action != RegistryAction::Package {
@@ -1671,6 +1685,12 @@ fn registry_subject(
             let subject = positionals.remove(0);
             parse_connector_subject(&subject)?;
             Ok(subject)
+        }
+        RegistryAction::MarkCheck => {
+            if positionals.len() != 1 {
+                return Err("runx registry mark check requires exactly one mark file".to_owned());
+            }
+            Ok(positionals.remove(0))
         }
     }
 }

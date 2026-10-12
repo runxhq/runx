@@ -50,6 +50,9 @@ pub(super) enum RegistryPayload {
         source: &'static str,
         install: Box<runx_runtime::registry::InstalledRegistryConnector>,
     },
+    MarkCheck {
+        mark: super::mark::CheckedMark,
+    },
     Publish {
         publish: PublishPayload,
     },

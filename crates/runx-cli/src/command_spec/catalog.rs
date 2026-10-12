@@ -377,6 +377,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         top_level_usage: &[
             "runx registry search|read|resolve|install|package|publish ... --json",
             "runx registry connector package|publish|read|install ... --json",
+            "runx registry mark check <file> --json",
         ],
         usage: &[
             "runx registry search <query> [--registry url|path] [--registry-dir dir] [--limit n] [-j|--json]",
@@ -388,6 +389,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx registry connector publish <connector-dir> [--registry url] [--version version] [-j|--json]",
             "runx registry connector read <publisher>/<id>[@version] [--registry url] [--version version] [-j|--json]",
             "runx registry connector install <publisher>/<id>[@version] [--registry url] [--version version] [--digest sha256] [-j|--json]",
+            "runx registry mark check <file> [-j|--json]",
             "runx registry publish <SKILL.md|skill-dir> [--registry url|path] [--owner owner] [--version version] [--profile run.yaml] [--trust-tier tier] [--upsert] [-j|--json]",
         ],
         notes: &[
