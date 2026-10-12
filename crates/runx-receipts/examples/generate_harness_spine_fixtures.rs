@@ -225,6 +225,7 @@ fn call_act(call: CallOutcome<'_>) -> ReceiptAct {
         artifact_refs: call.artifact_refs,
         context_ref: call.context_ref,
         operation: None,
+        previous: None,
     }
 }
 

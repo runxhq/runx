@@ -940,7 +940,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
     vec![
         ("minimal valid", valid.clone()),
         (
-            "valid with an act, its decision, seal criteria and lineage",
+            "valid with an act, the receipt it follows, its decision, seal criteria and lineage",
             {
                 let mut v = valid.clone();
                 v["acts"] = json!([{
@@ -956,6 +956,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                     }],
                     "target_refs": [],
                     "artifact_refs": [],
+                    "previous": a_ref(),
                 }]);
                 v["decisions"] = json!([{
                     "decision_id": "dec_1",
@@ -971,7 +972,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 v["authority"]["enforcement"] = json!({
                     "execution_boundary": { "kind": "remote_provider" },
                 });
-                v["lineage"] = json!({ "previous": a_ref(), "children": [] });
+                v["lineage"] = json!({ "children": [a_ref()] });
                 v
             },
         ),

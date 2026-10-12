@@ -186,7 +186,7 @@ fn harness_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std:
         "fixtures/contracts/harness-spine/receipt-success.json",
     ))?)?;
     let mut receipt = spine["expected"].clone();
-    receipt["lineage"]["previous"] = serde_json::Value::Null;
+    receipt["authority"]["mandate_ref"] = serde_json::Value::Null;
     std::fs::write(
         package.join("receipts/seed.json"),
         serde_json::to_vec(&receipt)?,

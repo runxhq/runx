@@ -205,17 +205,17 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         .expect("the declared effect");
     assert_eq!(effect.reference_type, ReferenceType::Thread);
     assert_eq!(effect.provider.as_deref(), Some("slack"));
-    // The decision and lineage are the act's.
+    // The decision is the act's, and the receipt it follows is the act's own
+    // statement, never the receipt's committed lineage.
     assert_eq!(receipt.decisions[0].choice, DecisionChoice::Close);
     assert_eq!(receipt.decisions[0].selected_act_id, act.id);
     assert_eq!(
-        receipt
-            .lineage
-            .previous
+        act.previous
             .as_ref()
             .map(|previous| previous.uri.to_string()),
         Some(format!("runx:receipt:{PREVIOUS}"))
     );
+    assert!(receipt.lineage.children.is_empty());
 }
 
 #[test]

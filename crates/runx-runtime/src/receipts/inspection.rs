@@ -193,9 +193,8 @@ fn inspection_artifact_refs(acts: &[ReceiptActInspection]) -> Vec<String> {
 fn inspection_lineage_refs(receipt: &Receipt) -> Vec<String> {
     receipt
         .lineage
-        .previous
+        .children
         .iter()
-        .chain(receipt.lineage.children.iter())
         .map(|reference| reference.uri.to_string())
         .collect::<BTreeSet<_>>()
         .into_iter()

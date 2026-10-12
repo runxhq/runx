@@ -62,11 +62,12 @@ states an intent nobody gave it.
 - **No output is read for a reference.** What a receipt references is
   declared or admitted: effects, approvals, agent requests and credential
   deliveries. No output field is scanned for one.
-- **Acts chain.** An act chains by lineage: `lineage.previous` (the receipt of
-  the act this one follows, as the caller names it) and `lineage.children` (a
-  graph receipt commits the identity and body digest of each immutable step
-  receipt). A child never names its parent: the same content-addressed
-  receipt may be reused by more than one graph, so the edge is the parent's.
+- **Acts chain.** A receipt's lineage is what runx committed:
+  `lineage.children`, the identity and body digest of each immutable step
+  receipt a graph receipt seals. A child never names its parent: the same
+  content-addressed receipt may be reused by more than one graph, so the edge
+  is the parent's. The receipt an act follows is the caller's statement,
+  `acts[].previous`, recorded as given and never checked.
 - **A run is a composition of calls.** Nothing seals an act for a run as a
   whole. The operator context a run was prepared with is each act's
   `context_ref`. Pausing for the host is a `needs_agent` side channel, not an

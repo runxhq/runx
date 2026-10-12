@@ -65,6 +65,8 @@ export type ReceiptActContract = DeepReadonly<{
   context_ref?: ReferenceContract;
   /** The connector operation the act ran, exactly as admission bound it. */
   operation?: ReceiptOperationContract;
+  /** The receipt the caller states this act follows, recorded as given and unchecked. */
+  previous?: ReferenceContract;
 }>;
 
 /** An admitted operation: its qualified connector and exact digests, and the operation, instance and target it was admitted for. */
@@ -90,7 +92,6 @@ export type ReceiptSealContract = DeepReadonly<{
 }>;
 
 export type ReceiptLineageContract = DeepReadonly<{
-  previous?: ReferenceContract;
   children: readonly ReferenceContract[];
 }>;
 

@@ -134,6 +134,10 @@ pub struct ReceiptAct {
     /// operation, instance and target it was admitted for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<crate::OperationIntent>,
+    /// The receipt the caller states this act follows. It is the caller's
+    /// statement, recorded as given: runx does not check it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Reference>,
 }
 
 /// Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run.
@@ -147,13 +151,12 @@ pub struct Seal {
     pub criteria: Vec<CriterionBinding>,
 }
 
+/// What runx committed of a receipt's place among others.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Lineage {
-    /// The receipt of the act this one follows, when its caller named one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous: Option<Reference>,
-    /// The receipts of the subject's direct children.
+    /// The receipts of the subject's direct children, each committed by its
+    /// id and signed-body digest.
     pub children: Vec<Reference>,
 }
 

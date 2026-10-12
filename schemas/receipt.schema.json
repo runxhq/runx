@@ -461,6 +461,80 @@
             ],
             "type": "object"
           },
+          "previous": {
+            "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "locator": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "observed_at": {
+                "minLength": 1,
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                "type": "string"
+              },
+              "proof_kind": {
+                "enum": [
+                  "effect_evidence",
+                  "effect_finality",
+                  "credential_resolution"
+                ],
+                "type": "string"
+              },
+              "provider": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "thread",
+                  "comment",
+                  "event",
+                  "tracking_item",
+                  "change_request",
+                  "repository",
+                  "signal",
+                  "run",
+                  "act",
+                  "receipt",
+                  "artifact",
+                  "verification",
+                  "harness",
+                  "host",
+                  "surface",
+                  "target",
+                  "skill_binding",
+                  "principal",
+                  "scope_admission",
+                  "grant",
+                  "mandate",
+                  "credential",
+                  "webhook_delivery",
+                  "redaction_policy",
+                  "external_url",
+                  "connector_instance",
+                  "connector_operation"
+                ],
+                "type": "string"
+              },
+              "uri": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "uri"
+            ],
+            "type": "object",
+            "x-runx-schema": "runx.reference.v1"
+          },
           "reason": {
             "minLength": 1,
             "type": "string"
@@ -3200,80 +3274,6 @@
             "x-runx-schema": "runx.reference.v1"
           },
           "type": "array"
-        },
-        "previous": {
-          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "locator": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "observed_at": {
-              "minLength": 1,
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-              "type": "string"
-            },
-            "proof_kind": {
-              "enum": [
-                "effect_evidence",
-                "effect_finality",
-                "credential_resolution"
-              ],
-              "type": "string"
-            },
-            "provider": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": {
-              "enum": [
-                "thread",
-                "comment",
-                "event",
-                "tracking_item",
-                "change_request",
-                "repository",
-                "signal",
-                "run",
-                "act",
-                "receipt",
-                "artifact",
-                "verification",
-                "harness",
-                "host",
-                "surface",
-                "target",
-                "skill_binding",
-                "principal",
-                "scope_admission",
-                "grant",
-                "mandate",
-                "credential",
-                "webhook_delivery",
-                "redaction_policy",
-                "external_url",
-                "connector_instance",
-                "connector_operation"
-              ],
-              "type": "string"
-            },
-            "uri": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "uri"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.reference.v1"
         }
       },
       "required": [

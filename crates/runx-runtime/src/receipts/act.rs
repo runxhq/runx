@@ -67,6 +67,7 @@ pub(crate) struct RuntimeAct {
     produced: Vec<Reference>,
     context_ref: Option<Reference>,
     operation: Option<runx_contracts::OperationIntent>,
+    previous: Option<Reference>,
 }
 
 impl RuntimeAct {
@@ -88,6 +89,7 @@ impl RuntimeAct {
             produced: call.effects.clone(),
             context_ref: call.context_ref.clone(),
             operation: call.operation_intent.clone(),
+            previous: call.previous(),
         }
     }
 
@@ -125,6 +127,7 @@ impl RuntimeAct {
             artifact_refs,
             context_ref: self.context_ref,
             operation: self.operation,
+            previous: self.previous,
         }
     }
 }

@@ -137,9 +137,9 @@ mod tests {
     fn a_null_for_an_absent_value_is_refused() -> TestResult {
         assert_eq!(
             refused(|document| {
-                document["lineage"]["previous"] = Value::Null;
+                document["authority"]["mandate_ref"] = Value::Null;
             })?,
-            "/lineage/previous"
+            "/authority/mandate_ref"
         );
         Ok(())
     }

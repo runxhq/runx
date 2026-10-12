@@ -172,7 +172,6 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         seal,
         children,
         authority,
-        previous: call.as_ref().and_then(SealedCall::previous),
     });
     receipt.as_mut().authority.enforcement.execution_boundary = output
         .observations
@@ -470,7 +469,6 @@ fn build_graph_receipt(
         ),
         children,
         authority: SealAuthority::default(),
-        previous: None,
     }))
 }
 
@@ -590,9 +588,6 @@ struct BuildReceipt<'a> {
     seal: Seal,
     children: Vec<Reference>,
     authority: SealAuthority,
-    /// The receipt this one follows (`lineage.previous`): the act its call's
-    /// caller says it follows.
-    previous: Option<Reference>,
 }
 
 /// A receipt body not yet sealed. Its id, digest and signature hold
@@ -641,9 +636,8 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         seal,
         children,
         authority,
-        previous,
     } = parts;
-    let lineage = Lineage { previous, children };
+    let lineage = Lineage { children };
     let subject_uri = node.uri(scope.run_id);
     UnsealedReceipt(Receipt {
         schema: ReceiptSchema::V1,
