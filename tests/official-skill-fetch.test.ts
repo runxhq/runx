@@ -6,6 +6,12 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import {
+  REGISTRY_SIGNED_MANIFEST_SCHEMA,
+  registryContentDigest,
+  registrySignedManifestPayload,
+  type UnsignedRegistryManifest,
+} from "@runxhq/contracts";
 
 describe("registry skill native fetch", () => {
   it("acquires, caches, and reruns a registry skill through the native resolver", async () => {
@@ -280,7 +286,9 @@ function findRegistrySkillCachePath(globalHomeDir: string, skillId: string): str
         existsSync(path.join(entryPath, "run.yaml")) &&
         entryPath.includes(`${path.sep}${owner}${path.sep}${name}${path.sep}`)
       ) {
+        // A package root; its graph stages below are part of it.
         matches.push(entryPath);
+        continue;
       }
       walk(entryPath);
     }
@@ -361,41 +369,30 @@ function testManifestSigningKey(): TestManifestSigningKey {
   return cachedManifestSigningKey;
 }
 
+/** Signs a local registry record as the hosted registry would: the unified envelope over its content digest. */
 function signPublishedRegistryEntry(registryDir: string, signingKey: TestManifestSigningKey): void {
   const entryPath = findSingleRegistryEntry(registryDir);
   const entry = JSON.parse(readFileSync(entryPath, "utf8")) as {
     skill_id: string;
     version: string;
-    digest: string;
-    profile_digest?: string;
-    package_digest?: string;
+    markdown: string;
+    profile_document?: string;
+    package_files?: readonly { readonly path: string; readonly content: string }[];
     signed_manifest?: unknown;
   };
-  const payload =
-    "runx.registry.signed_manifest.v1\n" +
-    `skill_id=${entry.skill_id}\n` +
-    `version=${entry.version}\n` +
-    `digest=${entry.digest}\n` +
-    `profile_digest=${entry.profile_digest ?? ""}\n` +
-    `package_digest=${entry.package_digest ?? ""}\n` +
-    `signer_id=${signingKey.signerId}\n` +
-    `key_id=${signingKey.keyId}\n`;
-  entry.signed_manifest = {
-    schema: "runx.registry.signed_manifest.v1",
-    skill_id: entry.skill_id,
+  const unsigned: UnsignedRegistryManifest = {
+    schema: REGISTRY_SIGNED_MANIFEST_SCHEMA,
+    subject: { kind: "skill", ref: entry.skill_id },
     version: entry.version,
-    digest: entry.digest,
-    ...(entry.profile_digest ? { profile_digest: entry.profile_digest } : {}),
-    ...(entry.package_digest ? { package_digest: entry.package_digest } : {}),
-    signer: {
-      id: signingKey.signerId,
-      key_id: signingKey.keyId,
-    },
-    signature: {
-      alg: "ed25519",
-      value: `base64:${sign(null, Buffer.from(payload), signingKey.privateKey).toString("base64")}`,
-    },
+    content_digest: registryContentDigest([
+      { path: "SKILL.md", content: entry.markdown },
+      ...(entry.profile_document === undefined ? [] : [{ path: "run.yaml", content: entry.profile_document }]),
+      ...(entry.package_files ?? []),
+    ]),
+    signer: { id: signingKey.signerId, key_id: signingKey.keyId },
   };
+  const signature = sign(null, Buffer.from(registrySignedManifestPayload(unsigned), "utf8"), signingKey.privateKey);
+  entry.signed_manifest = { ...unsigned, signature: { alg: "ed25519", value: `base64:${signature.toString("base64url")}` } };
   writeFileSync(entryPath, `${JSON.stringify(entry, null, 2)}\n`, "utf8");
 }
 
