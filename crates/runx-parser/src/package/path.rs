@@ -90,10 +90,7 @@ pub(super) fn normalize_context_ref(
     profile_dir: &str,
     reference: &str,
 ) -> Result<Option<String>, SkillPackageError> {
-    if reference.starts_with("registry:")
-        || reference.starts_with("runx-registry:")
-        || reference.starts_with("runx://skill/")
-    {
+    if crate::registry_ref(reference).is_some() {
         return Ok(None);
     }
     if reference.trim() != reference

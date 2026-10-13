@@ -537,7 +537,10 @@ fn inline_harness_actual_status(output: &JsonValue) -> HarnessExpectedStatus {
     let Some(object) = output.as_object() else {
         return HarnessExpectedStatus::Sealed;
     };
-    if object.get("status").and_then(JsonValue::as_str) == Some("needs_agent") {
+    if matches!(
+        object.get("status").and_then(JsonValue::as_str),
+        Some("needs_agent" | "needs_approval")
+    ) {
         return HarnessExpectedStatus::NeedsAgent;
     }
     let disposition = object

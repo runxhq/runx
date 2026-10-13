@@ -111,6 +111,17 @@ describe("native invocation and decoding", () => {
     expect(captured.inputs).toEqual({ "receipt-dir": "untrusted", nested: { value: 1 } });
     expect(captured.home).toBe(config.home);
   });
+  it("gives a run the host's authority as one argument", async () => {
+    const { root, config, receiptDir } = await setup();
+    const capture = path.join(root, "capture.json");
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
+    const runAuthority = { actor_ref: { type: "principal", uri: "runx:principal:user_1" }, max_child_depth: 2 } as const;
+    await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority });
+    const args = JSON.parse(await readFile(capture, "utf8")) as string[];
+    expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
+  });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();
     const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { closure: { disposition: "failed" } })), stderr: "" };

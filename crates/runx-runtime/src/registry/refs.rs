@@ -17,15 +17,10 @@ pub enum RegistryResolveError {
     Ambiguous(String),
 }
 
+/// A registry ref, `registry:<owner>/<name>[@<version>]`, or the same
+/// without its prefix where a caller already knows it names the registry.
 pub fn parse_registry_ref(value: &str) -> ParsedRegistryRef {
-    let without_protocol = value
-        .strip_prefix("runx://skill/")
-        .and_then(|encoded| urlencoding_decode(encoded).ok())
-        .unwrap_or_else(|| value.to_owned());
-    let without_prefix = without_protocol
-        .strip_prefix("registry:")
-        .or_else(|| without_protocol.strip_prefix("runx-registry:"))
-        .unwrap_or(&without_protocol);
+    let without_prefix = runx_parser::registry_ref(value).unwrap_or(value);
     let Some(at_index) = without_prefix.rfind('@') else {
         return ParsedRegistryRef {
             skill_id: without_prefix.to_owned(),
@@ -135,35 +130,6 @@ fn safe_path_part(value: &str) -> String {
         "skill".to_owned()
     } else {
         trimmed
-    }
-}
-
-fn urlencoding_decode(value: &str) -> Result<String, std::str::Utf8Error> {
-    let mut decoded = Vec::with_capacity(value.len());
-    let bytes = value.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len() {
-            let high = hex_value(bytes[index + 1]);
-            let low = hex_value(bytes[index + 2]);
-            if let (Some(high), Some(low)) = (high, low) {
-                decoded.push((high << 4) | low);
-                index += 3;
-                continue;
-            }
-        }
-        decoded.push(bytes[index]);
-        index += 1;
-    }
-    std::str::from_utf8(&decoded).map(ToOwned::to_owned)
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
     }
 }
 

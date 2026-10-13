@@ -709,7 +709,7 @@ fn parse_add_args(args: &[OsString]) -> Result<AddParseState, String> {
     let mut index = 1;
     while index < args.len() {
         let token = os_arg(args, index, "add")?;
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             if parsed.subject.is_some() {
                 return Err("runx add accepts exactly one ref or repository URL".to_owned());
             }
@@ -735,7 +735,7 @@ fn parse_add_flag(
     inline_value: Option<&str>,
 ) -> Result<usize, String> {
     match flag {
-        "--json" => {
+        "--json" | "-j" => {
             if inline_value.is_some() {
                 return Err("--json does not take a value".to_owned());
             }
@@ -852,13 +852,13 @@ fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
             index += 1;
             continue;
         }
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             return Err(format!("unexpected init argument {token}"));
         }
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }
@@ -894,7 +894,7 @@ fn parse_dev_plan(args: &[OsString]) -> Result<DevPlan, String> {
             index += 1;
             continue;
         };
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             if root.is_some() {
                 return Err("runx dev accepts at most one root path".to_owned());
             }
@@ -905,7 +905,7 @@ fn parse_dev_plan(args: &[OsString]) -> Result<DevPlan, String> {
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }
@@ -1121,13 +1121,13 @@ fn parse_json_eval_input(
     let mut json = false;
     while index < args.len() {
         let token = os_arg(args, index, command.command)?;
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             return Err(format!("unexpected {} argument {token}", command.subject));
         }
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }
@@ -1174,7 +1174,7 @@ fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {
             index += 1;
             continue;
         };
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             positionals.push(PathBuf::from(token));
             index += 1;
             continue;
@@ -1182,7 +1182,7 @@ fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }
@@ -1226,7 +1226,7 @@ fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {
             index += 1;
             continue;
         };
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             positionals.push(OsString::from(token));
             index += 1;
             continue;
@@ -1234,7 +1234,7 @@ fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }
@@ -1471,7 +1471,7 @@ fn parse_registry_args(
     let mut index = first_argument;
     while index < args.len() {
         let token = os_arg(args, index, "registry")?;
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             state.positionals.push(token.to_owned());
             index += 1;
             continue;
@@ -1491,7 +1491,7 @@ fn parse_registry_flag(
     state: &mut RegistryParseState,
 ) -> Result<usize, String> {
     match flag {
-        "--json" => set_registry_bool_flag(flag, inline_value, &mut state.json, index),
+        "--json" | "-j" => set_registry_bool_flag(flag, inline_value, &mut state.json, index),
         "--upsert" => set_registry_bool_flag(flag, inline_value, &mut state.upsert, index),
         "--registry" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.registry)

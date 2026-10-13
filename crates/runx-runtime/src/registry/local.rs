@@ -329,8 +329,8 @@ use trust::{
     detail_for_version, normalize, resolve_by_name, search_result_for_version, searchable_text,
 };
 use util::{
-    decode_part, encode_part, encode_uri_component, io_error, is_unsafe_path_component,
-    now_iso8601, reject_unsafe_path_component, safe_read_dir_names, write_registry_json,
+    decode_part, encode_part, io_error, is_unsafe_path_component, now_iso8601,
+    reject_unsafe_path_component, safe_read_dir_names, write_registry_json,
 };
 
 pub fn publish_skill_markdown(
@@ -473,9 +473,10 @@ pub fn runx_link_for_version(
     };
     Ok(RegistryLinkResolution {
         link: format!(
-            "runx://skill/{}@{}",
-            encode_uri_component(&record.skill_id),
-            encode_uri_component(&record.version)
+            "{}{}@{}",
+            runx_parser::REGISTRY_REF_PREFIX,
+            record.skill_id,
+            record.version
         ),
         skill_id: record.skill_id.clone(),
         version: record.version.clone(),

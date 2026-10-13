@@ -1,4 +1,4 @@
-import type { ReceiptContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
+import type { ExternalJobStageRequestContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -40,10 +40,26 @@ export interface SkillInspectOptions extends InvocationOptions {
   readonly runner?: string;
 }
 
+/**
+ * A trusted host's authority for one run, as `runx skill --run-authority`
+ * reads it. The run record binds it; a resumed run keeps it.
+ */
+export interface RunAuthority {
+  readonly actor_ref: ReferenceContract;
+  readonly mandate_ref?: ReferenceContract;
+  /** Narrowing requests the kernel mints against live capability evidence. */
+  readonly delegations?: readonly Readonly<Record<string, unknown>>[];
+  readonly max_fanout?: number;
+  readonly max_child_depth?: number;
+  /** The paid job stage the run executes. */
+  readonly paid_job?: ExternalJobStageRequestContract;
+}
+
 export interface SkillRunOptions extends SkillInspectOptions {
   readonly inputs?: Readonly<Record<string, unknown>>;
   readonly receiptDir: string;
   readonly binding?: ExecutionBinding;
+  readonly runAuthority?: RunAuthority;
 }
 
 export interface RunResumeOptions extends InvocationOptions {

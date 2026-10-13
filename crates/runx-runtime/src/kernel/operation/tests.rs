@@ -509,8 +509,19 @@ impl Fixture {
         inputs: &JsonObject,
         actor: Option<ResolutionResponseActor>,
     ) -> Result<(EffectAdmission, OperationOutcome, Option<Dispatched>), String> {
+        self.run_under(step, inputs, actor, None)
+    }
+
+    /// [`Self::run_dispatched`] under the run's authority.
+    fn run_under(
+        &self,
+        step: &str,
+        inputs: &JsonObject,
+        actor: Option<ResolutionResponseActor>,
+        run_authority: Option<&crate::RunAuthority>,
+    ) -> Result<(EffectAdmission, OperationOutcome, Option<Dispatched>), String> {
         let admission = self
-            .admit(step, inputs)
+            .admit_as(step, inputs, run_authority)
             .map_err(|error| error.to_string())?;
         let mut host = Approver::new(actor);
         let EffectPreparationOutcome::Ready(admission) = self
@@ -663,6 +674,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
+        paid_job: None,
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -906,29 +918,68 @@ fn the_approval_summary_carries_digests_not_payloads() {
     assert!(request.contains("payload_digest"));
 }
 
+/// A host's authority for a run that executes one stage of a paid job held
+/// by `principal`.
+fn paid_job(principal: &str) -> crate::RunAuthority {
+    let digest = format!("sha256:{}", "e".repeat(64));
+    let stage = serde_json::json!({
+        "continuation": {
+            "continuation_id": "job-1",
+            "principal_ref": {"type": "principal", "uri": principal},
+            "vendor_ref": {"type": "principal", "uri": "runx:principal:vendor"},
+            "invocation_ref": {"type": "target", "uri": "runx:paid-invocation:paid-1"},
+            "source_run_ref": {"type": "act", "uri": "runx:run:source-1"},
+            "execution_binding": {
+                "skill": "vendor/document-analysis",
+                "runner": "continue",
+                "package_digest": digest,
+                "execution_closure_digest": digest,
+            },
+            "operation_identity": digest,
+            "stage": "start",
+            "status": "runnable",
+            "attempts": 1,
+            "max_attempts": 6,
+            "deadline_at": "2026-08-27T01:00:00.000Z",
+            "created_at": "2026-08-27T00:00:00.000Z",
+            "updated_at": "2026-08-27T00:00:00.000Z",
+        },
+        "checkpoint": {"document": "input"},
+        "operation_key": digest,
+    });
+    crate::RunAuthority {
+        actor_ref: Reference::with_uri(ReferenceType::Principal, principal),
+        mandate_ref: None,
+        delegations: Vec::new(),
+        max_fanout: None,
+        max_child_depth: None,
+        paid_job: Some(Box::new(serde_json::from_value(stage).unwrap())),
+    }
+}
+
 #[test]
 fn paid_job_authority_cannot_satisfy_an_approval_floor() {
-    let mut fixture = Fixture::new(&["channel.post"]);
-    fixture
-        .env
-        .insert(PAID_EXTERNAL_JOB_AUTHORITY_ENV.to_owned(), "{}".to_owned());
-    let error = fixture.run("post", &post("hi"), None).expect_err("refused");
+    let fixture = Fixture::new(&["channel.post"]);
+    let authority = paid_job(PRINCIPAL_REF);
+    let error = fixture
+        .run_under("post", &post("hi"), None, Some(&authority))
+        .expect_err("refused");
     assert!(error.contains("not paid job authority"), "{error}");
 }
 
 #[test]
 fn paid_job_authority_cannot_satisfy_an_explicit_call_gate() {
-    let mut fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
-    fixture
-        .env
-        .insert(PAID_EXTERNAL_JOB_AUTHORITY_ENV.to_owned(), "{}".to_owned());
+    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
         "approval": {"reason": "review this transcription job"}
     }))
     .unwrap();
-    let error = fixture.run("transcribe", &call, None).expect_err("refused");
+    let authority = paid_job(PRINCIPAL_REF);
+    let error = fixture
+        .run_under("transcribe", &call, None, Some(&authority))
+        .expect_err("refused");
     assert!(error.contains("not paid job authority"), "{error}");
 }
 

@@ -814,6 +814,7 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         delegations: Vec::new(),
         max_fanout: fanout,
         max_child_depth: depth,
+        paid_job: None,
     }
 }
 

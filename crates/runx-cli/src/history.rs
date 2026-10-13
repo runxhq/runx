@@ -152,11 +152,11 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
         }
         let (flag, inline_value) = cli_args::split_flag(token);
         match flag {
-            "--json" | "--detail" => {
+            "--json" | "-j" | "--detail" => {
                 if inline_value.is_some() {
                     return Err(invalid_args(format!("{flag} does not take a value")));
                 }
-                if flag == "--json" {
+                if flag != "--detail" {
                     parsed.json = true;
                 } else {
                     parsed.detail = true;

@@ -23,7 +23,7 @@ pub fn parse_export_plan(args: &[OsString]) -> Result<ExportPlan, String> {
 
     while index < args.len() {
         let token = os_arg(args, index, "export")?;
-        if !token.starts_with("--") {
+        if !crate::cli_args::is_flag(token) {
             refs.push(token.to_owned());
             index += 1;
             continue;
@@ -31,7 +31,7 @@ pub fn parse_export_plan(args: &[OsString]) -> Result<ExportPlan, String> {
 
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--json" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err("--json does not take a value".to_owned());
                 }

@@ -64,8 +64,12 @@ pub fn mcp_tool_result_from_run_result(
                 )
             })
             .unwrap_or_default();
+        let needs = match runx.get("status").and_then(JsonValue::as_str) {
+            Some("needs_approval") => "approval",
+            _ => "agent input",
+        };
         format!(
-            "{skill_name} needs agent input at {run_id}. Resolve {} request(s), write answers.json, then run: runx resume {run_id} answers.json{receipt_option}.",
+            "{skill_name} needs {needs} at {run_id}. Resolve {} request(s), write answers.json, then run: runx resume {run_id} answers.json{receipt_option}.",
             result.pending_requests.len()
         )
     } else if pending {

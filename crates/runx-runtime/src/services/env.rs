@@ -297,7 +297,7 @@ mod tests {
             "RUNX_CWD",
             "RUNX_HOME",
             "RUNX_PUBLIC_API_BASE_URL",
-            "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON",
+            "RUNX_RECEIPT_SIGN_KID",
         ] {
             fs::write(temp.path().join(".env"), format!("{name}=from-file\n"))?;
             let refused = WorkspaceEnv::load(BTreeMap::new(), temp.path().to_path_buf())

@@ -379,12 +379,13 @@ fn a_profile_changed_after_signing_leaves_no_partial_install()
 
 #[test]
 fn ref_helpers_parse_cache_and_package_paths() {
-    let parsed = parse_registry_ref("runx://skill/acme%2Fecho%401.0.0");
+    let parsed = parse_registry_ref("registry:acme/echo@1.0.0");
     assert_eq!(parsed.skill_id, "acme/echo");
     assert_eq!(parsed.version.as_deref(), Some("1.0.0"));
+    // There is one spelling: another prefix is not a registry ref.
     assert_eq!(
-        parse_registry_ref("runx://skill/acme%2Fecho+tool").skill_id,
-        "acme/echo+tool"
+        parse_registry_ref("runx-registry:acme/echo").skill_id,
+        "runx-registry:acme/echo"
     );
 }
 

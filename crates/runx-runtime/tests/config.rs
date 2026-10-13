@@ -166,8 +166,24 @@ fn config_reports_corrupt_local_agent_key_with_stable_prefix()
     let temp = tempdir()?;
     let keys_dir = temp.path().join("keys");
     fs::create_dir_all(&keys_dir)?;
-    fs::write(keys_dir.join("local-config-secret"), "test-secret")?;
-    fs::write(keys_dir.join("local_agent_key_corrupt.json"), "{not-json")?;
+    // Kept as runx keeps keys, closed to others; only its contents are bad.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&keys_dir, fs::Permissions::from_mode(0o700))?;
+    }
+    for (name, contents) in [
+        ("local-config-secret", "test-secret"),
+        ("local_agent_key_corrupt.json", "{not-json"),
+    ] {
+        let path = keys_dir.join(name);
+        fs::write(&path, contents)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+        }
+    }
 
     let error = match load_local_agent_api_key(&home_at(temp.path()), "local_agent_key_corrupt") {
         Ok(_) => return Err("corrupt key should fail".into()),

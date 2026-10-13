@@ -37,8 +37,8 @@ steps:
       objective: refresh the public docs
 ```
 
-Executable registry refs are explicit (`registry:...`, `runx-registry:...`, or
-`runx://skill/...`) and resolve only from `RUNX_REGISTRY_DIR`. Graph execution
+Executable registry refs are explicit, `registry:<owner>/<name>[@<version>]`,
+and resolve only from `RUNX_REGISTRY_DIR`. Graph execution
 does not fetch remote registry content implicitly; the operator must install,
 publish, or sync the skill into the local registry first. At runtime runx
 materializes the resolved `SKILL.md` and optional `run.yaml` into
@@ -71,8 +71,8 @@ skill; the skill remains an abstract context/capability document.
 Local path refs resolve relative to the graph skill directory and must stay
 inside the owning skill root. Use registry refs for cataloged skills shared
 across skill roots. Registry refs use the local registry (`RUNX_REGISTRY_DIR`)
-and must be explicit (`registry:...`, `runx-registry:...`, or
-`runx://skill/...`). Graph execution does not fetch remote registry content
+and must be explicit (`registry:<owner>/<name>[@<version>]`). Graph
+execution does not fetch remote registry content
 implicitly; install or ingest the skill first, then reference the local registry.
 
 The gates are intentionally narrow:

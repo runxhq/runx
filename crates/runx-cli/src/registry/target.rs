@@ -144,9 +144,9 @@ fn env_registry_dir_target(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Option<RegistryTarget> {
-    let registry_dir = env.get("RUNX_REGISTRY_DIR")?;
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
     Some(local_registry_target(
-        runx_runtime::RunxPaths::resolve(env, cwd).in_workspace(registry_dir),
+        paths.registry_dir()?.to_path_buf(),
         remote_registry_url(configured_registry),
     ))
 }

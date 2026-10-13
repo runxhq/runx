@@ -6,6 +6,12 @@ pub fn os_arg<'a>(args: &'a [OsString], index: usize, command: &str) -> Result<&
         .ok_or_else(|| format!("{command} arguments must be UTF-8"))
 }
 
+/// Whether a token is a flag: a long `--name`, or `-j`, which every command
+/// that prints JSON reads as `--json`.
+pub fn is_flag(token: &str) -> bool {
+    token.starts_with("--") || token == "-j"
+}
+
 pub fn split_flag(token: &str) -> (&str, Option<&str>) {
     token
         .split_once('=')

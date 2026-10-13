@@ -48,6 +48,8 @@ pub struct SkillPlan {
     pub input_document: Option<crate::document_input::DocumentInputSource>,
     /// The act the invoker states for the run (`--act`).
     pub act: Option<runx_contracts::CallAct>,
+    /// The trusted host's authority for the run (`--run-authority`).
+    pub run_authority: Option<Box<runx_runtime::RunAuthority>>,
     pub managed_agent: ManagedAgentPolicy,
 }
 
@@ -155,7 +157,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     let request = SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
-        run_authority: None,
+        run_authority: plan.run_authority.as_deref().cloned(),
         act: plan.act.clone(),
         skill_path,
         receipt_dir: plan.receipt_dir.clone(),

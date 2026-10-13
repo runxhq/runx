@@ -17,6 +17,7 @@ use thiserror::Error;
 
 use crate::credentials::SecretString;
 use crate::paths::RunxPaths;
+use crate::private_file::{self, PrivateFileFault};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -233,8 +234,20 @@ pub enum ConfigError {
     LocalAgentKeyCorrupt { path: PathBuf, suffix: String },
     #[error("config crypto failed: {0}")]
     Crypto(String),
+    #[error("{path} {fault}")]
+    PrivateFile {
+        path: PathBuf,
+        fault: PrivateFileFault,
+    },
     #[error(transparent)]
     Io(#[from] io::Error),
+}
+
+fn private(path: &Path) -> impl FnOnce(PrivateFileFault) -> ConfigError + '_ {
+    move |fault| ConfigError::PrivateFile {
+        path: path.to_path_buf(),
+        fault,
+    }
 }
 
 pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
@@ -288,7 +301,8 @@ pub fn write_runx_config_file(
             path: config_path.to_path_buf(),
             message: error.to_string(),
         })?;
-    write_private_file(config_path, format!("{contents}\n").as_bytes())
+    private_file::replace_private(config_path, format!("{contents}\n").as_bytes())
+        .map_err(private(config_path))
 }
 
 pub fn update_runx_config_value(
@@ -677,7 +691,6 @@ fn store_local_config_secret_value(
     ref_prefix: &str,
 ) -> Result<String, ConfigError> {
     let key_dir = paths.keys();
-    fs::create_dir_all(&key_dir)?;
     let secret = load_or_create_local_config_secret(&key_dir)?;
     let key = Sha256::digest(secret.as_bytes());
     let cipher =
@@ -703,37 +716,45 @@ fn store_local_config_secret_value(
     };
     let contents = serde_json::to_string_pretty(&payload)
         .map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    write_private_file(
-        &key_dir.join(format!("{key_ref}.json")),
-        format!("{contents}\n").as_bytes(),
-    )?;
+    let key_path = key_dir.join(format!("{key_ref}.json"));
+    private_file::replace_private(&key_path, format!("{contents}\n").as_bytes())
+        .map_err(private(&key_path))?;
     Ok(key_ref)
 }
 
+/// A sealed config value or its secret is a few hundred bytes.
+const MAX_CONFIG_SECRET_BYTES: u64 = 64 * 1024;
+
+/// The home's config secret, created once in its private key directory. Two
+/// processes creating it at once keep the first one written.
 fn load_or_create_local_config_secret(key_dir: &Path) -> Result<String, ConfigError> {
-    fs::create_dir_all(key_dir)?;
+    private_file::ensure_private_directory(key_dir).map_err(private(key_dir))?;
     let key_path = key_dir.join("local-config-secret");
-    match fs::read_to_string(&key_path) {
-        Ok(secret) => Ok(secret),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            let secret_bytes = random_config_secret_bytes()?;
-            let secret = URL_SAFE_NO_PAD.encode(secret_bytes);
-            match write_private_file_new(&key_path, secret.as_bytes()) {
-                Ok(()) => Ok(secret),
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                    Ok(fs::read_to_string(&key_path)?)
-                }
-                Err(error) => Err(ConfigError::Io(error)),
-            }
-        }
-        Err(error) => Err(ConfigError::Io(error)),
+    if let Some(secret) = read_config_secret(&key_path)? {
+        return Ok(secret);
     }
+    let secret = URL_SAFE_NO_PAD.encode(random_config_secret_bytes()?);
+    if private_file::create_private_new(&key_path, secret.as_bytes()).map_err(private(&key_path))? {
+        return Ok(secret);
+    }
+    read_config_secret(&key_path)?.ok_or_else(|| config_key_read_error(&key_path, None))
+}
+
+fn read_config_secret(key_path: &Path) -> Result<Option<String>, ConfigError> {
+    private_file::read_private(key_path, MAX_CONFIG_SECRET_BYTES)
+        .map_err(private(key_path))?
+        .map(|bytes| {
+            String::from_utf8(bytes)
+                .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))
+        })
+        .transpose()
 }
 
 fn load_key_payload(key_path: &Path) -> Result<LocalConfigSecretPayload, ConfigError> {
-    let contents = fs::read_to_string(key_path)
-        .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))?;
-    serde_json::from_str(&contents)
+    let contents = private_file::read_private(key_path, MAX_CONFIG_SECRET_BYTES)
+        .map_err(private(key_path))?
+        .ok_or_else(|| config_key_read_error(key_path, Some("it does not exist".to_owned())))?;
+    serde_json::from_slice(&contents)
         .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))
 }
 
@@ -752,42 +773,6 @@ fn config_key_read_error(path: &Path, cause: Option<String>) -> ConfigError {
 
 fn normalize_managed_agent_provider(value: &str) -> Option<NonEmptyString> {
     NonEmptyString::new(value.trim().to_lowercase())
-}
-
-fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), ConfigError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, contents)?;
-    set_private_permissions(path)?;
-    Ok(())
-}
-
-fn write_private_file_new(path: &Path, contents: &[u8]) -> io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    use std::io::Write;
-    let mut file = options.open(path)?;
-    file.write_all(contents)
-}
-
-fn set_private_permissions(path: &Path) -> Result<(), ConfigError> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    }
-    #[cfg(not(unix))]
-    let _ = path;
-    Ok(())
 }
 
 fn hex_prefix(bytes: &[u8], len: usize) -> String {

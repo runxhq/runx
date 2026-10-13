@@ -18,7 +18,7 @@ pub mod store;
 pub mod tree;
 
 pub(crate) use act::SealedCall;
-pub use local_key::{KeyDirectoryProblem, LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault};
+pub use local_key::{LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault};
 pub(crate) use seal::{
     GraphClosure, RuntimeReceiptProofContextProvider, StepReceiptWithDisposition, StepSeal,
     StepSealClosure, graph_receipt_with_closure, seal_step,

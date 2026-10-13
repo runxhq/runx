@@ -68,7 +68,7 @@ pub(crate) fn resolve_skill_ref_details(
 
     let raw_ref = skill_ref.to_string_lossy();
     let parsed = parse_registry_ref(&raw_ref);
-    if is_registry_prefixed_ref(&raw_ref) {
+    if runx_parser::registry_ref(&raw_ref).is_some() {
         if split_skill_id(&parsed.skill_id).is_err() {
             return Err(format!(
                 "Registry ref '{}' is ambiguous. Use '<owner>/<name>' instead.",
@@ -328,13 +328,7 @@ fn is_bare_skill_ref(skill_ref: &Path) -> bool {
 }
 
 fn is_explicit_registry_ref(raw_ref: &str, skill_id: &str) -> bool {
-    is_registry_prefixed_ref(raw_ref) || split_skill_id(skill_id).is_ok()
-}
-
-fn is_registry_prefixed_ref(raw_ref: &str) -> bool {
-    raw_ref.starts_with("registry:")
-        || raw_ref.starts_with("runx-registry:")
-        || raw_ref.starts_with("runx://skill/")
+    runx_parser::registry_ref(raw_ref).is_some() || split_skill_id(skill_id).is_ok()
 }
 
 fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRef {

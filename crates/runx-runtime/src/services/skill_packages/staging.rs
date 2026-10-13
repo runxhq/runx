@@ -173,10 +173,8 @@ pub(super) fn isolated_harness_env(
 }
 
 fn admitted_registry_dir(repo_root: &Path, env: &BTreeMap<String, String>) -> Option<String> {
-    let configured = Path::new(env.get("RUNX_REGISTRY_DIR")?);
-    if !configured.is_absolute() {
-        return None;
-    }
+    let paths = crate::paths::RunxPaths::resolve(env, repo_root);
+    let configured = paths.registry_dir()?;
     let repo_root = fs::canonicalize(repo_root).ok()?;
     let registry_dir = fs::canonicalize(configured).ok()?;
     if !registry_dir.is_dir()

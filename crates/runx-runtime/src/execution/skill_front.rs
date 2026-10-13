@@ -542,14 +542,29 @@ fn paused_output(
         .iter()
         .map(|request| request_for_public_loop(&request.id, request.value.clone()))
         .collect::<Vec<_>>();
+    // A run that waits only on approvals needs a person, not an agent.
+    let approvals_only = !requests.is_empty()
+        && requests.iter().all(|request| {
+            request
+                .as_object()
+                .and_then(|request| request.get("kind"))
+                .and_then(JsonValue::as_str)
+                == Some("approval")
+        });
+    let status = if approvals_only {
+        "needs_approval"
+    } else {
+        "needs_agent"
+    };
     let output = JsonObject::from([
         (
             "schema".to_owned(),
             JsonValue::String(SKILL_RUN_SCHEMA.to_owned()),
         ),
+        ("status".to_owned(), JsonValue::String(status.to_owned())),
         (
-            "status".to_owned(),
-            JsonValue::String("needs_agent".to_owned()),
+            "outcome".to_owned(),
+            JsonValue::String("deferred".to_owned()),
         ),
         (
             "skill_name".to_owned(),
@@ -625,6 +640,10 @@ fn sealed_output(
     );
     output.insert("status".to_owned(), JsonValue::String("sealed".to_owned()));
     output.insert(
+        "outcome".to_owned(),
+        JsonValue::String(outcome(&receipt.seal.disposition).to_owned()),
+    );
+    output.insert(
         "skill_name".to_owned(),
         JsonValue::String(manifest.skill.clone()),
     );
@@ -679,6 +698,20 @@ struct SkillOutputDiagnostics {
     trace: Option<JsonValue>,
     /// Why a guard or an authority refused the run, when one did.
     refusal: Option<JsonObject>,
+}
+
+/// What a sealed run's closure means to its caller.
+fn outcome(disposition: &ClosureDisposition) -> &'static str {
+    match disposition {
+        ClosureDisposition::Closed => "completed",
+        ClosureDisposition::Deferred => "deferred",
+        ClosureDisposition::Blocked
+        | ClosureDisposition::Declined
+        | ClosureDisposition::Superseded => "blocked",
+        ClosureDisposition::Failed | ClosureDisposition::Killed | ClosureDisposition::TimedOut => {
+            "failed"
+        }
+    }
 }
 
 fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {

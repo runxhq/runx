@@ -305,7 +305,12 @@ runners:
             )?;
             let response = server.read_response("continuation", MCP_REQUEST_TIMEOUT)?;
             let pending = &response["result"]["structuredContent"]["runx"];
-            assert_eq!(pending["status"], "needs_agent", "{response}");
+            let waits_on = if agent {
+                "needs_agent"
+            } else {
+                "needs_approval"
+            };
+            assert_eq!(pending["status"], waits_on, "{response}");
             assert!(
                 pending["requests"]
                     .to_string()

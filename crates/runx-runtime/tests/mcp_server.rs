@@ -467,7 +467,7 @@ fn mcp_server_graph_approval_pauses_with_request() -> Result<(), Box<dyn std::er
             &responses[0],
             &["result", "structuredContent", "runx", "status"]
         ),
-        Some(&JsonValue::String("needs_agent".to_owned()))
+        Some(&JsonValue::String("needs_approval".to_owned()))
     );
     assert_eq!(
         path(

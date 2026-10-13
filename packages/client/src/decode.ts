@@ -53,14 +53,11 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     if (fullRefs[0]) {
       const full = await artifact(fullRefs[0]);
       if (!record(full)) throw new Error("Full-output artifact is not an object.");
-      for (const key of ["schema", "run_id", "receipt_id", "skill_name", "runner"]) {
+      for (const key of ["schema", "status", "outcome", "run_id", "receipt_id", "skill_name", "runner"]) {
         if (compact[key] !== undefined && JSON.stringify(full[key]) !== JSON.stringify(compact[key])) throw new Error(`Full-output artifact disagrees on ${key}.`);
       }
-      // The full artifact precedes the CLI's outcome/pending-status projection.
-      const nativeStatus = full.status === "needs_agent" && compact.status === "needs_approval" ? "needs_approval" : full.status;
-      if (nativeStatus !== compact.status) throw new Error("Full-output artifact disagrees on status.");
       if (record(compact.closure) && (!record(full.closure) || full.closure.disposition !== compact.closure.disposition || full.closure.reason !== compact.closure.reason)) throw new Error("Full-output artifact disagrees on closure.");
-      output = validateSkillOutputContract({ ...full, status: compact.status, outcome: compact.outcome });
+      output = validateSkillOutputContract(full);
     } else if (compact.diagnostics_ref) {
       const diagnostics = await artifact(compact.diagnostics_ref);
       if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution"].includes(key))) throw new Error("Invalid native diagnostics artifact.");

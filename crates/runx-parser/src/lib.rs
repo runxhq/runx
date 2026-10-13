@@ -11,6 +11,7 @@ mod json_fields;
 pub mod mark;
 pub mod package;
 pub mod packet;
+mod registry_ref;
 pub mod runner;
 pub mod skill;
 pub mod tool;
@@ -48,6 +49,7 @@ pub use package::{
 pub use packet::{
     PACKET_ID_FIELD, PacketSchemaError, ValidatedPacketSchema, parse_packet_schema_document,
 };
+pub use registry_ref::{REGISTRY_REF_PREFIX, registry_ref};
 pub use runner::{
     MarketplaceManifest, RawRunnerManifestIr, SkillRunnerManifest, parse_runner_manifest_yaml,
     validate_runner_manifest,

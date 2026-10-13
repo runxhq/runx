@@ -151,7 +151,7 @@ pub(super) fn reject_unsafe_path_component(value: &str) -> Result<(), LocalRegis
     }
 }
 
-pub(super) fn encode_uri_component(value: &str) -> String {
+fn encode_uri_component(value: &str) -> String {
     let mut output = String::new();
     for byte in value.bytes() {
         let keep = byte.is_ascii_alphanumeric()

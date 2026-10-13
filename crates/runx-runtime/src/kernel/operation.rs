@@ -52,10 +52,6 @@ use packet::{Expected, Readback, Seal};
 
 pub const OPERATION_EFFECT_FAMILY: &str = "operation";
 
-/// A paid external job a host admitted, carrying its stage's authority.
-pub const PAID_EXTERNAL_JOB_AUTHORITY_ENV: &str =
-    "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON";
-
 type Transport = Arc<dyn RuntimeHttpTransport + Send + Sync>;
 
 /// How the kernel reaches each placement.
@@ -272,15 +268,15 @@ pub(crate) struct OperationAdmission {
 
 #[derive(Clone, Debug, Default)]
 struct LaneInputs {
-    paid_job: Option<String>,
+    /// The paid job the run's authority names, if any.
+    paid_job: Option<ExternalJobStageRequest>,
     run_id: String,
 }
 
 impl LaneInputs {
-    fn read(env: &BTreeMap<String, String>, run_id: &str) -> Self {
-        let value = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
+    fn of(authority: Option<&crate::RunAuthority>, run_id: &str) -> Self {
         Self {
-            paid_job: value(PAID_EXTERNAL_JOB_AUTHORITY_ENV),
+            paid_job: authority.and_then(|authority| authority.paid_job.as_deref().cloned()),
             run_id: run_id.to_owned(),
         }
     }
@@ -463,7 +459,7 @@ impl RuntimeEffect for OperationEffect {
             request.graph_dir,
         ))
         .map_err(state)?;
-        let lanes = LaneInputs::read(request.env, request.run_id);
+        let lanes = LaneInputs::of(request.run_authority, request.run_id);
         let scope = ConnectorScope::at(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?
             .in_project(
@@ -1902,7 +1898,7 @@ fn approve(
 ) -> Result<Lane, RuntimeEffectError> {
     let admitted = &context.admitted;
     let operation = admitted.operation();
-    let paid = context.lanes.paid_job.clone();
+    let paid = context.lanes.paid_job.as_ref();
     let floored = operation.approval == ApprovalFloor::Required || context.call.approval.is_some();
     if let Some(record) = context
         .admitted
@@ -1913,7 +1909,7 @@ fn approve(
         return match record.actor {
             ApprovalActor::Human => Ok(Lane::Approved(Box::new(Approved::new(record, Vec::new())))),
             ApprovalActor::PaidExternalJob => {
-                let (key, refs) = paid_authority(context, paid.as_deref())?;
+                let (key, refs) = paid_authority(context, paid)?;
                 if key != record.key {
                     return Err(denied("the pending attempt changed its paid job authority"));
                 }
@@ -1927,7 +1923,7 @@ fn approve(
                 "an explicitly gated or approval-floored operation needs exact approval, not paid job authority",
             ));
         }
-        let (key, refs) = paid_authority(context, paid.as_deref())?;
+        let (key, refs) = paid_authority(context, paid)?;
         return Ok(Lane::Approved(Box::new(Approved::new(
             ApprovalRecord::new(ApprovalActor::PaidExternalJob, key),
             refs,
@@ -1938,11 +1934,9 @@ fn approve(
 
 fn paid_authority(
     context: &OperationAdmission,
-    encoded: Option<&str>,
+    authority: Option<&ExternalJobStageRequest>,
 ) -> Result<(String, Vec<Reference>), RuntimeEffectError> {
-    let encoded = encoded.ok_or_else(|| denied("the paid job authority is missing"))?;
-    let authority = serde_json::from_str::<ExternalJobStageRequest>(encoded)
-        .map_err(|error| invalid(format!("the paid job authority is invalid: {error}")))?;
+    let authority = authority.ok_or_else(|| denied("the paid job authority is missing"))?;
     let principal = authority
         .continuation
         .principal_ref

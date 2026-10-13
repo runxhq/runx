@@ -27,8 +27,7 @@ pub(crate) fn isolate_harness_environment(
     credential_variables: &BTreeSet<String>,
 ) {
     env.retain(|name, _| {
-        !name.starts_with("RUNX_PROVIDER_PERMISSION_")
-            && !AMBIENT_HARNESS_AUTHORITY_ENV.contains(&name.as_str())
+        !AMBIENT_HARNESS_AUTHORITY_ENV.contains(&name.as_str())
             && !credential_variables.contains(name)
     });
 }
@@ -70,10 +69,6 @@ mod environment_tests {
         let mut env = BTreeMap::from([
             ("PATH".to_owned(), "/usr/bin".to_owned()),
             ("EXAMPLE_TOKEN".to_owned(), "live-secret".to_owned()),
-            (
-                "RUNX_PROVIDER_PERMISSION_PAID_EXTERNAL_JOB_AUTHORITY_JSON".to_owned(),
-                "{}".to_owned(),
-            ),
             (
                 "RUNX_PUBLIC_API_TOKEN".to_owned(),
                 "live-cloud-token".to_owned(),

@@ -2259,7 +2259,10 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         managed_agent: Default::default(),
     })?;
     let pending_output = object(&pending.output, "pending approval result")?;
-    assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
+    assert_eq!(
+        string_field(pending_output, "status"),
+        Some("needs_approval")
+    );
     let run_id = string_field(pending_output, "run_id")
         .ok_or("pending approval result missing run_id")?
         .to_owned();

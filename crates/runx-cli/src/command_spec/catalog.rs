@@ -310,7 +310,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
             "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
@@ -319,6 +319,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--input-json key=json    Set an input that must parse as JSON",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with per-key inputs",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
+            "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and the paid job it runs a stage of",
             "--full-operator-context  Print the complete prepared context before execution",
             "--managed-agent          Explicitly allow an in-process model loop for this run",
             "--managed-agent-rounds n Bound each managed act to 1-32 rounds (default 4)",

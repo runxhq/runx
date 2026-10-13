@@ -517,7 +517,7 @@ fn resolve_step_skill_directory(
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
     if let Some(skill) = step.skill().map(|target| target.reference.as_str()) {
-        if is_registry_step_ref(skill) {
+        if runx_parser::registry_ref(skill).is_some() {
             return materialize_registry_step_skill(graph_dir, step, skill, options);
         }
         if let Some(directory) = crate::registry::package_bundle::resolve_bundled_skill(
@@ -591,7 +591,8 @@ pub(crate) fn registry_holds_step_skill(
     reference: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
-    let Some(registry_dir) = env.get("RUNX_REGISTRY_DIR") else {
+    let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
+    let Some(registry_dir) = paths.registry_dir() else {
         return Ok(false);
     };
     Ok(find_step_registry_skill(step, reference, registry_dir, env)?.is_some())
@@ -600,7 +601,7 @@ pub(crate) fn registry_holds_step_skill(
 fn find_step_registry_skill(
     step: &GraphStep,
     reference: &str,
-    registry_dir: &str,
+    registry_dir: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<Option<RegistrySkillResolution>, RuntimeError> {
     resolve_registry_skill(
@@ -624,7 +625,8 @@ fn materialize_registry_step_skill(
     reference: &str,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
-    let Some(registry_dir) = options.env.get("RUNX_REGISTRY_DIR") else {
+    let paths = crate::paths::RunxPaths::resolve(options.env, Path::new("."));
+    let Some(registry_dir) = paths.registry_dir() else {
         return Err(RuntimeError::InvalidRunStep {
             step_id: step.id.clone(),
             reason: format!(
@@ -727,12 +729,6 @@ fn registry_trust_tier_label(value: &crate::registry::TrustTier) -> &'static str
         crate::registry::TrustTier::Verified => "verified",
         crate::registry::TrustTier::Community => "community",
     }
-}
-
-fn is_registry_step_ref(reference: &str) -> bool {
-    reference.starts_with("registry:")
-        || reference.starts_with("runx-registry:")
-        || reference.starts_with("runx://skill/")
 }
 
 /// A step's values when it runs: each reference to an earlier step takes

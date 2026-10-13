@@ -44,7 +44,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -151,7 +151,7 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
@@ -530,9 +530,39 @@ fn routes_canonical_skill_run_to_native_plan() {
             },
             input_document: None,
             act: None,
+            run_authority: None,
             managed_agent: Default::default(),
         })
     );
+}
+
+#[test]
+fn a_host_gives_a_run_its_authority_and_inspect_refuses_one() -> Result<(), String> {
+    let authority =
+        r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"},"max_child_depth":2}"#;
+    let RouterAction::RunSkill(run) = plan(&["skill", "skills/echo", "--run-authority", authority])
+    else {
+        return Err("a run plan".to_owned());
+    };
+    let authority = run.run_authority.ok_or("the run carries its authority")?;
+    assert_eq!(authority.max_child_depth, Some(2));
+    assert!(authority.delegations.is_empty() && authority.paid_job.is_none());
+
+    assert!(matches!(
+        plan(&["skill", "skills/echo", "--run-authority", r#"{"actor":"x"}"#]),
+        RouterAction::Error(message) if message.contains("must be a JSON run authority")
+    ));
+    assert!(matches!(
+        plan(&[
+            "skill",
+            "inspect",
+            "skills/echo",
+            "--run-authority",
+            r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"}}"#,
+        ]),
+        RouterAction::Error(message) if message.contains("not accepted by inspect")
+    ));
+    Ok(())
 }
 
 #[test]
@@ -1006,6 +1036,14 @@ fn add_indexes_any_repository_url_and_installs_skill_refs_and_paths() {
     assert!(!indexes("acme/sourcey@1.0.0"));
     assert!(!indexes("./skills/sourcey"));
     assert!(!indexes("https://git.example.com/acme"));
+}
+
+#[test]
+fn every_command_that_prints_json_reads_dash_j_as_json() {
+    assert!(matches!(
+        plan(&["add", "codeberg.org/acme/skills", "-j"]),
+        RouterAction::RunAddUrl(plan) if plan.json && plan.repo == "codeberg.org/acme/skills"
+    ));
 }
 
 #[test]

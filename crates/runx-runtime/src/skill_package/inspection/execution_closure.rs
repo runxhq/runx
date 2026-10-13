@@ -514,7 +514,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 } = resolved;
                 let reference = step_reference(step);
                 if context.materialize_local
-                    && !is_registry_step_ref(reference)
+                    && runx_parser::registry_ref(reference).is_none()
                     && let Some(nested) = nested.as_ref()
                 {
                     let source_package_root =
@@ -548,7 +548,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 }
                 if let Some(nested) = nested {
                     let nested_materialize_local =
-                        context.materialize_local && !is_registry_step_ref(reference);
+                        context.materialize_local && runx_parser::registry_ref(reference).is_none();
                     self.walk_runner(
                         RunnerWalkTarget {
                             loaded: nested.loaded,
@@ -577,7 +577,9 @@ impl<'a> ExecutionClosureInspector<'a> {
         };
         let reference = target.reference.as_str();
         let requested_runner = target.runner.as_deref().unwrap_or("default");
-        if reference.starts_with('$') || (is_registry_step_ref(reference) && self.env.is_none()) {
+        if reference.starts_with('$')
+            || (runx_parser::registry_ref(reference).is_some() && self.env.is_none())
+        {
             return Ok(Some(ResolvedStepSkill {
                 edge: format!("{reference}#{requested_runner}"),
                 static_external_name: registry_skill_name(reference),
@@ -587,7 +589,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         let empty_env = BTreeMap::new();
         let env = self.env.unwrap_or(&empty_env);
         if self.unheld_registry_refs == UnheldRegistryRefs::Report
-            && is_registry_step_ref(reference)
+            && runx_parser::registry_ref(reference).is_some()
             && !crate::execution::graph::registry_holds_step_skill(step, reference, env)?
         {
             return Ok(Some(ResolvedStepSkill {
@@ -613,7 +615,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             crate::execution::graph::select_step_runner(manifest, target.runner.as_deref())?
                 .name
                 .clone();
-        let nested_profile = if is_registry_step_ref(reference) {
+        let nested_profile = if runx_parser::registry_ref(reference).is_some() {
             nested
                 .profile_path
                 .clone()
@@ -791,21 +793,12 @@ fn append_digest_field(target: &mut Vec<u8>, value: &[u8]) {
 }
 
 fn registry_skill_name(reference: &str) -> Option<String> {
-    if !is_registry_step_ref(reference) {
-        return None;
-    }
-    crate::registry::parse_registry_ref(reference)
+    crate::registry::parse_registry_ref(runx_parser::registry_ref(reference)?)
         .skill_id
         .rsplit('/')
         .next()
         .filter(|name| !name.is_empty())
         .map(ToOwned::to_owned)
-}
-
-fn is_registry_step_ref(reference: &str) -> bool {
-    reference.starts_with("registry:")
-        || reference.starts_with("runx-registry:")
-        || reference.starts_with("runx://skill/")
 }
 
 fn nested_profile_path(

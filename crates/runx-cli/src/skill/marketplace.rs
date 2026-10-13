@@ -88,6 +88,7 @@ fn render_paid_skill_challenge(
 
     serde_json::from_value(serde_json::json!({
         "status": "payment_required",
+        "outcome": "deferred",
         "skill_name": listing.skill_id,
         "runner": runner,
         "result": {

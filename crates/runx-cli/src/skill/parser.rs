@@ -50,6 +50,11 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     } else {
         SkillAction::Run
     };
+    if action == SkillAction::Inspect && state.run_authority.is_some() {
+        return Err(
+            "runx skill --run-authority binds a run and is not accepted by inspect".to_owned(),
+        );
+    }
     if action == SkillAction::Inspect
         && (state.expected_package_digest.is_some()
             || state.expected_execution_closure_digest.is_some())
@@ -89,7 +94,15 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         inputs: state.inputs,
         input_document: state.input_document,
         act: state.act,
+        run_authority: state.run_authority,
         managed_agent,
+    })
+}
+
+/// `--run-authority <json>`: a trusted host's authority for the run.
+fn parse_run_authority(value: &str) -> Result<Box<runx_runtime::RunAuthority>, String> {
+    serde_json::from_str(value).map_err(|error| {
+        format!("runx skill --run-authority must be a JSON run authority: {error}")
     })
 }
 
@@ -119,6 +132,7 @@ struct SkillParseState {
     inputs: CliInputs,
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
+    run_authority: Option<Box<runx_runtime::RunAuthority>>,
     managed_agent: bool,
     managed_agent_rounds: Option<u32>,
 }
@@ -274,6 +288,15 @@ fn parse_skill_arg(
         "--act" => {
             index += 1;
             state.act = Some(parse_act(&string_arg(args, index)?)?);
+        }
+        value if value.starts_with("--run-authority=") => {
+            state.run_authority = Some(parse_run_authority(
+                value.trim_start_matches("--run-authority="),
+            )?);
+        }
+        "--run-authority" => {
+            index += 1;
+            state.run_authority = Some(parse_run_authority(&string_arg(args, index)?)?);
         }
         "--run" => state.force_run = true,
         "--json" | "-j" => state.json = true,

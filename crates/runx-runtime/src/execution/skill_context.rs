@@ -82,7 +82,7 @@ fn load_context_skill(
     env: &BTreeMap<String, String>,
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
-    if is_registry_ref(reference) {
+    if runx_parser::registry_ref(reference).is_some() {
         return load_registry_context_skill(step_id, reference, env, created_at);
     }
     load_local_context_skill(step_id, graph_dir, reference, env, created_at)
@@ -212,7 +212,8 @@ fn resolve_registry_context_skill(
     reference: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<(RegistrySkillResolution, runx_parser::ValidatedSkillPackage), RuntimeError> {
-    let Some(registry_dir) = env.get("RUNX_REGISTRY_DIR") else {
+    let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
+    let Some(registry_dir) = paths.registry_dir() else {
         return Err(RuntimeError::InvalidRunStep {
             step_id: step_id.to_owned(),
             reason: format!(
@@ -332,12 +333,6 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
         }
     }
     Ok(())
-}
-
-fn is_registry_ref(reference: &str) -> bool {
-    reference.starts_with("registry:")
-        || reference.starts_with("runx-registry:")
-        || reference.starts_with("runx://skill/")
 }
 
 fn prefixed_registry_digest(digest: &str) -> String {

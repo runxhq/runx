@@ -115,11 +115,6 @@ fn project_json_output_value(
         return Ok(value.clone());
     };
 
-    object.insert(
-        "outcome".to_owned(),
-        JsonValue::String(semantic_outcome(&object).to_owned()),
-    );
-    normalize_pending_status(&mut object);
     if diagnostics {
         return Ok(JsonValue::Object(object));
     }
@@ -239,82 +234,6 @@ fn project_json_output_value(
         return Err("compact skill result exceeded the 16 KiB envelope bound".to_owned());
     }
     Ok(minimal)
-}
-
-fn semantic_outcome(object: &JsonObject) -> &'static str {
-    if let Some(trace_status) = object
-        .get("trace")
-        .and_then(JsonValue::as_object)
-        .and_then(|trace| object_string(trace, "status"))
-    {
-        match trace_status {
-            "failed" | "killed" | "timed_out" => return "failed",
-            "blocked" | "declined" | "superseded" => return "blocked",
-            _ => {}
-        }
-    }
-    if let Some(disposition) = object
-        .get("closure")
-        .and_then(JsonValue::as_object)
-        .and_then(|closure| object_string(closure, "disposition"))
-    {
-        return match disposition {
-            "closed" => "completed",
-            "deferred" => "deferred",
-            "blocked" | "declined" | "superseded" => "blocked",
-            "failed" | "killed" | "timed_out" => "failed",
-            _ => "failed",
-        };
-    }
-    match object_string(object, "status") {
-        Some("needs_agent" | "needs_approval" | "payment_required") => "deferred",
-        Some("sealed") => "completed",
-        _ => "failed",
-    }
-}
-
-fn normalize_pending_status(object: &mut JsonObject) {
-    if object_string(object, "status") != Some("needs_agent") {
-        return;
-    }
-    let Some(requests) = object.get("requests").and_then(JsonValue::as_array) else {
-        return;
-    };
-    if !requests.is_empty()
-        && requests.iter().all(|request| {
-            request
-                .as_object()
-                .and_then(|request| object_string(request, "kind"))
-                == Some("approval")
-        })
-    {
-        object.insert(
-            "status".to_owned(),
-            JsonValue::String("needs_approval".to_owned()),
-        );
-    }
-}
-
-fn display_status(object: &JsonObject) -> &str {
-    let status = object_string(object, "status").unwrap_or("unknown");
-    if status == "needs_agent"
-        && object
-            .get("requests")
-            .and_then(JsonValue::as_array)
-            .is_some_and(|requests| {
-                !requests.is_empty()
-                    && requests.iter().all(|request| {
-                        request
-                            .as_object()
-                            .and_then(|request| object_string(request, "kind"))
-                            == Some("approval")
-                    })
-            })
-    {
-        "needs_approval"
-    } else {
-        status
-    }
 }
 
 fn compact_request(request: &JsonValue, artifact_ref: JsonValue) -> JsonValue {
@@ -483,8 +402,14 @@ fn write_skill_text(
         let text = serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned());
         return writeln!(writer, "{text}");
     };
-    writeln!(writer, "status: {}", display_status(object))?;
-    writeln!(writer, "outcome: {}", semantic_outcome(object))?;
+    writeln!(
+        writer,
+        "status: {}",
+        object_string(object, "status").unwrap_or("unknown")
+    )?;
+    if let Some(outcome) = object_string(object, "outcome") {
+        writeln!(writer, "outcome: {outcome}")?;
+    }
     if let Some(skill_name) = object_string(object, "skill_name") {
         writeln!(writer, "skill: {skill_name}")?;
     }
@@ -748,7 +673,8 @@ mod tests {
             ),
         ]));
         let value = JsonValue::Object(JsonObject::from([
-            ("status".to_owned(), JsonValue::String("failure".to_owned())),
+            ("status".to_owned(), JsonValue::String("sealed".to_owned())),
+            ("outcome".to_owned(), JsonValue::String("failed".to_owned())),
             ("result".to_owned(), result.clone()),
             (
                 "context".to_owned(),
@@ -787,6 +713,7 @@ mod tests {
         let projected: serde_json::Value = serde_json::from_str(&serialized)?;
 
         assert!(projected.get("context").is_none());
+        // The runtime states the outcome; the projection carries it as is.
         assert_eq!(projected["outcome"], "failed");
         assert_eq!(projected["result"]["message"], "ready");
         assert_eq!(projected["next"], serde_json::Value::Null);
@@ -939,7 +866,7 @@ mod tests {
         let mut value = base_result();
         value.insert(
             "status".to_owned(),
-            JsonValue::String("needs_agent".to_owned()),
+            JsonValue::String("needs_approval".to_owned()),
         );
         value.insert(
             "requests".to_owned(),
