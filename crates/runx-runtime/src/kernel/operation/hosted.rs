@@ -60,6 +60,27 @@ pub(crate) struct HostedSession {
     pub principal_ref: String,
 }
 
+impl HostedSession {
+    /// One keyed request to the runx API as the session's principal. Its key
+    /// makes it safe to repeat, so the transport may resend it.
+    pub(crate) fn send<T: serde::de::DeserializeOwned>(
+        &self,
+        operation: &'static str,
+        path: &str,
+        body: String,
+    ) -> Result<T, HostedApiOperationError> {
+        crate::hosted_api::request::send_json_idempotent(
+            self.transport.as_ref(),
+            self.environment.base_url(),
+            operation,
+            crate::http::HttpMethod::Post,
+            path,
+            Some(self.environment.token()),
+            Some(body),
+        )
+    }
+}
+
 /// The hosted placement's client. One per operation effect; caches the
 /// session and the grant listing for the environment it was resolved for.
 #[derive(Default)]

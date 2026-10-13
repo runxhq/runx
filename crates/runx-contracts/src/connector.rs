@@ -662,8 +662,9 @@ pub struct HostedImplementation {
 }
 
 /// What one operation does, written as a single-key map: `{http: ...}`,
-/// `{mcp: ...}`, `{process: ...}`, `{web: {}}` or `{store: {}}`. The local
-/// placement runs every kind; the hosted placement runs `http`.
+/// `{mcp: ...}`, `{process: ...}`, `{web: {}}`, `{store: {}}` or
+/// `{artifact: {}}`. The local placement runs every kind; the hosted
+/// placement runs `http`.
 #[derive(Clone, Debug, PartialEq, Serialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Implementation {
@@ -672,6 +673,7 @@ pub enum Implementation {
     Process(ProcessImplementation),
     Web(WebImplementation),
     Store(StoreImplementation),
+    Artifact(ArtifactImplementation),
 }
 
 single_key_enum!(Implementation, "an implementation", {
@@ -680,6 +682,7 @@ single_key_enum!(Implementation, "an implementation", {
     "process" => Process,
     "web" => Web,
     "store" => Store,
+    "artifact" => Artifact,
 });
 
 impl Implementation {
@@ -691,7 +694,17 @@ impl Implementation {
             Self::Process(_) => "process",
             Self::Web(_) => "web",
             Self::Store(_) => "store",
+            Self::Artifact(_) => "artifact",
         }
+    }
+
+    /// Whether the operation writes only storage runx holds for the caller:
+    /// the store the operator configured, or the artifact space of the runx
+    /// account the runtime is signed in as. Such a write needs no provider
+    /// credential.
+    #[must_use]
+    pub fn writes_runx_storage(&self) -> bool {
+        matches!(self, Self::Store(_) | Self::Artifact(_))
     }
 }
 
@@ -709,6 +722,13 @@ pub struct WebImplementation {}
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StoreImplementation {}
+
+/// The runtime's artifact space: one bounded value stored under the runx
+/// account the runtime is signed in as, keyed by the call's idempotency key
+/// and confirmed by reading its reference back.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactImplementation {}
 
 /// Whether an allowlist entry admits `host`: an entry is a host, or
 /// `*.domain` for exactly one label under that domain.

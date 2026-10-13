@@ -113,6 +113,94 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
+      "connector": "runx/artifact",
+      "connector_digest": "sha256:6d4c7df113260ffa44fd690b059f914215a9535d4401a448f98cd5fbe6191ff8",
+      "manifest_digest": "sha256:dd7fcd2f5ef1105a86c02f9efdbdbf98292d0e8d0f357892fee148ddd0936b9b"
+    },
+    "digests": {
+      "artifact.allocate": {
+        "implementation": "sha256:af7ecd670a8fb2110042423e3bdd5b96703aef93d18209bfbf7445789868ad58",
+        "operation": "sha256:7a9a536d339a90f5dc52a55eff6b130ea4943a36c67c6c3f82da1e7fdde44727"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "none": {}
+      },
+      "category": "agent-tools",
+      "description": "Store one bounded value in the artifact space of the runx account the runtime is signed in as, and read it back by its reference.",
+      "id": "artifact",
+      "name": "Artifact",
+      "operations": {
+        "artifact.allocate": {
+          "description": "Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.",
+          "guarantees": {
+            "provider_idempotency": "enforced"
+          },
+          "implementation": {
+            "artifact": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "data_base64": {
+                "minLength": 4,
+                "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+                "type": "string"
+              },
+              "media_type": {
+                "maxLength": 200,
+                "minLength": 3,
+                "pattern": "^[^\\s/]+/[^\\s/]+$",
+                "type": "string"
+              },
+              "purpose": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^\\S(.*\\S)?$",
+                "type": "string"
+              },
+              "value": {}
+            },
+            "required": [
+              "purpose",
+              "media_type"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "artifact_ref",
+            "content_digest",
+            "media_type",
+            "size_bytes",
+            "created_at",
+            "principal_ref"
+          ],
+          "scopes": [
+            "artifact.allocate"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/purpose"
+            }
+          },
+          "verb": "create"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "none"
+          ]
+        }
+      },
+      "runtime_capability": true,
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:dd7fcd2f5ef1105a86c02f9efdbdbf98292d0e8d0f357892fee148ddd0936b9b"
+  },
+  {
+    "connector_binding": {
       "connector": "runx/aws",
       "connector_digest": "sha256:32e29dd5c8eddfce3d1f3694840571f078b06bedb509f89335e503fd71d4cd2c",
       "manifest_digest": "sha256:06eb56ae4d3fa3bd5ba7353b0f446dde3309564745d53190a01b71b2e9acf2ce"

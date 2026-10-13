@@ -285,82 +285,6 @@ impl ReqwestHttpTransport {
     }
 }
 
-/// Runtime-owned transport selection for native HTTP capabilities. Exact
-/// harness exchanges can enter only through the private harness registry;
-/// ordinary executions always construct the live guarded transport.
-pub(crate) enum NativeHttpTransport<'a> {
-    Live(ReqwestHttpTransport),
-    Harness(&'a HarnessExchanges),
-}
-
-impl<'a> NativeHttpTransport<'a> {
-    #[cfg(test)]
-    pub(crate) fn new(harness: Option<&'a HarnessExchanges>) -> Result<Self, RuntimeHttpError> {
-        match harness {
-            Some(exchanges) => Ok(Self::Harness(exchanges)),
-            None => Ok(Self::Live(ReqwestHttpTransport::new()?)),
-        }
-    }
-
-    pub(crate) fn for_hosted_api(
-        harness: Option<&'a HarnessExchanges>,
-        allow_private_network: bool,
-    ) -> Result<Self, RuntimeHttpError> {
-        match harness {
-            Some(exchanges) => Ok(Self::Harness(exchanges)),
-            None if allow_private_network => Ok(Self::Live(
-                ReqwestHttpTransport::with_private_network_access()?,
-            )),
-            None => Ok(Self::Live(ReqwestHttpTransport::new()?)),
-        }
-    }
-}
-
-impl RuntimeHttpTransport for NativeHttpTransport<'_> {
-    fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        match self {
-            Self::Live(transport) => transport.send(request),
-            Self::Harness(exchanges) => exchanges.answer(&request),
-        }
-    }
-
-    fn send_limited(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        match self {
-            Self::Live(transport) => transport.send_limited(request, response_limit),
-            Self::Harness(exchanges) => {
-                enforce_harness_response_limit(exchanges.answer(&request)?, response_limit)
-            }
-        }
-    }
-
-    fn send_idempotent(
-        &self,
-        request: RuntimeHttpRequest,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        match self {
-            Self::Live(transport) => transport.send_idempotent(request),
-            Self::Harness(exchanges) => exchanges.answer(&request),
-        }
-    }
-
-    fn send_idempotent_limited(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        match self {
-            Self::Live(transport) => transport.send_idempotent_limited(request, response_limit),
-            Self::Harness(exchanges) => {
-                enforce_harness_response_limit(exchanges.answer(&request)?, response_limit)
-            }
-        }
-    }
-}
-
 /// A harness case's exact HTTP exchanges, standing in for the world. A
 /// request is answered by the exchanges whose method, URL and body match it
 /// exactly; one the case declares more than once is answered by those
@@ -372,6 +296,14 @@ pub(crate) struct HarnessExchanges {
     exchanges: Vec<RuntimeHarnessHttpExchange>,
     /// How many times each declared exchange has answered, by its index.
     answered: Mutex<Vec<usize>>,
+}
+
+/// A case's exchanges answer as a transport: a request they do not hold
+/// fails, and nothing reaches the network.
+impl RuntimeHttpTransport for HarnessExchanges {
+    fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+        self.answer(&request)
+    }
 }
 
 impl HarnessExchanges {
@@ -457,18 +389,6 @@ fn harness_request_body_matches(
             .and_then(|body| serde_json::from_str::<runx_contracts::JsonValue>(body).ok())
             .is_some_and(|actual| actual == *expected),
     }
-}
-
-fn enforce_harness_response_limit(
-    response: RuntimeHttpResponse,
-    response_limit: usize,
-) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-    if response.body_bytes > response_limit {
-        return Err(RuntimeHttpError::ResponseBodyTooLarge {
-            limit: response_limit,
-        });
-    }
-    Ok(response)
 }
 
 fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String> {
@@ -1084,8 +1004,8 @@ mod tests {
     use super::RuntimeHttpResponse;
     use super::RuntimeHttpTransport;
     use super::{
-        GuardedDnsResolver, NativeHttpTransport, PROVIDER_OPERATION_REQUEST_TIMEOUT,
-        ReqwestHttpTransport, TransportProfile, block_on_http, http_runtime,
+        GuardedDnsResolver, PROVIDER_OPERATION_REQUEST_TIMEOUT, ReqwestHttpTransport,
+        TransportProfile, block_on_http, http_runtime,
     };
     use super::{HarnessExchanges, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
@@ -1123,7 +1043,7 @@ mod tests {
             body: RuntimeHarnessHttpRequestBody::None,
             response: RuntimeHttpResponse::new(200, "hello world"),
         }]);
-        let transport = NativeHttpTransport::new(Some(&exchanges))?;
+        let transport = &exchanges;
         let read = || RuntimeHttpRequest {
             method: HttpMethod::Get,
             url: url.to_owned(),
@@ -1174,7 +1094,7 @@ mod tests {
             response: RuntimeHttpResponse::new(200, body),
         };
         let exchanges = HarnessExchanges::new(vec![answer("before"), answer("after")]);
-        let transport = NativeHttpTransport::new(Some(&exchanges))?;
+        let transport = &exchanges;
         let read = || RuntimeHttpRequest {
             method: HttpMethod::Get,
             url: url.to_owned(),
@@ -1223,7 +1143,7 @@ mod tests {
                 response: RuntimeHttpResponse::new(200, "json null"),
             },
         ]);
-        let exact_transport = NativeHttpTransport::new(Some(&exchanges))?;
+        let exact_transport = &exchanges;
         let exact_mutation = exact_transport.send(RuntimeHttpRequest {
             method: HttpMethod::Post,
             url: url.to_owned(),

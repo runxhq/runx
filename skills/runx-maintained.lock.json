@@ -239,7 +239,7 @@
   },
   {
     "skill_id": "runx/marketplace-invoke",
-    "version": "sha-e86ba6dba5c1",
+    "version": "sha-0f691175418a",
     "digest": "954fc8246f1d440394a3989060fcbe85404d8f1687a6a18ae29bb26d547d0c61",
     "catalog_visibility": "public",
     "catalog_role": "canonical"

@@ -21,7 +21,6 @@ mod evidence;
 mod files;
 mod git;
 mod handoff;
-mod hosted_artifacts;
 mod input;
 mod policy;
 mod receipt_tools;
@@ -52,7 +51,6 @@ const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
     evidence::CAPABILITIES,
     attestation::CAPABILITIES,
     artifacts::CAPABILITIES,
-    hosted_artifacts::CAPABILITIES,
     receipt_tools::CAPABILITIES,
     run_tools::CAPABILITIES,
     policy::CAPABILITIES,
@@ -95,12 +93,6 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub credential_delivery: &'a CredentialDelivery,
     pub local_artifacts: &'a crate::services::LocalArtifactService,
     pub effects: &'a RuntimeEffectRegistry,
-}
-
-impl<I: ?Sized> NativeInvocation<'_, I> {
-    fn harness_http_exchanges(&self) -> Option<&crate::http::HarnessExchanges> {
-        self.effects.harness_http_exchanges()
-    }
 }
 
 pub(crate) struct NativeToolInvocation<'a> {

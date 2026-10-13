@@ -1,5 +1,5 @@
 skill: marketplace-invoke
-version: "0.4.2"
+version: "0.4.3"
 catalog:
   kind: graph
   audience: operator
@@ -9,6 +9,9 @@ catalog:
   completion: provider_readback
   approval: required
   category: payments
+connectors:
+  artifact:
+    operations: [artifact.allocate]
 runners:
   invoke:
     default: true
@@ -187,11 +190,12 @@ runners:
 
       - id: allocate-result
         when: { value: $steps.interpret.action.kind, equals: ready }
-        tool: artifact.allocate
-        scopes: [runx:artifact:write]
-        inputs:
+        operation: artifact/artifact.allocate
+        # One result per vendor job, whichever readback lands it.
+        idempotency_key: $steps.interpret.action.provider_job_ref.uri
+        input:
+          purpose: runx.marketplace.vendor-result.v1
           media_type: application/json
-          idempotency_scope: runx.marketplace.vendor-result.v1
           value: $steps.interpret.action.result
 
       - id: digest-completion
@@ -204,7 +208,7 @@ runners:
         when: { value: $steps.interpret.action.kind, equals: ready }
         inputs:
           action: $steps.interpret.action
-          artifact_result: $steps.allocate-result.artifact_operation.result
+          artifact_result: $steps.allocate-result.provider_operation.result
           digest_result: $steps.digest-completion.digest_result
         tool: { module: readback.mjs, export: finishMarketplaceReady, timeout_seconds: 5 }
         outputs: { stage_result: { type: object } }

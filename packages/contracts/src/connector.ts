@@ -138,6 +138,7 @@ export interface ConnectorOperation {
     readonly process?: JsonObject;
     readonly web?: JsonObject;
     readonly store?: JsonObject;
+    readonly artifact?: JsonObject;
   };
 }
 

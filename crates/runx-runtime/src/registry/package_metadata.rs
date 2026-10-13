@@ -50,7 +50,8 @@ pub struct RegistryConnectorMetadata {
     pub manifest_digest: Digest,
     /// The manifest and every tool its process operations run.
     pub connector_digest: Digest,
-    /// The connector is part of the runtime itself (store, web, vault).
+    /// The connector is part of the runtime itself (store, web, vault,
+    /// artifact).
     pub runtime_capability: bool,
     pub operations: Vec<String>,
 }

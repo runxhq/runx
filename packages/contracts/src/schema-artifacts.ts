@@ -9466,6 +9466,20 @@ export const runxSchemaArtifacts = {
                     "store"
                   ],
                   "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "artifact": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "artifact"
+                  ],
+                  "type": "object"
                 }
               ]
             },

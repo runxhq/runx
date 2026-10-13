@@ -6,6 +6,11 @@
       "content_digest": "sha256:99f85a8669e99d16d89e8161559d42b37c7830c28540d349a6b93702d7b4525d"
     },
     {
+      "ref": "runx/artifact",
+      "version": "sha-2ebbc8c675a7",
+      "content_digest": "sha256:2ebbc8c675a78ead942d888aabbfb3d8f48b764865060f1920759110838ebc5d"
+    },
+    {
       "ref": "runx/aws",
       "version": "sha-0b03b39bd6cd",
       "content_digest": "sha256:0b03b39bd6cd3465e9325407eaf1f5ec528aea6ccbf7bacedde1d637fac29dbc"

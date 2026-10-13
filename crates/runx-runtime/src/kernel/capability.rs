@@ -124,12 +124,16 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
 }
 
 /// Whether an instance with no authority may call `operation`: a read, or a
-/// write to a store, which reaches only the storage the operator configured.
-/// An approval alone never authorizes a write: a connector that writes to a
-/// provider takes a credential, a session or a grant.
+/// write to storage runx holds for the caller (the store the operator
+/// configured, the signed-in account's artifact space). An approval alone
+/// never authorizes a write: a connector that writes to a provider takes a
+/// credential, a session or a grant.
 fn public_may(operation: &ConnectorOperation) -> bool {
     operation.verb == OperationVerb::Read
-        || matches!(operation.implementation, Some(Implementation::Store(_)))
+        || operation
+            .implementation
+            .as_ref()
+            .is_some_and(Implementation::writes_runx_storage)
 }
 
 /// The scopes of every operation an instance can reach.

@@ -967,6 +967,9 @@ pub(crate) fn execute(
 enum Session {
     Hosted(hosted::HostedSession),
     Local(Option<credentials::CredentialSecret>),
+    /// The runx account the runtime is signed in as, for an implementation
+    /// that writes that account's own storage.
+    Account(hosted::HostedSession),
 }
 
 fn prepare(
@@ -1007,7 +1010,14 @@ fn prepare(
                 session: runx_contracts::connector::SessionKind::Command,
                 ..
             } => signed_in(context, env, cwd).map(|secret| Session::Local(Some(secret))),
-            _ => Ok(Session::Local(None)),
+            _ => match admitted.operation().implementation {
+                Some(Implementation::Artifact(_)) => context
+                    .placements
+                    .hosted
+                    .session(env, cwd)
+                    .map(Session::Account),
+                _ => Ok(Session::Local(None)),
+            },
         },
     }
 }
@@ -1093,9 +1103,10 @@ fn dispatch(
     let admitted = &context.admitted;
     let operation = admitted.operation();
     let provider_key = context.provider_key();
-    let (hosted, secret) = match session {
-        Session::Hosted(session) => (Some(session), None),
-        Session::Local(secret) => (None, secret),
+    let (hosted, secret, account) = match session {
+        Session::Hosted(session) => (Some(session), None, None),
+        Session::Local(secret) => (None, secret, None),
+        Session::Account(session) => (None, None, Some(session)),
     };
     let implementation = match (&hosted, operation.hosted_http()) {
         (Some(session), None) => {
@@ -1219,6 +1230,28 @@ fn dispatch(
                 },
             };
             let driver = crate::drivers::store::Store { call: &call };
+            *dispatched = Some(Dispatched::of(context));
+            confirm::run(&driver, &call, &checks, recovery, &mut record)
+        }
+        Implementation::Artifact(_) => {
+            let session = account.as_ref().ok_or_else(|| {
+                rejected(
+                    "account_unavailable",
+                    "an artifact is stored for the runx account the runtime is signed in as"
+                        .to_owned(),
+                )
+            })?;
+            let checks = Checks {
+                preconditions: Vec::new(),
+                readbacks: match call.mutation() {
+                    true => vec![crate::drivers::artifact::readback_matches()],
+                    false => Vec::new(),
+                },
+            };
+            let driver = crate::drivers::artifact::Artifact {
+                session,
+                call: &call,
+            };
             *dispatched = Some(Dispatched::of(context));
             confirm::run(&driver, &call, &checks, recovery, &mut record)
         }
@@ -1820,6 +1853,11 @@ fn placement(context: &OperationAdmission) -> (&'static str, ExecutionBoundaryKi
         }
         (Placement::Local, Some(Implementation::Store(_))) => {
             ("local_store", ExecutionBoundaryKind::NativeCapability)
+        }
+        // The runtime sends what admission proved; runx's storage is attested,
+        // not enforced, by the runtime.
+        (Placement::Local, Some(Implementation::Artifact(_))) => {
+            ("local_artifact", ExecutionBoundaryKind::RemoteProvider)
         }
         (Placement::Local, _) => ("local_http", ExecutionBoundaryKind::NativeCapability),
     }

@@ -570,7 +570,10 @@ fn validate_operation(
     // capability declares that URL as a credential presented as the URL.
     if !read
         && manifest.auth.unauthenticated()
-        && !matches!(operation.implementation, Some(Implementation::Store(_)))
+        && !operation
+            .implementation
+            .as_ref()
+            .is_some_and(Implementation::writes_runx_storage)
     {
         errors.push(
             &format!("{field}.verb"),
@@ -753,6 +756,29 @@ fn validate_operation(
             }
             if operation.hosted.is_some() {
                 errors.push(&format!("{field}.hosted"), "a store runs only locally");
+            }
+        }
+        Implementation::Artifact(_) => {
+            if operation.input_schema.is_none() {
+                errors.push(
+                    &format!("{field}.input_schema"),
+                    "artifact operations declare the input schema they accept",
+                );
+            }
+            if acknowledged {
+                errors.push(
+                    &format!("{field}.guarantees.readback"),
+                    "an artifact write is confirmed by reading it back",
+                );
+            }
+            if operation.hosted.is_some() {
+                errors.push(&format!("{field}.hosted"), "an artifact runs only locally");
+            }
+            if !operation.credentials.is_empty() {
+                errors.push(
+                    &format!("{field}.credentials"),
+                    "an artifact implementation acts as the signed-in runx account, never a credential",
+                );
             }
         }
         Implementation::Web(_) => {

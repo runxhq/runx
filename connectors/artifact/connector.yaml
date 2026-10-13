@@ -1,0 +1,32 @@
+schema: runx.connector.v1
+id: artifact
+name: Artifact
+description: Store one bounded value in the artifact space of the runx account the runtime is signed in as, and read it back by its reference.
+category: agent-tools
+runtime_capability: true
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  artifact.allocate:
+    description: Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.
+    verb: create
+    scopes: [artifact.allocate]
+    target:
+      template: {"$argument": "/purpose"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [purpose, media_type]
+      properties:
+        purpose: {type: string, minLength: 1, maxLength: 256, pattern: "^\\S(.*\\S)?$"}
+        media_type: {type: string, minLength: 3, maxLength: 200, pattern: "^[^\\s/]+/[^\\s/]+$"}
+        value: {}
+        data_base64: {type: string, minLength: 4, pattern: "^[A-Za-z0-9+/]*={0,2}$"}
+    result_fields: [artifact_ref, content_digest, media_type, size_bytes, created_at, principal_ref]
+    implementation:
+      artifact: {}

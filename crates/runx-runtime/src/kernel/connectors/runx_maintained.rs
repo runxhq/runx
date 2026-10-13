@@ -46,6 +46,42 @@ operations:
 "###,
     ),
     (
+        "artifact",
+        r###"schema: runx.connector.v1
+id: artifact
+name: Artifact
+description: Store one bounded value in the artifact space of the runx account the runtime is signed in as, and read it back by its reference.
+category: agent-tools
+runtime_capability: true
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  artifact.allocate:
+    description: Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.
+    verb: create
+    scopes: [artifact.allocate]
+    target:
+      template: {"$argument": "/purpose"}
+    guarantees:
+      provider_idempotency: enforced
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [purpose, media_type]
+      properties:
+        purpose: {type: string, minLength: 1, maxLength: 256, pattern: "^\\S(.*\\S)?$"}
+        media_type: {type: string, minLength: 3, maxLength: 200, pattern: "^[^\\s/]+/[^\\s/]+$"}
+        value: {}
+        data_base64: {type: string, minLength: 4, pattern: "^[A-Za-z0-9+/]*={0,2}$"}
+    result_fields: [artifact_ref, content_digest, media_type, size_bytes, created_at, principal_ref]
+    implementation:
+      artifact: {}
+"###,
+    ),
+    (
         "aws",
         r###"schema: runx.connector.v1
 id: aws
@@ -4465,6 +4501,15 @@ Provider reference: [Apollo API authentication](https://docs.apollo.io/docs/api-
         "apollo",
         "mark.svg",
         r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="9.600000000000001" fill="#252522" /><g fill="#f8ff2c" transform="translate(0 0) scale(0.774194)"><path d="M33.158 25.114l-.007-16.009L31 9a22.03 22.03 0 0 0-5.119.6l4.881 15.371c.275.865-.777 1.534-1.444.917L16.732 14.255a22.11 22.11 0 0 0-4.547 5.338l16.048 8.488a3.36 3.36 0 0 0 4.925-2.968zm-4.371 11.848l.007 15.928L31 53a22.06 22.06 0 0 0 5.045-.582l-4.863-15.313c-.275-.865.777-1.534 1.444-.917l12.57 11.618a22.11 22.11 0 0 0 4.57-5.32l-16.054-8.491a3.36 3.36 0 0 0-4.925 2.968h0zm7.335-7.578l11.657-12.612c-1.521-1.791-3.322-3.337-5.338-4.566l-8.512 16.093a3.36 3.36 0 0 0 2.968 4.925l15.993-.007L53 31a22.06 22.06 0 0 0-.584-5.055l-15.377 4.883c-.865.275-1.534-.776-.917-1.443zm-11.074-.532l-15.944.007L9 30.999a22.05 22.05 0 0 0 .598 5.109l15.308-4.861c.865-.275 1.534.777.917 1.444L14.229 45.236c1.516 1.784 3.312 3.324 5.32 4.551l8.468-16.01a3.36 3.36 0 0 0-2.968-4.925h0z" /></g></svg>"###,
+    ),
+    (
+        "artifact",
+        "mark.svg",
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>
+  <path fill="#f56819" d="M10 47h14l4 11H7Z"/>
+</svg>
+"###,
     ),
     (
         "exa",

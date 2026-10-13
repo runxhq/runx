@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 31,
+  "capability_count": 29,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -16,37 +16,6 @@
         "packet": "runx.local_artifact.v1"
       },
       "execution_boundary": "native_capability"
-    },
-    {
-      "id": "artifact.allocate",
-      "owner": "runx-runtime/hosted-artifacts",
-      "scopes": [
-        "runx:artifact:write"
-      ],
-      "effect": "mutate",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "artifact_operation",
-        "packet": "runx.provider.operation.v1"
-      },
-      "execution_boundary": "remote_provider"
-    },
-    {
-      "id": "artifact.handoff",
-      "owner": "runx-runtime/hosted-artifacts",
-      "scopes": [
-        "runx:artifact:read",
-        "runx:artifact:write"
-      ],
-      "effect": "mutate",
-      "approval": "effect",
-      "artifacts": {
-        "kind": "named",
-        "output": "artifact_operation",
-        "packet": "runx.provider.operation.v1"
-      },
-      "execution_boundary": "remote_provider"
     },
     {
       "id": "artifact.read",

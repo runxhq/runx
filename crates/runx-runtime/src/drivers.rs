@@ -7,6 +7,7 @@
 //! which only the kernel can build, so it performs nothing admission did not
 //! prove. Every driver is generic: provider specifics live in manifests.
 
+pub(crate) mod artifact;
 pub(crate) mod http;
 #[cfg(feature = "mcp")]
 pub(crate) mod mcp;

@@ -36,6 +36,8 @@ connectors:
     operations: [issues.update, issues.read]
   n8n:
     operations: [workflow.invoke]
+  artifact:
+    operations: [artifact.allocate]
 runners:
   run:
     result_from: [post]
@@ -54,6 +56,8 @@ runners:
         operation: github/issues.read
       - id: deliver
         operation: n8n/workflow.invoke
+      - id: allocate
+        operation: artifact/artifact.allocate
 "#;
 
 /// How the fake provider answers a call.
@@ -75,6 +79,11 @@ struct Provider {
     grants: Arc<Mutex<Vec<serde_json::Value>>>,
     /// The principal runx Connect authenticates.
     principal: Arc<Mutex<String>>,
+    /// The principal the artifact space states it stored for, when not the
+    /// authenticated one.
+    artifact_owner: Arc<Mutex<Option<String>>>,
+    /// What the artifact space holds, by reference.
+    artifacts: Arc<Mutex<BTreeMap<String, serde_json::Value>>>,
 }
 
 impl Provider {
@@ -84,7 +93,69 @@ impl Provider {
             calls: Arc::new(Mutex::new(Vec::new())),
             grants: Arc::new(Mutex::new(Vec::new())),
             principal: Arc::new(Mutex::new(PRINCIPAL_ID.to_owned())),
+            artifact_owner: Arc::new(Mutex::new(None)),
+            artifacts: Arc::new(Mutex::new(BTreeMap::new())),
         }
+    }
+
+    /// runx's artifact space: an allocation is keyed by its idempotency key
+    /// and an inspection reads what is held under a reference.
+    fn artifact(&self, body: &serde_json::Value) -> serde_json::Value {
+        let operation = body["operation"].as_str().unwrap_or_default();
+        let input = &body["input"];
+        let (artifact_ref, result) = match operation {
+            "artifact.allocate" => {
+                use base64::Engine as _;
+                let key = input["idempotency_key"].as_str().unwrap();
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(input["data_base64"].as_str().unwrap())
+                    .unwrap();
+                let artifact_ref = format!(
+                    "runx:artifact:{}",
+                    runx_contracts::sha256_prefixed(key.as_bytes())
+                );
+                let result = serde_json::json!({
+                    "artifact_ref": artifact_ref,
+                    "content_digest": input["content_digest"],
+                    "media_type": input["media_type"],
+                    "size_bytes": bytes.len(),
+                    "created_at": "2026-10-13T00:00:00.000Z",
+                });
+                self.artifacts
+                    .lock()
+                    .unwrap()
+                    .insert(artifact_ref.clone(), result.clone());
+                (artifact_ref, result)
+            }
+            _ => {
+                let artifact_ref = input["artifact_ref"].as_str().unwrap().to_owned();
+                let result = self.artifacts.lock().unwrap()[&artifact_ref].clone();
+                (artifact_ref, result)
+            }
+        };
+        let owner = self
+            .artifact_owner
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_else(|| self.principal.lock().unwrap().clone());
+        let mut packet = serde_json::json!({
+            "schema": "runx.provider.operation.v1",
+            "status": "success",
+            "provider": "runx-artifact",
+            "operation": operation,
+            "target": artifact_ref,
+            "result": result,
+            "transport": "hosted_loopback",
+            "readback_ref": "runx:artifact-readback:1",
+            "access": if operation == "artifact.allocate" { "mutate" } else { "read" },
+            "principal_ref": format!("runx:principal:{owner}"),
+            "finality": "verified",
+        });
+        if operation == "artifact.allocate" {
+            packet["idempotency_key"] = input["idempotency_key"].clone();
+        }
+        packet
     }
 
     /// List an active grant of `scopes` for `connector`'s exact binding.
@@ -132,6 +203,14 @@ impl crate::http::RuntimeHttpTransport for Provider {
         let body: JsonObject =
             serde_json::from_str(request.body.as_deref().unwrap_or("{}")).unwrap();
         self.calls.lock().unwrap().push(body.clone());
+        if request.url == format!("{BASE_URL}/v1/artifact-operations") {
+            let sent: serde_json::Value =
+                serde_json::from_str(request.body.as_deref().unwrap()).unwrap();
+            return Ok(RuntimeHttpResponse::new(
+                200,
+                self.artifact(&sent).to_string(),
+            ));
+        }
         if request.url == format!("{BASE_URL}/v1/provider-requests") {
             // The issue as GitHub answers both the write and its readback.
             let sent: serde_json::Value =
@@ -1558,4 +1637,87 @@ operations:
     )
     .expect_err("empty");
     assert!(error.contains("rendered empty"), "{error}");
+}
+
+fn allocation(value: serde_json::Value) -> JsonObject {
+    serde_json::from_value(serde_json::json!({
+        "input": {
+            "purpose": "runx.test.result.v1",
+            "media_type": "application/json",
+            "value": value,
+        },
+        "idempotency_key": "job-1",
+    }))
+    .unwrap()
+}
+
+#[test]
+fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
+    let mut fixture = Fixture::new(&[]);
+    fixture.env.insert(
+        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        "run-1".to_owned(),
+    );
+    let (admission, outcome, dispatched) = fixture
+        .run_dispatched(
+            "allocate",
+            &allocation(serde_json::json!({"answer": 42})),
+            None,
+        )
+        .expect("a write to the account's own artifact space needs no approval");
+    let context = admission.context::<OperationAdmission>().unwrap();
+    let packet = packet(&outcome);
+    assert_eq!(
+        packet["finality"],
+        JsonValue::String("confirmed".to_owned())
+    );
+    assert_eq!(
+        packet["transport"],
+        JsonValue::String("local_artifact".to_owned())
+    );
+    let result = packet["result"].as_object().unwrap();
+    assert_eq!(
+        result["principal_ref"],
+        JsonValue::String(PRINCIPAL_REF.to_owned())
+    );
+    assert_eq!(
+        result["content_digest"],
+        JsonValue::String(runx_contracts::sha256_prefixed(br#"{"answer":42}"#))
+    );
+    assert_eq!(
+        dispatched.expect("dispatched").boundary,
+        ExecutionBoundaryKind::RemoteProvider
+    );
+    let sent = sent(&fixture);
+    assert_eq!(
+        sent.iter()
+            .map(|body| body["operation"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["artifact.allocate", "artifact.inspect"],
+        "the allocation is read back by its reference"
+    );
+    assert_eq!(sent[0]["run_id"], "run-1");
+    assert_eq!(
+        sent[0]["input"]["idempotency_key"].as_str(),
+        context.provider_key().as_deref(),
+        "the artifact is keyed by the call's intent"
+    );
+}
+
+#[test]
+fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
+    let mut fixture = Fixture::new(&[]);
+    fixture.env.insert(
+        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        "run-1".to_owned(),
+    );
+    *fixture.provider.artifact_owner.lock().unwrap() = Some("someone-else".to_owned());
+    let error = fixture
+        .run(
+            "allocate",
+            &allocation(serde_json::json!({"answer": 42})),
+            None,
+        )
+        .expect_err("held");
+    assert!(error.contains("another principal"), "{error}");
 }

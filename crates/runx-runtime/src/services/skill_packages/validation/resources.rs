@@ -71,9 +71,6 @@ fn classify_native_tool(tool: &str, usage: &mut CandidateResourceUsage) {
     if tool == "command.execute" {
         classify_process(usage);
     }
-    if matches!(tool, "artifact.allocate" | "artifact.handoff") {
-        usage.network = true;
-    }
 }
 
 pub(super) fn validate_architecture_resources(
@@ -115,15 +112,6 @@ mod tests {
         classify_native_tool("evidence.index_sources", &mut usage);
 
         assert!(!usage.network);
-    }
-
-    #[test]
-    fn actual_network_tools_claim_network_access() {
-        for tool in ["artifact.allocate", "artifact.handoff"] {
-            let mut usage = CandidateResourceUsage::default();
-            classify_native_tool(tool, &mut usage);
-            assert!(usage.network, "{tool} must consume the network budget");
-        }
     }
 
     #[test]
