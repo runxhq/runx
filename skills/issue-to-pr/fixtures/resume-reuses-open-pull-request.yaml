@@ -6,7 +6,6 @@ setup:
   sessions: [github]
 env:
   PATH: fixtures/bin:/usr/bin:/bin
-  RUNX_CWD: ../..
   RUNX_ISSUE_TO_PR_GIT_STATE: .runx/issue-to-pr-reuse-ref
 inputs:
   issue_evidence:
@@ -38,7 +37,7 @@ inputs:
         status: passed
         evidence: receipt:test:issue-to-pr-resume
     finalization:
-      receipt_path: skills/issue-to-pr/fixtures/scafld-pass.json
+      receipt_path: fixtures/scafld-pass.json
       contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     publication:
       decision: ready

@@ -10,7 +10,6 @@ setup:
   sessions: [github]
 env:
   PATH: fixtures/bin:/usr/bin:/bin
-  RUNX_CWD: ../..
 inputs:
   repository: runxhq/runx
   issue_number: "442"
@@ -43,7 +42,7 @@ caller:
             status: passed
             evidence: receipt:test:issue-to-pr-standalone
         finalization:
-          receipt_path: skills/issue-to-pr/fixtures/scafld-pass.json
+          receipt_path: fixtures/scafld-pass.json
           contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         publication:
           decision: hold

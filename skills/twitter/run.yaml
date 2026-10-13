@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.5"
+version: "0.5.6"
 catalog:
   kind: skill
   audience: public
@@ -11,6 +11,13 @@ catalog:
   completion: provider_readback
   approval: none
   category: growth
+harness:
+  files:
+    - fixtures/data/archive-follower.js
+    - fixtures/data/archive-following.js
+    - fixtures/data/archive-tweets.js
+  cases: []
+
 connectors:
   twitter:
     operations: [account.snapshot, account.posts.read, account.mentions.read, account.following.read, account.followers.read, posts.read, mentions.read, following.read, followers.read, posts.search, post.create, post.reply, post.quote, posts.delete, users.unfollow, users.follow, users.mute, users.block, posts.like, posts.repost]

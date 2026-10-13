@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.8"
+version: "0.5.9"
 
 catalog:
   kind: skill
@@ -11,6 +11,11 @@ catalog:
   completion: provider_readback
   approval: none
   category: ops
+
+harness:
+  files:
+    - fixtures/bin/gh
+  cases: []
 
 input_definitions:
   repository:

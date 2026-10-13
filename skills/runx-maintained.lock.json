@@ -120,7 +120,7 @@
   },
   {
     "skill_id": "runx/extract",
-    "version": "sha-a281a9e49cca",
+    "version": "sha-53b134dd5ab0",
     "digest": "020f114d72bf0e6e15e70ef2dd2f6e6e3e3070c0c845f08e34e9ef92b1ec0e2b",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -134,7 +134,7 @@
   },
   {
     "skill_id": "runx/github-pr-comment",
-    "version": "sha-72e9570a537f",
+    "version": "sha-9f5abc033d52",
     "digest": "9683d81590031dba5f423c3625dc200ea404324c29fde0dd183740f899725864",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -148,7 +148,7 @@
   },
   {
     "skill_id": "runx/github-sync",
-    "version": "sha-2e2ac963e685",
+    "version": "sha-4deb568cdfdf",
     "digest": "d38fa7dc233e1e9a335eb3a1a09f73a001c33158b16a6ed4e1750cdaaee90120",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -190,14 +190,14 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-f2fd053ebb92",
+    "version": "sha-488289130c7c",
     "digest": "eae16953ff145b514d4a990ee537a974d4db3e8c9e5123a4dc312c7433242754",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/issue-triage",
-    "version": "sha-58735bc5bdc2",
+    "version": "sha-1ddcd57906f8",
     "digest": "9b733d718f0d79b894ded30bcc1a4648aeb2cb3ac0126752d5d4a0d6149930c1",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -428,7 +428,7 @@
   },
   {
     "skill_id": "runx/skill-review",
-    "version": "sha-933524420694",
+    "version": "sha-20aa26cf94fb",
     "digest": "f77e9abe7b9057ddac93b4e1f15b507dd7f73f51b7be186793f5e6fe57ec9ecb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -477,7 +477,7 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-efe5cc79b2ea",
+    "version": "sha-ef6dc30e1651",
     "digest": "04e98ef53db19a8df61f68010756e530538a3d7f69e1270e3d6ab3bbd1fb720a",
     "catalog_visibility": "public",
     "catalog_role": "branded"

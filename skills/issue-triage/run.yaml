@@ -1,5 +1,5 @@
 skill: issue-triage
-version: "0.4.6"
+version: "0.4.7"
 
 catalog:
   kind: graph
@@ -10,6 +10,11 @@ catalog:
   completion: provider_readback
   approval: none
   category: ops
+
+harness:
+  files:
+    - fixtures/bin/gh
+  cases: []
 
 input_definitions:
   repository:

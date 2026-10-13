@@ -1,5 +1,5 @@
 skill: github-pr-comment
-version: "0.3.4"
+version: "0.3.5"
 
 catalog:
   kind: graph
@@ -33,6 +33,8 @@ input_definitions:
     description: Stable retry key for this exact repository, pull request, and body.
     schema: { minLength: 8, maxLength: 256, pattern: '^[A-Za-z0-9._:-]+$' }
 harness:
+  files:
+    - fixtures/bin/gh
   cases:
     - name: github-pr-comment-merge-refused
       runner: merge-refused

@@ -4,7 +4,6 @@ target: ..
 runner: resume
 env:
   PATH: fixtures/bin:/usr/bin:/bin
-  RUNX_CWD: ../..
 operator_journeys:
   - mode: composed
     request: Continue issue 442 from this prior issue evidence and completed host result to the PR boundary.
@@ -45,7 +44,7 @@ inputs:
         status: passed
         evidence: receipt:test:issue-to-pr-composed
     finalization:
-      receipt_path: skills/issue-to-pr/fixtures/scafld-pass.json
+      receipt_path: fixtures/scafld-pass.json
       contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     publication:
       decision: hold

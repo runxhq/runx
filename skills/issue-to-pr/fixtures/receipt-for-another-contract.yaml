@@ -4,7 +4,6 @@ target: ..
 runner: resume
 env:
   PATH: fixtures/bin:/usr/bin:/bin
-  RUNX_CWD: ../..
 inputs:
   issue_evidence:
     schema: runx.issue_to_pr.issue_evidence.v1
@@ -35,7 +34,7 @@ inputs:
         status: passed
         evidence: receipt:test:issue-to-pr-composed
     finalization:
-      receipt_path: skills/issue-to-pr/fixtures/scafld-pass.json
+      receipt_path: fixtures/scafld-pass.json
       contract_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     publication:
       decision: hold

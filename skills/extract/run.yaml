@@ -1,5 +1,5 @@
 skill: extract
-version: "0.1.5"
+version: "0.1.6"
 
 catalog:
   kind: skill
@@ -10,6 +10,11 @@ catalog:
   completion: runtime_receipt
   approval: none
   tags: [extraction, schema-validation, provenance]
+
+harness:
+  files:
+    - fixtures/rfc9110-http-semantics.html
+  cases: []
 
 runners:
   extract:

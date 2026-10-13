@@ -1,5 +1,5 @@
 skill: skill-review
-version: "0.3.4"
+version: "0.3.5"
 
 catalog:
   owner: runx
@@ -13,12 +13,15 @@ catalog:
   category: authoring
 
 harness:
+  files:
+    - fixtures/subject/SKILL.md
+    - fixtures/subject/run.yaml
   cases:
     - name: skill-review-collects-native-evidence
       operator_journeys:
         - mode: standalone
           confusors: [diagnose-skill-run, skill-build]
-          request: Review diagnose-skill-run for capability, trust, and operator readiness.
+          request: Review the review-subject skill for capability, trust, and operator readiness.
           expected_outcome: Collect native inspection and harness evidence, then return a bounded adoption or improvement recommendation.
         - mode: composed
           request: Assess this skill from the native evidence already collected by the catalog review.
@@ -30,15 +33,15 @@ harness:
             - Do not rediscover package contracts already present in native inspection.
       runner: review
       inputs:
-        skill_ref: ../diagnose-skill-run
-        objective: Decide whether receipt diagnosis has bounded evidence and stop behavior
+        skill_ref: fixtures/subject
+        objective: Decide whether the subject has bounded evidence and stop behavior
         test_constraints: Run only local read-only harnesses.
       caller:
         answers:
           assess:
             capability_profile:
-              skill_ref: ../diagnose-skill-run
-              summary: Diagnoses one receipt or harness failure into a bounded recommendation.
+              skill_ref: fixtures/subject
+              summary: Digests one fixed value under a bounded read-only contract.
             trust_assessment:
               tier: local_harness
               caveats:
@@ -64,7 +67,7 @@ harness:
                   verdict: tested
                   inspect:
                     status: ok
-                    name: diagnose-skill-run
+                    name: review-subject
                   harness:
                     status: passed
 

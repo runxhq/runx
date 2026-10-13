@@ -1,0 +1,19 @@
+skill: review-subject
+version: "0.1.0"
+
+harness:
+  cases:
+    - name: review-subject-digests
+      runner: default
+      expect:
+        status: sealed
+
+runners:
+  default:
+    default: true
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: review-subject
