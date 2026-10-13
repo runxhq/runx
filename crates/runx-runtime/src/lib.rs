@@ -172,7 +172,6 @@ pub use receipts::{
     RuntimeReceiptSigningError, TrustedReceiptKey, local_receipt_kid, receipt_signer,
     receipt_trust, receipt_verifier,
 };
-pub use registry::{RegistryInstallMetadataInput, registry_install_receipt_metadata};
 pub use run_record::{RunLog, RunRecordError, RunState, RunSummary};
 pub use runner::{
     GraphRun, RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun,

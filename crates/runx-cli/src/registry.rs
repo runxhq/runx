@@ -277,13 +277,6 @@ fn run_install(
             )?,
         },
     )?;
-    let receipt_metadata = runx_runtime::registry_install_receipt_metadata(
-        runx_runtime::RegistryInstallMetadataInput {
-            candidate: &candidate,
-            install: &install,
-            acquisition: acquisition.as_ref(),
-        },
-    );
     let human = output::render_install(
         source,
         &plan.subject,
@@ -298,7 +291,11 @@ fn run_install(
                 source,
                 r#ref: plan.subject,
                 install: Box::new(install),
-                receipt_metadata,
+                package_digest: candidate.package_digest.clone(),
+                acquisition: acquisition.map(|acquired| output::InstallAcquisition {
+                    publisher: acquired.publisher,
+                    install_count: acquired.install_count,
+                }),
             },
         },
         || human,

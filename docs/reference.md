@@ -94,9 +94,9 @@ runx init
 runx new docs-demo --objective "Create a bounded documentation decision skill"
 runx list skills
 runx registry search sourcey --json
-runx skill sourcey/sourcey@1.0.0 --registry https://runx.example.test --project . --json
+runx skill sourcey/sourcey@1.0.0 --registry https://runx.example.test --json
 runx add sourcey/sourcey@1.0.0 --registry https://runx.example.test --to ./skills --json
-runx skill issue-to-pr --fixture /path/to/repo --task-id task-123
+runx skill issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="Fix the failing build"
 runx resume <run-id> answers.json
 runx turn <run-id>
 runx history
@@ -735,13 +735,13 @@ policy, approvals, and resolution requests still behave the same way.
 
 Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx history <receipt-id> --detail` verifies a receipt's signature and surfaces `verified`, `unverified`, or `invalid` status. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
-Graph receipt lineage is an immutable one-way DAG. The parent commits each
-child receipt ID and exact signed-body digest; a child never names its parent.
-This keeps receipt identity content-addressed and
-allows the same child proof to participate in more than one graph without a
-store collision. Runtime tree resolution collapses only identical repeated
-child receipts into one DAG node; two different signed bodies under the same
-receipt ID remain ambiguous and fail verification.
+Graph receipt lineage is an immutable one-way tree. The parent commits each
+child receipt ID and exact signed-body digest; a child never names its parent,
+so receipt identity stays content-addressed. Every verifier applies one rule to
+a tree: each receipt is committed once by its parent, and a tree holds at most
+1024 receipts and 64 levels below its root. A receipt two parents commit is
+refused, and two different signed bodies under the same receipt ID are
+ambiguous and fail verification.
 
 Publish a local receipt to the hosted notary with:
 
@@ -766,23 +766,6 @@ RUNX_PUBLIC_API_TOKEN=dev-token runx publish ./.runx/receipts/<receipt-id>.json 
   --api-base-url http://127.0.0.1:47882 \
   --allow-local-api
 ```
-
-## Workspace Policy
-
-Projects can opt into stricter local process-tool admission with
-`.runx/config.json`:
-
-```json
-{
-  "policy": {
-    "strict_process_tool_inline_code": true
-  }
-}
-```
-
-When enabled, local execution rejects known inline interpreter and shell eval
-forms such as `node -e`, `python -c`, and `bash -lc`. Move the program into a
-checked-in script file and invoke that file instead.
 
 ## Harness
 

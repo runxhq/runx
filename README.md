@@ -103,7 +103,8 @@ runx skill deep-research \
 
 # Maintainer operations: draft a useful issue response.
 runx skill issue-triage \
-  -i issue_url=https://github.com/runxhq/runx/issues/241 \
+  -i repository=runxhq/runx \
+  -i issue_number=241 \
   -i objective="Draft the next helpful maintainer response" \
   --json
 ```

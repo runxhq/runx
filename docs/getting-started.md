@@ -37,16 +37,14 @@ runx skill ./examples/hello-world \
   --json
 ```
 
-The equivalent PowerShell commands on Windows are:
-
-```powershell
-$env:RUNX_RECEIPT_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "runx-first-receipt"
-New-Item -ItemType Directory -Force $env:RUNX_RECEIPT_DIR | Out-Null
-runx skill .\examples\hello-world --message "hello from Windows" --json
-```
-
 The `runx.skill_run.v1` response should report `status: "sealed"` and include a
 `receipt_id`.
+
+On Windows, runx keeps no local key or local secret yet: it stores one only
+where it can restrict the file to its owner and check that, and it cannot do
+that there. A local run seals only under a configured signer
+(`RUNX_RECEIPT_SIGN_KID` and `RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64`); without
+one it refuses rather than sign with an unprotected key.
 Runx signs every receipt. With no signer configured, it signs with this runx
 home's own Ed25519 key, which it creates at `~/.runx/keys/local-receipt-ed25519.json`
 on the first run, readable only by you, and never replaces. Publishing and

@@ -9,6 +9,13 @@ pub(super) struct RegistryEnvelope<T> {
     pub(super) registry: T,
 }
 
+/// Who publishes an acquired skill, and how many installations acquired it.
+#[derive(serde::Serialize)]
+pub(super) struct InstallAcquisition {
+    pub(super) publisher: runx_runtime::registry::RegistryPublisher,
+    pub(super) install_count: u64,
+}
+
 #[derive(serde::Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub(super) enum RegistryPayload {
@@ -31,7 +38,12 @@ pub(super) enum RegistryPayload {
         source: &'static str,
         r#ref: String,
         install: Box<runx_runtime::registry::InstallLocalSkillResult>,
-        receipt_metadata: runx_contracts::JsonObject,
+        /// The installed package's digest, when the registry states one.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        package_digest: Option<String>,
+        /// What the hosted registry reported acquiring it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        acquisition: Option<InstallAcquisition>,
     },
     Package {
         package: Box<runx_runtime::registry::RegistryPublishPackageParts>,

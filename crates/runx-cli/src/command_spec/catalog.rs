@@ -286,7 +286,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         top_level_usage: &[],
         usage: &["runx turn <run-id> [--receipt-dir dir]"],
         notes: &[
-            "Serves the agent turn a paused run waits on as MCP tools over stdio: one tool per entry of the skill's limits, ask_human, turn_status and turn_complete.",
+            "Serves the agent turns a paused run waits on as MCP tools over stdio: turn_list, turn_status, turn_call (a call to one of the tools the turn offers, ask_human included) and turn_complete.",
             "Each call is admitted against the turn's allowance and the run's authority, executed, and recorded in the run. A write names its idempotency_key. A call that needs approval stays pending until runx resume answers it.",
             "turn_complete ends the turn with its output; the run continues.",
         ],
