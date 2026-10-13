@@ -107,15 +107,19 @@ pub(super) fn render_search(
             .as_ref()
             .map(|category| format!("    category {category}\n"))
             .unwrap_or_default();
+        // A hosted search names each skill's current version, not its digest;
+        // a line is shown only for what the registry stated.
+        let digest = result
+            .digest
+            .as_deref()
+            .map(|digest| format!("    digest   {}\n", digest_label(digest)))
+            .unwrap_or_default();
         output.push_str(&format!(
-            "  - {}@{}\n{}    digest   {}\n    trust    {}\n    install  {}\n    run      {}\n",
+            "  - {}@{}\n{}{}    trust    {}\n    install  {}\n    run      {}\n",
             result.skill_id,
             result.version.as_deref().unwrap_or("unknown"),
             category,
-            result
-                .digest
-                .as_deref()
-                .map_or("unknown".to_owned(), digest_label),
+            digest,
             trust_tier_label(&result.trust_tier),
             result.install_command.copy_text,
             result.run_command.copy_text,
