@@ -358,7 +358,14 @@ fn wire_operations(
     target_path: &Path,
     options: &mut HarnessOptions,
 ) -> Result<Arc<HarnessExchanges>, HarnessReplayError> {
-    let skill_dir = target_path.parent().unwrap_or(target_path);
+    // The target is the skill's directory or a file in it. Connectors are
+    // reached from there: from above it, a bundled package is outside its
+    // own plugin.
+    let skill_dir = if target_path.is_dir() {
+        target_path
+    } else {
+        target_path.parent().unwrap_or(target_path)
+    };
     let scope = crate::ConnectorScope::at(skill_dir)
         .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?
         .in_project(crate::paths::RunxPaths::resolve(&options.env, skill_dir).connectors());
@@ -368,8 +375,8 @@ fn wire_operations(
             message,
         })
     };
-    let transport =
-        super::transport::harness_transport(&fixture.caller, &scope).map_err(invalid_provider)?;
+    let transport = super::transport::harness_transport(&fixture.caller, &scope, skill_dir)
+        .map_err(invalid_provider)?;
     options.effects =
         super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
             .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;

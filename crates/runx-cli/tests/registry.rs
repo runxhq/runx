@@ -334,6 +334,63 @@ runners:
     Ok(())
 }
 
+/// A publish runs the harness on the package as the registry holds it: a
+/// bundle that is its own plugin, its cases reaching the connectors it
+/// carries.
+#[test]
+fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-publish-plugin-harness");
+    crate::support::plugin_with_source_connectors(&root, &["mpp"])?;
+    let skill_dir = root.join("skills/charge");
+    crate::support::copy_dir(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/charge"),
+        &skill_dir,
+    )?;
+    let registry_dir = root.join("registry");
+    let publish = runx_command()?
+        .args([
+            "registry",
+            "publish",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A case runs its whole closure, so its provider grant reaches a connector
+/// the package's composed skill carries, not only its own.
+#[test]
+fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-publish-composed-grant");
+    crate::support::plugin_with_source_connectors(&root, &["mpp", "stripe-spt"])?;
+    let skills = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills");
+    for name in ["stripe-pay", "spend"] {
+        crate::support::copy_dir(&skills.join(name), &root.join("skills").join(name))?;
+    }
+    let skill_dir = root.join("skills/stripe-pay");
+    let registry_dir = root.join("registry");
+    let publish = runx_command()?
+        .args([
+            "registry",
+            "publish",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
 #[test]
 fn registry_package_metadata_names_the_declared_connectors()
 -> Result<(), Box<dyn std::error::Error>> {

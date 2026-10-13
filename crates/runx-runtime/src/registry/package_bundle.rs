@@ -168,6 +168,32 @@ pub(crate) fn bundled_connectors(
         .map(Some)
 }
 
+/// The directory of every package in the bundle `directory` lies in that
+/// carries connectors: the scope a harness case spans, since it runs its
+/// whole closure. None outside a bundle.
+pub(crate) fn bundle_package_dirs(directory: &Path) -> Result<Option<Vec<PathBuf>>, String> {
+    let Some((root, descriptor)) = find_bundle(directory)? else {
+        return Ok(None);
+    };
+    let packages = descriptor
+        .connectors
+        .iter()
+        .map(|binding| binding.from.as_str())
+        .collect::<BTreeSet<_>>();
+    Ok(Some(
+        packages
+            .into_iter()
+            .map(|from| {
+                if from == "." {
+                    root.clone()
+                } else {
+                    root.join(from)
+                }
+            })
+            .collect(),
+    ))
+}
+
 fn find_bundle(
     graph_directory: &Path,
 ) -> Result<Option<(PathBuf, PackageBundleDescriptor)>, String> {

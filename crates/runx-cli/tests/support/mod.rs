@@ -501,28 +501,30 @@ fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(Strin
 
 /// Makes `root` a runx plugin holding copies of the runx source connectors
 /// `ids`: how a project reaches published connectors without a registry.
+/// Copy a directory tree.
+pub fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn plugin_with_source_connectors(
     root: &std::path::Path,
     ids: &[&str],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    fn copy(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
-        std::fs::create_dir_all(to)?;
-        for entry in std::fs::read_dir(from)? {
-            let entry = entry?;
-            let target = to.join(entry.file_name());
-            if entry.path().is_dir() {
-                copy(&entry.path(), &target)?;
-            } else {
-                std::fs::copy(entry.path(), target)?;
-            }
-        }
-        Ok(())
-    }
     std::fs::create_dir_all(root)?;
     std::fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
     for id in ids {
-        copy(&source.join(id), &root.join("connectors").join(id))?;
+        copy_dir(&source.join(id), &root.join("connectors").join(id))?;
     }
     Ok(())
 }

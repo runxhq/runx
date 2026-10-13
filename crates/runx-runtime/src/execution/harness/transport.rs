@@ -33,15 +33,14 @@ pub(super) fn effects_over(
 pub(super) fn harness_transport(
     caller: &HarnessCaller,
     scope: &crate::ConnectorScope,
+    skill_dir: &std::path::Path,
 ) -> Result<HarnessTransport, String> {
     let grant_binding = caller
         .provider_responses
         .as_ref()
         .map(|provider| {
-            scope
-                .connector(&provider.grant.provider)
+            granted_connector(scope, skill_dir, &provider.grant.provider)
                 .map(|connector| connector.binding())
-                .map_err(|error| error.to_string())
         })
         .transpose()?;
     let exchanges = Arc::new(HarnessExchanges::new(
@@ -67,6 +66,41 @@ pub(super) fn harness_transport(
         exchanges,
         mutation_keys: Arc::default(),
     })
+}
+
+/// The connector a case's provider grant names, as its operations reach it:
+/// from the case's own package or, in a bundle, from whichever of the
+/// bundle's packages carries it, since a case runs its whole closure.
+fn granted_connector(
+    scope: &crate::ConnectorScope,
+    skill_dir: &std::path::Path,
+    id: &str,
+) -> Result<Arc<crate::kernel::connectors::LoadedConnector>, String> {
+    let unreached = match scope.connector(id) {
+        Ok(connector) => return Ok(connector),
+        Err(error) => error.to_string(),
+    };
+    let Some(packages) = crate::registry::package_bundle::bundle_package_dirs(skill_dir)? else {
+        return Err(unreached);
+    };
+    let mut carried: Vec<Arc<crate::kernel::connectors::LoadedConnector>> = Vec::new();
+    for package in packages {
+        let scope = crate::ConnectorScope::at(&package).map_err(|error| error.to_string())?;
+        if let Ok(connector) = scope.connector(id)
+            && !carried
+                .iter()
+                .any(|known| known.binding() == connector.binding())
+        {
+            carried.push(connector);
+        }
+    }
+    match carried.len() {
+        0 => Err(unreached),
+        1 => Ok(carried.remove(0)),
+        _ => Err(format!(
+            "connector {id} is carried by more than one package of the bundle at different digests; grant it by its qualified reference"
+        )),
+    }
 }
 
 /// The environment a case's provider fixture runs under: the harness's hosted
@@ -99,9 +133,7 @@ pub(crate) fn seed_provider_grant(
     let Some(provider) = &caller.provider_responses else {
         return Ok(());
     };
-    let connector = scope
-        .connector(&provider.grant.provider)
-        .map_err(|error| error.to_string())?;
+    let connector = granted_connector(scope, cwd, &provider.grant.provider)?;
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
             .map_err(|error| error.to_string())?,
@@ -109,7 +141,7 @@ pub(crate) fn seed_provider_grant(
     crate::kernel::setup::confirm_grant_over(
         &instances,
         &connector,
-        Arc::new(harness_transport(caller, scope)?),
+        Arc::new(harness_transport(caller, scope, cwd)?),
         &provider.grant.grant_id,
         env,
         cwd,
