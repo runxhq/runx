@@ -391,6 +391,105 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A graph case runs its composed skill's operations under what it binds: a
+/// credential from the variable the case sets, or the provider grant its
+/// caller answers for. Both are bound from the graph file's directory.
+#[test]
+fn a_graph_case_binds_the_connectors_its_composed_skill_calls()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("harness-graph-binding");
+    crate::support::plugin_with_source_connectors(&root, &["exa", "google-calendar"])?;
+    let skills = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills");
+    for name in ["web-search", "google-calendar"] {
+        crate::support::copy_dir(&skills.join(name), &root.join("skills").join(name))?;
+    }
+    let search = root.join("skills/web-search/fixtures");
+    fs::write(
+        search.join("support/live.graph"),
+        "name: web-search-live\nsteps:\n  - id: web-search\n    skill: ../..\n    runner: search\n    inputs:\n      query: Example API documentation\n      limit: 3\n",
+    )?;
+    fs::write(
+        search.join("graph-binds-credential.yaml"),
+        r#"name: web-search-graph-binds-credential
+kind: graph
+target: support/live.graph
+expect:
+  status: sealed
+caller:
+  http_exchanges:
+  - request:
+      method: POST
+      url: https://api.exa.ai/search
+      body:
+        json:
+          query: Example API documentation
+          numResults: 3
+          type: auto
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"requestId":"fixture-1","results":[{"url":"https://example.com/docs","title":"Example docs"}],"costDollars":{"total":0.005}}'
+setup:
+  credentials: [exa]
+env:
+  EXA_API_KEY: harness-exa-key
+"#,
+    )?;
+    let calendar = root.join("skills/google-calendar/fixtures");
+    fs::write(
+        calendar.join("support/live.graph"),
+        "name: google-calendar-live\nsteps:\n  - id: events\n    skill: ../..\n    runner: events\n    inputs:\n      calendar_id: primary\n      time_min: \"2026-10-04T00:00:00Z\"\n      time_max: \"2026-10-05T00:00:00Z\"\n",
+    )?;
+    fs::write(
+        calendar.join("graph-binds-grant.yaml"),
+        r#"name: google-calendar-graph-binds-grant
+kind: graph
+target: support/live.graph
+expect:
+  status: sealed
+caller:
+  provider_responses:
+    principal_id: operator-fixture
+    grant:
+      grant_id: calendar-events-fixture
+      provider: google-calendar
+      scopes: [events.read]
+    operations:
+      - operation: events.list
+        target: primary
+        access: read
+        result:
+          calendar_id: primary
+          time_min: "2026-10-04T00:00:00Z"
+          time_max: "2026-10-05T00:00:00Z"
+          fetched_at: "2026-10-04T01:00:00Z"
+          complete: true
+          events:
+            - { event_id: instance-1, revision: v1, status: confirmed, visibility: default, transparency: opaque, summary: Review, all_day: false, start: "2026-10-04T09:00:00Z", end: "2026-10-04T10:00:00Z" }
+"#,
+    )?;
+    for case in [
+        search.join("graph-binds-credential.yaml"),
+        calendar.join("graph-binds-grant.yaml"),
+    ] {
+        let run = runx_command()?
+            .current_dir(&root)
+            .args(["harness", case.to_str().ok_or("non-utf8 case")?, "--json"])
+            .output()?;
+        assert_eq!(
+            run.status.code(),
+            Some(0),
+            "{}\nstdout={}\nstderr={}",
+            case.display(),
+            String::from_utf8_lossy(&run.stdout),
+            String::from_utf8_lossy(&run.stderr)
+        );
+    }
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
 #[test]
 fn registry_package_metadata_names_the_declared_connectors()
 -> Result<(), Box<dyn std::error::Error>> {

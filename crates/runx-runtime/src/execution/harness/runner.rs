@@ -385,10 +385,10 @@ fn wire_operations(
         .extend(super::transport::provider_env(&fixture.caller));
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
-    resolve_fixture_path(&mut env, target_path)?;
-    super::transport::seed_provider_grant(&fixture.caller, &scope, &env, target_path)
+    resolve_fixture_path(&mut env, skill_dir)?;
+    super::transport::seed_provider_grant(&fixture.caller, &scope, &env, skill_dir)
         .map_err(invalid_provider)?;
-    seed_harness_instances(fixture, target_path, options, &transport)?;
+    seed_harness_instances(fixture, target_path, skill_dir, options, &transport)?;
     Ok(transport.exchanges)
 }
 
@@ -396,10 +396,12 @@ fn wire_operations(
 /// kernel and home, with the fixture environment resolved as the run
 /// resolves it: each session as `runx connector use <connector> --session`
 /// would, and each credential bound to the variable the case sets, as
-/// `runx connector use <connector>` would with that variable set.
+/// `runx connector use <connector>` would with that variable set. They are
+/// confirmed from `skill_dir`, the directory of a graph case's file.
 fn seed_harness_instances(
     fixture: &HarnessFixture,
     target_path: &Path,
+    skill_dir: &Path,
     options: &HarnessOptions,
     transport: &super::provider_responses::HarnessTransport,
 ) -> Result<(), HarnessReplayError> {
@@ -410,14 +412,14 @@ fn seed_harness_instances(
     let failed = |error: String| RuntimeError::effect_state("setting up a harness instance", error);
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
-    resolve_fixture_path(&mut env, target_path)?;
-    let paths = crate::paths::RunxPaths::resolve(&env, target_path);
-    let workspace = crate::services::WorkspaceEnv::new(env.clone(), target_path.to_path_buf())
+    resolve_fixture_path(&mut env, skill_dir)?;
+    let paths = crate::paths::RunxPaths::resolve(&env, skill_dir);
+    let workspace = crate::services::WorkspaceEnv::new(env.clone(), skill_dir.to_path_buf())
         .map_err(|error| failed(error.to_string()))?;
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&paths).map_err(|error| failed(error.to_string()))?,
     );
-    let scope = crate::ConnectorScope::at(target_path)
+    let scope = crate::ConnectorScope::at(skill_dir)
         .map_err(|error| failed(error.to_string()))?
         .in_project(paths.connectors());
     // A case names a connector as its skill's `connectors:` block keys it, a
@@ -450,7 +452,7 @@ fn seed_harness_instances(
             &[],
             transport,
             &env,
-            target_path,
+            skill_dir,
         )
         .map_err(failed)?;
     }
