@@ -419,3 +419,21 @@ fn recent_heads_page_newest_first() {
         ["b"]
     );
 }
+
+#[test]
+fn a_store_closes_when_its_last_holder_drops_it() -> Result<(), Box<dyn std::error::Error>> {
+    let root = tempfile::tempdir()?;
+    let store = KernelStore::open(root.path())?;
+    let shared = KernelStore::open(root.path())?;
+    assert!(Arc::ptr_eq(&store, &shared), "holders share one connection");
+    let closed = Arc::downgrade(&store);
+    drop((store, shared));
+    assert!(closed.upgrade().is_none(), "the cache keeps no store alive");
+    let reopened = KernelStore::open(root.path())?;
+    assert_eq!(reopened.path(), closed_path(&root)?);
+    Ok(())
+}
+
+fn closed_path(root: &tempfile::TempDir) -> Result<PathBuf, std::io::Error> {
+    Ok(root.path().canonicalize()?.join(KERNEL_STORE_FILE))
+}

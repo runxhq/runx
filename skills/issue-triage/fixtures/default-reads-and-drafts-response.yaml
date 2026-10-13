@@ -27,7 +27,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"number": 241, "title": "Sourcey output path is unclear", "state": "open", "body": "The docs mention two different output directories.", "html_url": "https://github.com/runxhq/runx/issues/241", "labels": [], "assignees": []}'
   answers:
-    agent.issue-triage-respond.output:
+    draft:
       issue_profile:
         repository: runxhq/runx
         number: "241"

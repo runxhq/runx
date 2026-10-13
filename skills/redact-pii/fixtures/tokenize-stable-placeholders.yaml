@@ -9,7 +9,7 @@ inputs:
   mode: tokenize
 caller:
   answers:
-    agent.redact-pii-detect.output:
+    detect:
       redaction_draft:
         decision: ready
         detected:

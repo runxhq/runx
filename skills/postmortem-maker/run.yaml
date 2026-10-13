@@ -1,5 +1,5 @@
 skill: postmortem-maker
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -39,7 +39,7 @@ harness:
             text: "03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline."
       caller:
         answers:
-          agent.postmortem-maker-draft.output:
+          draft:
             postmortem_draft:
               summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
               timeline:
@@ -88,7 +88,7 @@ harness:
             text: "Nightly batch failed at step export with exit 1."
       caller:
         answers:
-          agent.postmortem-maker-draft.output:
+          draft:
             postmortem_draft:
               summary: The nightly batch failed at the export step; cause not yet established.
               timeline:
@@ -125,7 +125,7 @@ harness:
             text: "Service restarted at 09:00."
       caller:
         answers:
-          agent.postmortem-maker-draft.output:
+          draft:
             postmortem_draft:
               summary: Total outage caused by database corruption.
               timeline:

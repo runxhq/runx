@@ -8,7 +8,7 @@ inputs:
   thread_title: "How do I rotate my API key?"
 caller:
   answers:
-    agent.issue-intake.output:
+    intake:
       change_set:
         action_decision: "stop"
         category: "question"

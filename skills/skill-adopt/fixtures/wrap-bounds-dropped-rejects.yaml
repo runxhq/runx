@@ -24,7 +24,7 @@ inputs:
     max_acts: 5
 caller:
   answers:
-    agent.overlay-binding-profile.output:
+    profile:
       profile_draft:
         decision: ready
         profile_document: |

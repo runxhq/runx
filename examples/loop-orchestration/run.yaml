@@ -49,7 +49,7 @@ harness:
         objective: Review the next turn plan with loop operator guidance.
       caller:
         answers:
-          agent.review-loop-plan.output:
+          review:
             decision: continue
             summary: The plan is bounded, uses only fs.read, and may continue.
             requested_tool: fs.read

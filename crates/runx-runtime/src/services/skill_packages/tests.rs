@@ -49,7 +49,7 @@ harness:
             - Do not rediscover supplied evidence.
       caller:
         answers:
-          agent.demo-decide.output:
+          decide:
             decision:
               status: ready
       expect:

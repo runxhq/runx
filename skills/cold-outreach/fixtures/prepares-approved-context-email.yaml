@@ -127,7 +127,7 @@ operator_journeys:
   must_not_repeat: [Do not enrich or research the recipient again; do not send the draft.]
 caller:
   answers:
-    agent.cold-outreach-draft.output:
+    draft:
       content_draft:
         decision: ready
         content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}

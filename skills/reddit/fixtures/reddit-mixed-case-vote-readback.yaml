@@ -5,7 +5,7 @@ inputs:
   action: {kind: upvote, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: inspect the response in the network tab., allow_bare_urls: false, target_author: another_builder}
 caller:
   answers:
-    agent.reddit-vote.output:
+    submit:
       observation:
         status: voted
         username: example_builder

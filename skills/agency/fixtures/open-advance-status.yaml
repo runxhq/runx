@@ -9,7 +9,7 @@ operator_journeys:
     expected_outcome: Read the existing case once, dispatch the next scoped action, append one turn, and return the new durable case state.
 caller:
   answers:
-    agent.ops-desk-advance.output:
+    advance:
       decision: dispatch
       reason: The case is open; the smallest useful next move is to draft the doc update within scope.
       dispatch:

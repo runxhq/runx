@@ -23,7 +23,7 @@ operator_journeys:
       - Do not rediscover the already inspected package state.
 caller:
   answers:
-    agent.skill-build-architecture.output:
+    architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
         disposition: extend_existing
@@ -106,7 +106,7 @@ caller:
           - name: failure-evidence-reuse
             kind: composed_operator_journey
             expected: A supplied diagnosis packet is reused without repeating the failed operation.
-    agent.skill-build-author.output:
+    author:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: no_change

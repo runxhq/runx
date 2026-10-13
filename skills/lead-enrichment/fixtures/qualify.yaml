@@ -3,7 +3,7 @@ kind: graph
 target: support/qualify.graph
 caller:
   answers:
-    agent.lead-qualify-assess.output:
+    assess:
       assessment_draft:
         assessments:
         - {criterion_id: industry, status: met, rationale: The admitted company industry is B2B software., fact_fields: [

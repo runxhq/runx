@@ -228,10 +228,7 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
     assert_eq!(string_field(request, "kind"), Some("agent_act"));
-    assert_eq!(
-        string_field(request, "id"),
-        Some("agent.issue-intake.output")
-    );
+    assert_eq!(string_field(request, "id"), Some("intake"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     assert_eq!(string_field(invocation, "task"), Some("issue-intake"));
     let envelope = object_field(invocation, "envelope").ok_or("missing envelope")?;
@@ -367,7 +364,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     },
@@ -447,7 +444,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Malicious proof refs stay claim-scoped."
                     },
@@ -533,7 +530,7 @@ fn native_skill_run_preserves_deferred_closure_disposition()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug needs more context."
                     },
@@ -584,7 +581,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     },
@@ -883,7 +880,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     },
@@ -932,7 +929,7 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     },
@@ -1048,10 +1045,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
-    assert_eq!(
-        string_field(request, "id"),
-        Some("agent.graph-decide.output")
-    );
+    assert_eq!(string_field(request, "id"), Some("decide"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     let envelope = object_field(invocation, "envelope").ok_or("missing envelope")?;
     let instructions = string_field(envelope, "instructions").ok_or("missing instructions")?;
@@ -1074,15 +1068,14 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
             .iter()
             .map(|request| request.id.as_str())
             .collect::<Vec<_>>(),
-        ["agent.graph-decide.output"]
+        ["decide"]
     );
 
     // An answer the run refuses is never recorded: the run still waits.
     let malformed_answers_path = temp.path().join("malformed-graph-answers.json");
     fs::write(
         &malformed_answers_path,
-        serde_json::json!({"answers": {"agent.graph-decide.output": {"unexpected": true}}})
-            .to_string(),
+        serde_json::json!({"answers": {"decide": {"unexpected": true}}}).to_string(),
     )?;
     let refused = run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -1110,7 +1103,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
                 .map(|request| request.id)
                 .collect()
         ),
-        Some(vec!["agent.graph-decide.output".to_owned()])
+        Some(vec!["decide".to_owned()])
     );
 
     // A changed package cannot continue the run it did not start.
@@ -1152,7 +1145,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.graph-decide.output": {
+                "decide": {
                     "result": {
                         "summary": "Graph fix authored."
                     },
@@ -1228,7 +1221,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.gated-decide.output": {
+                "decide": {
                     "approved": true,
                     "closure": {
                         "disposition": "closed"
@@ -1259,10 +1252,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
-    assert_eq!(
-        string_field(request, "id"),
-        Some("agent.gated-followup.output")
-    );
+    assert_eq!(string_field(request, "id"), Some("gated"));
 
     Ok(())
 }
@@ -1362,7 +1352,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.gated-decide.output": {
+                "decide": {
                     "approved": true,
                     "closure": {
                         "disposition": "closed"
@@ -1439,10 +1429,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
     // The act waits in the child run of step `nested`, and is answered there.
-    assert_eq!(
-        string_field(request, "id"),
-        Some("nested#agent.child-agent.output")
-    );
+    assert_eq!(string_field(request, "id"), Some("nested#author"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     assert_eq!(string_field(invocation, "role"), Some("builder"));
     assert_eq!(string_field(invocation, "task"), Some("child-agent"));
@@ -1452,7 +1439,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "nested#agent.child-agent.output": {
+                "nested#author": {
                     "result": {
                         "summary": "Nested agent fix authored."
                     },
@@ -1853,7 +1840,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.graph-author.output": {
+                "author": {
                     "fix_bundle": {
                         "message": "Graph tool bug"
                     },
@@ -1932,7 +1919,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.graph-author.output": {
+                "author": {
                     "result": {
                         "accepted": true
                     },
@@ -2047,7 +2034,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.graph-author.output": {
+                "author": {
                     "output": {
                         "fix_bundle": {
                             "message": "Graph tool bug"
@@ -4243,13 +4230,13 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.when-decide.output": {
+                "decide": {
                     "verdict": "go",
                     "closure": {
                         "disposition": "closed"
                     }
                 },
-                "agent.when-go.output": {
+                "branch_go": {
                     "result": { "ok": true },
                     "closure": {
                         "disposition": "closed"
@@ -4381,5 +4368,70 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     };
     assert!(runx_runtime::registry::unheld_publish_registry_refs(bound)?.is_empty());
     runx_runtime::registry::prepare_registry_publish_package(bound)?;
+    Ok(())
+}
+
+/// Two drivers of one run: the step that reaches the world runs once. The
+/// second driver loses the claim before it dispatches, or finds the claim and
+/// waits on its retry.
+#[cfg(unix)]
+#[test]
+fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn std::error::Error>> {
+    let root = tempdir()?;
+    let skill = root.path().join("skill");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: race\ndescription: Runs one command.\n---\n\nRun one command.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "skill: race\nrunners:\n  default:\n    default: true\n    steps:\n      - id: write\n        tool: { command: sh, args: [./run.sh] }\n        outputs: { done: boolean }\n",
+    )?;
+    let marker = root.path().join("executed");
+    fs::write(
+        skill.join("run.sh"),
+        format!(
+            "echo executed >> '{}'\nsleep 2\nprintf '%s\\n' '{{\"done\":true}}'\n",
+            marker.display()
+        ),
+    )?;
+    let request = with_test_signing_env(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill,
+        receipt_dir: Some(root.path().join("receipts")),
+        run_id: Some("run_race".to_owned()),
+        answers_path: None,
+        inputs: BTreeMap::new(),
+        env: BTreeMap::from([("PATH".to_owned(), "/usr/bin:/bin".to_owned())]),
+        cwd: root.path().to_path_buf(),
+        managed_agent: Default::default(),
+    });
+    let first_request = request.clone();
+    let first = std::thread::spawn(move || {
+        LocalOrchestrator::default()
+            .run_skill(&first_request)
+            .map(|result| result.succeeded())
+            .map_err(|error| error.to_string())
+    });
+    let started = std::time::Instant::now();
+    while !marker.exists() {
+        if started.elapsed() > std::time::Duration::from_secs(10) {
+            return Err("the first driver never reached its command".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let second = LocalOrchestrator::default().run_skill(&request);
+    let first = first.join().map_err(|_| "the first driver panicked")?;
+
+    assert_eq!(first, Ok(true));
+    assert!(
+        second.as_ref().map_or(true, |result| !result.succeeded()),
+        "the second driver must not seal the run again"
+    );
+    assert_eq!(fs::read_to_string(&marker)?.lines().count(), 1);
     Ok(())
 }

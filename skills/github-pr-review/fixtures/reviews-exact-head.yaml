@@ -28,7 +28,7 @@ caller:
         headers: { content-type: application/json }
         body: '{"total_count":0,"check_runs":[]}'
   answers:
-    agent.github-pr-review-assess.output:
+    review:
       review_draft:
         summary: Review the account-specific authentication change.
         findings:

@@ -817,7 +817,7 @@ mod tests {
         let answers = RunHost::new(ResolutionAnswers::default());
         assert!(answers.check_driver("run_old", None).is_ok());
         let acting = RunHost::acting(TurnAct {
-            turn: "agent.answer.output".to_owned(),
+            turn: "answer".to_owned(),
             action: TurnAction::Status,
         });
         let refused = acting
@@ -952,7 +952,7 @@ steps:
                     "compose",
                     1,
                     &ResolutionRequest::Retry {
-                        id: "agent.compose.output".into(),
+                        id: "compose".into(),
                         reason: "the turn is open".into(),
                         retry_after_seconds: 1,
                     },
@@ -978,12 +978,9 @@ steps:
                     }]),
                 },
             );
-            let runtime_error = RuntimeError::managed_agent_resolution(
-                "referenced-agent-runner",
-                "agent.compose.output",
-                error,
-            )
-            .at_graph_step("compose");
+            let runtime_error =
+                RuntimeError::managed_agent_resolution("referenced-agent-runner", "compose", error)
+                    .at_graph_step("compose");
             let mut host = RunHost::new(ResolutionAnswers::default());
             let run = runtime.seal_failed_with_host(
                 graph,

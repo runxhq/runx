@@ -384,7 +384,7 @@ fn native_skill_positional_runner_selects_non_default_runner()
         ])
         .output()?;
     let output_json = assert_json(&output, Some(2))?;
-    assert_eq!(output_json["requests"][0]["id"], "agent.second-task.output");
+    assert_eq!(output_json["requests"][0]["id"], "second");
 
     Ok(())
 }

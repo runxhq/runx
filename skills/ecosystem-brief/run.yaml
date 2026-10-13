@@ -1,5 +1,5 @@
 skill: ecosystem-brief
-version: "0.2.7"
+version: "0.2.8"
 
 catalog:
   kind: graph
@@ -57,7 +57,7 @@ harness:
               redirects: []
       caller:
         answers:
-          agent.research-synthesize.output:
+          synthesize:
             research_candidate:
               decision: ready
               research_brief:
@@ -83,7 +83,7 @@ harness:
                     - sha256:9056e1b5caa4e78583d0bc47bb731468b31155929a3aa3a35fcadf6136534a36
                     - sha256:c951e0e102215f739709aa280773536f95d4560e1299999af9c2362db6a118dc
               risks: []
-          agent.ghostwrite-draft.output:
+          author:
             content_draft:
               decision: ready
               content_brief:

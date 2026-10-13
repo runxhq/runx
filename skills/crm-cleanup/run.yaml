@@ -1,5 +1,5 @@
 skill: crm-cleanup
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -35,7 +35,7 @@ harness:
           allowed_fields: [account_status, next_action, health_score]
       caller:
         answers:
-          agent.crm-cleanup-reconcile.output:
+          reconcile:
             update_draft:
               updates:
                 - record_id: acct-globex
@@ -72,7 +72,7 @@ harness:
           allowed_fields: [next_action]
       caller:
         answers:
-          agent.crm-cleanup-reconcile.output:
+          reconcile:
             update_draft:
               updates:
                 - record_id: acct-1
@@ -106,7 +106,7 @@ harness:
           allowed_fields: [account_status]
       caller:
         answers:
-          agent.crm-cleanup-reconcile.output:
+          reconcile:
             update_draft:
               updates:
                 - record_id: acct-1

@@ -13,25 +13,17 @@ const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is th
 
 mod profiles;
 
-/// The act `request` asks, at `address`: its id where the run raises it.
+/// The act `request` asks, at `address`: the address of the step that asks
+/// it, as an approval is the address of its gate.
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,
     address: String,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let mut invocation = build_agent_act_invocation(request)?;
-    invocation.id = address.into();
+    let invocation = build_agent_act_invocation(request, address)?;
     Ok(ResolutionRequest::AgentAct {
         id: invocation.id.clone(),
         invocation: Box::new(invocation),
     })
-}
-
-/// The agent turn's request id in its run: `agent.<task>.output`.
-pub(crate) fn agent_act_invocation_id(request: &SkillInvocation) -> Result<String, RuntimeError> {
-    Ok(format!(
-        "agent.{}.output",
-        normalize_request_id(&agent_task(request)?.task)
-    ))
 }
 
 fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, RuntimeError> {
@@ -43,6 +35,7 @@ fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, Runt
 
 pub(crate) fn build_agent_act_invocation(
     request: &SkillInvocation,
+    id: String,
 ) -> Result<AgentActInvocation, RuntimeError> {
     let agent = agent_task(request)?;
     let non_empty = |value: &str, field: &str| {
@@ -50,7 +43,7 @@ pub(crate) fn build_agent_act_invocation(
             .ok_or_else(|| invalid_agent_invocation(request, format!("agent {field} is empty")))
     };
     Ok(AgentActInvocation {
-        id: agent_act_invocation_id(request)?.into(),
+        id: id.into(),
         role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,
         envelope: envelope(request)?,
@@ -191,19 +184,4 @@ fn skill_name(request: &SkillInvocation) -> String {
         return "skill".to_owned();
     }
     request.skill_name.clone()
-}
-
-fn normalize_request_id(value: &str) -> String {
-    let mut normalized = String::new();
-    let mut replaced = false;
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '-') {
-            normalized.push(character);
-            replaced = false;
-        } else if !replaced {
-            normalized.push('_');
-            replaced = true;
-        }
-    }
-    normalized
 }

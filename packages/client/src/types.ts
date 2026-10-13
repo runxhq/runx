@@ -60,6 +60,12 @@ export interface SkillRunOptions extends SkillInspectOptions {
   readonly receiptDir: string;
   readonly binding?: ExecutionBinding;
   readonly runAuthority?: RunAuthority;
+  /**
+   * The run's submission identity. Submitting it again continues that run, and
+   * a sealed run returns what it sealed, so a host's retry never runs a step
+   * twice.
+   */
+  readonly runId?: string;
 }
 
 export interface RunResumeOptions extends InvocationOptions {

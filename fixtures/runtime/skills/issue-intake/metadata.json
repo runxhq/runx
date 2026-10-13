@@ -6,7 +6,7 @@
     "profile": "skills/issue-intake/run.yaml"
   },
   "skill_name": "issue-intake",
-  "manifest_hash": "sha256:afc26ff61b4c0579d6ec18bfc11247977235d74b282e8e961990a81d26e90252",
+  "manifest_hash": "sha256:eb9d129830542463f9a5b7a0239c26e157489bb68500ea60f935deb1c3ff8bd0",
   "harness_schema": "runx.receipt.v1",
   "case_names": [
     "bounded-docs-fix",

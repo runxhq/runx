@@ -28,7 +28,7 @@ inputs:
     approvals: []
 caller:
   answers:
-    agent.ops-desk-advance.output:
+    advance:
       decision: dispatch
       reason: Research is complete; the next move is to draft the doc update, a non-consequential docs write within scope.
       dispatch:

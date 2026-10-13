@@ -1827,7 +1827,7 @@ fn agent_context_envelope() -> Value {
 
 fn turn_invocation() -> Value {
     json!({
-        "id": "agent.answer.output",
+        "id": "answer",
         "role": "answer",
         "task": "answer",
         "envelope": agent_context_envelope(),
@@ -1891,7 +1891,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
                     "status": "pending",
                     "waiting": [{
                         "kind": "agent_act",
-                        "id": "answer/4#agent.report.output",
+                        "id": "answer/4#report",
                         "invocation": turn_invocation(),
                     }],
                 },

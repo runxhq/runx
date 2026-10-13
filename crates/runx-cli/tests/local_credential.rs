@@ -238,7 +238,7 @@ fn resume_loads_workspace_env_from_discovered_project_root()
         &answers_path,
         serde_json::json!({
             "answers": {
-                "agent.approve-workspace-env.output": {
+                "approve": {
                     "approved": true
                 }
             }

@@ -10,7 +10,7 @@ inputs:
     sentinel: preserved-through-validation
 caller:
   answers:
-    agent.work-plan-draft.output:
+    draft:
       work_plan_draft:
         decision: ready
         plan_kind: workspace_change

@@ -397,7 +397,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         .unwrap();
     let log = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
     start(&log, &JsonObject::new());
-    let turn_request = agent_act("agent.answer.output");
+    let turn_request = agent_act("answer");
     log.record_request("answer", 1, &turn_request).unwrap();
     let turn = waiting_requests(&store, "run_turn_1").unwrap().remove(0);
     let target = TurnTarget::Tool {
@@ -428,7 +428,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     assert_eq!(listing.runs[0].state, RunState::Paused);
     assert_eq!(
         listing.runs[0].pending_request_id.as_deref(),
-        Some("agent.answer.output")
+        Some("answer")
     );
     let record = log.load().unwrap().unwrap();
     assert_eq!(
@@ -439,7 +439,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
     assert_eq!(log.calls("answer", 1).unwrap().len(), 2);
     assert_eq!(
         waiting_ids(&store, "run_turn_1"),
-        ["agent.answer.output", "answer/1"],
+        ["answer", "answer/1"],
         "a paused turn waits on its act and on each pending call"
     );
 
@@ -462,7 +462,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             .iter()
             .all(|call| matches!(call.outcome, CallOutcome::Completed(_)))
     );
-    assert_eq!(waiting_ids(&store, "run_turn_1"), ["agent.answer.output"]);
+    assert_eq!(waiting_ids(&store, "run_turn_1"), ["answer"]);
 
     // A reader that has not seen the run's latest event is contended.
     let stale = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
@@ -488,21 +488,15 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     let (_root, store) = store();
     let log = RunLog::open(Arc::clone(&store), "run_tree_1").unwrap();
     start(&log, &JsonObject::new());
-    log.record_request("answer", 1, &agent_act("agent.answer.output"))
+    log.record_request("answer", 1, &agent_act("answer"))
         .unwrap();
     let turn = waiting_requests(&store, "run_tree_1").unwrap().remove(0);
 
     // Call 0 runs a child skill: its own turn is open, and its ask waits.
     let child = log.child("answer/0").unwrap();
-    assert_eq!(
-        child.address("agent.report.output"),
-        "answer/0#agent.report.output"
-    );
+    assert_eq!(child.address("report"), "answer/0#report");
     assert_eq!(local_request_id("answer/0#report/0"), "report/0");
-    assert_eq!(
-        local_request_id("agent.answer.output"),
-        "agent.answer.output"
-    );
+    assert_eq!(local_request_id("answer"), "answer");
     child
         .start_child(
             "run_tree_1",
@@ -514,11 +508,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         )
         .unwrap();
     child
-        .record_request(
-            "report",
-            1,
-            &agent_act(&child.address("agent.report.output")),
-        )
+        .record_request("report", 1, &agent_act(&child.address("report")))
         .unwrap();
     let child_turn = waiting_requests(&store, child.run_id()).unwrap().remove(0);
     let ask = approval(&child.address("report/0"));
@@ -554,11 +544,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
 
     assert_eq!(
         waiting_ids(&store, "run_tree_1"),
-        [
-            "agent.answer.output",
-            "answer/0#agent.report.output",
-            "answer/0#report/0"
-        ],
+        ["answer", "answer/0#report", "answer/0#report/0"],
         "the run waits on its turn, its child's turn, and the child's ask"
     );
 }

@@ -228,7 +228,7 @@ mod tests {
             env: env(root),
             cwd: root.to_path_buf(),
         })?;
-        let address = "agent.answer.output";
+        let address = "answer";
         assert!(matches!(
             &session.status(address)?.calls[0].outcome,
             TurnCallOutcome::Pending { waiting } if matches!(waiting.as_slice(), [ResolutionRequest::Retry { .. }])

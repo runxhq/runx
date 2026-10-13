@@ -3,7 +3,7 @@ kind: graph
 target: support/discovery.graph
 caller:
   answers:
-    agent.reddit-research.output:
+    research:
       research:
         status: drafted
         account_id: other_builder

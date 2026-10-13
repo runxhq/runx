@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.7"
+version: "0.2.8"
 catalog:
   kind: graph
   audience: builder
@@ -43,7 +43,7 @@ harness:
               exists: true
       caller:
         answers:
-          agent.prior-art-research.output:
+          research:
             prior_art_draft:
               decision: ready
               findings:
@@ -102,7 +102,7 @@ harness:
           - docs/does-not-exist.md
       caller:
         answers:
-          agent.prior-art-research.output:
+          research:
             prior_art_draft:
               decision: ready
               findings:

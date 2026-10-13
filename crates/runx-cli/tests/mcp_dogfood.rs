@@ -460,8 +460,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
     let initialize = server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
     assert!(
-        path_text(&initialize, &["result", "instructions"])?
-            .contains("open now: agent.answer.output"),
+        path_text(&initialize, &["result", "instructions"])?.contains("open now: answer"),
         "{initialize}"
     );
     write_frame(server.stdin_mut()?, &initialized_notification())?;
@@ -483,7 +482,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         &request(
             6,
             "tools/call",
-            json!({"name": "turn_status", "arguments": {"turn": "agent.answer.output"}}),
+            json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
         ),
     )?;
     let opened = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
@@ -512,7 +511,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             3,
             "tools/call",
             json!({"name": "turn_call", "arguments": {
-                "turn": "agent.answer.output",
+                "turn": "answer",
                 "tool": "data_digest",
                 "input": {"value": "hello", "encoding": "utf8_text"},
             }}),
@@ -532,7 +531,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         &request(
             5,
             "tools/call",
-            json!({"name": "turn_status", "arguments": {"turn": "agent.answer.output"}}),
+            json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
         ),
     )?;
     let status = server.read_response("turn_status", MCP_REQUEST_TIMEOUT)?;
@@ -550,7 +549,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
             4,
             "tools/call",
             json!({"name": "turn_complete", "arguments": {
-                "turn": "agent.answer.output",
+                "turn": "answer",
                 "output": {"answer": "digested"},
             }}),
         ),

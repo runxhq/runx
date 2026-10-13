@@ -25,7 +25,7 @@ inputs:
   operator_context: Reply only in the supplied thread and require approval before delivery.
 caller:
   answers:
-    agent.send-as.output:
+    plan:
       send_plan:
         decision: ready
         action_family: send-as

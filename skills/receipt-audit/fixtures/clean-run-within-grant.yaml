@@ -63,7 +63,7 @@ inputs:
   objective: Confirm the triage run stayed within its read-only grant.
 caller:
   answers:
-    agent.receipt-audit.output:
+    audit:
       receipt_audit:
         decision: ready
         run_ref: rcpt_issue_triage_4471

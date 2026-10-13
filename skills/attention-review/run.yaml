@@ -1,5 +1,5 @@
 skill: attention-review
-version: "0.4.6"
+version: "0.4.7"
 
 catalog:
   kind: graph
@@ -41,7 +41,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: brief
               items: [{ source_ref: mail-thread-1, priority: high }]
@@ -80,7 +80,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: idle
               items: [{ source_ref: mail-1, priority: high }]
@@ -120,7 +120,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: brief
               items: [{ source_ref: chat-1, priority: medium }]
@@ -161,7 +161,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: idle
               items: []
@@ -200,7 +200,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: brief
               items: [{ source_ref: chat-1, priority: medium }]
@@ -235,7 +235,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: brief
               items: [{ source_ref: invented, priority: high }]
@@ -270,7 +270,7 @@ harness:
         max_check_minutes: 60
       caller:
         answers:
-          agent.runx_final_result.output:
+          judge:
             draft:
               decision: brief
               items: [{ source_ref: mail-thread-1, priority: high }]

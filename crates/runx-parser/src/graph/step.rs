@@ -130,6 +130,11 @@ pub fn validate_step(
     if let Some(outputs) = &outputs {
         runx_contracts::parse_output_contract(outputs)
             .map_err(|error| validation_error(format!("{field}.outputs is invalid: {error}")))?;
+        if matches!(kind, StepKind::Agent(_)) && outputs.contains_key("closure") {
+            return Err(validation_error(format!(
+                "{field}.outputs cannot declare closure: an agent's answer states how its act closed under that name."
+            )));
+        }
     }
     let artifacts = match &kind {
         StepKind::Ask(_) => Some(approval_decision_contract(field)?),

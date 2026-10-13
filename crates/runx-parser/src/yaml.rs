@@ -663,9 +663,9 @@ runners:
             "runner_manifest",
             r#"
 turns:
-  agent.answer.output:
+  answer:
     output: {}
-  "answer/0#agent.answer.output":
+  "answer/0#answer":
     output: {}
 "#,
         );

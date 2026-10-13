@@ -28,7 +28,7 @@ inputs:
       content: Autonomous everything with no review.
 caller:
   answers:
-    agent.brand-voice-synthesize.output:
+    synthesize:
       brand_voice_draft:
         decision: ready
         brand: runx

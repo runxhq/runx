@@ -14,7 +14,7 @@ use tempfile::tempdir;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// The act of a one-turn runner named `answer`, at the root.
-const TURN: &str = "agent.answer.output";
+const TURN: &str = "answer";
 
 /// A skill whose one runner is one agent turn: it may digest data, run a
 /// child skill that does the same, and ask the human.
@@ -302,7 +302,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
 #[test]
 fn a_turn_inside_a_child_skill_is_worked_at_its_own_address() -> TestResult {
     let temp = tempdir()?;
-    let child_turn = "delegate#agent.answer.output";
+    let child_turn = "delegate#answer";
     let paused = Paused::start(temp.path(), write_parent_skill(temp.path())?, child_turn)?;
     let turn = paused.open()?;
     assert_eq!(
@@ -486,15 +486,19 @@ runners:
           answer: string
 "#,
     )?;
-    let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+    let paused = Paused::start(temp.path(), skill_dir, "first")?;
     let step = |status: TurnStatus| status.invocation.envelope.step_id.map(|id| id.to_string());
     let first = paused.open()?;
-    assert_eq!(step(first.status(TURN)?), Some("first".to_owned()));
-    let next = first.complete(TURN, input(serde_json::json!({"answer": "one"}))?)?;
-    assert_eq!(requests(&next)?, [TURN], "the second step asks its own act");
+    assert_eq!(step(first.status("first")?), Some("first".to_owned()));
+    let next = first.complete("first", input(serde_json::json!({"answer": "one"}))?)?;
+    assert_eq!(
+        requests(&next)?,
+        ["second"],
+        "the second step asks its own act"
+    );
     let second = paused.open()?;
-    assert_eq!(step(second.status(TURN)?), Some("second".to_owned()));
-    let sealed = second.complete(TURN, input(serde_json::json!({"answer": "two"}))?)?;
+    assert_eq!(step(second.status("second")?), Some("second".to_owned()));
+    let sealed = second.complete("second", input(serde_json::json!({"answer": "two"}))?)?;
     assert_eq!(text(object(&sealed.output)?, "status"), Some("sealed"));
     Ok(())
 }
@@ -510,7 +514,7 @@ fn a_call_into_a_skill_whose_agent_shares_the_task_opens_a_turn_of_its_own() -> 
         "a turn may ask the human only when its skill declares asks"
     );
     let child = turn.call(TURN, "skill__answer-child", JsonObject::new())?;
-    let child_turn = "answer/0#agent.answer.output";
+    let child_turn = "answer/0#answer";
     assert_eq!(waiting_on(&child)?, [child_turn]);
     assert_eq!(
         turn.waiting()?
@@ -543,10 +547,7 @@ fn sibling_child_turns_are_worked_apart() -> TestResult {
     let turn = paused.open()?;
     turn.call(TURN, "skill__answer-child", JsonObject::new())?;
     turn.call(TURN, "skill__answer-child", JsonObject::new())?;
-    let (first, second) = (
-        "answer/0#agent.answer.output",
-        "answer/1#agent.answer.output",
-    );
+    let (first, second) = ("answer/0#answer", "answer/1#answer");
     assert_eq!(
         turn.waiting()?
             .iter()
@@ -572,7 +573,7 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
     let turn = paused.open()?;
     turn.call(TURN, "skill__answer-child", JsonObject::new())?;
-    let child_turn = "answer/0#agent.answer.output";
+    let child_turn = "answer/0#answer";
     let asked = turn.call(
         child_turn,
         "ask_human",
@@ -798,7 +799,7 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
         report
             .assertion_errors
             .iter()
-            .any(|error| error.contains("caller.turns.agent.answer.output.calls[0].expect")),
+            .any(|error| error.contains("caller.turns.answer.calls[0].expect")),
         "{:?}",
         report.assertion_errors
     );

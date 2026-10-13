@@ -29,7 +29,7 @@ inputs:
   operator_policy: Route live sends through send-as and money movement through spend or refund.
 caller:
   answers:
-    agent.ops-desk.output:
+    operate:
       ops_desk_packet:
         decision: needs_input
         scope_ref: workspace:example

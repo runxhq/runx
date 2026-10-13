@@ -50,7 +50,7 @@ inputs:
     publication_status: not_published
 caller:
   answers:
-    agent.vuln-disclosure-review.output:
+    review:
       disclosure_review_draft:
         decision: ready_for_approval
         rationale: The source packet is verified, the target is exact, and a remediation is available.

@@ -56,7 +56,7 @@ metadata:
   source: skills-fixture
 caller:
   answers:
-    agent.product-analytics-analyze.output:
+    analyze:
       analytics_candidate:
         decision: ready
         objective: Find activation gaps

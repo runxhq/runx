@@ -15,7 +15,7 @@ inputs:
   thread_title: "Clarify the affected repo before we start"
 caller:
   answers:
-    agent.issue-intake.output:
+    intake:
       change_set:
         action_decision: "request_review"
         category: "other"

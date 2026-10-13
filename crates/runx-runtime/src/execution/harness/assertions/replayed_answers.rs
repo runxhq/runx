@@ -57,24 +57,23 @@ mod tests {
     #[test]
     fn supplied_caller_answers_are_exact_request_bound_replay_oracles() {
         let answer = send_plan("ready");
-        let answers = JsonObject::from([("agent.send-as.output".to_owned(), answer.clone())]);
-        let replayed = JsonObject::from([("agent.send-as.output".to_owned(), answer)]);
+        let answers = JsonObject::from([("plan".to_owned(), answer.clone())]);
+        let replayed = JsonObject::from([("plan".to_owned(), answer)]);
 
         assert!(assert_replayed_answers(&answers, &replayed).is_ok());
     }
 
     #[test]
     fn unused_or_changed_caller_answer_fails_with_request_path() {
-        let answers = JsonObject::from([("agent.send-as.output".to_owned(), send_plan("ready"))]);
-        let replayed =
-            JsonObject::from([("agent.send-as.output".to_owned(), send_plan("needs_input"))]);
+        let answers = JsonObject::from([("plan".to_owned(), send_plan("ready"))]);
+        let replayed = JsonObject::from([("plan".to_owned(), send_plan("needs_input"))]);
 
         let result = assert_replayed_answers(&answers, &replayed);
 
         assert!(matches!(
             result,
             Err(HarnessReplayError::Mismatch { field, .. })
-                if field == "caller.answers.agent.send-as.output.replayed"
+                if field == "caller.answers.plan.replayed"
         ));
     }
 
@@ -86,11 +85,11 @@ mod tests {
     #[test]
     fn integer_representations_compare_as_json_values() {
         let answers = JsonObject::from([(
-            "agent.invoice.output".to_owned(),
+            "invoice".to_owned(),
             JsonValue::Number(JsonNumber::I64(1840)),
         )]);
         let replayed = JsonObject::from([(
-            "agent.invoice.output".to_owned(),
+            "invoice".to_owned(),
             JsonValue::Number(JsonNumber::U64(1840)),
         )]);
 
@@ -100,15 +99,15 @@ mod tests {
     #[test]
     fn answer_replayed_under_another_request_id_does_not_satisfy_the_oracle() {
         let answer = send_plan("ready");
-        let answers = JsonObject::from([("agent.send-as.output".to_owned(), answer.clone())]);
-        let replayed = JsonObject::from([("agent.other.output".to_owned(), answer)]);
+        let answers = JsonObject::from([("plan".to_owned(), answer.clone())]);
+        let replayed = JsonObject::from([("other".to_owned(), answer)]);
 
         let result = assert_replayed_answers(&answers, &replayed);
 
         assert!(matches!(
             result,
             Err(HarnessReplayError::Mismatch { field, actual, .. })
-                if field == "caller.answers.agent.send-as.output.replayed"
+                if field == "caller.answers.plan.replayed"
                     && actual == "<answer was not consumed>"
         ));
     }

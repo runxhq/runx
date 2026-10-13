@@ -22,7 +22,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
@@ -220,7 +220,8 @@ impl KernelStoreError {
 
 /// The protected store for one project workspace. Open it through [`KernelStore::open`]
 /// or [`KernelStore::for_project`], which share one connection per database
-/// within the process. A workspace is one kernel: its instances, standing
+/// within the process while any holder keeps it open; the last holder's drop
+/// closes it. A workspace is one kernel: its instances, standing
 /// approvals and effect custody travel together even if receipt storage moves.
 pub struct KernelStore {
     path: PathBuf,
@@ -236,8 +237,8 @@ impl std::fmt::Debug for KernelStore {
     }
 }
 
-fn open_stores() -> &'static Mutex<HashMap<PathBuf, Arc<KernelStore>>> {
-    static STORES: OnceLock<Mutex<HashMap<PathBuf, Arc<KernelStore>>>> = OnceLock::new();
+fn open_stores() -> &'static Mutex<HashMap<PathBuf, Weak<KernelStore>>> {
+    static STORES: OnceLock<Mutex<HashMap<PathBuf, Weak<KernelStore>>>> = OnceLock::new();
     STORES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -262,15 +263,16 @@ impl KernelStore {
         let mut stores = open_stores()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(store) = stores.get(&path) {
-            return Ok(Arc::clone(store));
+        if let Some(store) = stores.get(&path).and_then(Weak::upgrade) {
+            return Ok(store);
         }
+        stores.retain(|_, store| store.strong_count() > 0);
         let connection = schema::open(&path)?;
         let store = Arc::new(Self {
             path: path.clone(),
             connection: Mutex::new(connection),
         });
-        stores.insert(path, Arc::clone(&store));
+        stores.insert(path, Arc::downgrade(&store));
         Ok(store)
     }
 

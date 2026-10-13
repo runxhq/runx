@@ -38,7 +38,7 @@ inputs:
   thread_title: "README should point users to issue-to-pr"
 caller:
   answers:
-    agent.issue-intake.output:
+    intake:
       change_set:
         action_decision: "proceed_to_build"
         category: "docs"

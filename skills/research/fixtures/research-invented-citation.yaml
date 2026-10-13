@@ -16,7 +16,7 @@ inputs:
         redirects: []
 caller:
   answers:
-    agent.research-synthesize.output:
+    synthesize:
       research_candidate:
         decision: ready
         research_brief:

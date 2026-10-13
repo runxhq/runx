@@ -119,7 +119,7 @@ The resume file keeps agent work and human authorization distinct:
 ```json
 {
   "answers": {
-    "agent.example.output": {
+    "summarize": {
       "result": {}
     }
   },
@@ -148,10 +148,10 @@ The pending run's `answers_template` contains the exact request ids to resolve.
 `runx turn <run-id>` serves the agent turns a paused run waits on as MCP tools
 over stdio. The tools are fixed and take a turn's address: `turn_list` shows
 everything the run waits on, `turn_status` reads a turn, `turn_call` makes a
-call in it and `turn_complete` ends it. A turn's address is its act's request
-id. A turn that a call opens in a child skill is addressed by the child's place
-in the run, as in `answer/0#agent.report.output`, and is worked on the same
-connection. `turn_status` lists the calls a turn may make, one per entry of
+call in it and `turn_complete` ends it. A turn's address is the id of the step
+that asks it, as an approval's is its gate. A turn that a call opens in a child
+skill is addressed by the child's place in the run, as in `answer/0#report`,
+and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
 its skill's limits (`tools:`, `skills:`, connector operations, and
 `ask_human` when the skill declares `asks: true`), with their input schemas.
 Each call is admitted against the turn's allowance and the run's authority,
@@ -823,9 +823,9 @@ fixture files, inline runner cases and dev fixtures:
 
 - `act`: the act the caller states for the run, which its steps read as
   `$act`;
-- `answers`: agent act outputs, by request id;
-- `turns`: agent turns the caller works call by call, by request id. An act
-  is answered or worked, not both;
+- `answers`: agent act outputs, by the id of the step that asks;
+- `turns`: agent turns the caller works call by call, by the id of the step
+  that asks. An act is answered or worked, not both;
 - `approvals`: approval decisions, `true` or `false`, by the address of the
   request each decides: an operation step's id or an ask's gate at the root,
   and `<path>#<id>` in a child run, `<path>` being its place under the root,
@@ -833,7 +833,7 @@ fixture files, inline runner cases and dev fixtures:
 
 An answer or a turn script keyed by an id answers that request in every run of
 the case that asks it. A key may instead be an address, such as
-`answer/0#agent.answer.output`, which answers only the request at that place
+`answer/0#answer`, which answers only the request at that place
 in the run and wins over an id. An approval decides only the request it
 names.
 - `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
@@ -847,7 +847,7 @@ something else fails the case and is named in its error:
 ```yaml
 caller:
   turns:
-    agent.answer.output:
+    answer:
       calls:
         - tool: data_digest
           input: { value: hello, encoding: utf8_text }

@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent.reddit-submit.output:
+    submit:
       observation:
         status: uncertain
         username: example_builder
@@ -23,7 +23,7 @@ caller:
         target_author: ''
         vote_state: unknown
         effect_attempted: true
-    agent.reddit-reconcile.output:
+    observe:
       observation:
         status: published
         username: example_builder
@@ -41,7 +41,7 @@ caller:
         target_author: ''
         vote_state: unknown
         effect_attempted: true
-    agent.reddit-vote.output:
+    submit:
       observation:
         status: voted
         username: managed_builder

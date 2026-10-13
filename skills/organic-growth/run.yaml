@@ -1,5 +1,5 @@
 skill: organic-growth
-version: "0.1.5"
+version: "0.1.6"
 
 catalog:
   kind: graph
@@ -86,7 +86,7 @@ harness:
           audience: engineering operators
       caller:
         answers:
-          agent.organic-growth-analyze.output:
+          analyze:
             growth_candidate:
               decision: ready
               objective: Improve qualified organic acquisition for the Runx guides.
@@ -175,7 +175,7 @@ harness:
             summary: The page contains an installation guide.
       caller:
         answers:
-          agent.organic-growth-analyze.output:
+          analyze:
             growth_candidate:
               decision: ready
               objective: Improve the guide.

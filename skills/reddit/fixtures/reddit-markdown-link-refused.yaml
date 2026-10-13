@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'see [source](https://example.com)', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent.reddit-research.output:
+    research:
       research:
         status: drafted
         account_id: example_builder

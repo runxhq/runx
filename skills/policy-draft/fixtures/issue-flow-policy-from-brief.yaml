@@ -20,7 +20,7 @@ inputs:
   objective: Stand up a fail-closed issue-flow policy for the three repos.
 caller:
   answers:
-    agent.policy-draft-draft.output:
+    draft:
       policy_proposal:
         decision: ready
         policy:

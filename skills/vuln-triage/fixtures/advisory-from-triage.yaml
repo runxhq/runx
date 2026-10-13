@@ -57,7 +57,7 @@ inputs:
     publication_status: not_published
 caller:
   answers:
-    agent.vuln-triage-advisory.output:
+    draft:
       advisory_draft:
         title: Example dependency advisory
         summary: A verified dependency finding requires an upgrade.

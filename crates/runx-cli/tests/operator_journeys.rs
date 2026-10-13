@@ -101,7 +101,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let pause_text = String::from_utf8(pause.stdout)?;
     assert!(pause_text.contains("status: needs_agent"));
     assert!(pause_text.contains("pending_requests: 1"));
-    assert!(pause_text.contains("agent.issue-intake.output"));
+    assert!(pause_text.contains("intake"));
     assert!(!pause_text.contains("<answers.json>"));
     assert!(!pause_text.trim_start().starts_with('{'));
     let run_id = pause_text
@@ -120,7 +120,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         &malformed_answers,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": "not-an-object"
                 }
             }
@@ -143,7 +143,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         &answers,
         serde_json::json!({
             "answers": {
-                "agent.issue-intake.output": {
+                "intake": {
                     "intake_report": {
                         "summary": "Docs bug is bounded."
                     }

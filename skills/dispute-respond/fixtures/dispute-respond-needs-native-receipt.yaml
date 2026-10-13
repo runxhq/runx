@@ -22,7 +22,7 @@ inputs:
       summary: Provider delivery log for the paid result.
 caller:
   answers:
-    agent.dispute-response-draft.output:
+    draft:
       response_draft:
         posture: contest
         response_summary: Contest using the linked charge receipt and delivery evidence.

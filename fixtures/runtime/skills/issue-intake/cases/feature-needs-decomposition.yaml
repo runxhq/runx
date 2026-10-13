@@ -9,7 +9,7 @@ inputs:
   thread_title: "Add abandoned cart recovery across email and SMS"
 caller:
   answers:
-    agent.issue-intake.output:
+    intake:
       change_set:
         action_decision: "proceed_to_plan"
         category: "feature_request"

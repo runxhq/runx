@@ -52,7 +52,7 @@ harness:
         target_surface: "web"
       caller:
         answers:
-          agent.icey-server-operator-plan.output:
+          operator-plan:
             classification: "web"
             evidence_to_inspect:
               - "README.md"
@@ -82,7 +82,7 @@ harness:
         target_surface: "release"
       caller:
         answers:
-          agent.icey-server-operator-plan.output:
+          operator-plan:
             classification: "release"
             evidence_to_inspect:
               - "VERSION"

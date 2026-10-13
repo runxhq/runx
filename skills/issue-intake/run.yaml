@@ -1,5 +1,5 @@
 skill: issue-intake
-version: "0.1.5"
+version: "0.1.6"
 catalog:
   kind: skill
   audience: public
@@ -60,7 +60,7 @@ harness:
         operator_context: Prefer the canonical issue-to-pr name in user-facing replies.
       caller:
         answers:
-          agent.issue-intake.output:
+          intake:
             intake_report:
               category: docs
               severity: low
@@ -177,7 +177,7 @@ harness:
         product_context: Multi-channel marketing automation product
       caller:
         answers:
-          agent.issue-intake.output:
+          intake:
             intake_report:
               category: feature_request
               severity: medium
@@ -287,7 +287,7 @@ harness:
         thread_locator: support://request/983
       caller:
         answers:
-          agent.issue-intake.output:
+          intake:
             intake_report:
               category: question
               severity: low
@@ -372,7 +372,7 @@ harness:
         product_context: Workspace repo with multiple bounded mutation surfaces
       caller:
         answers:
-          agent.issue-intake.output:
+          intake:
             intake_report:
               category: other
               severity: medium

@@ -8,7 +8,7 @@ inputs:
   target_dir: skills/fixture-core-gap
 caller:
   answers:
-    agent.skill-build-architecture.output:
+    architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
         disposition: needs_core
@@ -53,7 +53,7 @@ caller:
           - Do not hide filesystem admission in package-local code.
         deletions: []
         proof_plan: []
-    agent.skill-build-author.output:
+    author:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: needs_core

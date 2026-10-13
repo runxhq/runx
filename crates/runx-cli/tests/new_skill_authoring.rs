@@ -32,7 +32,7 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
     let run_id = line_value(&pending_text, "run_id: ")?;
 
     assert!(pending_text.contains("status: needs_agent"));
-    assert!(pending_text.contains("agent.skill-build-architecture.output"));
+    assert!(pending_text.contains("architect"));
     assert!(pending_text.contains(&format!(
         "runx resume {run_id} - --receipt-dir {}",
         receipts.display()
@@ -135,7 +135,7 @@ fn assert_json(output: &Output, expected: i32) -> TestResult<Value> {
 fn authoring_answers() -> String {
     serde_json::json!({
         "answers": {
-            "agent.skill-build-architecture.output": {
+            "architect": {
                 "architecture_decision": {
                     "schema": "runx.skill.architecture_decision.v1",
                     "disposition": "build",
@@ -229,7 +229,7 @@ fn authoring_answers() -> String {
                     ]
                 }
             },
-            "agent.skill-build-author.output": {
+            "author": {
                 "change_draft": {
                     "schema": "runx.skill.change_draft.v1",
                     "decision": "write",

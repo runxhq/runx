@@ -1,5 +1,5 @@
 skill: diagnose-skill-run
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   owner: runx
@@ -70,7 +70,7 @@ harness:
         skill_path: skills/skill-build
       caller:
         answers:
-          agent.diagnose-skill-run.output:
+          diagnose:
             verdict: needs_update
             failure_summary: Context edges are reading stdout instead of an artifact envelope, so structured data is flattened before the next step.
             improvement_proposals:
@@ -132,7 +132,7 @@ harness:
         skill_path: skills/research
       caller:
         answers:
-          agent.diagnose-skill-run.output:
+          diagnose:
             verdict: pass
             failure_summary: No failure. The graph paused as designed while awaiting caller cognitive work.
             improvement_proposals: []

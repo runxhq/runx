@@ -30,7 +30,7 @@ inputs:
     approvals: []
 caller:
   answers:
-    agent.ops-desk-advance.output:
+    advance:
       decision: done
       reason: The reviewer approved the published update and the projection shows docs current, so the mandate is satisfied.
       resolution:

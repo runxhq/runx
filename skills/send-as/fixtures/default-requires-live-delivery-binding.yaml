@@ -28,7 +28,7 @@ inputs:
     target: account:acct_release/channel:release-subscribers
 caller:
   answers:
-    agent.send-as.output:
+    plan:
       send_plan:
         decision: ready
         action_family: send-as

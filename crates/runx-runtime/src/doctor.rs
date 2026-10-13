@@ -696,7 +696,7 @@ harness:
         objective: x
       caller:
         answers:
-          agent.probe.output:
+          main:
             result: ok
       expect:
         status: sealed
@@ -730,7 +730,7 @@ harness:
         objective: x
       caller:
         answers:
-          agent.probe.output:
+          main:
             result: ok
       expect:
         status: success

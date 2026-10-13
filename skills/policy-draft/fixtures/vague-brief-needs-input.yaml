@@ -7,7 +7,7 @@ inputs:
   objective: Author a policy from the brief.
 caller:
   answers:
-    agent.policy-draft-draft.output:
+    draft:
       policy_proposal:
         decision: needs_input
         policy: null

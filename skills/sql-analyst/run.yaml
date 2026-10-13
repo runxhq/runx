@@ -1,5 +1,5 @@
 skill: sql-analyst
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -53,7 +53,7 @@ harness:
           max_rows: 100
       caller:
         answers:
-          agent.sql-plan.output:
+          plan:
             sql_plan_draft:
               decision: ready
               query_plan:
@@ -107,7 +107,7 @@ harness:
         constraints: { allowed_tables: [trials], read_only: true, max_rows: 100 }
       caller:
         answers:
-          agent.sql-plan.output:
+          plan:
             sql_plan_draft:
               decision: ready
               query_plan:

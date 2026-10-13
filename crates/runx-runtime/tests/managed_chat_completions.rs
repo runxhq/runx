@@ -548,7 +548,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     let ask = "proof/0#report/0";
     assert_eq!(
         ids(&paused),
-        ["agent.proof.output", "proof/0#agent.report.output", ask],
+        ["proof", "proof/0#report", ask],
         "the paused run lists the child's ask beside both turns"
     );
     let run_id = serde_json::to_value(&paused.output)?["run_id"]

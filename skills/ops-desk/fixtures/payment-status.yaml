@@ -36,7 +36,7 @@ inputs:
     readiness is re-verified.
 caller:
   answers:
-    agent.ops-desk.output:
+    operate:
       ops_desk_packet:
         decision: ready
         scope_ref: workspace:example

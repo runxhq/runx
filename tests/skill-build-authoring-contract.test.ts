@@ -75,9 +75,9 @@ describe("Skill Build authoring ownership", () => {
     ) as Array<Record<string, any>>;
     for (const fixture of fixtures) {
       const answers = fixture.caller.answers;
-      expect(answers["agent.skill-build-architecture.output"].architecture_decision.schema)
+      expect(answers["architect"].architecture_decision.schema)
         .toBe("runx.skill.architecture_decision.v1");
-      const draft = answers["agent.skill-build-author.output"].change_draft;
+      const draft = answers["author"].change_draft;
       expect(draft.schema).toBe("runx.skill.change_draft.v1");
       expect(draft).not.toHaveProperty("base_digest");
       expect(draft).not.toHaveProperty("plan_digest");

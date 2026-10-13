@@ -17,7 +17,7 @@ inputs:
         shortForecast: Chance Showers
 caller:
   answers:
-    agent.weather-forecast-interpret.output:
+    interpret:
       forecast_draft:
         decision: ready
         location: Washington Monument

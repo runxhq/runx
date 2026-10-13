@@ -333,7 +333,7 @@ target: ..
 runner: turn
 caller:
   turns:
-    agent.turn.output:
+    turn:
       calls:
         - tool: slack__channel_post
           input:

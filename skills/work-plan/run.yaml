@@ -1,5 +1,5 @@
 skill: work-plan
-version: "0.2.7"
+version: "0.2.8"
 catalog:
   kind: graph
   audience: builder
@@ -55,7 +55,7 @@ harness:
             - Api and app agree on the abandoned-cart contract.
       caller:
         answers:
-          agent.work-plan-draft.output:
+          draft:
             work_plan_draft:
               decision: ready
               plan_kind: workspace_change
@@ -178,7 +178,7 @@ harness:
         objective: Plan a bounded docs update.
       caller:
         answers:
-          agent.work-plan-draft.output:
+          draft:
             work_plan_draft:
               decision: ready
               plan_kind: workspace_change
@@ -235,7 +235,7 @@ harness:
         repo_root: fixtures/workspace
       caller:
         answers:
-          agent.work-plan-draft.output:
+          draft:
             work_plan_draft:
               decision: ready
               plan_kind: skill_package

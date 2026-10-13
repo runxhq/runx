@@ -21,7 +21,7 @@ inputs:
   operator_context: Live delivery requires explicit operator approval.
 caller:
   answers:
-    agent.send-as.output:
+    plan:
       send_plan:
         decision: ready
         action_family: send-as

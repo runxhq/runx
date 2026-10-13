@@ -26,7 +26,7 @@ inputs:
   objective: Draft the next helpful maintainer response.
 caller:
   answers:
-    agent.issue-triage-respond.output:
+    draft:
       issue_profile:
         repository: runxhq/runx
         number: "241"

@@ -19,7 +19,7 @@ inputs:
     validation: { status: pass, findings: [] }
 caller:
   answers:
-    agent.ghostwrite-draft.output:
+    author:
       content_draft:
         decision: ready
         content_brief: { objective: Draft a bounded claim., audience: operators, channel: brief }

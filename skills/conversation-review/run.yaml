@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
@@ -42,7 +42,7 @@ harness:
         source_complete: true
       caller:
         answers:
-          agent.conversation-review.output:
+          judge:
             draft:
               kind: reply
               summary: A call was requested.
@@ -78,7 +78,7 @@ harness:
         source_complete: true
       caller:
         answers:
-          agent.conversation-review.output:
+          judge:
             draft:
               kind: coding
               summary: A parser test needs repair.
@@ -113,7 +113,7 @@ harness:
         source_complete: false
       caller:
         answers:
-          agent.conversation-review.output:
+          judge:
             draft:
               kind: coding
               summary: A deployment review is requested.

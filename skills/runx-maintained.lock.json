@@ -8,7 +8,7 @@
   },
   {
     "skill_id": "runx/attention-review",
-    "version": "sha-24748673c054",
+    "version": "sha-792a6a495a97",
     "digest": "46cf2b769af4a945fb7b9b0f460cd74ecc3bf9849bca95708e70213ec5f25337",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -36,14 +36,14 @@
   },
   {
     "skill_id": "runx/content-pipeline",
-    "version": "sha-649b0ab38c91",
+    "version": "sha-bd116ae39af1",
     "digest": "323a10b34abef3ec40090e1916ed1b3afa05ce8237faba099e72805a1ca820d0",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/contract-drafter",
-    "version": "sha-0b5b9c76cb28",
+    "version": "sha-f4d7d9862e4f",
     "digest": "63d51951256ec45a7962b4a7bc03dc2e39404925510938ce7839234aa118f529",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -57,14 +57,14 @@
   },
   {
     "skill_id": "runx/conversation-review",
-    "version": "sha-acb4dc901f0b",
+    "version": "sha-fbd27744965f",
     "digest": "2cec39d1dc54719c84860d82df0e424153a10295f4b107b31cd0e0ca1cafef75",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/crm-cleanup",
-    "version": "sha-496a9b7958f6",
+    "version": "sha-ed2a0c594ecc",
     "digest": "709841e7bc7848204fba9ce2be4603d0746e716651f9a90a2be5976ebcc8e9be",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -92,14 +92,14 @@
   },
   {
     "skill_id": "runx/deep-research",
-    "version": "sha-86a01651b117",
+    "version": "sha-3288a9c750ac",
     "digest": "758aa80b2b710c41aa249e7aef22c16611c67f03306869693d33796fe14cdaaf",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/diagnose-skill-run",
-    "version": "sha-3a9f8d7cd33a",
+    "version": "sha-6302632e57b7",
     "digest": "44d25338b1d8e16b5f0ded7f2d30967e9d94a48d25389f4c30efa4bba2aeda26",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -113,7 +113,7 @@
   },
   {
     "skill_id": "runx/ecosystem-brief",
-    "version": "sha-545e9a225584",
+    "version": "sha-d3f4d542153d",
     "digest": "2e1bb754bc118b932c58e13864df75e72ad37eef7699239988d80f14b488baee",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -183,7 +183,7 @@
   },
   {
     "skill_id": "runx/issue-intake",
-    "version": "sha-c1a95b7bfcd6",
+    "version": "sha-7b601207a579",
     "digest": "6cec42a630bce0a7dfe6314d1b04aa5612e3511cf12e650d3361c95891e0c66f",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -204,7 +204,7 @@
   },
   {
     "skill_id": "runx/knowledge-router",
-    "version": "sha-43dadc5bbc11",
+    "version": "sha-3cad8b59c700",
     "digest": "809a157147fb0dbd0fd479970b2f749a9ebe51dd1ed4e7590b525c53db92a8b8",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -246,7 +246,7 @@
   },
   {
     "skill_id": "runx/moltbook",
-    "version": "sha-e65b461c1eac",
+    "version": "sha-5921fd9cfc3c",
     "digest": "f8ab65090f7999692eaa9fd9779290883e723f67eacf349f26f4e9f47075e7c6",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -281,7 +281,7 @@
   },
   {
     "skill_id": "runx/organic-growth",
-    "version": "sha-ef07c4ab476b",
+    "version": "sha-a458f6c50c5f",
     "digest": "115d06eb9a646f67f0020ef0bb80abe3a1adfe80b8872f11d161cff39b357683",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -295,14 +295,14 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-9e64cb61eb9c",
+    "version": "sha-9160de857dba",
     "digest": "9708d6ea913c39c6cdb25d22ea03b1b70077b1fb168d4233df80d39857fd7c72",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/prior-art",
-    "version": "sha-3a7b9c8c10a9",
+    "version": "sha-13d8f9fb7ea8",
     "digest": "bbb454fc017ecb66b6ff96913ee049c480267873948212ae30ff38e4e69fb8eb",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -365,7 +365,7 @@
   },
   {
     "skill_id": "runx/research",
-    "version": "sha-1eda5760c870",
+    "version": "sha-c6c97d2160b9",
     "digest": "1a1db8de3d7445980b134ba15bf16ee97e1cfe2a5a4c1a99618d553bade68560",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -421,14 +421,14 @@
   },
   {
     "skill_id": "runx/skill-build",
-    "version": "sha-eedbeb6f359a",
+    "version": "sha-7dcb385b5f9f",
     "digest": "b89156254798ecbb20f79108844d4dda49e7f8bca2d8e485907c1be3cc27b8ed",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/skill-review",
-    "version": "sha-fe13b84a509f",
+    "version": "sha-933524420694",
     "digest": "f77e9abe7b9057ddac93b4e1f15b507dd7f73f51b7be186793f5e6fe57ec9ecb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -456,7 +456,7 @@
   },
   {
     "skill_id": "runx/sql-analyst",
-    "version": "sha-3b36586eeae5",
+    "version": "sha-0230197b9ae9",
     "digest": "ae823cbd6e43b77feedcc00a3279fae57482893e6cf6587b532224a4e99b57ad",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -526,7 +526,7 @@
   },
   {
     "skill_id": "runx/work-plan",
-    "version": "sha-fd430c704583",
+    "version": "sha-7b6ff25029a9",
     "digest": "65aa6457645c6671e3eaa82da2d7e3c34d39336abb2393af19c61231d1a837c5",
     "catalog_visibility": "public",
     "catalog_role": "context"

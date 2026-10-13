@@ -906,7 +906,7 @@ harness:
           must_not_repeat: [Do not rediscover or replace the selected target.]
       caller:
         answers:
-          agent.fake.output: { provider_result: { id: resource-1 } }
+          read: { provider_result: { id: resource-1 } }
       expect: { status: sealed }
 connectors:
   example:

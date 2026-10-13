@@ -17,7 +17,7 @@ inputs:
       body: One example contains a spelling mistake.
 caller:
   answers:
-    agent.issue-triage-discover.output:
+    select:
       issue_candidates:
         - id: runxhq/runx#241
           reason: A factual clarification can unblock the reporter.

@@ -9,7 +9,7 @@ operator_journeys:
     expected_outcome: Validate the plan, perform only the declared data-store read, and return a source-bound interpretation without raw SQL.
 caller:
   answers:
-    agent.sql-plan.output:
+    plan:
       sql_plan_draft:
         decision: ready
         query_plan:
@@ -25,7 +25,7 @@ caller:
           summary: Read the declared projection before interpreting qualified trials.
           caveats: [The projection is a bounded summary, not raw event history.]
         residual_risks: [The projection may lag source events.]
-    agent.sql-interpret.output:
+    interpret-projection:
       analysis_result:
         decision: answered
         answer: The bounded projection records one analysis snapshot for the launch summary.

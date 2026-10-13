@@ -5,7 +5,7 @@ inputs:
   action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
 caller:
   answers:
-    agent.reddit-research.output:
+    research:
       research:
         status: drafted
         account_id: example_builder
@@ -32,7 +32,7 @@ caller:
         unknowns: [No live Reddit page was accessed in this offline fixture.]
         next_step: Review the draft before any publication.
         effect_status: not_submitted
-    agent.reddit-submit.output:
+    submit:
       observation:
         status: published
         username: example_builder

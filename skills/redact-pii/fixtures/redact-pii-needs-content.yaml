@@ -6,7 +6,7 @@ inputs:
   content: ""
 caller:
   answers:
-    agent.redact-pii-detect.output:
+    detect:
       redaction_draft:
         decision: blocked
         detected: []

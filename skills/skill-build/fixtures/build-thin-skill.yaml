@@ -14,7 +14,7 @@ operator_journeys:
     expected_outcome: A validated declarative skill package is applied with a useful manual and semantic harness.
 caller:
   answers:
-    agent.skill-build-architecture.output:
+    architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
         disposition: build
@@ -97,7 +97,7 @@ caller:
           - name: decision-note-composed
             kind: composed_operator_journey
             expected: A prior objective artifact is reused without reacquisition.
-    agent.skill-build-author.output:
+    author:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: write
@@ -151,7 +151,7 @@ caller:
                       objective: Choose the bounded next action.
                     caller:
                       answers:
-                        agent.fixture-decision-note.output:
+                        note:
                           decision_note:
                             objective: Choose the bounded next action.
                             recommendation: Inspect the supplied evidence first.

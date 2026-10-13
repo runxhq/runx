@@ -199,25 +199,21 @@ mod tests {
     #[test]
     fn an_addressed_answer_answers_its_request_and_no_other() -> Result<(), String> {
         let mut answers = normalize_answers(JsonObject::from([(
-            "agent.answer.output".to_owned(),
+            "answer".to_owned(),
             JsonValue::String("done".to_owned()),
         )]))
         .map_err(|error| error.to_string())?;
-        answers.spend("agent.answer.output", "sha256:first");
+        answers.spend("answer", "sha256:first");
         assert!(
-            answers.get("agent.answer.output", "sha256:first").is_some(),
+            answers.get("answer", "sha256:first").is_some(),
             "the same request asked again is answered again"
         );
         assert!(
-            answers
-                .get("agent.answer.output", "sha256:second")
-                .is_none(),
+            answers.get("answer", "sha256:second").is_none(),
             "a different request at the same address waits"
         );
         assert!(
-            answers
-                .get("answer/0#agent.answer.output", "sha256:first")
-                .is_none(),
+            answers.get("answer/0#answer", "sha256:first").is_none(),
             "an addressed answer answers only its own address"
         );
         Ok(())

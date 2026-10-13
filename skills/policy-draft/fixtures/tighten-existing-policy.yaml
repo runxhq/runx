@@ -65,7 +65,7 @@ inputs:
   objective: Narrow the policy to close the audit findings; do not widen anything.
 caller:
   answers:
-    agent.policy-draft-draft.output:
+    draft:
       policy_proposal:
         decision: ready
         policy:

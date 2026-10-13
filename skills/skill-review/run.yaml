@@ -1,5 +1,5 @@
 skill: skill-review
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
   owner: runx
@@ -35,7 +35,7 @@ harness:
         test_constraints: Run only local read-only harnesses.
       caller:
         answers:
-          agent.skill-review-assess.output:
+          assess:
             capability_profile:
               skill_ref: ../diagnose-skill-run
               summary: Diagnoses one receipt or harness failure into a bounded recommendation.
@@ -79,7 +79,7 @@ harness:
             status: passed
       caller:
         answers:
-          agent.skill-review-assess.output:
+          assess:
             capability_profile:
               skill_ref: example/skill
               summary: Bounded example capability.

@@ -64,7 +64,7 @@ expect:
 metadata: {public_skill: cold-outreach, source: skills-fixture}
 caller:
   answers:
-    agent.cold-outreach-draft.output:
+    draft:
       content_draft:
         decision: ready
         content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}

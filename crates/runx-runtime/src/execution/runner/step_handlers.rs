@@ -40,7 +40,7 @@ use crate::adapter::{
     SkillInvocation,
 };
 use crate::agent_contract::agent_contract_checks_with_artifacts;
-use crate::agent_invocation::{agent_act_invocation_id, agent_act_resolution_request};
+use crate::agent_invocation::agent_act_resolution_request;
 use crate::approval::ApprovalResolution;
 use crate::effects::EffectStepRequest;
 use crate::effects::ResolvedEffectTarget;
@@ -812,10 +812,7 @@ where
         .current_context
         .extend(runtime.options.current_context.clone());
     invocation.historical_context = runtime.options.historical_context.clone();
-    let request_id = runtime
-        .options
-        .run
-        .address(&agent_act_invocation_id(&invocation)?);
+    let request_id = runtime.options.run.address(&step.id);
     let request = agent_act_resolution_request(&invocation, request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),

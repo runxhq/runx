@@ -37,7 +37,7 @@ inputs:
     - summarization
 caller:
   answers:
-    agent.overlay-binding-profile.output:
+    profile:
       profile_draft:
         decision: ready
         profile_document: |
@@ -66,7 +66,7 @@ caller:
                   content: The launch is delayed one week because the audit is still open.
                 caller:
                   answers:
-                    agent.borrowed-summarize.output:
+                    summarize:
                       summary: The launch is delayed one week pending the audit.
                       caveats:
                         - The audit outcome is not yet known.
@@ -79,7 +79,7 @@ caller:
                   content: ""
                 caller:
                   answers:
-                    agent.borrowed-summarize.output:
+                    summarize:
                       summary: No summary was produced.
                       caveats:
                         - Source text is required.

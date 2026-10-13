@@ -1,5 +1,5 @@
 skill: skill-build
-version: "0.9.11"
+version: "0.9.12"
 
 catalog:
   owner: runx
@@ -21,7 +21,7 @@ harness:
         project_context: Runx OSS first-party catalog
       caller:
         answers:
-          agent.skill-build-architecture.output:
+          architect:
             architecture_decision:
               schema: runx.skill.architecture_decision.v1
               disposition: extend_existing

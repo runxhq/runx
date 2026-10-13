@@ -3,7 +3,7 @@ kind: graph
 target: support/forward-writing-context.graph
 caller:
   answers:
-    agent.brand-voice-synthesize.output:
+    synthesize:
       brand_voice_draft:
         decision: ready
         brand: runx
@@ -22,7 +22,7 @@ caller:
           - { rule: Runx receipts bind operator actions to authority evidence., source_refs: [source:1] }
         redactions: []
         stop_conditions: [Require new evidence before adding a new factual claim.]
-    agent.ghostwrite-draft.output:
+    author:
       content_draft:
         decision: ready
         content_brief: { objective: Explain the strongest Runx architecture signal., audience: advanced software builders, channel: public_update }
@@ -36,7 +36,7 @@ caller:
             - { packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74, applied_rules: [Lead with governed action and proof.] }
         review_checklist: []
         distribution_notes: { primary_channel: public_update }
-    agent.twitter-plan.output:
+    draft:
       twitter_plan:
         decision: ready
         objective: Prepare one exact public update about governed receipts.

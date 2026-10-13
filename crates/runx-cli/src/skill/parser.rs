@@ -298,6 +298,10 @@ fn parse_skill_arg(
             index += 1;
             state.run_authority = Some(parse_run_authority(&string_arg(args, index)?)?);
         }
+        "--run-id" => {
+            index += 1;
+            state.run_id = Some(string_arg(args, index)?);
+        }
         "--run" => state.force_run = true,
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,

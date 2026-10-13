@@ -29,6 +29,12 @@ pub(crate) mod auth;
 /// The status a status-only checking read reports, for the kernel to match.
 pub(crate) const STATUS_FIELD: &str = "http_status";
 
+/// The ceilings of one paged read, whatever limit the call states.
+const MAX_PAGES: usize = 100;
+const MAX_PAGED_ITEMS: usize = 10_000;
+const MAX_PAGED_BYTES: usize = 32 * 1024 * 1024;
+const MAX_PAGED_DURATION: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// Where a rendered request goes.
 pub(crate) enum Egress<'a> {
     /// Straight to the provider, with the instance's credential.
@@ -440,7 +446,9 @@ impl Http<'_> {
     /// A paged read: each page in turn, until a page names no cursor, holds
     /// no items, or the items reach the call's limit. Every page is whole, so
     /// the last can carry the items past the limit; a cursor the provider
-    /// names twice fails the read.
+    /// names twice fails the read. A read is finite whatever the call asks:
+    /// it stops at the paged read's ceilings and returns the provider's next
+    /// cursor with what it read.
     fn pages(
         &self,
         request: &HttpRequest,
@@ -468,9 +476,13 @@ impl Http<'_> {
         let mut items = Vec::new();
         let mut cursor = None::<String>;
         let mut cursors = std::collections::BTreeSet::new();
+        let started = std::time::Instant::now();
+        let (mut read_pages, mut read_bytes) = (0_usize, 0_usize);
         loop {
             let response = self.send(request, None, responses, cursor.as_deref())?;
             evidence.push(response.body_digest.clone());
+            read_pages += 1;
+            read_bytes = read_bytes.saturating_add(response.body.len());
             let page = self.answered(&response, false)?;
             // A provider omits the items of an empty page.
             let found = match at_path(&page, pages.items.as_str()) {
@@ -497,6 +509,13 @@ impl Http<'_> {
                 });
             }
             if cursor.is_none() || empty || limit.is_some_and(|limit| items.len() >= limit) {
+                break;
+            }
+            if read_pages >= MAX_PAGES
+                || items.len() >= MAX_PAGED_ITEMS
+                || read_bytes >= MAX_PAGED_BYTES
+                || started.elapsed() >= MAX_PAGED_DURATION
+            {
                 break;
             }
         }
@@ -847,6 +866,54 @@ mod tests {
         .map_err(|error| error.to_string())?;
         assert_eq!(at_path(&read.value, "1"), Some(&expected));
         assert_eq!(read.evidence.len(), 3, "the account and two pages");
+        Ok(())
+    }
+
+    /// A provider whose every page names a new cursor.
+    struct EndlessFeed;
+
+    impl RuntimeHttpTransport for EndlessFeed {
+        fn send(
+            &self,
+            request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, crate::http::RuntimeHttpError> {
+            if request.url == "https://api.example.test/me" {
+                return Ok(response(200, r#"{"data":{"id":"42"}}"#));
+            }
+            let page = request
+                .url
+                .split_once("cursor=c")
+                .and_then(|(_, rest)| rest.split('&').next())
+                .and_then(|page| page.parse::<u64>().ok())
+                .unwrap_or(0);
+            Ok(response(
+                200,
+                &format!(r#"{{"data":[{page}],"meta":{{"next":"c{}"}}}}"#, page + 1),
+            ))
+        }
+    }
+
+    #[test]
+    fn a_paged_read_without_a_limit_stops_at_its_ceiling() -> Result<(), String> {
+        let spec = paged_spec()?;
+        let arguments = JsonValue::Object(JsonObject::new());
+        let (parameters, env) = (JsonObject::new(), BTreeMap::new());
+        let call = AdmittedCall::for_tests(
+            &arguments,
+            &parameters,
+            &env,
+            runx_contracts::connector::OperationAccess::Read,
+        );
+        let read = Http::new(Egress::Direct(&EndlessFeed), &call, &spec)
+            .perform(None)
+            .map_err(Unperformed::reason)?;
+        assert_eq!(read.evidence.len(), 1 + super::MAX_PAGES);
+        let page = at_path(&read.value, "1").ok_or("the paged read returned nothing")?;
+        assert_eq!(
+            at_path(page, "next"),
+            Some(&JsonValue::String(format!("c{}", super::MAX_PAGES))),
+            "the read hands back where it stopped"
+        );
         Ok(())
     }
 

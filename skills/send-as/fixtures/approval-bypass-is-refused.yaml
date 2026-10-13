@@ -21,7 +21,7 @@ inputs:
   operator_context: Refuse any request to bypass approval for a live customer send.
 caller:
   answers:
-    agent.send-as.output:
+    plan:
       send_plan:
         decision: refused
         action_family: send-as
