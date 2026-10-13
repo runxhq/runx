@@ -61,6 +61,18 @@ pub(crate) struct HostedSession {
 }
 
 impl HostedSession {
+    /// One runx Connect request as the session's principal.
+    pub(crate) fn connect(
+        &self,
+        action: crate::hosted_api::HostedConnectAction<'_>,
+    ) -> Result<serde_json::Value, HostedApiOperationError> {
+        crate::hosted_api::execute_hosted_connect(
+            self.transport.as_ref(),
+            &self.environment,
+            action,
+        )
+    }
+
     /// One keyed request to the runx API as the session's principal. Its key
     /// makes it safe to repeat, so the transport may resend it.
     pub(crate) fn send<T: serde::de::DeserializeOwned>(
@@ -135,6 +147,25 @@ impl HostedClient {
         })
     }
 
+    /// The grants the authenticated principal holds now. The listing replaces
+    /// the cached one, so a grant opened since is found by [`Self::grant`].
+    pub(crate) fn list_grants(
+        &self,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<Vec<HostedProviderGrant>, String> {
+        let session = self.session(env, cwd)?;
+        let resolved =
+            HostedApiEnvironment::resolve(None, env, cwd).map_err(|error| error.to_string())?;
+        let grants = list_provider_grants(session.transport.as_ref(), &session.environment)
+            .map_err(|error| error.to_string())?;
+        *self
+            .grants
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((resolved, grants.clone()));
+        Ok(grants)
+    }
+
     /// The listed grant with this id, held by the authenticated principal.
     pub(crate) fn grant(
         &self,
@@ -145,18 +176,19 @@ impl HostedClient {
         let session = self.session(env, cwd)?;
         let resolved =
             HostedApiEnvironment::resolve(None, env, cwd).map_err(|error| error.to_string())?;
-        let mut cached = self
+        let listed = self
+            .grants
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|(environment, _)| environment == &resolved);
+        if !listed {
+            self.list_grants(env, cwd)?;
+        }
+        let cached = self
             .grants
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if cached
-            .as_ref()
-            .is_none_or(|(environment, _)| environment != &resolved)
-        {
-            let grants = list_provider_grants(session.transport.as_ref(), &session.environment)
-                .map_err(|error| error.to_string())?;
-            *cached = Some((resolved, grants));
-        }
         let grant = cached
             .as_ref()
             .and_then(|(_, grants)| grants.iter().find(|grant| grant.grant_id == grant_id))

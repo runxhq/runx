@@ -118,7 +118,7 @@ runners:
     "registry",
     "publish",
     child,
-    "--registry-dir",
+    "--registry",
     registry,
     "--publisher",
     "acme",

@@ -163,7 +163,7 @@ function runRegistryResolverDogfood() {
         "registry",
         "publish",
         skillDir,
-        "--registry-dir",
+        "--registry",
         registryDir,
         "--publisher",
         "acme",

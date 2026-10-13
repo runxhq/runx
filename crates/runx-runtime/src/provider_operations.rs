@@ -26,7 +26,7 @@ pub struct ProviderOperationRequest {
     pub access: OperationAccess,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct HostedProviderGrant {
     /// The exact connector runx Connect executes the grant's operations
     /// under; none when it executes none.

@@ -276,7 +276,7 @@ fn documented_command_help_is_native() {
 
     assert_help_line(
         &registry_help_text(),
-        "runx registry install <publisher>/<name>[@version] [--registry url|path] [--registry-dir dir] [--version version] [--digest sha256] [-j|--json]",
+        "runx registry install <publisher>/<name>[@version] [--registry url|path] [--digest sha256] [-j|--json]",
     );
     assert_help_line(
         &list_help_text(),
@@ -294,7 +294,7 @@ fn documented_command_help_is_native() {
     );
     assert_help_line(
         &registry_help_text(),
-        "runx registry search <query> [--registry url|path] [--registry-dir dir] [--limit n] [-j|--json]",
+        "runx registry search <query> [--registry url|path] [--limit n] [-j|--json]",
     );
     assert!(!registry_help_text().contains("--installation-id"));
 }
@@ -835,7 +835,7 @@ fn routes_registry_to_native_plan() {
             "registry",
             "search",
             "echo",
-            "--registry-dir",
+            "--registry",
             "/tmp/runx-registry",
             "--limit",
             "10",
@@ -844,8 +844,7 @@ fn routes_registry_to_native_plan() {
         RouterAction::RunRegistry(RegistryPlan {
             action: RegistryAction::Search,
             subject: "echo".to_owned(),
-            registry: None,
-            registry_dir: Some(PathBuf::from("/tmp/runx-registry")),
+            registry: Some("/tmp/runx-registry".to_owned()),
             version: None,
             expected_digest: None,
             publisher: None,
@@ -869,7 +868,6 @@ fn routes_registry_to_native_plan() {
             action: RegistryAction::Package,
             subject: "skills/example".to_owned(),
             registry: None,
-            registry_dir: None,
             version: None,
             expected_digest: None,
             publisher: None,
@@ -908,10 +906,9 @@ fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
         ]),
         RouterAction::RunRegistry(RegistryPlan {
             action: RegistryAction::Install,
-            subject: "acme/ops-api@1.0.0".to_owned(),
+            subject: "acme/ops-api".to_owned(),
             registry: Some("https://runx.example".to_owned()),
-            registry_dir: None,
-            version: None,
+            version: Some("1.0.0".to_owned()),
             expected_digest: Some(digest.clone()),
             publisher: None,
             profile: None,
@@ -926,9 +923,15 @@ fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
         RouterAction::Error("unknown registry flag --to".to_owned())
     );
     assert_eq!(
+        plan(&["registry", "install", "acme/ops-api", "--version", "1.0.0"]),
+        RouterAction::Error(
+            "runx registry install accepts only --registry, --digest and --json".to_owned()
+        )
+    );
+    assert_eq!(
         plan(&["registry", "publish", "connectors/ops-api", "--digest", &digest]),
         RouterAction::Error(
-            "runx registry publish accepts only --registry, --registry-dir, --publisher, --version, --profile, --trust-tier, --upsert and --json"
+            "runx registry publish accepts only --registry, --publisher, --version, --profile, --trust-tier, --upsert and --json"
                 .to_owned()
         )
     );
@@ -969,7 +972,7 @@ fn rejects_unsafe_registry_version() {
 fn every_command_that_prints_json_reads_dash_j_as_json() {
     assert!(matches!(
         plan(&["registry", "install", "acme/echo@1.0.0", "-j"]),
-        RouterAction::RunRegistry(plan) if plan.json && plan.subject == "acme/echo@1.0.0"
+        RouterAction::RunRegistry(plan) if plan.json && plan.subject == "acme/echo"
     ));
     assert!(matches!(
         plan(&["export", "claude", "-j"]),

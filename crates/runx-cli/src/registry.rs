@@ -13,9 +13,8 @@ use runx_runtime::registry::{
     InstallLocalSkillOptions, PublishSkillMarkdownOptions, RegistryClient,
     RegistryManifestSourceAuthority, RegistryPublishPackageRequest, RegistryResolveOptions,
     RegistrySearchOptions, RegistrySkillResolution, TrustTier, TrustedRegistryManifestKey,
-    install_local_skill, materialize_publish_closure, parse_registry_ref,
-    prepare_registry_publish_package, publish_skill_markdown, resolve_registry_skill,
-    search_registry_with_options,
+    install_local_skill, materialize_publish_closure, prepare_registry_publish_package,
+    publish_skill_markdown, resolve_registry_skill, search_registry_with_options,
 };
 
 mod connector;
@@ -39,9 +38,11 @@ pub enum RegistryAction {
 #[derive(Debug, Eq, PartialEq)]
 pub struct RegistryPlan {
     pub action: RegistryAction,
+    /// The query, the `<publisher>/<name>` to install, or the package path.
     pub subject: String,
     pub registry: Option<String>,
-    pub registry_dir: Option<PathBuf>,
+    /// The version to install (from `<ref>@<version>`), or the label to
+    /// publish.
     pub version: Option<String>,
     pub expected_digest: Option<String>,
     /// The namespace a publish goes into.
@@ -51,6 +52,16 @@ pub struct RegistryPlan {
     pub limit: Option<usize>,
     pub upsert: bool,
     pub json: bool,
+}
+
+impl RegistryPlan {
+    /// The `<publisher>/<name>[@version]` an install was asked for.
+    pub(crate) fn requested_ref(&self) -> String {
+        match &self.version {
+            Some(version) => format!("{}@{version}", self.subject),
+            None => self.subject.clone(),
+        }
+    }
 }
 
 pub fn run_native_registry(plan: RegistryPlan, workspace: &WorkspaceEnv) -> ExitCode {
@@ -233,55 +244,39 @@ fn run_install(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    if let RegistryTarget::Remote { registry_url } = &target {
-        let parsed = parse_registry_ref(&plan.subject);
-        let version = match (parsed.version.as_deref(), plan.version.as_deref()) {
-            (Some(named), Some(flag)) if named != flag => {
-                return Err(usage_error(format!(
-                    "{} names version {named} but --version is {flag}",
-                    plan.subject
-                )));
-            }
-            (named, flag) => named.or(flag).map(str::to_owned),
-        };
-        if let Some(connector_ref) = ConnectorRef::new(&parsed.skill_id) {
-            let client = remote_registry_client(registry_url, env)?;
-            if client.read(&parsed.skill_id, version.as_deref())?.is_none()
-                && client
-                    .read_connector(&connector_ref, version.as_deref())?
-                    .is_some()
-            {
-                return connector::install(&plan, &connector_ref, version, registry_url, env, cwd);
-            }
-        }
-    }
-    install_skill(plan, target, env, cwd)
-}
-
-fn install_skill(
-    plan: RegistryPlan,
-    target: RegistryTarget,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<RegistryCliOutput, RegistryCliError> {
     let source = target.label();
     let source_authority = target.manifest_source_authority();
-    let (candidate, acquisition) = install_candidate(&plan, target, env, cwd)?;
+    let fallback = target.clone();
+    let Some((candidate, acquisition)) = install_candidate(&plan, target, env, cwd)? else {
+        return match (fallback, ConnectorRef::new(&plan.subject)) {
+            // No skill is published under the name; a connector may be.
+            (RegistryTarget::Remote { registry_url }, Some(connector_ref)) => {
+                connector::install(&plan, &connector_ref, &registry_url, env, cwd)
+            }
+            (RegistryTarget::Remote { .. }, None) => {
+                Err(connector::not_found(&plan.requested_ref()))
+            }
+            (RegistryTarget::Local { registry_path, .. }, _) => {
+                Err(not_found_local(&plan.requested_ref(), &registry_path))
+            }
+        };
+    };
     let install = install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: runx_runtime::RunxPaths::resolve(env, cwd).skills(),
             connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
-            expected_digest: plan.expected_digest,
+            expected_digest: plan.expected_digest.clone(),
             trusted_manifest_keys: trusted_manifest_keys_from_env_for_source(
                 env,
                 source_authority,
             )?,
         },
     )?;
+    let requested = plan.requested_ref();
     let human = output::render_install(
         source,
-        &plan.subject,
+        &requested,
         &install,
         candidate.signed_manifest.as_ref(),
     );
@@ -291,7 +286,7 @@ fn install_skill(
             status: "success",
             registry: output::RegistryPayload::Install {
                 source,
-                r#ref: plan.subject,
+                r#ref: requested,
                 install: Box::new(install),
                 package_digest: candidate.package_digest.clone(),
                 acquisition: acquisition.map(|acquired| output::InstallAcquisition {
@@ -397,41 +392,49 @@ fn run_publish(
     }
 }
 
+/// The skill `plan` names and how it was acquired, or none when the
+/// registry publishes no skill under that name and version.
 pub(crate) fn install_candidate(
     plan: &RegistryPlan,
     target: RegistryTarget,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<
-    (
+    Option<(
         InstallCandidate,
         Option<runx_runtime::registry::AcquiredRegistrySkill>,
-    ),
+    )>,
     RegistryCliError,
 > {
     let source_authority = target.manifest_source_authority();
     match target {
         RegistryTarget::Remote { registry_url } => {
             let installation_id = remote_installation_id(env, cwd)?;
-            let acquired = remote_registry_client(&registry_url, env)?.acquire(
+            let acquired = match remote_registry_client(&registry_url, env)?.acquire(
                 &plan.subject,
                 AcquireOptions {
                     installation_id: &installation_id,
                     version: plan.version.as_deref(),
                     channel: Some("cli"),
                 },
-            )?;
-            Ok((
+            ) {
+                Err(runx_runtime::registry::RegistryClientError::HttpStatus {
+                    status: 404,
+                    ..
+                }) => return Ok(None),
+                acquired => acquired?,
+            };
+            Ok(Some((
                 candidate_from_acquired(&plan.subject, &acquired, source_authority),
                 Some(acquired),
-            ))
+            )))
         }
         RegistryTarget::Local {
             registry_path,
             registry_url,
             ..
         } => {
-            let resolution = resolve_registry_skill(
+            let Some(resolution) = resolve_registry_skill(
                 &FileRegistryStore::new(registry_path.clone()),
                 &plan.subject,
                 RegistryResolveOptions {
@@ -439,11 +442,13 @@ pub(crate) fn install_candidate(
                     registry_url,
                 },
             )?
-            .ok_or_else(|| not_found_local(&plan.subject, &registry_path))?;
-            Ok((
+            else {
+                return Ok(None);
+            };
+            Ok(Some((
                 candidate_from_resolution(&plan.subject, resolution, source_authority),
                 None,
-            ))
+            )))
         }
     }
 }
@@ -519,23 +524,6 @@ fn candidate_from_acquired(
         runner_names: acquired.runner_names.clone(),
         trust_tier: Some(acquired.trust_tier.clone()),
         manifest_source_authority: Some(source_authority),
-    }
-}
-
-fn resolve_path(
-    path: &Path,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    prefer_existing: bool,
-) -> PathBuf {
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
-    if prefer_existing {
-        paths.existing_input(path)
-    } else {
-        paths.in_workspace(path)
     }
 }
 

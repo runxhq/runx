@@ -202,7 +202,6 @@ fn resolve_registry_skill(
         action: RegistryAction::Install,
         subject: skill_id.to_owned(),
         registry: options.registry.map(ToOwned::to_owned),
-        registry_dir: None,
         version: version.map(ToOwned::to_owned),
         expected_digest: options.expected_digest.map(ToOwned::to_owned),
         publisher: None,
@@ -221,7 +220,13 @@ fn resolve_registry_skill(
     let source_fingerprint = registry_source_fingerprint(&target);
     let source_authority = target.manifest_source_authority();
     let (mut candidate, acquisition) = registry::install_candidate(&plan, target, env, cwd)
-        .map_err(|error| error.into_message())?;
+        .map_err(|error| error.into_message())?
+        .ok_or_else(|| {
+            format!(
+                "registry skill not found: {} in {source_description}",
+                plan.requested_ref()
+            )
+        })?;
     let paid_listing = acquisition
         .as_ref()
         .and_then(|acquired| acquired.paid_listing.clone());

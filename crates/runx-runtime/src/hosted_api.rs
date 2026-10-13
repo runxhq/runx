@@ -12,7 +12,9 @@ mod receipts;
 pub(crate) mod request;
 mod skill_endpoint;
 
-pub use connect::{HostedConnectAction, HostedConnectStart, execute_hosted_connect};
+pub use connect::{
+    ConnectSession, HostedConnectAction, HostedConnectStart, execute_hosted_connect,
+};
 pub use environment::{
     AuthenticatedHostedApiEnvironment, HostedApiCredentialPurpose, HostedApiEnvironment,
     hosted_api_transport, hosted_private_network_allowed, hosted_provider_api_transport,

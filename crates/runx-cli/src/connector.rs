@@ -20,11 +20,12 @@ use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, JsonObject, JsonValue, Readiness};
 use runx_runtime::CredentialProfileSummary;
 use runx_runtime::kernel::connector_setup::{
-    AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest,
+    AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest, setup_forms,
 };
 use runx_runtime::kernel::{admission, setup};
 use runx_runtime::{
-    ConnectorScope, InstanceRecord, Instances, KernelStore, LoadedConnector, WorkspaceEnv,
+    ConnectorScope, HostedProviderGrant, InstanceRecord, Instances, KernelStore, LoadedConnector,
+    WorkspaceEnv,
 };
 use serde::Serialize;
 
@@ -87,12 +88,12 @@ pub enum UseChoice {
     Session,
     /// A new local secret profile; the secret is read from stdin.
     Credential {
-        credential: String,
+        credential: CredentialName,
         profile: Option<String>,
     },
     /// A new runx Connect grant; a credential, when named, is read from stdin.
     Hosted {
-        credential: Option<String>,
+        credential: Option<CredentialName>,
         target: Option<String>,
     },
 }
@@ -241,6 +242,12 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             if target.is_some() && !hosted {
                 return Err("--target narrows a new hosted grant; it needs --hosted".to_owned());
             }
+            let credential = credential
+                .map(|name| {
+                    CredentialName::new(name.as_str())
+                        .ok_or_else(|| format!("{name} is not a credential name"))
+                })
+                .transpose()?;
             let choice = match (positionals.as_slice(), session, hosted) {
                 ([_, existing], false, false) if credential.is_none() => UseChoice::Existing(existing.clone()),
                 ([_], true, false) if credential.is_none() && parameters.is_empty() => UseChoice::Session,
@@ -300,13 +307,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                             placements: placements(manifest),
                             operations: manifest.operations.keys().collect(),
                             selected_instance: sources
-                                .instances
-                                .iter()
-                                .find(|record| {
-                                    record.selected
-                                        && !record.revoked
-                                        && record.instance.connector == connector.connector_ref
-                                })
+                                .selected(connector)
                                 .map(|record| &record.instance.instance_id),
                         }
                     })
@@ -364,39 +365,30 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             parameters,
         } => {
             let connector = in_workspace(workspace, connector)?;
+            // A credential's secret is read from stdin, never argv.
             let secret = match choice {
                 UseChoice::Credential { .. }
                 | UseChoice::Hosted {
                     credential: Some(_),
                     ..
-                } => Some(crate::cli_io::read_stdin_secret("credential secret")?),
-                _ => None,
-            };
-            let names = match choice {
-                UseChoice::Credential { credential, .. }
-                | UseChoice::Hosted {
-                    credential: Some(credential),
-                    ..
-                } => Some(
-                    CredentialName::new(credential.as_str())
-                        .ok_or_else(|| format!("{credential} is not a credential name"))?,
-                ),
-                _ => None,
+                } => crate::cli_io::read_stdin_secret("credential secret")?,
+                _ => String::new(),
             };
             let profile_default = connector.connector_ref.as_str().to_owned();
             let request = match choice {
                 UseChoice::Default => UseRequest::Default,
                 UseChoice::Existing(name) => UseRequest::Existing(name),
                 UseChoice::Session => UseRequest::Session,
-                UseChoice::Credential { profile, .. } => UseRequest::Credential {
-                    credential: names.as_ref().ok_or("no credential named")?,
-                    secret: secret.as_deref().unwrap_or_default(),
+                UseChoice::Credential {
+                    credential,
+                    profile,
+                } => UseRequest::Credential {
+                    credential,
+                    secret: &secret,
                     profile: profile.as_deref().unwrap_or(&profile_default),
                 },
-                UseChoice::Hosted { target, .. } => UseRequest::Hosted {
-                    credential: names
-                        .as_ref()
-                        .map(|name| (name, secret.as_deref().unwrap_or_default())),
+                UseChoice::Hosted { credential, target } => UseRequest::Hosted {
+                    credential: credential.as_ref().map(|name| (name, secret.as_str())),
                     target: target.as_deref(),
                 },
             };
@@ -552,8 +544,8 @@ fn inspect_text(
     }
     if records.is_empty() {
         out.push_str("instances: none\n");
-        for command in setup_commands(connector) {
-            out.push_str(&format!("  set up: {command}\n"));
+        for form in setup_forms(connector) {
+            out.push_str(&format!("  set up: {form}\n"));
         }
     } else {
         out.push_str("instances:\n");
@@ -567,38 +559,13 @@ fn inspect_text(
     out
 }
 
-/// The commands that confirm an instance under each authority the
-/// connector accepts, naming it by its qualified reference, which resolves
-/// wherever the connector is installed.
-fn setup_commands(connector: &LoadedConnector) -> Vec<String> {
-    let manifest = &connector.manifest;
-    let reference = &connector.connector_ref;
-    let mut commands = Vec::new();
-    if manifest.auth.session.is_some() {
-        commands.push(format!("runx connector use {reference} --session"));
-    }
-    for name in manifest.auth.credentials.keys() {
-        commands.push(format!(
-            "runx connector use {reference} --credential {name}, with the secret on stdin"
-        ));
-    }
-    if manifest.placements.hosted.is_some() {
-        commands.push(format!("runx connector use {reference} --hosted"));
-    }
-    commands
-}
-
 /// Each connector in reach with the instance it uses, then every instance,
 /// the local profiles and the signed-in account's grants.
 fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) -> String {
     let mut out = String::new();
     for connector in connectors {
         let manifest = &connector.manifest;
-        let selected = sources.instances.iter().find(|record| {
-            record.selected
-                && !record.revoked
-                && record.instance.connector == connector.connector_ref
-        });
+        let selected = sources.selected(connector);
         out.push_str(&format!(
             "{}  {}  [{}]  {} operations{}\n",
             connector.connector_ref,
@@ -629,17 +596,9 @@ fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) ->
         Ok(grants) if !grants.is_empty() => {
             out.push_str("grants:\n");
             for grant in grants {
-                let field = |name: &str| {
-                    grant
-                        .get(name)
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown")
-                };
                 out.push_str(&format!(
                     "  {}  {}  {}\n",
-                    field("grant_id"),
-                    field("provider"),
-                    field("status")
+                    grant.grant_id, grant.provider, grant.status
                 ));
             }
         }
@@ -682,7 +641,7 @@ enum Output<'a> {
         instances: Vec<InstanceView<'a>>,
         profiles: &'a [CredentialProfileSummary],
         #[serde(skip_serializing_if = "Option::is_none")]
-        grants: Option<&'a Vec<serde_json::Value>>,
+        grants: Option<&'a Vec<HostedProviderGrant>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         grants_unavailable: Option<&'a String>,
     },

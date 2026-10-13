@@ -905,14 +905,20 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     let mut state = RegistryParseState::default();
     parse_registry_args(args, 2, &mut state)?;
     validate_registry_action_flags(action, subcommand, &state)?;
-    let subject = registry_subject(action, subcommand, &mut state.positionals)?;
+    let mut subject = registry_subject(action, subcommand, &mut state.positionals)?;
+    let mut version = state.version;
+    if action == RegistryAction::Install {
+        // `<publisher>/<name>@<version>` is the one way to name a version.
+        let parsed = runx_runtime::registry::parse_registry_ref(&subject);
+        subject = parsed.skill_id;
+        version = parsed.version;
+    }
 
     Ok(RegistryPlan {
         action,
         subject,
         registry: state.registry,
-        registry_dir: state.registry_dir,
-        version: state.version,
+        version,
         expected_digest: state.expected_digest,
         publisher: state.publisher,
         profile: state.profile,
@@ -931,7 +937,7 @@ fn validate_registry_action_flags(
 ) -> Result<(), String> {
     let (accepted, allowed) = match action {
         RegistryAction::Search => (
-            "--registry, --registry-dir, --limit and --json",
+            "--registry, --limit and --json",
             state.version.is_none()
                 && state.expected_digest.is_none()
                 && state.publisher.is_none()
@@ -940,8 +946,9 @@ fn validate_registry_action_flags(
                 && !state.upsert,
         ),
         RegistryAction::Install => (
-            "--registry, --registry-dir, --version, --digest and --json",
-            state.publisher.is_none()
+            "--registry, --digest and --json",
+            state.version.is_none()
+                && state.publisher.is_none()
                 && state.profile.is_none()
                 && state.trust_tier.is_none()
                 && state.limit.is_none()
@@ -949,7 +956,7 @@ fn validate_registry_action_flags(
         ),
         RegistryAction::Package => ("--profile and --json", !registry_target_flags(state)),
         RegistryAction::Publish => (
-            "--registry, --registry-dir, --publisher, --version, --profile, --trust-tier, --upsert and --json",
+            "--registry, --publisher, --version, --profile, --trust-tier, --upsert and --json",
             state.expected_digest.is_none() && state.limit.is_none(),
         ),
     };
@@ -965,7 +972,6 @@ fn validate_registry_action_flags(
 /// A flag naming a registry, a version or an install, which packaging never takes.
 fn registry_target_flags(state: &RegistryParseState) -> bool {
     state.registry.is_some()
-        || state.registry_dir.is_some()
         || state.version.is_some()
         || state.expected_digest.is_some()
         || state.publisher.is_some()
@@ -979,7 +985,6 @@ struct RegistryParseState {
     json: bool,
     upsert: bool,
     registry: Option<String>,
-    registry_dir: Option<PathBuf>,
     version: Option<String>,
     expected_digest: Option<String>,
     publisher: Option<String>,
@@ -1031,9 +1036,6 @@ fn parse_registry_flag(
         "--upsert" => set_registry_bool_flag(flag, inline_value, &mut state.upsert, index),
         "--registry" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.registry)
-        }
-        "--registry-dir" => {
-            set_registry_path_flag(args, index, flag, inline_value, &mut state.registry_dir)
         }
         "--version" => set_registry_version_flag(args, index, flag, inline_value, state),
         "--digest" => {

@@ -281,8 +281,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "registry",
         top_level_usage: &["runx registry search|install|package|publish ... [-j|--json]"],
         usage: &[
-            "runx registry search <query> [--registry url|path] [--registry-dir dir] [--limit n] [-j|--json]",
-            "runx registry install <publisher>/<name>[@version] [--registry url|path] [--registry-dir dir] [--version version] [--digest sha256] [-j|--json]",
+            "runx registry search <query> [--registry url|path] [--limit n] [-j|--json]",
+            "runx registry install <publisher>/<name>[@version] [--registry url|path] [--digest sha256] [-j|--json]",
             "runx registry package <SKILL.md|connector.yaml|package-dir> [--profile run.yaml] [-j|--json]",
             "runx registry publish <SKILL.md|connector.yaml|package-dir> [--registry url|path] [--publisher slug] [--version version] [--profile run.yaml] [--trust-tier tier] [--upsert] [-j|--json]",
         ],
@@ -292,9 +292,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "Connectors are published to, searched in and installed from a hosted registry, each into the publisher its ref names.",
         ],
         options: &[
-            "--registry url|path",
-            "--registry-dir dir",
-            "--version version",
+            "--registry url|path      A hosted registry URL, or a local registry directory",
+            "--version version        The label a publish records",
             "--digest sha256",
             "--publisher slug         The namespace a package is published into",
             "--profile run.yaml",

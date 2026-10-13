@@ -91,9 +91,6 @@ pub(crate) fn resolve_registry_target(
     if let Some(target) = explicit_registry_target(plan, env, cwd) {
         return target;
     }
-    if let Some(target) = explicit_registry_dir_target(plan, configured_registry, env, cwd) {
-        return target;
-    }
     if let Some(target) = env_registry_dir_target(configured_registry, env, cwd) {
         return target;
     }
@@ -124,19 +121,6 @@ fn explicit_registry_target(
             .cloned(),
         source_kind: registry_source_kind(registry),
     })
-}
-
-fn explicit_registry_dir_target(
-    plan: &RegistryPlan,
-    configured_registry: Option<&str>,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Option<RegistryTarget> {
-    let registry_dir = plan.registry_dir.as_ref()?;
-    Some(local_registry_target(
-        super::resolve_path(registry_dir, env, cwd, false),
-        remote_registry_url(configured_registry),
-    ))
 }
 
 fn env_registry_dir_target(

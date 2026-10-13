@@ -33,7 +33,7 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--publisher",
             "acme",
@@ -52,7 +52,7 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
             "registry",
             "search",
             "echo",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--json",
         ])
@@ -194,7 +194,7 @@ runners:
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--publisher",
             "acme",
@@ -293,7 +293,7 @@ runners:
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--publisher",
             "acme",
@@ -636,7 +636,7 @@ fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error
     sign_registry_version(&registry_dir, "1.0.0")?;
     sign_registry_version(&registry_dir, "2.0.0")?;
 
-    for (subject, version_flag) in [("acme/echo@1.0.0", None), ("acme/echo", Some("2.0.0"))] {
+    for subject in ["acme/echo@1.0.0", "acme/echo@2.0.0"] {
         let install = runx_command()?
             .env("RUNX_CWD", &root)
             .args([
@@ -645,13 +645,8 @@ fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error
                 subject,
                 "--registry",
                 registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                "--json",
             ])
-            .args(
-                version_flag
-                    .into_iter()
-                    .flat_map(|version| ["--version", version]),
-            )
-            .arg("--json")
             .output()?;
         assert_success_contains(&install, &["\"action\": \"install\""])?;
     }
@@ -851,7 +846,7 @@ fn registry_human_output_names_search_results() -> Result<(), Box<dyn std::error
             "registry",
             "search",
             "echo",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
         ])
         .output()?;
@@ -889,7 +884,7 @@ fn publish_registry_fixture(root: &std::path::Path) -> Result<PathBuf, Box<dyn s
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--publisher",
             "acme",
@@ -925,7 +920,7 @@ fn publish_fixture_version(
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--publisher",
             "acme",

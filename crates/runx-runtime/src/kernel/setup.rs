@@ -23,7 +23,7 @@ use crate::services::WorkspaceEnv;
 /// Confirm the connector's local session as signed in now, and select it.
 /// `scopes` narrows what the session may serve; empty grants every scope its
 /// credential serves.
-pub fn confirm_session(
+pub(crate) fn confirm_session(
     instances: &Instances,
     connector: &LoadedConnector,
     scopes: &[String],
@@ -90,7 +90,7 @@ pub(crate) fn confirm_session_over(
 /// then confirm and select the instance that holds it. `scopes` narrows the
 /// grant; empty means every scope the credential can serve.
 #[allow(clippy::too_many_arguments)]
-pub fn set_credential(
+pub(crate) fn set_credential(
     instances: &Instances,
     connector: &LoadedConnector,
     profile: &str,
@@ -127,7 +127,7 @@ pub fn set_credential(
 /// Bind an already stored local credential profile to this connector. The
 /// material is checked before an instance is selected, and its reference is
 /// pinned so replacing the profile invalidates later calls.
-pub fn confirm_credential_profile(
+pub(crate) fn confirm_credential_profile(
     instances: &Instances,
     connector: &LoadedConnector,
     profile: &str,
@@ -176,7 +176,7 @@ pub fn confirm_credential_profile(
 
 /// Confirm an instance that holds no authority, with the parameters it
 /// pins, and select it: a store at a location that needs no password.
-pub fn confirm_public(
+pub(crate) fn confirm_public(
     instances: &Instances,
     connector: &LoadedConnector,
     parameters: JsonObject,
@@ -348,26 +348,9 @@ fn confirm_credential_instance(
     confirm(instances, connector, instance)
 }
 
-/// Confirm an active runx Connect grant for the connector, and select it.
-pub fn confirm_grant(
-    instances: &Instances,
-    connector: &LoadedConnector,
-    grant_id: &str,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<ConnectorInstance, String> {
-    confirm_grant_from(
-        instances,
-        connector,
-        &HostedClient::default(),
-        grant_id,
-        env,
-        cwd,
-    )
-}
-
-/// [`confirm_grant`], reading the grant through `transport`: the wire an
-/// embedder gives [`super::operation::OperationEffect::with_http_transport`].
+/// Confirm an active runx Connect grant for the connector, and select it,
+/// reading the grant through `transport`: the wire an embedder gives
+/// [`super::operation::OperationEffect::with_http_transport`].
 pub fn confirm_grant_over(
     instances: &Instances,
     connector: &LoadedConnector,
@@ -386,7 +369,7 @@ pub fn confirm_grant_over(
     )
 }
 
-/// [`confirm_grant`], reading the grant through `hosted`: a setup's own
+/// [`confirm_grant_over`], reading the grant through `hosted`: a setup's own
 /// client, so a grant it just opened is read over the same wire.
 pub(crate) fn confirm_grant_from(
     instances: &Instances,

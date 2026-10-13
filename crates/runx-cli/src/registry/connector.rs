@@ -98,7 +98,6 @@ pub(super) fn publish(
 pub(super) fn install(
     plan: &RegistryPlan,
     connector_ref: &ConnectorRef,
-    version: Option<String>,
     registry_url: &str,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -108,18 +107,18 @@ pub(super) fn install(
     }
     .manifest_source_authority();
     let client = remote_registry_client(registry_url, env)?;
-    let version = match version {
-        Some(version) => version,
+    let version = match &plan.version {
+        Some(version) => version.clone(),
         None => {
             client
                 .read_connector(connector_ref, None)?
-                .ok_or_else(|| not_found(&plan.subject))?
+                .ok_or_else(|| not_found(&plan.requested_ref()))?
                 .version
         }
     };
     let published = client
         .connector_package(connector_ref, &version)?
-        .ok_or_else(|| not_found(&format!("{connector_ref}@{version}")))?;
+        .ok_or_else(|| not_found(&plan.requested_ref()))?;
     if &published.connector_ref != connector_ref || published.version != version {
         return Err(internal_error(format!(
             "the registry served {}@{} for {connector_ref}@{version}",
@@ -167,6 +166,9 @@ fn hosted_registry(
     }
 }
 
-fn not_found(subject: &str) -> RegistryCliError {
-    internal_error(format!("registry package not found: {subject}"))
+/// Neither kind is published under the name and version.
+pub(super) fn not_found(registry_ref: &str) -> RegistryCliError {
+    internal_error(format!(
+        "nothing is published as {registry_ref}: no skill or connector has that name and version"
+    ))
 }

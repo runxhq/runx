@@ -236,7 +236,7 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
         Some("https://connect.runx.invalid/authorize/sess_1")
     );
     assert_eq!(finish, "runx connector use runx/slack sess_1");
-    // A locator that is not owner/repo narrows the grant as a locator.
+    // The target goes as one locator; Connect reads it per provider.
     let started = connect.sent("/v1/connect/sessions");
     assert_eq!(started[0]["target_locator"], "C0123");
     assert!(started[0].get("target_repo").is_none());
@@ -350,6 +350,9 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         .err()
         .unwrap();
 
-    assert_eq!(refused, "the Connect session is failed: access denied");
+    assert_eq!(
+        refused,
+        "runx Connect could not grant runx/slack: access denied"
+    );
     assert!(project.instances.list().unwrap().is_empty());
 }

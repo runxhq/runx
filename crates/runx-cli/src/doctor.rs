@@ -320,7 +320,6 @@ fn registry_probe_plan() -> RegistryPlan {
         action: RegistryAction::Install,
         subject: "runx/registry-probe".to_owned(),
         registry: None,
-        registry_dir: None,
         version: None,
         expected_digest: None,
         publisher: None,

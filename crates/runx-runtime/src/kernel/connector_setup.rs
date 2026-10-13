@@ -7,24 +7,26 @@
 //! [`super::setup`]; it never switches accounts silently, and a request it
 //! cannot resolve to one source is refused with the exact forms that would.
 
+use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use runx_contracts::connector::{CredentialName, LocalAuth};
-use runx_contracts::{ConnectorInstance, JsonObject};
+use runx_contracts::connector::{CredentialName, HostedAuth, LocalAuth};
+use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject};
 use serde_json::Value;
 
 use super::connectors::LoadedConnector;
-use super::instances::Instances;
-use super::operation::hosted::HostedClient;
+use super::instances::{InstanceRecord, Instances};
+use super::operation::hosted::{HostedClient, HostedSession};
 use super::setup;
 use crate::credential_profiles::{
     CredentialProfileSummary, list_local_credential_profiles, remove_local_credential_profile,
 };
 use crate::hosted_api::{
-    HostedApiEnvironment, HostedConnectAction, HostedConnectStart, execute_hosted_connect,
+    ConnectSession, HostedApiEnvironment, HostedConnectAction, HostedConnectStart,
 };
 use crate::http::RuntimeHttpTransport;
+use crate::provider_operations::HostedProviderGrant;
 use crate::services::WorkspaceEnv;
 
 type Transport = Arc<dyn RuntimeHttpTransport + Send + Sync>;
@@ -86,11 +88,23 @@ pub enum UseOutcome {
 /// Every authority source the project holds for connectors, by source.
 #[derive(Clone, Debug)]
 pub struct AuthoritySources {
-    pub instances: Vec<super::instances::InstanceRecord>,
+    pub instances: Vec<InstanceRecord>,
     pub profiles: Vec<CredentialProfileSummary>,
     /// The Connect grants the signed-in account holds, or why they could not
     /// be read (an unavailable account is never an empty list).
-    pub grants: Result<Vec<Value>, String>,
+    pub grants: Result<Vec<HostedProviderGrant>, String>,
+}
+
+impl AuthoritySources {
+    /// The instance `connector` runs under, if one is selected.
+    #[must_use]
+    pub fn selected(&self, connector: &LoadedConnector) -> Option<&InstanceRecord> {
+        self.instances.iter().find(|record| {
+            record.selected
+                && !record.revoked
+                && record.instance.connector == connector.connector_ref
+        })
+    }
 }
 
 /// What `runx connector revoke` removed.
@@ -101,11 +115,81 @@ pub enum Revoked {
     Grant(String),
 }
 
+/// One command that sets a connector up on a placement it declares.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SetupForm {
+    pub command: String,
+    /// The command reads the credential's secret from stdin.
+    pub reads_secret: bool,
+}
+
+impl fmt::Display for SetupForm {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.command)?;
+        if self.reads_secret {
+            formatter.write_str(" (secret on stdin)")?;
+        }
+        Ok(())
+    }
+}
+
+/// The commands that set `connector` up, one per way each placement it
+/// declares authorizes it: what `runx connector inspect` lists and what an
+/// ambiguous `runx connector use` offers. A public API needs none: it runs
+/// under its public instance until another is selected.
+#[must_use]
+pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
+    let manifest = &connector.manifest;
+    let use_ = format!("runx connector use {}", connector.connector_ref);
+    let form = |suffix: String, reads_secret: bool| SetupForm {
+        command: format!("{use_}{suffix}"),
+        reads_secret,
+    };
+    let mut forms = Vec::new();
+    if let Some(local) = &manifest.placements.local {
+        for auth in local.auth.iter() {
+            match auth {
+                LocalAuth::None => {}
+                LocalAuth::Session if command_session(connector) => {
+                    forms.push(form(" --session".to_owned(), false));
+                }
+                LocalAuth::Session => {}
+                LocalAuth::Credentials => forms.extend(
+                    manifest
+                        .auth
+                        .credentials
+                        .keys()
+                        .map(|name| form(format!(" --credential {name}"), true)),
+                ),
+            }
+        }
+    }
+    if let Some(hosted) = &manifest.placements.hosted {
+        match (hosted.auth, &hosted.credential) {
+            (HostedAuth::Delegated, _) => forms.push(form(" --hosted".to_owned(), false)),
+            (HostedAuth::Credential, Some(name)) => {
+                forms.push(form(format!(" --hosted --credential {name}"), true));
+            }
+            (HostedAuth::Credential, None) => forms.extend(
+                manifest
+                    .auth
+                    .credentials
+                    .keys()
+                    .map(|name| form(format!(" --hosted --credential {name}"), true)),
+            ),
+        }
+    }
+    forms
+}
+
 /// One connector setup over a project's instances and its hosted account.
 pub struct ConnectorSetup<'a> {
     instances: &'a Instances,
     workspace: &'a WorkspaceEnv,
+    /// The hosted account, authenticated once per setup.
     hosted: HostedClient,
+    /// The wire a local command session's account is read over, when an
+    /// embedder gives one.
     transport: Option<Transport>,
 }
 
@@ -120,8 +204,9 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
-    /// A setup reaching the hosted account through `transport`: tests and
-    /// embedders verify the production path without live traffic.
+    /// A setup reaching the hosted account and local sessions through
+    /// `transport`: tests and embedders verify the production path without
+    /// live traffic.
     #[must_use]
     pub fn with_transport(
         instances: &'a Instances,
@@ -144,12 +229,26 @@ impl<'a> ConnectorSetup<'a> {
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
         let (env, cwd) = (self.workspace.env(), self.workspace.cwd());
+        let selected = |instance| UseOutcome::Selected(Box::new(instance));
         match request {
             UseRequest::Default => self.default_path(connector, options),
             UseRequest::Existing(name) => self.existing(connector, name, options),
             UseRequest::Session => {
-                setup::confirm_session(self.instances, connector, &options.scopes, env, cwd)
-                    .map(|instance| UseOutcome::Selected(Box::new(instance)))
+                no_parameters(options, "a session")?;
+                match &self.transport {
+                    Some(transport) => setup::confirm_session_over(
+                        self.instances,
+                        connector,
+                        &options.scopes,
+                        transport.as_ref(),
+                        env,
+                        cwd,
+                    ),
+                    None => {
+                        setup::confirm_session(self.instances, connector, &options.scopes, env, cwd)
+                    }
+                }
+                .map(selected)
             }
             UseRequest::Credential {
                 credential,
@@ -165,7 +264,7 @@ impl<'a> ConnectorSetup<'a> {
                 options.parameters.clone(),
                 self.workspace,
             )
-            .map(|instance| UseOutcome::Selected(Box::new(instance))),
+            .map(selected),
             UseRequest::Hosted { credential, target } => {
                 self.hosted_grant(connector, credential, target, options)
             }
@@ -179,7 +278,9 @@ impl<'a> ConnectorSetup<'a> {
             instances: self.instances.list().map_err(|error| error.to_string())?,
             profiles: list_local_credential_profiles(self.workspace)
                 .map_err(|error| error.to_string())?,
-            grants: self.grants(),
+            grants: self
+                .hosted
+                .list_grants(self.workspace.env(), self.workspace.cwd()),
         })
     }
 
@@ -211,7 +312,8 @@ impl<'a> ConnectorSetup<'a> {
                 Ok(Revoked::Profile(profile.name))
             }
             (None, None) => {
-                self.hosted_connect(HostedConnectAction::Revoke { grant_id: name })
+                self.session()?
+                    .connect(HostedConnectAction::Revoke { grant_id: name })
                     .map_err(|error| {
                         format!("{name} is no instance, profile or grant here: {error}")
                     })?;
@@ -271,8 +373,9 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
-    /// The paths that confirm a new instance without anything only the
-    /// operator can supply, such as a secret.
+    /// The paths that confirm a new instance with nothing only the operator
+    /// can supply, such as a secret. A public API is the floor: it is taken
+    /// only when no account is available.
     fn new_paths(&self, connector: &LoadedConnector) -> Result<Vec<Path>, String> {
         let manifest = &connector.manifest;
         let local = manifest
@@ -282,55 +385,68 @@ impl<'a> ConnectorSetup<'a> {
             .map(|local| local.auth.as_slice())
             .unwrap_or(&[]);
         let mut paths = Vec::new();
-        if local.contains(&LocalAuth::None) {
-            paths.push(Path::Public);
-        }
-        if local.contains(&LocalAuth::Session) {
+        if local.contains(&LocalAuth::Session) && command_session(connector) {
             paths.push(Path::Session);
         }
-        for profile in
-            list_local_credential_profiles(self.workspace).map_err(|error| error.to_string())?
-        {
-            if profile.connector == connector.connector_ref {
-                paths.push(Path::Profile(profile.name));
+        if local.contains(&LocalAuth::Credentials) {
+            for profile in
+                list_local_credential_profiles(self.workspace).map_err(|error| error.to_string())?
+            {
+                if profile.connector == connector.connector_ref {
+                    paths.push(Path::Profile(profile.name));
+                }
             }
         }
-        if manifest.placements.hosted.is_some()
-            && HostedApiEnvironment::resolve(None, self.workspace.env(), self.workspace.cwd())
-                .is_ok_and(|environment| environment.require_token().is_ok())
-        {
+        let delegated = manifest
+            .placements
+            .hosted
+            .as_ref()
+            .is_some_and(|hosted| hosted.auth == HostedAuth::Delegated);
+        if delegated && self.signed_in() {
             paths.push(Path::Hosted);
         }
+        if paths.is_empty() && local.contains(&LocalAuth::None) {
+            paths.push(Path::Public);
+        }
         Ok(paths)
+    }
+
+    fn signed_in(&self) -> bool {
+        HostedApiEnvironment::resolve(None, self.workspace.env(), self.workspace.cwd())
+            .is_ok_and(|environment| environment.require_token().is_ok())
     }
 
     fn choose_message(&self, connector: &LoadedConnector, paths: &[Path]) -> String {
         let reference = connector.connector_ref.as_str();
         let mut forms = paths
             .iter()
-            .map(|path| match path {
-                Path::Public => {
-                    format!("`runx connector use {reference} --parameter <name=value>`")
-                }
-                Path::Session => format!("`runx connector use {reference} --session`"),
-                Path::Profile(name) => format!("`runx connector use {reference} {name}`"),
-                Path::Hosted => format!("`runx connector use {reference} --hosted`"),
+            .filter_map(|path| match path {
+                Path::Profile(name) => Some(format!("`runx connector use {reference} {name}`")),
+                _ => None,
             })
             .collect::<Vec<_>>();
-        for credential in connector.manifest.auth.credentials.keys() {
-            forms.push(format!(
-                "`runx connector use {reference} --credential {credential}` with the secret on stdin"
-            ));
+        forms.extend(
+            setup_forms(connector)
+                .into_iter()
+                .map(|form| match form.reads_secret {
+                    true => format!("`{}` with the secret on stdin", form.command),
+                    false => format!("`{}`", form.command),
+                }),
+        );
+        let login = match connector.manifest.placements.hosted.is_some() && !self.signed_in() {
+            true => "; a hosted form needs `runx login` first",
+            false => "",
+        };
+        match paths.len() {
+            0 => format!(
+                "{reference} needs setup; run one of: {}{login}",
+                forms.join(", ")
+            ),
+            _ => format!(
+                "{reference} can be set up more than one way; choose one: {}{login}",
+                forms.join(", ")
+            ),
         }
-        if forms.is_empty() {
-            return format!(
-                "{reference} has no setup this project can complete; sign in with `runx login` for its hosted placement"
-            );
-        }
-        format!(
-            "{reference} can be set up more than one way; choose one: {}",
-            forms.join(", ")
-        )
     }
 
     /// The instance, profile, grant or pending Connect session `name` names.
@@ -356,6 +472,7 @@ impl<'a> ConnectorSetup<'a> {
                         record.instance.connector, connector.connector_ref
                     ));
                 }
+                fixed(options, &format!("instance {name}"))?;
                 self.instances
                     .select(name)
                     .map(|instance| UseOutcome::Selected(Box::new(instance)))
@@ -370,7 +487,10 @@ impl<'a> ConnectorSetup<'a> {
                 self.workspace,
             )
             .map(|instance| UseOutcome::Selected(Box::new(instance))),
-            (None, None) => self.hosted_existing(connector, name, options),
+            (None, None) => {
+                fixed(options, name)?;
+                self.hosted_existing(connector, name, options)
+            }
         }
     }
 
@@ -383,24 +503,32 @@ impl<'a> ConnectorSetup<'a> {
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
         let (env, cwd) = (self.workspace.env(), self.workspace.cwd());
-        let grant_error = match setup::confirm_grant_from(
-            self.instances,
-            connector,
-            &self.hosted,
-            name,
-            env,
-            cwd,
-        ) {
-            Ok(instance) => return Ok(UseOutcome::Selected(Box::new(instance))),
-            Err(error) => error,
-        };
-        match self.hosted_connect(HostedConnectAction::Status { session_id: name }) {
-            Ok(response) => self.settle(connector, name, response, options),
-            Err(_) => Err(format!(
-                "{name} is no instance, profile, grant or pending Connect session for {}: {grant_error}",
-                connector.connector_ref
-            )),
+        if self
+            .hosted
+            .list_grants(env, cwd)?
+            .iter()
+            .any(|grant| grant.grant_id == name)
+        {
+            return setup::confirm_grant_from(
+                self.instances,
+                connector,
+                &self.hosted,
+                name,
+                env,
+                cwd,
+            )
+            .map(|instance| UseOutcome::Selected(Box::new(instance)));
         }
+        let session = self
+            .session()?
+            .connect(HostedConnectAction::Status { session_id: name })
+            .map_err(|error| {
+                format!(
+                    "{name} is no instance, profile, grant or pending Connect session for {}: {error}",
+                    connector.connector_ref
+                )
+            })?;
+        self.settle(connector, ConnectSession::from_response(session)?, options)
     }
 
     fn hosted_grant(
@@ -410,12 +538,26 @@ impl<'a> ConnectorSetup<'a> {
         target: Option<&str>,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
+        no_parameters(options, "a hosted grant")?;
         let manifest = &connector.manifest;
         let hosted = manifest
             .placements
             .hosted
             .as_ref()
             .ok_or_else(|| format!("{} has no hosted placement", connector.connector_ref))?;
+        let credentials = match (hosted.auth, credential) {
+            (HostedAuth::Delegated, None) => None,
+            (HostedAuth::Delegated, Some(_)) => {
+                return Err(format!(
+                    "{}'s hosted placement is delegated: the account holder authorizes it, so it takes no credential",
+                    connector.connector_ref
+                ));
+            }
+            (HostedAuth::Credential, None) => return Err(needs_credential(connector)),
+            (HostedAuth::Credential, Some((name, secret))) => {
+                Some(self.credential_fields(connector, name, secret, hosted)?)
+            }
+        };
         let scopes = if options.scopes.is_empty() {
             let mut declared = manifest
                 .operations
@@ -433,100 +575,105 @@ impl<'a> ConnectorSetup<'a> {
         } else {
             options.scopes.clone()
         };
-        let (target_repo, target_locator) = match target {
-            Some(target) if is_owner_repo(target) => (Some(target), None),
-            Some(target) => (None, Some(target)),
-            None => (None, None),
-        };
-        let started = self.hosted_connect(HostedConnectAction::Start(HostedConnectStart {
-            provider: manifest.id.as_str(),
-            scopes: &scopes,
-            scope_family: None,
-            authority_kind: None,
-            target_repo,
-            target_locator,
-            binding_id: None,
-            credential_grant_id: None,
-        }))?;
-        let started = match (status(&started), credential) {
-            ("credential_required", Some((name, secret))) => {
-                let session_id = field(&started, "session_id")?;
-                let credentials = self.credential_fields(connector, name, secret, hosted)?;
-                self.hosted_connect(HostedConnectAction::SubmitCredentials {
-                    session_id: &session_id,
-                    credentials: &credentials,
-                })?
-            }
-            ("credential_required", None) => return Err(needs_credential(connector)),
-            _ => started,
-        };
-        let session_id = field(&started, "session_id").unwrap_or_default();
-        self.settle(connector, &session_id, started, options)
+        let session = self.session()?;
+        let mut opened = ConnectSession::from_response(
+            session
+                .connect(HostedConnectAction::Start(HostedConnectStart {
+                    provider: manifest.id.as_str(),
+                    scopes: &scopes,
+                    target,
+                }))
+                .map_err(|error| error.to_string())?,
+        )?;
+        if let (ConnectSession::CredentialRequired { session_id }, Some(credentials)) =
+            (&opened, &credentials)
+        {
+            opened = ConnectSession::from_response(
+                session
+                    .connect(HostedConnectAction::SubmitCredentials {
+                        session_id,
+                        credentials,
+                    })
+                    .map_err(|error| error.to_string())?,
+            )?;
+        }
+        self.settle(connector, opened, options)
     }
 
-    /// Bind the grant a Connect response carries, or wait for it within
+    /// Bind the grant a Connect session made, or wait for it within
     /// `options.wait`, then return what finishes it.
     fn settle(
         &self,
         connector: &LoadedConnector,
-        session_id: &str,
-        mut response: Value,
+        mut current: ConnectSession,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
         let deadline = Instant::now() + options.wait;
-        let authorization_url = response
-            .get("authorization_url")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
+        let mut authorization_url = None;
         loop {
-            match status(&response) {
-                "created" | "unchanged" => {
-                    let grant_id = response
-                        .get("grant")
-                        .and_then(|grant| grant.get("grant_id"))
-                        .and_then(Value::as_str)
-                        .ok_or("the Connect response names no grant")?
-                        .to_owned();
+            let (session_id, poll_after_ms) = match current {
+                ConnectSession::Created { grant } | ConnectSession::Unchanged { grant } => {
                     let (env, cwd) = (self.workspace.env(), self.workspace.cwd());
+                    // The grant is new: list again so it is found.
+                    self.hosted.list_grants(env, cwd)?;
                     return setup::confirm_grant_from(
                         self.instances,
                         connector,
                         &self.hosted,
-                        &grant_id,
+                        &grant.grant_id,
                         env,
                         cwd,
                     )
                     .map(|instance| UseOutcome::Selected(Box::new(instance)));
                 }
-                "pending" | "pending_verification" => {}
-                // A session holding an authorization link awaits the account holder.
-                _ if response.get("authorization_url").is_some() => {}
-                "credential_required" => return Err(needs_credential(connector)),
-                other => {
-                    return Err(match response.get("error").and_then(Value::as_str) {
-                        Some(error) => format!("the Connect session is {other}: {error}"),
-                        None => format!("the Connect session is {other}"),
-                    });
+                ConnectSession::Pending {
+                    session_id,
+                    authorization_url: url,
+                    poll_after_ms,
+                } => {
+                    authorization_url = url.or(authorization_url);
+                    (session_id, poll_after_ms)
                 }
-            }
-            if session_id.is_empty() || Instant::now() >= deadline {
+                ConnectSession::PendingVerification {
+                    session_id,
+                    poll_after_ms,
+                } => (session_id, poll_after_ms),
+                ConnectSession::CredentialRequired { .. } => {
+                    return Err(needs_credential(connector));
+                }
+                ConnectSession::Failed { error }
+                | ConnectSession::VerificationFailed { error }
+                | ConnectSession::ConnectUnavailable { error }
+                | ConnectSession::Unsupported { error } => {
+                    return Err(format!(
+                        "runx Connect could not grant {}: {}",
+                        connector.connector_ref,
+                        error.as_deref().unwrap_or("no reason given")
+                    ));
+                }
+            };
+            if Instant::now() >= deadline {
                 return Ok(UseOutcome::Pending {
-                    session_id: session_id.to_owned(),
-                    authorization_url,
                     finish: format!(
                         "runx connector use {} {session_id}",
                         connector.connector_ref
                     ),
+                    session_id,
+                    authorization_url,
                 });
             }
             // The session says when to ask again; never sooner than MIN_POLL.
-            let pause = response
-                .get("poll_after_ms")
-                .and_then(Value::as_u64)
+            let pause = poll_after_ms
                 .map_or(DEFAULT_POLL, Duration::from_millis)
                 .max(MIN_POLL);
             std::thread::sleep(pause.min(deadline.saturating_duration_since(Instant::now())));
-            response = self.hosted_connect(HostedConnectAction::Status { session_id })?;
+            current = ConnectSession::from_response(
+                self.session()?
+                    .connect(HostedConnectAction::Status {
+                        session_id: &session_id,
+                    })
+                    .map_err(|error| error.to_string())?,
+            )?;
         }
     }
 
@@ -537,19 +684,14 @@ impl<'a> ConnectorSetup<'a> {
         secret: &str,
         hosted: &runx_contracts::connector::HostedPlacement,
     ) -> Result<Value, String> {
-        if hosted
+        if let Some(declared) = hosted
             .credential
             .as_ref()
-            .is_some_and(|declared| declared != name)
+            .filter(|declared| *declared != name)
         {
             return Err(format!(
-                "{}'s hosted placement takes credential {}, not {name}",
-                connector.connector_ref,
-                hosted
-                    .credential
-                    .as_ref()
-                    .map(CredentialName::as_str)
-                    .unwrap_or_default()
+                "{}'s hosted placement takes credential {declared}, not {name}",
+                connector.connector_ref
             ));
         }
         let declaration = connector
@@ -568,29 +710,10 @@ impl<'a> ConnectorSetup<'a> {
         ))
     }
 
-    fn hosted_connect(&self, action: HostedConnectAction<'_>) -> Result<Value, String> {
-        let (env, cwd) = (self.workspace.env(), self.workspace.cwd());
-        let transport: Transport = match &self.transport {
-            Some(transport) => Arc::clone(transport),
-            None => Arc::new(
-                crate::hosted_api_transport(crate::hosted_private_network_allowed(false, env))
-                    .map_err(|error| error.to_string())?,
-            ),
-        };
-        let environment = HostedApiEnvironment::resolve(None, env, cwd)
-            .and_then(|environment| environment.authenticate(transport.as_ref()))
-            .map_err(|error| error.to_string())?;
-        execute_hosted_connect(transport.as_ref(), &environment, action)
-            .map_err(|error| error.to_string())
-    }
-
-    fn grants(&self) -> Result<Vec<Value>, String> {
-        let listed = self.hosted_connect(HostedConnectAction::List)?;
-        Ok(listed
-            .get("grants")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default())
+    /// The signed-in hosted account, authenticated once per setup.
+    fn session(&self) -> Result<HostedSession, String> {
+        self.hosted
+            .session(self.workspace.env(), self.workspace.cwd())
     }
 
     fn profile(&self, name: &str) -> Result<Option<CredentialProfileSummary>, String> {
@@ -619,6 +742,17 @@ enum Path {
     Hosted,
 }
 
+/// A session the runtime confirms by running the command that prints its
+/// token; a host browser session is the host's to confirm.
+fn command_session(connector: &LoadedConnector) -> bool {
+    connector
+        .manifest
+        .auth
+        .session
+        .as_ref()
+        .is_some_and(|session| session.kind() == runx_contracts::connector::SessionKind::Command)
+}
+
 fn needs_credential(connector: &LoadedConnector) -> String {
     format!(
         "{}'s hosted placement takes your own credential; run `runx connector use {} --hosted --credential <name>` with the secret on stdin",
@@ -626,43 +760,34 @@ fn needs_credential(connector: &LoadedConnector) -> String {
     )
 }
 
-fn status(response: &Value) -> &str {
-    response
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("unknown")
+/// An instance, grant or session keeps the scopes and parameters it was
+/// confirmed with; naming new ones is refused rather than ignored.
+fn fixed(options: &UseOptions, what: &str) -> Result<(), String> {
+    if options.scopes.is_empty() && options.parameters.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "{what} keeps the scopes and parameters it was confirmed with; --scope and --parameter apply to a new instance"
+    ))
 }
 
-fn field(response: &Value, name: &str) -> Result<String, String> {
-    response
-        .get(name)
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| format!("the Connect response names no {name}"))
-}
-
-/// `owner/repo`, the shape Connect narrows a repository grant by.
-fn is_owner_repo(target: &str) -> bool {
-    let mut parts = target.split('/');
-    let valid = |part: &str| {
-        !part.is_empty()
-            && part.chars().all(|character| {
-                character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '-')
-            })
-    };
-    matches!((parts.next(), parts.next(), parts.next()), (Some(owner), Some(repo), None) if valid(owner) && valid(repo))
+fn no_parameters(options: &UseOptions, what: &str) -> Result<(), String> {
+    if options.parameters.is_empty() {
+        return Ok(());
+    }
+    Err(format!("{what} takes no --parameter"))
 }
 
 fn profile_of(instance: &ConnectorInstance) -> Option<&str> {
     match &instance.authority {
-        runx_contracts::InstanceAuthority::Credential { profile, .. } => Some(profile.as_str()),
+        InstanceAuthority::Credential { profile, .. } => Some(profile.as_str()),
         _ => None,
     }
 }
 
 fn grant_of(instance: &ConnectorInstance) -> Option<&str> {
     match &instance.authority {
-        runx_contracts::InstanceAuthority::HostedGrant { grant_id } => Some(grant_id.as_str()),
+        InstanceAuthority::HostedGrant { grant_id } => Some(grant_id.as_str()),
         _ => None,
     }
 }
