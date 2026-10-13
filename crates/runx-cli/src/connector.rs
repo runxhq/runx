@@ -1,6 +1,8 @@
-//! `runx connector`: the runx-maintained connectors and those of the plugin the
-//! workspace is in, their readiness here, and the instances that bind them to
-//! an account.
+//! `runx connector`: the connectors in reach (runtime capabilities, the
+//! plugin's, the project's installed versions), their readiness here, and the
+//! one place their authority is set up (`use`), listed (`list`) and removed
+//! (`revoke`): an instance, a local session, a secret profile or a Connect
+//! grant.
 //!
 //! Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 //! workspace's `.runx`). Confirming and selecting one is setup, done once; a
@@ -11,9 +13,15 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use runx_contracts::connector::{ConnectorManifest, Implementation, InstanceId, OperationName};
+use runx_contracts::connector::{
+    ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName,
+};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, JsonObject, JsonValue, Readiness};
+use runx_runtime::CredentialProfileSummary;
+use runx_runtime::kernel::connector_setup::{
+    AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest,
+};
 use runx_runtime::kernel::{admission, setup};
 use runx_runtime::{
     ConnectorScope, InstanceRecord, Instances, KernelStore, LoadedConnector, WorkspaceEnv,
@@ -21,6 +29,10 @@ use runx_runtime::{
 use serde::Serialize;
 
 use crate::cli_args::{flag_value, os_arg, split_flag};
+
+/// How long `use --hosted` waits for the person to authorize before it
+/// returns the command that finishes the grant.
+const HOSTED_GRANT_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectorPlan {
@@ -30,17 +42,21 @@ pub struct ConnectorPlan {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConnectorAction {
+    /// Every connector in reach, with the instances, profiles and grants
+    /// that hold its authority.
     List,
     Inspect {
         connector: String,
     },
-    Instances,
+    /// Remove one instance, profile or grant.
     Revoke {
-        instance_id: String,
+        name: String,
     },
     Use {
         connector: String,
         choice: UseChoice,
+        scopes: Vec<String>,
+        parameters: BTreeMap<String, String>,
     },
     /// The tools an MCP server serves, with the digests a manifest pins.
     ImportMcp(McpImport),
@@ -60,41 +76,43 @@ pub enum McpImport {
     },
 }
 
-/// What `runx connector use` selects.
+/// What `runx connector use` sets up.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UseChoice {
-    /// An instance confirmed earlier.
-    Instance(String),
-    /// The connector's local session, as signed in now, narrowed to
-    /// `scopes` when given.
-    Session { scopes: Vec<String> },
-    /// An existing local credential profile.
-    Profile {
-        name: String,
-        scopes: Vec<String>,
-        parameters: BTreeMap<String, String>,
+    /// No selector: the one available path.
+    Default,
+    /// An instance, profile, grant or pending Connect session, by name.
+    Existing(String),
+    /// The connector's local session, as signed in now.
+    Session,
+    /// A new local secret profile; the secret is read from stdin.
+    Credential {
+        credential: String,
+        profile: Option<String>,
     },
-    /// No authority, at the location its parameters name.
-    Public {
-        parameters: BTreeMap<String, String>,
+    /// A new runx Connect grant; a credential, when named, is read from stdin.
+    Hosted {
+        credential: Option<String>,
+        target: Option<String>,
     },
-    /// An active runx Connect grant.
-    Grant(String),
 }
+
+const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | --hosted [--credential <name>] [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
 
 pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> {
     let subcommand = args
         .get(1)
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
-            "runx connector requires list, inspect, instances, use, revoke, or import-mcp"
-                .to_owned()
+            "runx connector requires list, inspect, use, revoke, or import-mcp".to_owned()
         })?;
     let mut positionals = Vec::new();
     let mut session = false;
+    let mut hosted = false;
     let mut bearer_stdin = false;
-    let mut grant = None;
+    let mut credential = None;
     let mut profile = None;
+    let mut target = None;
     let mut scopes = Vec::new();
     let mut parameters = BTreeMap::new();
     let mut json = false;
@@ -112,35 +130,44 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             break;
         }
         let (flag, inline) = split_flag(token);
+        let mut value = |target: &mut Option<String>| -> Result<(), String> {
+            let (value, next) = flag_value(args, index, flag, inline, "connector")?;
+            if target.replace(value).is_some() {
+                return Err(format!("runx connector {subcommand} takes {flag} once"));
+            }
+            index = next;
+            Ok(())
+        };
         match flag {
             "--json" | "-j" if inline.is_none() => json = true,
             "--session" if inline.is_none() => session = true,
+            "--hosted" if inline.is_none() => hosted = true,
             "--bearer-stdin" if inline.is_none() => bearer_stdin = true,
-            "--grant" => {
-                let (value, next) = flag_value(args, index, flag, inline, "connector")?;
-                grant = Some(value);
-                index = next;
+            "--credential" => {
+                value(&mut credential)?;
                 continue;
             }
             "--profile" => {
-                let (value, next) = flag_value(args, index, flag, inline, "connector")?;
-                profile = Some(value);
-                index = next;
+                value(&mut profile)?;
+                continue;
+            }
+            "--target" => {
+                value(&mut target)?;
                 continue;
             }
             "--parameter" => {
-                let (value, next) = flag_value(args, index, flag, inline, "connector")?;
-                let (name, value) = parameter(&value)?;
+                let mut raw = None;
+                value(&mut raw)?;
+                let (name, value) = parameter(raw.as_deref().unwrap_or_default())?;
                 if parameters.insert(name.clone(), value).is_some() {
                     return Err(format!("runx connector use sets parameter {name} once"));
                 }
-                index = next;
                 continue;
             }
             "--scope" => {
-                let (value, next) = flag_value(args, index, flag, inline, "connector")?;
-                scopes.push(value);
-                index = next;
+                let mut scope = None;
+                value(&mut scope)?;
+                scopes.extend(scope);
                 continue;
             }
             _ if token.starts_with('-') => {
@@ -153,24 +180,24 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
     if stdio.is_some() && subcommand != "import-mcp" {
         return Err(format!("runx connector {subcommand}: unexpected arguments"));
     }
+    let setup_flags = session
+        || hosted
+        || credential.is_some()
+        || profile.is_some()
+        || target.is_some()
+        || !scopes.is_empty()
+        || !parameters.is_empty();
     let only_json = |action: ConnectorAction, count: usize| {
-        if positionals.len() != count
-            || session
-            || bearer_stdin
-            || grant.is_some()
-            || profile.is_some()
-            || !scopes.is_empty()
-        {
+        if positionals.len() != count || setup_flags || bearer_stdin {
             return Err(format!("runx connector {subcommand}: unexpected arguments"));
         }
         Ok(ConnectorPlan { action, json })
     };
     match subcommand {
         "list" => only_json(ConnectorAction::List, 0),
-        "instances" => only_json(ConnectorAction::Instances, 0),
         "revoke" => match positionals.as_slice() {
-            [instance_id] => only_json(ConnectorAction::Revoke { instance_id: instance_id.clone() }, 1),
-            _ => Err("runx connector revoke requires <instance>".to_owned()),
+            [name] => only_json(ConnectorAction::Revoke { name: name.clone() }, 1),
+            _ => Err("runx connector revoke requires <instance|profile|grant>".to_owned()),
         },
         "inspect" => match positionals.as_slice() {
             [connector] => only_json(
@@ -181,61 +208,55 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             ),
             _ => Err("runx connector inspect requires <connector>".to_owned()),
         },
-        "import-mcp" => match (positionals.as_slice(), session, grant, profile, stdio) {
-            ([url], false, None, None, None) if scopes.is_empty() => Ok(ConnectorPlan {
+        "import-mcp" => match (positionals.as_slice(), setup_flags, stdio) {
+            ([url], false, None) => Ok(ConnectorPlan {
                 action: ConnectorAction::ImportMcp(McpImport::StreamableHttp {
                     url: url.clone(),
                     bearer_stdin,
                 }),
                 json,
             }),
-            ([], false, None, None, Some(command_line)) if !bearer_stdin && scopes.is_empty() => {
-                match command_line.split_first() {
-                    Some((command, args)) => Ok(ConnectorPlan {
-                        action: ConnectorAction::ImportMcp(McpImport::Stdio {
-                            command: command.clone(),
-                            args: args.to_vec(),
-                        }),
-                        json,
+            ([], false, Some(command_line)) if !bearer_stdin => match command_line.split_first() {
+                Some((command, args)) => Ok(ConnectorPlan {
+                    action: ConnectorAction::ImportMcp(McpImport::Stdio {
+                        command: command.clone(),
+                        args: args.to_vec(),
                     }),
-                    None => Err("runx connector import-mcp -- requires a command".to_owned()),
-                }
-            }
+                    json,
+                }),
+                None => Err("runx connector import-mcp -- requires a command".to_owned()),
+            },
             _ => Err(
                 "runx connector import-mcp requires <url> [--bearer-stdin] or -- <command> [args...]"
                     .to_owned(),
             ),
         },
         "use" => {
-            let plain = scopes.is_empty() && parameters.is_empty();
-            let choice = match (positionals.as_slice(), session, grant, profile) {
-                _ if bearer_stdin => {
-                    return Err("runx connector use takes no --bearer-stdin".to_owned());
-                }
-                ([_, instance], false, None, None) if plain => {
-                    UseChoice::Instance(instance.clone())
-                }
-                ([_], true, None, None) if parameters.is_empty() => UseChoice::Session { scopes },
-                ([_], false, Some(grant), None) if plain => UseChoice::Grant(grant),
-                ([_], false, None, Some(name)) => UseChoice::Profile {
-                    name,
-                    scopes,
-                    parameters,
+            if bearer_stdin {
+                return Err("runx connector use takes no --bearer-stdin".to_owned());
+            }
+            if profile.is_some() && credential.is_none() {
+                return Err("--profile names a new credential's profile; an existing profile is `runx connector use <connector> <profile>`".to_owned());
+            }
+            if target.is_some() && !hosted {
+                return Err("--target narrows a new hosted grant; it needs --hosted".to_owned());
+            }
+            let choice = match (positionals.as_slice(), session, hosted) {
+                ([_, existing], false, false) if credential.is_none() => UseChoice::Existing(existing.clone()),
+                ([_], true, false) if credential.is_none() && parameters.is_empty() => UseChoice::Session,
+                ([_], false, true) if profile.is_none() => UseChoice::Hosted { credential, target },
+                ([_], false, false) => match credential {
+                    Some(credential) => UseChoice::Credential { credential, profile },
+                    None => UseChoice::Default,
                 },
-                ([_], false, None, None) if scopes.is_empty() && !parameters.is_empty() => {
-                    UseChoice::Public { parameters }
-                }
-                _ => {
-                    return Err(
-                        "runx connector use requires <connector> and one of <instance>, --session, --profile <name>, --grant <grant-id>, or --parameter <name>=<value>"
-                            .to_owned(),
-                    );
-                }
+                _ => return Err(format!("usage: {USE_USAGE}")),
             };
             Ok(ConnectorPlan {
                 action: ConnectorAction::Use {
                     connector: positionals[0].clone(),
                     choice,
+                    scopes,
+                    parameters,
                 },
                 json,
             })
@@ -266,17 +287,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 .map(|scope| scope.in_project(workspace.paths().connectors()))
                 .and_then(|scope| scope.reachable())
                 .map_err(|error| error.to_string())?;
-            let records = records(&instances)?;
-            let selected = |id: &str| {
-                records
-                    .iter()
-                    .find(|record| {
-                        record.selected
-                            && !record.revoked
-                            && record.instance.connector.as_str() == id
-                    })
-                    .map(|record| &record.instance.instance_id)
-            };
+            let sources = ConnectorSetup::new(&instances, workspace).sources()?;
             if plan.json {
                 let connectors = connectors
                     .iter()
@@ -288,27 +299,27 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                             description: &manifest.description,
                             placements: placements(manifest),
                             operations: manifest.operations.keys().collect(),
-                            selected_instance: selected(connector.connector_ref.as_str()),
+                            selected_instance: sources
+                                .instances
+                                .iter()
+                                .find(|record| {
+                                    record.selected
+                                        && !record.revoked
+                                        && record.instance.connector == connector.connector_ref
+                                })
+                                .map(|record| &record.instance.instance_id),
                         }
                     })
                     .collect();
-                return render_json(&Output::Connectors { connectors });
+                return render_json(&Output::Connectors {
+                    connectors,
+                    instances: sources.instances.iter().map(InstanceView::from).collect(),
+                    profiles: &sources.profiles,
+                    grants: sources.grants.as_ref().ok(),
+                    grants_unavailable: sources.grants.as_ref().err(),
+                });
             }
-            let mut out = String::new();
-            for connector in &connectors {
-                let manifest = &connector.manifest;
-                out.push_str(&format!(
-                    "{}  {}  [{}]  {} operations{}\n",
-                    connector.connector_ref,
-                    manifest.name,
-                    placements(manifest).join(", "),
-                    manifest.operations.len(),
-                    selected(connector.connector_ref.as_str())
-                        .map(|instance| format!("  using {instance}"))
-                        .unwrap_or_default()
-                ));
-            }
-            Ok(out)
+            Ok(list_text(&connectors, &sources))
         }
         ConnectorAction::Inspect { connector } => {
             let connector = in_workspace(workspace, connector)?;
@@ -331,64 +342,103 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             }
             Ok(inspect_text(&connector, &records, &readiness))
         }
-        ConnectorAction::Instances => {
-            let records = records(&instances)?;
-            if plan.json {
-                return render_json(&Output::Instances {
-                    instances: records.iter().map(InstanceView::from).collect(),
-                });
-            }
-            if records.is_empty() {
-                return Ok("no connector instances; set one up with `runx connector use <connector> --session`, `runx connector use <connector> --profile <name>`, `runx credential set` or `runx connector use <connector> --grant <grant-id>`\n".to_owned());
-            }
-            Ok(records.iter().map(instance_line).collect())
-        }
-        ConnectorAction::Revoke { instance_id } => {
-            instances
-                .revoke(instance_id)
-                .map_err(|error| error.to_string())?;
-            if plan.json {
-                return render_json(&Output::Revoke { instance_id });
-            }
-            Ok(format!("revoked connector instance {instance_id}\n"))
-        }
-        ConnectorAction::Use { connector, choice } => {
-            let connector = in_workspace(workspace, connector)?;
-            let (env, cwd) = (workspace.env(), workspace.cwd());
-            let instance = match choice {
-                UseChoice::Session { scopes } => {
-                    setup::confirm_session(&instances, &connector, scopes, env, cwd)?
-                }
-                UseChoice::Profile {
-                    name,
-                    scopes,
-                    parameters,
-                } => setup::confirm_credential_profile(
-                    &instances,
-                    &connector,
-                    name,
-                    scopes,
-                    instance_parameters(parameters),
-                    workspace,
-                )?,
-                UseChoice::Public { parameters } => {
-                    setup::confirm_public(&instances, &connector, instance_parameters(parameters))?
-                }
-                UseChoice::Grant(grant_id) => {
-                    setup::confirm_grant(&instances, &connector, grant_id, env, cwd)?
-                }
-                UseChoice::Instance(instance_id) => select(&instances, &connector, instance_id)?,
+        ConnectorAction::Revoke { name } => {
+            let revoked = ConnectorSetup::new(&instances, workspace).revoke(name)?;
+            let (kind, name) = match &revoked {
+                Revoked::Instance(name) => ("instance", name),
+                Revoked::Profile(name) => ("profile", name),
+                Revoked::Grant(name) => ("grant", name),
             };
             if plan.json {
-                return render_json(&Output::Use {
-                    selected: &instance,
+                return render_json(&Output::Revoke {
+                    revoked: kind,
+                    name,
                 });
             }
-            Ok(format!(
-                "{} uses {}\n",
-                connector.manifest.id,
-                instance_summary(&instance)
-            ))
+            Ok(format!("revoked {kind} {name}\n"))
+        }
+        ConnectorAction::Use {
+            connector,
+            choice,
+            scopes,
+            parameters,
+        } => {
+            let connector = in_workspace(workspace, connector)?;
+            let secret = match choice {
+                UseChoice::Credential { .. }
+                | UseChoice::Hosted {
+                    credential: Some(_),
+                    ..
+                } => Some(crate::cli_io::read_stdin_secret("credential secret")?),
+                _ => None,
+            };
+            let names = match choice {
+                UseChoice::Credential { credential, .. }
+                | UseChoice::Hosted {
+                    credential: Some(credential),
+                    ..
+                } => Some(
+                    CredentialName::new(credential.as_str())
+                        .ok_or_else(|| format!("{credential} is not a credential name"))?,
+                ),
+                _ => None,
+            };
+            let profile_default = connector.connector_ref.as_str().to_owned();
+            let request = match choice {
+                UseChoice::Default => UseRequest::Default,
+                UseChoice::Existing(name) => UseRequest::Existing(name),
+                UseChoice::Session => UseRequest::Session,
+                UseChoice::Credential { profile, .. } => UseRequest::Credential {
+                    credential: names.as_ref().ok_or("no credential named")?,
+                    secret: secret.as_deref().unwrap_or_default(),
+                    profile: profile.as_deref().unwrap_or(&profile_default),
+                },
+                UseChoice::Hosted { target, .. } => UseRequest::Hosted {
+                    credential: names
+                        .as_ref()
+                        .map(|name| (name, secret.as_deref().unwrap_or_default())),
+                    target: target.as_deref(),
+                },
+            };
+            let options = UseOptions {
+                scopes: scopes.clone(),
+                parameters: instance_parameters(parameters),
+                wait: HOSTED_GRANT_WAIT,
+            };
+            match ConnectorSetup::new(&instances, workspace)
+                .use_connector(&connector, request, &options)?
+            {
+                UseOutcome::Selected(instance) => {
+                    if plan.json {
+                        return render_json(&Output::Use {
+                            selected: &instance,
+                        });
+                    }
+                    Ok(format!(
+                        "{} uses {}\n",
+                        connector.connector_ref,
+                        instance_summary(&instance)
+                    ))
+                }
+                UseOutcome::Pending {
+                    session_id,
+                    authorization_url,
+                    finish,
+                } => {
+                    if plan.json {
+                        return render_pending(&session_id, authorization_url.as_deref(), &finish);
+                    }
+                    Ok(format!(
+                        "{}the grant is not confirmed yet; once it is, run:\n  {finish}\n",
+                        authorization_url
+                            .map(|url| format!(
+                                "authorize {} at:\n  {url}\n",
+                                connector.connector_ref
+                            ))
+                            .unwrap_or_default()
+                    ))
+                }
+            }
         }
         ConnectorAction::ImportMcp(server) => {
             let (tools, server) = match server {
@@ -435,28 +485,6 @@ fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedC
                 .in_project(workspace.paths().connectors())
                 .named(connector)
         })
-        .map_err(|error| error.to_string())
-}
-
-/// Select an instance confirmed earlier, refusing one of another connector
-/// before anything is recorded.
-fn select(
-    instances: &Instances,
-    connector: &LoadedConnector,
-    instance_id: &str,
-) -> Result<ConnectorInstance, String> {
-    let record = instances
-        .get(instance_id)
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| format!("instance {instance_id} does not exist"))?;
-    if record.instance.connector != connector.connector_ref {
-        return Err(format!(
-            "instance {instance_id} belongs to connector {}, not {}",
-            record.instance.connector, connector.connector_ref
-        ));
-    }
-    instances
-        .select(instance_id)
         .map_err(|error| error.to_string())
 }
 
@@ -541,25 +569,84 @@ fn inspect_text(
 
 /// The commands that confirm an instance under each authority the
 /// connector accepts, naming it by its qualified reference, which resolves
-/// wherever the connector is installed. Connect starts by provider id.
+/// wherever the connector is installed.
 fn setup_commands(connector: &LoadedConnector) -> Vec<String> {
     let manifest = &connector.manifest;
-    let (id, reference) = (&manifest.id, &connector.connector_ref);
+    let reference = &connector.connector_ref;
     let mut commands = Vec::new();
     if manifest.auth.session.is_some() {
         commands.push(format!("runx connector use {reference} --session"));
     }
     for name in manifest.auth.credentials.keys() {
         commands.push(format!(
-            "runx credential set {reference} --credential {name} --from-stdin"
+            "runx connector use {reference} --credential {name}, with the secret on stdin"
         ));
     }
     if manifest.placements.hosted.is_some() {
-        commands.push(format!(
-            "runx connect start {id} --scope <scope>, then runx connector use {reference} --grant <grant-id>"
-        ));
+        commands.push(format!("runx connector use {reference} --hosted"));
     }
     commands
+}
+
+/// Each connector in reach with the instance it uses, then every instance,
+/// the local profiles and the signed-in account's grants.
+fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) -> String {
+    let mut out = String::new();
+    for connector in connectors {
+        let manifest = &connector.manifest;
+        let selected = sources.instances.iter().find(|record| {
+            record.selected
+                && !record.revoked
+                && record.instance.connector == connector.connector_ref
+        });
+        out.push_str(&format!(
+            "{}  {}  [{}]  {} operations{}\n",
+            connector.connector_ref,
+            manifest.name,
+            placements(manifest).join(", "),
+            manifest.operations.len(),
+            selected
+                .map(|record| format!("  using {}", record.instance.instance_id))
+                .unwrap_or_default()
+        ));
+    }
+    if !sources.instances.is_empty() {
+        out.push_str("instances:\n");
+        for record in &sources.instances {
+            out.push_str(&format!("  {}", instance_line(record)));
+        }
+    }
+    if !sources.profiles.is_empty() {
+        out.push_str("profiles:\n");
+        for profile in &sources.profiles {
+            out.push_str(&format!(
+                "  {} ({} credential {})\n",
+                profile.name, profile.connector, profile.credential
+            ));
+        }
+    }
+    match &sources.grants {
+        Ok(grants) if !grants.is_empty() => {
+            out.push_str("grants:\n");
+            for grant in grants {
+                let field = |name: &str| {
+                    grant
+                        .get(name)
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown")
+                };
+                out.push_str(&format!(
+                    "  {}  {}  {}\n",
+                    field("grant_id"),
+                    field("provider"),
+                    field("status")
+                ));
+            }
+        }
+        Ok(_) => {}
+        Err(reason) => out.push_str(&format!("grants: unavailable ({reason})\n")),
+    }
+    out
 }
 
 fn instance_line(record: &InstanceRecord) -> String {
@@ -591,6 +678,13 @@ fn instance_summary(instance: &ConnectorInstance) -> String {
 enum Output<'a> {
     Connectors {
         connectors: Vec<ConnectorSummary<'a>>,
+        /// Every instance in the project, each naming its connector.
+        instances: Vec<InstanceView<'a>>,
+        profiles: &'a [CredentialProfileSummary],
+        #[serde(skip_serializing_if = "Option::is_none")]
+        grants: Option<&'a Vec<serde_json::Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        grants_unavailable: Option<&'a String>,
     },
     Inspect {
         connector: &'a ConnectorManifest,
@@ -598,11 +692,9 @@ enum Output<'a> {
         instances: Vec<InstanceView<'a>>,
         readiness: &'a [Readiness],
     },
-    Instances {
-        instances: Vec<InstanceView<'a>>,
-    },
     Revoke {
-        instance_id: &'a str,
+        revoked: &'static str,
+        name: &'a str,
     },
     Use {
         selected: &'a ConnectorInstance,
@@ -638,6 +730,22 @@ impl<'a> From<&'a InstanceRecord> for InstanceView<'a> {
             revoked: record.revoked,
         }
     }
+}
+
+/// A hosted grant waiting on the person: the session and what finishes it.
+fn render_pending(
+    session_id: &str,
+    authorization_url: Option<&str>,
+    finish: &str,
+) -> Result<String, String> {
+    serde_json::to_string_pretty(&serde_json::json!({
+        "status": "pending",
+        "session_id": session_id,
+        "authorization_url": authorization_url,
+        "finish": finish,
+    }))
+    .map(|value| format!("{value}\n"))
+    .map_err(|error| error.to_string())
 }
 
 fn render_json(output: &Output<'_>) -> Result<String, String> {

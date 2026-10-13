@@ -4,16 +4,14 @@ use std::path::PathBuf;
 
 use crate::cli_args::{flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
-use crate::connect::ConnectPlan;
 use crate::connector::ConnectorPlan;
-use crate::credential::CredentialPlan;
 use crate::export::ExportPlan;
 use crate::login::LoginPlan;
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 use crate::mcp::McpPlan;
 use crate::notarize::NotarizePlan;
 use crate::policy::PolicyPlan;
-use crate::registry::{ConnectorAction, RegistryAction, RegistryPlan, parse_connector_subject};
+use crate::registry::{RegistryAction, RegistryPlan};
 use crate::resume::ResumePlan;
 use crate::skill::SkillPlan;
 use runx_contracts::validate_registry_version;
@@ -24,10 +22,8 @@ use runx_runtime::{ManagedAgentPolicy, WorkspaceEnv};
 pub enum RouterAction {
     Error(String),
     JsonError(JsonErrorPlan),
-    RunDev(DevPlan),
     RunDoctor(DoctorPlan),
     RunExport(ExportPlan),
-    RunInit(InitPlan),
     RunList(ListPlan),
     RunLogin(LoginPlan),
     RunMcp(McpPlan),
@@ -36,14 +32,12 @@ pub enum RouterAction {
     RunVerify(VerifyPlan),
     RunHarness(HarnessPlan),
     RunConfig(ConfigPlan),
-    RunConnect(ConnectPlan),
     RunConnector(ConnectorPlan),
-    RunCredential(CredentialPlan),
     RunPolicy(PolicyPlan),
     RunNotarize(NotarizePlan),
     RunRegistry(RegistryPlan),
     RunResume(ResumePlan),
-    RunSkill(SkillPlan),
+    RunSkill(Box<SkillPlan>),
     RunTool(ToolPlan),
     PrintHelp,
     PrintHelpJson,
@@ -57,13 +51,6 @@ pub struct JsonErrorPlan {
     pub message: String,
     pub code: String,
     pub exit_code: u8,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct DevPlan {
-    pub root: Option<PathBuf>,
-    pub lane: Option<String>,
-    pub json: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -133,11 +120,6 @@ pub struct NewPlan {
     pub receipt_dir: Option<PathBuf>,
     pub json: bool,
     pub managed_agent: ManagedAgentPolicy,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct InitPlan {
-    pub json: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -211,27 +193,11 @@ fn route_args_with_optional_workspace(
         );
     }
 
-    if first_arg_is(&args, "credential") {
-        return route_parse(
-            &args,
-            crate::credential::parse_credential_plan(&args),
-            RouterAction::RunCredential,
-        );
-    }
-
     if first_arg_is(&args, "login") {
         return route_parse(
             &args,
             crate::login::parse_login_plan(&args),
             RouterAction::RunLogin,
-        );
-    }
-
-    if first_arg_is(&args, "connect") {
-        return route_parse(
-            &args,
-            crate::connect::parse_connect_plan(&args),
-            RouterAction::RunConnect,
         );
     }
 
@@ -251,10 +217,6 @@ fn route_args_with_optional_workspace(
         return route_parse(&args, parse_doctor_plan(&args), RouterAction::RunDoctor);
     }
 
-    if first_arg_is(&args, "dev") {
-        return route_parse(&args, parse_dev_plan(&args), RouterAction::RunDev);
-    }
-
     if first_arg_is(&args, "export") {
         return route_parse(
             &args,
@@ -269,10 +231,6 @@ fn route_args_with_optional_workspace(
 
     if first_arg_is(&args, "new") {
         return route_parse(&args, parse_new_plan(&args), RouterAction::RunNew);
-    }
-
-    if first_arg_is(&args, "init") {
-        return route_parse(&args, parse_init_plan(&args), RouterAction::RunInit);
     }
 
     if first_arg_is(&args, "history") {
@@ -309,10 +267,6 @@ fn route_args_with_optional_workspace(
         );
     }
 
-    if first_arg_is(&args, "add") {
-        return parse_add_plan(&args).unwrap_or_else(|message| json_or_human_error(&args, message));
-    }
-
     if first_arg_is(&args, "skill") {
         let parsed = workspace.map_or_else(
             || crate::skill::parse_skill_plan(&args),
@@ -320,7 +274,7 @@ fn route_args_with_optional_workspace(
         );
         return parsed.map_or_else(
             |message| json_or_human_error(&args, message),
-            RouterAction::RunSkill,
+            |plan| RouterAction::RunSkill(Box::new(plan)),
         );
     }
 
@@ -371,16 +325,8 @@ pub fn login_help_text() -> String {
     command_help("login")
 }
 
-pub fn connect_help_text() -> String {
-    command_help("connect")
-}
-
 pub fn notarize_help_text() -> String {
     command_help("notarize")
-}
-
-pub fn add_help_text() -> String {
-    command_help("add")
 }
 
 pub fn registry_help_text() -> String {
@@ -637,181 +583,6 @@ fn non_empty_new_value(flag: &str, value: String) -> Result<String, String> {
         return Err(format!("runx new {flag} requires a non-empty value"));
     }
     Ok(value.to_owned())
-}
-
-fn parse_add_plan(args: &[OsString]) -> Result<RouterAction, String> {
-    let parsed = parse_add_args(args)?;
-    add_registry_plan(parsed).map(RouterAction::RunRegistry)
-}
-
-#[derive(Default)]
-struct AddParseState {
-    subject: Option<String>,
-    registry: Option<String>,
-    version: Option<String>,
-    expected_digest: Option<String>,
-    destination: Option<PathBuf>,
-    json: bool,
-}
-
-fn parse_add_args(args: &[OsString]) -> Result<AddParseState, String> {
-    let mut parsed = AddParseState::default();
-    let mut index = 1;
-    while index < args.len() {
-        let token = os_arg(args, index, "add")?;
-        if !crate::cli_args::is_flag(token) {
-            if parsed.subject.is_some() {
-                return Err("runx add accepts exactly one skill ref".to_owned());
-            }
-            parsed.subject = Some(token.to_owned());
-            index += 1;
-            continue;
-        }
-
-        let (flag, inline_value) = split_flag(token);
-        index = parse_add_flag(&mut parsed, args, index, flag, inline_value)?;
-    }
-    if parsed.subject.is_none() {
-        return Err("runx add requires a skill ref".to_owned());
-    }
-    Ok(parsed)
-}
-
-fn parse_add_flag(
-    parsed: &mut AddParseState,
-    args: &[OsString],
-    index: usize,
-    flag: &str,
-    inline_value: Option<&str>,
-) -> Result<usize, String> {
-    match flag {
-        "--json" | "-j" => {
-            if inline_value.is_some() {
-                return Err("--json does not take a value".to_owned());
-            }
-            parsed.json = true;
-            Ok(index + 1)
-        }
-        "--registry" => set_add_string(args, index, flag, inline_value, &mut parsed.registry),
-        "--version" => set_add_string(args, index, flag, inline_value, &mut parsed.version),
-        "--digest" => set_add_string(args, index, flag, inline_value, &mut parsed.expected_digest),
-        "--to" => {
-            let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
-            parsed.destination = Some(PathBuf::from(value));
-            Ok(next_index)
-        }
-        _ => Err(format!("unknown add flag {flag}")),
-    }
-}
-
-fn set_add_string(
-    args: &[OsString],
-    index: usize,
-    flag: &str,
-    inline_value: Option<&str>,
-    slot: &mut Option<String>,
-) -> Result<usize, String> {
-    let (value, next_index) = flag_value(args, index, flag, inline_value, "add")?;
-    *slot = Some(value);
-    Ok(next_index)
-}
-
-fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
-    if let Some(subject) = &parsed.subject {
-        validate_registry_ref_version(subject)?;
-    }
-    if let Some(version) = &parsed.version {
-        validate_registry_version(version)?;
-    }
-    Ok(RegistryPlan {
-        action: RegistryAction::Install,
-        subject: parsed.subject.unwrap_or_default(),
-        registry: parsed.registry,
-        registry_dir: None,
-        version: parsed.version,
-        expected_digest: parsed.expected_digest,
-        destination: parsed.destination,
-        publisher: None,
-        profile: None,
-        trust_tier: None,
-        limit: None,
-        upsert: false,
-        json: parsed.json,
-    })
-}
-
-fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
-    let mut json = false;
-    let mut index = 1;
-
-    while index < args.len() {
-        let token = os_arg(args, index, "init")?;
-        if !crate::cli_args::is_flag(token) {
-            return Err(format!("unexpected init argument {token}"));
-        }
-
-        let (flag, inline_value) = split_flag(token);
-        match flag {
-            "--json" | "-j" => {
-                if inline_value.is_some() {
-                    return Err("--json does not take a value".to_owned());
-                }
-                json = true;
-                index += 1;
-            }
-            _ => return Err(format!("unknown init flag {flag}")),
-        }
-    }
-
-    Ok(InitPlan { json })
-}
-
-fn parse_dev_plan(args: &[OsString]) -> Result<DevPlan, String> {
-    let mut root = None;
-    let mut lane = None;
-    let mut json = false;
-    let mut index = 1;
-
-    while index < args.len() {
-        let Some(token) = args[index].to_str() else {
-            if root.is_some() {
-                return Err("runx dev accepts at most one root path".to_owned());
-            }
-            root = Some(PathBuf::from(args[index].clone()));
-            index += 1;
-            continue;
-        };
-        if !crate::cli_args::is_flag(token) {
-            if root.is_some() {
-                return Err("runx dev accepts at most one root path".to_owned());
-            }
-            root = Some(PathBuf::from(token));
-            index += 1;
-            continue;
-        }
-
-        let (flag, inline_value) = split_flag(token);
-        match flag {
-            "--json" | "-j" => {
-                if inline_value.is_some() {
-                    return Err("--json does not take a value".to_owned());
-                }
-                json = true;
-                index += 1;
-            }
-            "--lane" => {
-                let (value, next_index) = flag_value(args, index, flag, inline_value, "dev")?;
-                if value.is_empty() {
-                    return Err("--lane must not be empty".to_owned());
-                }
-                lane = Some(value);
-                index = next_index;
-            }
-            _ => return Err(format!("unknown dev flag {flag}")),
-        }
-    }
-
-    Ok(DevPlan { root, lane, json })
 }
 
 // Function rationale: doctor parsing keeps mode selection and native path handling in one fail-closed pass.
@@ -1130,20 +901,11 @@ fn utf8_tool_positionals(positionals: Vec<OsString>) -> Result<Vec<String>, Stri
 
 fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     let subcommand = os_arg(args, 1, "registry")?;
-    let (action, subcommand, first_argument) = if subcommand == "connector" {
-        let connector = os_arg(args, 2, "registry connector")?;
-        (
-            RegistryAction::Connector(ConnectorAction::parse(connector)?),
-            format!("connector {connector}"),
-            3,
-        )
-    } else {
-        (parse_registry_action(subcommand)?, subcommand.to_owned(), 2)
-    };
+    let action = parse_registry_action(subcommand)?;
     let mut state = RegistryParseState::default();
-    parse_registry_args(args, first_argument, &mut state)?;
-    validate_registry_action_flags(&action, &subcommand, &state)?;
-    let subject = registry_subject(&action, &subcommand, &mut state.positionals)?;
+    parse_registry_args(args, 2, &mut state)?;
+    validate_registry_action_flags(action, subcommand, &state)?;
+    let subject = registry_subject(action, subcommand, &mut state.positionals)?;
 
     Ok(RegistryPlan {
         action,
@@ -1152,7 +914,6 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
         registry_dir: state.registry_dir,
         version: state.version,
         expected_digest: state.expected_digest,
-        destination: state.destination,
         publisher: state.publisher,
         profile: state.profile,
         trust_tier: state.trust_tier,
@@ -1162,43 +923,43 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     })
 }
 
+/// The flags each registry command takes; any other is refused.
 fn validate_registry_action_flags(
-    action: &RegistryAction,
+    action: RegistryAction,
     subcommand: &str,
     state: &RegistryParseState,
 ) -> Result<(), String> {
-    if let RegistryAction::Connector(connector) = action {
-        // Connectors have no local registry, owner override, profile or trust flag.
-        let (accepted, allowed) = match connector {
-            ConnectorAction::Package => ("--json", !registry_target_flags(state)),
-            ConnectorAction::Publish | ConnectorAction::Read => (
-                "--registry, --version and --json",
-                state.expected_digest.is_none(),
-            ),
-            ConnectorAction::Install => ("--registry, --version, --digest and --json", true),
-        };
-        let shared = state.profile.is_none()
-            && state.registry_dir.is_none()
-            && state.destination.is_none()
-            && state.publisher.is_none()
-            && state.trust_tier.is_none()
-            && state.limit.is_none()
-            && !state.upsert;
-        return if allowed && shared {
-            Ok(())
-        } else {
-            Err(format!(
-                "runx registry {subcommand} accepts only {accepted}"
-            ))
-        };
+    let (accepted, allowed) = match action {
+        RegistryAction::Search => (
+            "--registry, --registry-dir, --limit and --json",
+            state.version.is_none()
+                && state.expected_digest.is_none()
+                && state.publisher.is_none()
+                && state.profile.is_none()
+                && state.trust_tier.is_none()
+                && !state.upsert,
+        ),
+        RegistryAction::Install => (
+            "--registry, --registry-dir, --version, --digest and --json",
+            state.publisher.is_none()
+                && state.profile.is_none()
+                && state.trust_tier.is_none()
+                && state.limit.is_none()
+                && !state.upsert,
+        ),
+        RegistryAction::Package => ("--profile and --json", !registry_target_flags(state)),
+        RegistryAction::Publish => (
+            "--registry, --registry-dir, --publisher, --version, --profile, --trust-tier, --upsert and --json",
+            state.expected_digest.is_none() && state.limit.is_none(),
+        ),
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(format!(
+            "runx registry {subcommand} accepts only {accepted}"
+        ))
     }
-    if *action != RegistryAction::Package {
-        return Ok(());
-    }
-    if registry_target_flags(state) {
-        return Err("runx registry package accepts only --profile and --json".to_owned());
-    }
-    Ok(())
 }
 
 /// A flag naming a registry, a version or an install, which packaging never takes.
@@ -1207,7 +968,6 @@ fn registry_target_flags(state: &RegistryParseState) -> bool {
         || state.registry_dir.is_some()
         || state.version.is_some()
         || state.expected_digest.is_some()
-        || state.destination.is_some()
         || state.publisher.is_some()
         || state.trust_tier.is_some()
         || state.limit.is_some()
@@ -1222,7 +982,6 @@ struct RegistryParseState {
     registry_dir: Option<PathBuf>,
     version: Option<String>,
     expected_digest: Option<String>,
-    destination: Option<PathBuf>,
     publisher: Option<String>,
     profile: Option<PathBuf>,
     trust_tier: Option<runx_runtime::registry::TrustTier>,
@@ -1233,8 +992,7 @@ struct RegistryParseState {
 fn parse_registry_action(subcommand: &str) -> Result<RegistryAction, String> {
     match subcommand {
         "search" => Ok(RegistryAction::Search),
-        "read" => Ok(RegistryAction::Read),
-        "resolve" => Ok(RegistryAction::Resolve),
+        "install" => Ok(RegistryAction::Install),
         "package" => Ok(RegistryAction::Package),
         "publish" => Ok(RegistryAction::Publish),
         _ => Err(format!("unknown registry subcommand {subcommand}")),
@@ -1281,7 +1039,6 @@ fn parse_registry_flag(
         "--digest" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.expected_digest)
         }
-        "--to" => set_registry_path_flag(args, index, flag, inline_value, &mut state.destination),
         "--publisher" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.publisher)
         }
@@ -1387,7 +1144,7 @@ fn set_registry_version_flag(
 }
 
 fn registry_subject(
-    action: &RegistryAction,
+    action: RegistryAction,
     subcommand: &str,
     positionals: &mut Vec<String>,
 ) -> Result<String, String> {
@@ -1396,16 +1153,14 @@ fn registry_subject(
             if positionals.is_empty() {
                 return Err("runx registry search requires a query".to_owned());
             }
-            let subject = positionals.join(" ");
-            validate_registry_ref_version(&subject)?;
-            Ok(subject)
+            Ok(positionals.join(" "))
         }
-        RegistryAction::Read | RegistryAction::Resolve | RegistryAction::Install => {
-            // `runx add` installs; `registry` names no install subcommand.
+        RegistryAction::Install => {
             if positionals.len() != 1 {
-                return Err(format!(
-                    "runx registry {subcommand} requires exactly one ref"
-                ));
+                return Err(
+                    "runx registry install requires exactly one <publisher>/<name>[@version]"
+                        .to_owned(),
+                );
             }
             let subject = positionals.remove(0);
             validate_registry_ref_version(&subject)?;
@@ -1414,28 +1169,10 @@ fn registry_subject(
         RegistryAction::Package | RegistryAction::Publish => {
             if positionals.len() != 1 {
                 return Err(format!(
-                    "runx registry {subcommand} requires exactly one skill markdown path"
+                    "runx registry {subcommand} requires exactly one package: a skill (SKILL.md or its directory) or a connector (connector.yaml or its directory)"
                 ));
             }
             Ok(positionals.remove(0))
-        }
-        RegistryAction::Connector(ConnectorAction::Package | ConnectorAction::Publish) => {
-            if positionals.len() != 1 {
-                return Err(format!(
-                    "runx registry {subcommand} requires exactly one connector directory"
-                ));
-            }
-            Ok(positionals.remove(0))
-        }
-        RegistryAction::Connector(ConnectorAction::Read | ConnectorAction::Install) => {
-            if positionals.len() != 1 {
-                return Err(format!(
-                    "runx registry {subcommand} requires exactly one <publisher>/<id>[@version]"
-                ));
-            }
-            let subject = positionals.remove(0);
-            parse_connector_subject(&subject)?;
-            Ok(subject)
         }
     }
 }

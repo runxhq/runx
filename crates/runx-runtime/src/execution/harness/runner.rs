@@ -424,8 +424,8 @@ fn seed_harness_sessions(
     Ok(())
 }
 
-/// Store and select the credentials the case runs under, as `runx
-/// credential set` would, in the case's own home.
+/// Store and select the credentials the case runs under, as
+/// `runx connector use --credential` would, in the case's own home.
 fn seed_harness_credentials(
     fixture: &mut HarnessFixture,
     target_path: &Path,

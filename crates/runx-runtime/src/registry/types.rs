@@ -385,6 +385,18 @@ pub struct RegistryConnectorDetail {
     pub install_command: CopyableCommand,
 }
 
+/// One published connector a registry search found: its current version.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RegistryConnectorSearchResult {
+    #[serde(rename = "ref")]
+    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub version: String,
+    pub name: String,
+    pub description: String,
+    pub runtime_capability: bool,
+    pub trust_tier: TrustTier,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorOperation {
     pub name: runx_contracts::connector::OperationName,

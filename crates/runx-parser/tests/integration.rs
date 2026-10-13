@@ -7,7 +7,6 @@
 
 mod parser_catalog;
 mod parser_connectors;
-mod parser_dev_fixture;
 mod parser_fixtures;
 mod parser_graph_context_edges;
 mod parser_marketplace;

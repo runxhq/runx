@@ -205,7 +205,6 @@ fn resolve_registry_skill(
         registry_dir: None,
         version: version.map(ToOwned::to_owned),
         expected_digest: options.expected_digest.map(ToOwned::to_owned),
-        destination: None,
         publisher: None,
         profile: None,
         trust_tier: None,

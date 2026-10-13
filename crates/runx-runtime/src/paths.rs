@@ -3,9 +3,9 @@
 //! Three roots:
 //! - the home (`RUNX_HOME`, else `~/.runx`) holds the operator's config,
 //!   keys, install state and registry caches;
-//! - the workspace (`RUNX_CWD`, else the nearest directory holding
-//!   `pnpm-workspace.yaml` or `.runx/project.json`, else the working
-//!   directory) holds the project's files;
+//! - the workspace (`RUNX_CWD`, else the nearest directory holding `.git`,
+//!   `skills/` or `pnpm-workspace.yaml`, else the working directory) holds
+//!   the project's files;
 //! - the project directory (`RUNX_PROJECT_DIR`, else `<workspace>/.runx`)
 //!   holds the project's runx state: the kernel store, receipts, authoring
 //!   records, harness runs and scratch.
@@ -26,7 +26,6 @@ pub const RUNX_RECEIPT_DIR_ENV: &str = "RUNX_RECEIPT_DIR";
 pub const RUNX_REGISTRY_DIR_ENV: &str = "RUNX_REGISTRY_DIR";
 
 const RUNX_DIR: &str = ".runx";
-const PROJECT_STATE: &str = "project.json";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunxPaths {
@@ -153,18 +152,6 @@ impl RunxPaths {
         self.home.join("install.json")
     }
 
-    /// The project's identity, written by `runx init`; its presence in a
-    /// workspace's `.runx` marks the workspace.
-    #[must_use]
-    pub fn project_state(&self) -> PathBuf {
-        self.project.join(PROJECT_STATE)
-    }
-
-    #[must_use]
-    pub fn project_tools(&self) -> PathBuf {
-        self.project.join("tools")
-    }
-
     #[must_use]
     pub fn registry_cache(&self) -> PathBuf {
         self.home.join("registry")
@@ -280,15 +267,17 @@ fn env_path<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a Path
         .map(Path::new)
 }
 
-/// The project `start` lies in: the nearest ancestor that is a runx project,
+/// The project `start` lies in: the nearest ancestor that is a repository,
 /// a workspace, or holds the project's `skills/` directory, so a skill's
-/// packages land beside the skills, never inside one.
+/// packages land beside the skills, never inside one. Nothing marks a
+/// project but what is already there: the first skill written into
+/// `skills/` makes one.
 fn find_workspace(start: &Path) -> Option<PathBuf> {
     start
         .ancestors()
         .find(|dir| {
-            dir.join("pnpm-workspace.yaml").exists()
-                || dir.join(RUNX_DIR).join(PROJECT_STATE).exists()
+            dir.join(".git").exists()
+                || dir.join("pnpm-workspace.yaml").exists()
                 || dir.join("skills").is_dir()
         })
         .map(Path::to_path_buf)

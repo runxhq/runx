@@ -5,9 +5,8 @@ use std::path::Path;
 use runx_runtime::{
     ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect,
     RunxAgentConfig, RunxConfigFile, RunxPaths, SecretString, load_local_agent_api_key,
-    load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
-    lookup_runx_config_value, mask_runx_config_file, update_runx_config_value,
-    write_runx_config_file,
+    load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
+    mask_runx_config_file, update_runx_config_value, write_runx_config_file,
 };
 use tempfile::tempdir;
 
@@ -47,61 +46,42 @@ fn config_home_path_uses_the_admitted_environment_snapshot()
 }
 
 #[test]
-fn config_round_trips_encrypted_secrets() -> Result<(), Box<dyn std::error::Error>> {
-    type SecretRef = fn(&RunxConfigFile) -> Option<String>;
-    type LoadSecret = fn(&RunxPaths, &str) -> Result<String, ConfigError>;
-    let cases: [(ConfigKey, &str, &str, SecretRef, LoadSecret); 2] = [
-        (
-            ConfigKey::AgentApiKey,
-            "sk-test-secret",
-            "local_agent_key_",
-            |config| {
-                config
-                    .agent
-                    .as_ref()
-                    .and_then(|agent| agent.api_key_ref.clone())
-            },
-            load_local_agent_api_key,
-        ),
-        (
-            ConfigKey::PublicApiToken,
-            "rxk_test_secret",
-            "local_public_api_token_",
-            |config| {
-                config
-                    .public
-                    .as_ref()
-                    .and_then(|public| public.api_token_ref.clone())
-            },
-            load_local_public_api_token,
-        ),
-    ];
+fn config_round_trips_an_encrypted_agent_key() -> Result<(), Box<dyn std::error::Error>> {
+    let secret = "sk-test-secret";
+    let api_key_ref = |config: &RunxConfigFile| {
+        config
+            .agent
+            .as_ref()
+            .and_then(|agent| agent.api_key_ref.clone())
+    };
+    let temp = tempdir()?;
+    let config_dir = temp.path();
+    let paths = home_at(config_dir);
+    let config = update_runx_config_value(
+        RunxConfigFile::default(),
+        ConfigKey::AgentApiKey,
+        secret,
+        &paths,
+    )?;
+    let stored_ref = api_key_ref(&config).ok_or("missing secret ref")?;
 
-    for (key, secret, ref_prefix, secret_ref, load_secret) in cases {
-        let temp = tempdir()?;
-        let config_dir = temp.path();
-        let paths = home_at(config_dir);
-        let config = update_runx_config_value(RunxConfigFile::default(), key, secret, &paths)?;
-        let stored_ref = secret_ref(&config).ok_or("missing secret ref")?;
-
-        assert!(stored_ref.starts_with(ref_prefix));
-        assert_eq!(load_secret(&paths, &stored_ref)?, secret);
-        assert_eq!(
-            lookup_runx_config_value(&config, key),
-            Some("[encrypted]".to_owned())
-        );
-        assert_eq!(
-            secret_ref(&mask_runx_config_file(&config)),
-            Some("[encrypted]".to_owned())
-        );
-        let config_json = serde_json::to_string(&config)?;
-        assert!(!config_json.contains(secret));
-        let key_file = config_dir.join("keys").join(format!("{stored_ref}.json"));
-        assert!(config_dir.join("keys/local-config-secret").exists());
-        assert!(key_file.exists());
-        assert_private_file(&config_dir.join("keys/local-config-secret"))?;
-        assert_private_file(&key_file)?;
-    }
+    assert!(stored_ref.starts_with("local_agent_key_"));
+    assert_eq!(load_local_agent_api_key(&paths, &stored_ref)?, secret);
+    assert_eq!(
+        lookup_runx_config_value(&config, ConfigKey::AgentApiKey),
+        Some("[encrypted]".to_owned())
+    );
+    assert_eq!(
+        api_key_ref(&mask_runx_config_file(&config)),
+        Some("[encrypted]".to_owned())
+    );
+    let config_json = serde_json::to_string(&config)?;
+    assert!(!config_json.contains(secret));
+    let key_file = config_dir.join("keys").join(format!("{stored_ref}.json"));
+    assert!(config_dir.join("keys/local-config-secret").exists());
+    assert!(key_file.exists());
+    assert_private_file(&config_dir.join("keys/local-config-secret"))?;
+    assert_private_file(&key_file)?;
     Ok(())
 }
 
@@ -129,6 +109,12 @@ fn config_loads_and_writes_supported_keys_only() -> Result<(), Box<dyn std::erro
     );
     assert!(matches!(
         runx_runtime::parse_config_key("agent.unknown"),
+        Err(ConfigError::UnsupportedKey { .. })
+    ));
+    // A runx account credential is stored by login, bound to its principal,
+    // never set as config.
+    assert!(matches!(
+        runx_runtime::parse_config_key("public.api_token"),
         Err(ConfigError::UnsupportedKey { .. })
     ));
     Ok(())

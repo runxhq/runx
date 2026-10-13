@@ -145,7 +145,7 @@ pub fn run_export_command(
         &skills,
         &skill_dir,
         &runx_bin,
-    );
+    )?;
     managed::validate_write_targets(plan.target, &files, &root, plan.refs.is_empty())?;
     let warnings = managed::managed_drift_warnings(plan.target, &files)?;
     managed::write_files(&files)?;

@@ -386,7 +386,7 @@ impl Fixture {
     }
 
     /// List a grant of `scopes` for `connector` and confirm it as the
-    /// connector's instance, as `runx connector use --grant` would.
+    /// connector's instance, as `runx connector use <connector> <grant>` would.
     fn confirm_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
         self.list_grant(grant_id, connector, scopes);
         self.select_grant(grant_id, connector);
@@ -428,7 +428,7 @@ impl Fixture {
     }
 
     /// Store `value` as `connector`'s `credential` and select it, as
-    /// `runx credential set` would.
+    /// `runx connector use --credential` would.
     fn set_credential(&self, connector: &str, credential: &str, value: &str) {
         let connector = crate::kernel::connectors::source_scope()
             .connector(connector)

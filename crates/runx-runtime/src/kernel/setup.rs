@@ -386,7 +386,9 @@ pub fn confirm_grant_over(
     )
 }
 
-fn confirm_grant_from(
+/// [`confirm_grant`], reading the grant through `hosted`: a setup's own
+/// client, so a grant it just opened is read over the same wire.
+pub(crate) fn confirm_grant_from(
     instances: &Instances,
     connector: &LoadedConnector,
     hosted: &HostedClient,

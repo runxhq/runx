@@ -229,7 +229,7 @@ pub struct HarnessSetup {
     #[serde(default)]
     pub sessions: Vec<runx_contracts::connector::ConnectorId>,
     /// Connectors whose credential the case stores from its environment and
-    /// selects, the way `runx credential set` would: the one declared
+    /// selects, the way `runx connector use --credential` would: the one declared
     /// credential whose variable the case sets.
     #[serde(default)]
     pub credentials: Vec<runx_contracts::connector::ConnectorId>,

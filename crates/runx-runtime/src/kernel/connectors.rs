@@ -91,18 +91,18 @@ pub enum ConnectorRegistryError {
     #[error("connector {id} is not available in this scope")]
     Unavailable { id: String },
     #[error(
-        "connector {connector} is not installed; install it with `runx registry connector install {connector}`"
+        "connector {connector} is not installed; install it with `runx registry install {connector}`"
     )]
     NotInstalledConnector { connector: ConnectorRef },
     #[error("connector {id} names more than one publisher; use its qualified reference")]
     Ambiguous { id: String },
     #[error(
-        "connector {id} is neither a runtime capability nor one of the plugin at {}; a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry connector install`",
+        "connector {id} is neither a runtime capability nor one of the plugin at {}; a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry install`",
         root.display()
     )]
     NotInPlugin { id: String, root: PathBuf },
     #[error(
-        "connector {id} is not a runtime capability, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/, and a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry connector install`",
+        "connector {id} is not a runtime capability, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/, and a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry install`",
         dir.display()
     )]
     NoPlugin { id: String, dir: PathBuf },
@@ -111,7 +111,7 @@ pub enum ConnectorRegistryError {
     #[error("connector {connector} does not match the required manifest digest")]
     RequiredManifest { connector: ConnectorRef },
     #[error(
-        "connector {connector} at manifest {manifest_digest} is not installed; install the version that publishes it with `runx registry connector install {connector}@<version>`"
+        "connector {connector} at manifest {manifest_digest} is not installed; install the version that publishes it with `runx registry install {connector}@<version>`"
     )]
     NotInstalled {
         connector: ConnectorRef,

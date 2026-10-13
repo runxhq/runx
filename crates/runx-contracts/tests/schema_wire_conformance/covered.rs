@@ -5,7 +5,6 @@ use runx_contracts::artifact::Artifact;
 use runx_contracts::authority::{AuthoritySubsetProof, AuthorityTerm};
 use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
-use runx_contracts::dev::DevReport;
 use runx_contracts::doctor::DoctorReport;
 use runx_contracts::fixture::Fixture;
 use runx_contracts::handoff::{HandoffSignal, HandoffState};
@@ -27,7 +26,6 @@ use runx_contracts::redaction::Redaction;
 use runx_contracts::reference::{Reference, ReferenceLink};
 use runx_contracts::registry_binding::RegistryBinding;
 use runx_contracts::review::ReviewReceiptOutput;
-use runx_contracts::run_summary::RunSummary;
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
@@ -207,11 +205,6 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: act_result_corpus(),
         },
         Covered {
-            file_name: "dev.schema.json",
-            emitted: DevReport::json_schema(),
-            corpus: dev_report_corpus(),
-        },
-        Covered {
             file_name: "fixture.schema.json",
             emitted: Fixture::json_schema(),
             corpus: fixture_corpus(),
@@ -225,11 +218,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "list.schema.json",
             emitted: RunxListReport::json_schema(),
             corpus: list_corpus(),
-        },
-        Covered {
-            file_name: "run-summary.schema.json",
-            emitted: RunSummary::json_schema(),
-            corpus: run_summary_corpus(),
         },
         Covered {
             file_name: "ledger-entry.schema.json",

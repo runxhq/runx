@@ -5,6 +5,7 @@
 
 mod canonical;
 mod identity;
+mod notary;
 mod tree;
 mod verify;
 mod wire;
@@ -14,17 +15,21 @@ pub use canonical::{
     canonical_receipt_identity_json, canonical_receipt_json, content_addressed_receipt_id,
 };
 pub use identity::{SignedDisplayIdentity, signed_display_identity};
+pub use notary::{
+    CounterSealVerifier, NOTARY_VERIFY_VERDICT_SCHEMA, NotaryCounterSealReport, NotaryFinding,
+    NotaryVerifyVerdict, ed25519_public_key_from_spki_pem, verify_notary_document,
+};
 pub use runx_contracts::{
     RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptIssuer, ReceiptIssuerType,
     ReceiptSchema, ReceiptSignature, Seal, SignatureAlgorithm,
 };
 pub use tree::{
     MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, ReceiptProofContextProvider,
-    ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig, ResolvedReceipt,
-    receipt_edge_references, validate_receipt_tree, validate_receipt_tree_proof,
-    validate_receipt_tree_proof_with_resolver, validate_receipt_tree_with_resolver,
-    verify_receipt_tree, verify_receipt_tree_proof, verify_receipt_tree_proof_with_resolver,
-    verify_receipt_tree_with_resolver,
+    ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig, ReceiptTreeGroup, ResolvedReceipt,
+    group_receipt_trees, receipt_edge_references, validate_receipt_tree,
+    validate_receipt_tree_proof, validate_receipt_tree_proof_with_resolver,
+    validate_receipt_tree_with_resolver, verify_receipt_tree, verify_receipt_tree_proof,
+    verify_receipt_tree_proof_with_resolver, verify_receipt_tree_with_resolver,
 };
 pub use verify::{
     ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext,

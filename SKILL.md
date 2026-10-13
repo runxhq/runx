@@ -82,7 +82,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
 
 3. **Install or reference the skill**
    - The Runx foundation ships with the runtime. Run it directly, for example `runx skill runx/receipt-query`; it needs no download.
-   - Install catalog skills with `runx add <publisher>/<skill>@<version>` or run an exact registry ref with `runx skill <publisher>/<skill>@<version>`.
+   - Run an exact registry ref with `runx skill <publisher>/<skill>@<version>`; it fetches the skill into the project. `runx registry install <publisher>/<skill>@<version>` adds it without running it.
    - Run local skills from the checked-out package path when developing.
    - Treat local files as the user's workspace context, but do not publish or
      execute unrelated workspace junk as part of the skill package.
@@ -99,7 +99,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
    - Provide structured inputs when possible. Do not bury critical values only
      in prose.
    - If inspection reports a missing declared credential, configure it once with
-     `runx credential set <connector> --credential <name> --from-stdin`; do not invent wrapper scripts
+     `runx connector use <connector> --credential <name>`, the secret piped on stdin; do not invent wrapper scripts
      or place secret values on argv.
    - Keep secrets in the runtime's approved secret path, not in `SKILL.md`, chat,
      receipts, or committed fixtures. A project `.env` is a local fallback; stored
@@ -135,7 +135,7 @@ runx registry search send --json
 Install a catalog skill:
 
 ```bash
-runx add <publisher>/<skill>@<version> --to ./skills --json
+runx registry install <publisher>/<skill>@<version> --json
 ```
 
 Run a skill:

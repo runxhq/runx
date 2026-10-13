@@ -65,7 +65,7 @@ fn exports_claude_project_scope_with_project_relative_skill_ref()
 
     let shim = fixture.read_project_file(".claude/skills/visible/SKILL.md")?;
     assert!(shim.contains("/opt/runx/bin/runx skill skills/visible"));
-    assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
+    assert!(shim.contains("-i 'objective=fixture'"));
     assert!(!shim.contains(&format!(
         "runx skill {}",
         fixture.project.to_str().unwrap_or_default()
@@ -136,7 +136,7 @@ fn codex_global_writes_shim_and_idempotent_permission_block()
     let shim = fixture.read_home_file(".codex/skills/visible/SKILL.md")?;
     assert!(shim.contains("name: visible"));
     assert!(!shim.contains("allowed-tools"));
-    assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
+    assert!(shim.contains("-i 'objective=fixture'"));
     assert!(shim.contains("this home's own local key"));
     assert!(shim.contains("complete signer tuple"));
     assert!(shim.contains("If runx returns `needs_agent` or `needs_approval`"));
@@ -258,8 +258,8 @@ fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
     )?;
 
     let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
-    assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
-    assert!(shim.contains(r#"--input-json principal '"fixture"'"#));
+    assert!(shim.contains("-i 'objective=fixture'"));
+    assert!(shim.contains("-i 'principal=fixture'"));
     assert!(!shim.contains("\"input_schema\""));
     assert!(!shim.contains("\"required\": ["));
     assert!(shim.contains("skill inspect"));
@@ -347,8 +347,8 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
                 .to_str()
                 .ok_or("skill path")?,
             "default",
-            "--objective",
-            "prove stale export refusal",
+            "-i",
+            "objective=prove stale export refusal",
             "--package-digest",
             package_digest,
             "--execution-closure-digest",
@@ -413,7 +413,7 @@ fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std
     let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
     assert!(shim.contains("skill "));
     assert!(shim.contains("/skills/work-plan"));
-    assert!(shim.contains(r#"--input-json objective '"fixture"'"#));
+    assert!(shim.contains("-i 'objective=fixture'"));
     Ok(())
 }
 

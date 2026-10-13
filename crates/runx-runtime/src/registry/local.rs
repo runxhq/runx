@@ -461,8 +461,12 @@ pub fn runx_link_for_version(
     registry_url: Option<&str>,
 ) -> Result<RegistryLinkResolution, LocalRegistryError> {
     let registry_ref = format!("{}@{}", record.skill_id, record.version);
-    let command = |verb: &str| {
-        let mut argv = vec!["runx".to_owned(), verb.to_owned(), registry_ref.clone()];
+    let command = |verb: &[&str]| {
+        let mut argv = std::iter::once("runx")
+            .chain(verb.iter().copied())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        argv.push(registry_ref.clone());
         if let Some(url) = registry_url {
             argv.extend(["--registry".to_owned(), url.to_owned()]);
         }
@@ -482,8 +486,8 @@ pub fn runx_link_for_version(
         version: record.version.clone(),
         digest: record.digest.clone(),
         registry_url: registry_url.map(ToOwned::to_owned),
-        install_command: command("add")?,
-        run_command: command("skill")?,
+        install_command: command(&["registry", "install"])?,
+        run_command: command(&["skill"])?,
     })
 }
 

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use runx_runtime::export::{RunxExportMode, RunxExportRunner, RunxExportSkill};
 
-use super::{GeneratedFile, Target, display_path};
+use super::{ExportError, GeneratedFile, Target, display_path};
 
 pub(super) fn plan_files(
     target: Target,
@@ -11,7 +11,7 @@ pub(super) fn plan_files(
     skills: &[RunxExportSkill],
     skill_dir: &Path,
     runx_bin: &Path,
-) -> Vec<GeneratedFile> {
+) -> Result<Vec<GeneratedFile>, ExportError> {
     skills
         .iter()
         .map(|skill| {
@@ -24,11 +24,11 @@ pub(super) fn plan_files(
             } else {
                 display_path(&skill.abs_dir)
             };
-            let contents = render_shim(target, skill, &command_target, runx_bin);
-            GeneratedFile {
+            let contents = render_shim(target, skill, &command_target, runx_bin)?;
+            Ok(GeneratedFile {
                 path: skill_dir.join(&skill.name).join("SKILL.md"),
                 contents,
-            }
+            })
         })
         .collect()
 }
@@ -38,9 +38,9 @@ fn render_shim(
     skill: &RunxExportSkill,
     command_target: &str,
     runx_bin: &Path,
-) -> String {
+) -> Result<String, ExportError> {
     if skill.mode == RunxExportMode::NativeInstructions {
-        return render_native_instructions(target, skill, runx_bin);
+        return Ok(render_native_instructions(target, skill, runx_bin));
     }
     let runx_bin = display_path(runx_bin);
     let mut output = String::new();
@@ -71,7 +71,7 @@ fn render_shim(
             default,
             &skill.package_digest,
             &runx_bin,
-        ));
+        )?);
     }
     let alternate_runners = skill
         .runners
@@ -91,7 +91,7 @@ fn render_shim(
         display_path(&skill.abs_dir),
         skill.package_digest,
     ));
-    output
+    Ok(output)
 }
 
 fn render_native_instructions(target: Target, skill: &RunxExportSkill, runx_bin: &Path) -> String {
@@ -132,7 +132,7 @@ fn render_default_runner(
     runner: &RunxExportRunner,
     package_digest: &str,
     runx_bin: &str,
-) -> String {
+) -> Result<String, ExportError> {
     let mut output = String::new();
     let title = runner.name.as_deref().unwrap_or("default");
     output.push_str(&format!("## Default runner: `{title}`\n\n"));
@@ -150,14 +150,14 @@ fn render_default_runner(
         runner,
         package_digest,
         runx_bin,
-    ));
+    )?);
     output.push_str("\n```\n\n");
     output.push_str(&render_continuation(
         package_digest,
         runner.execution_closure_digest.as_deref(),
         runx_bin,
     ));
-    output
+    Ok(output)
 }
 
 fn render_runner_index(
@@ -202,7 +202,7 @@ fn render_command(
     runner: &RunxExportRunner,
     package_digest: &str,
     runx_bin: &str,
-) -> String {
+) -> Result<String, ExportError> {
     let mut command = format!(
         "{} skill {}",
         shell_quote(runx_bin),
@@ -215,17 +215,20 @@ fn render_command(
     let mut lines = vec![command];
     if let Some(example) = runner.examples.first() {
         for (name, value) in example {
-            let encoded = serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned());
-            lines.push(format!(
-                "  --input-json {} {}",
-                shell_quote(name),
-                shell_quote(&encoded)
-            ));
+            let declared = runner.inputs.get(name).ok_or_else(|| {
+                ExportError::Parse(format!(
+                    "example input {name} is not one the runner declares"
+                ))
+            })?;
+            let text = declared
+                .text_for_value(value)
+                .map_err(|error| ExportError::Parse(format!("example input {name}: {error}")))?;
+            lines.push(format!("  -i {}", shell_quote(&format!("{name}={text}"))));
         }
     } else {
         for (name, input) in &runner.inputs {
             if input.required && input.default.is_none() {
-                lines.push(format!("  --{name} \"<{name}>\""));
+                lines.push(format!("  -i {name}=\"<{name}>\""));
             }
         }
     }
@@ -240,7 +243,7 @@ fn render_command(
         ));
     }
     lines.push("  --json".to_owned());
-    lines.join(" \\\n")
+    Ok(lines.join(" \\\n"))
 }
 
 fn render_continuation(

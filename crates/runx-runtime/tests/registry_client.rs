@@ -531,7 +531,7 @@ fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn st
             "runtime_capability": false,
             "trust_tier": "community",
             "operations": [{ "name": "item.read", "description": "Read an item." }],
-            "install_command": command(&["runx", "registry", "connector", "install", "acme/ops-api@1.0.0"]),
+            "install_command": command(&["runx", "registry", "install", "acme/ops-api@1.0.0"]),
             "placements": []
         }
     });

@@ -17,7 +17,6 @@ pub mod copyable_command;
 pub mod credential_delivery;
 pub mod decision;
 pub mod decision_adapter;
-pub mod dev;
 pub mod doctor;
 pub mod execution;
 pub mod execution_boundary;
@@ -51,7 +50,6 @@ pub mod registry_signed_manifest;
 pub mod registry_taxonomy;
 pub mod registry_version;
 pub mod review;
-pub mod run_summary;
 pub mod schema;
 pub mod schema_artifacts;
 mod schema_reconcile;
@@ -107,10 +105,6 @@ pub use credential_delivery::{
 };
 pub use decision::{ClosureDisposition, Decision, DecisionChoice};
 pub use decision_adapter::{DecisionObservation, DecisionOrigin};
-pub use dev::{
-    DevFixtureAssertion, DevFixtureAssertionKind, DevFixtureResult, DevFixtureStatus, DevReport,
-    DevReportSchema, DevReportStatus,
-};
 pub use doctor::{
     DoctorDiagnostic, DoctorDiagnosticSeverity, DoctorLocation, DoctorRepair,
     DoctorRepairConfidence, DoctorRepairKind, DoctorRepairRisk, DoctorReport, DoctorReportSchema,
@@ -261,7 +255,6 @@ pub use registry_version::{
     validate_registry_version,
 };
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
-pub use run_summary::{RunSummary, RunSummarySchema, RunSummaryStatus};
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,
 };

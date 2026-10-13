@@ -69,88 +69,6 @@ pub(super) fn act_result_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn dev_report_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.dev.v1",
-        "status": "success",
-        "doctor": doctor_valid_report(),
-        "fixtures": [],
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["fixtures"] = json!([{
-                "name": "fixture-1",
-                "lane": "deterministic",
-                "target": { "kind": "tool" },
-                "status": "success",
-                "duration_ms": 12,
-                "assertions": [{
-                    "path": "$.status",
-                    "expected": "sealed",
-                    "actual": "sealed",
-                    "kind": "exact_mismatch",
-                    "message": "checked",
-                }],
-                "skip_reason": "none",
-                "output": { "ok": true },
-                "replay_path": "fixtures/a.yaml",
-            }]);
-            v["receipt_id"] = json!("rcpt_1");
-            v
-        }),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong schema",
-            set_field(valid.clone(), "schema", json!("runx.old")),
-        ),
-        ("missing doctor", drop_field(valid.clone(), "doctor")),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("done")),
-        ),
-        (
-            "fixture unknown status",
-            set_field(
-                valid.clone(),
-                "fixtures",
-                json!([{
-                    "name": "fixture-1",
-                    "lane": "deterministic",
-                    "target": {},
-                    "status": "done",
-                    "duration_ms": 1,
-                    "assertions": [],
-                }]),
-            ),
-        ),
-        (
-            "fixture assertion unknown kind",
-            set_field(
-                valid.clone(),
-                "fixtures",
-                json!([{
-                    "name": "fixture-1",
-                    "lane": "deterministic",
-                    "target": {},
-                    "status": "success",
-                    "duration_ms": 1,
-                    "assertions": [{
-                        "path": "$",
-                        "kind": "surprise",
-                        "message": "bad",
-                    }],
-                }]),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn fixture_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "name": "fixture-1",
@@ -298,43 +216,6 @@ pub(super) fn list_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn run_summary_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.run-summary.v1",
-        "run_id": "rx_1",
-        "command": "runx harness",
-        "status": "success",
-        "started_at": "2026-01-01T00:00:00Z",
-        "root": "/tmp/runx",
-        "steps": [],
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["finished_at"] = json!("2026-01-01T00:00:01Z");
-            v["unit"] = json!({ "skill": "demo" });
-            v["steps"] = json!([{ "id": "step_1", "status": "success" }]);
-            v["receipt_ref"] = json!("runx:receipt:rcpt_1");
-            v
-        }),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "wrong schema",
-            set_field(valid.clone(), "schema", json!("runx.old")),
-        ),
-        ("missing run_id", drop_field(valid.clone(), "run_id")),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("done")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
 pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
     let hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     let valid = json!({
@@ -417,15 +298,6 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
             set_field(valid.clone(), "bogus", json!(true)),
         ),
     ]
-}
-
-fn doctor_valid_report() -> Value {
-    json!({
-        "schema": "runx.doctor.v1",
-        "status": "success",
-        "summary": { "errors": 0, "warnings": 0, "infos": 0 },
-        "diagnostics": [],
-    })
 }
 
 pub(super) fn output_corpus() -> Vec<(&'static str, Value)> {

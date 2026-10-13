@@ -19,7 +19,6 @@ mod capability;
 pub mod config;
 pub mod credential_profiles;
 pub mod credentials;
-pub mod dev;
 pub mod doctor;
 mod drivers;
 pub mod effects;
@@ -31,8 +30,8 @@ mod filesystem;
 pub mod host;
 mod hosted_api;
 mod http;
-mod init;
 mod input_contract;
+mod install;
 pub mod interrupt;
 pub mod kernel;
 mod lifecycle;
@@ -91,11 +90,6 @@ pub use credential_profiles::{
     remove_local_credential_profile, set_local_credential_profile,
 };
 pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
-pub use dev::{
-    DevFixtureLane, DevFixtureResult, DevFixtureStatus, DevLoopOptions, DevReport, DevReportStatus,
-    DevWatchOptions, DevWatchTrigger, PollingDevWatcher, discover_fixture_paths, render_dev_result,
-    run_dev_once, should_ignore_dev_watch_path,
-};
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
 pub use effects::{
     EffectAdmission, EffectOutputRequest, EffectPreparationOutcome, EffectReceiptRequest,
@@ -124,10 +118,7 @@ pub use http::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
-pub use init::{
-    InitError, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
-    RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
-};
+pub use install::{InstallStateError, installation_id};
 pub use kernel::authority::RunAuthority;
 pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector, OperationDigests,
@@ -158,13 +149,14 @@ pub use receipts::paths::{
 };
 pub use receipts::store::{
     LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, ReceiptStoreIndexEntry,
+    StoreTreeVerification, StoredReceiptTree, UnreadableReceiptFile,
 };
 pub use receipts::tree::{
     RuntimeReceiptResolver, validate_runtime_receipt_tree, verify_runtime_receipt_tree,
 };
 pub use receipts::{
-    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, LOCAL_RECEIPT_KEY_SCHEMA,
-    LocalReceiptKeyFault, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
+    Ed25519CounterSealVerifier, Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED,
+    LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
     RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustOrigin, ReceiptTrustSource,

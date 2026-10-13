@@ -99,16 +99,15 @@ The runner emits `runx.support.triage_reply.v1`:
 ## Worked example
 
 ```bash
-runx skill "$PWD" \
-  --runner triage \
-  --input-json support_request='{
+runx skill "$PWD" triage \
+  -i support_request='{
     "customer_name": "Mira",
     "customer_email": "mira@example.test",
     "subject": "How do I verify my sending domain?",
     "body": "I added the DNS records. What should I check next?",
     "source": "fixture:safe-how-to"
   }' \
-  --input-json policy='{
+  -i policy='{
     "product_name": "ExampleDesk",
     "support_signature": "ExampleDesk Support"
   }' \

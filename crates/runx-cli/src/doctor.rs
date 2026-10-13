@@ -317,13 +317,12 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
 
 fn registry_probe_plan() -> RegistryPlan {
     RegistryPlan {
-        action: RegistryAction::Resolve,
+        action: RegistryAction::Install,
         subject: "runx/registry-probe".to_owned(),
         registry: None,
         registry_dir: None,
         version: None,
         expected_digest: None,
-        destination: None,
         publisher: None,
         profile: None,
         trust_tier: None,
@@ -801,7 +800,7 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
             vec![manual_env_repair(
                 "runx.authority.provider_grant.configure",
                 &[HOSTED_API_TOKEN_ENV],
-                "Run `runx login` for runx Connect, then confirm a grant with `runx connector use <connector> --grant <grant-id>`.",
+                "Run `runx login` for runx Connect, then set the connector up with `runx connector use <connector> --hosted`.",
                 DoctorRepairRisk::Sensitive,
             )]
         },

@@ -13,11 +13,11 @@ const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
 const TEST_MANIFEST_SEED: [u8; 32] = [7; 32];
 
 #[test]
-fn registry_local_publish_search_resolve_install_json() -> Result<(), Box<dyn std::error::Error>> {
+fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-local");
     let skill_dir = root.join("skill");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("installed");
+    let install_dir = root.join("skills");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
@@ -62,34 +62,15 @@ fn registry_local_publish_search_resolve_install_json() -> Result<(), Box<dyn st
         &["\"action\": \"search\"", "\"skill_id\": \"acme/echo\""],
     )?;
 
-    let resolve = runx_command()?
-        .args([
-            "registry",
-            "resolve",
-            "registry:echo",
-            "--registry-dir",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--json",
-        ])
-        .output()?;
-    assert_success_contains(
-        &resolve,
-        &[
-            "\"action\": \"resolve\"",
-            "\"kind\": \"local\"",
-            "\"skill_id\": \"acme/echo\"",
-        ],
-    )?;
-
     mutate_registry_version(&registry_dir, insert_signed_manifest)?;
     let install = runx_command()?
+        .env("RUNX_CWD", &root)
         .args([
-            "add",
+            "registry",
+            "install",
             "acme/echo@1.0.0",
             "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--to",
-            install_dir.to_str().ok_or("non-utf8 install dir")?,
             "--json",
         ])
         .output()?;
@@ -122,7 +103,7 @@ fn registry_local_publish_install_executes_bundled_sibling()
     let sibling_dir = source.join("sibling");
     let leaf_dir = source.join("leaf");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("installed");
+    let install_dir = root.join("skills");
     fs::create_dir_all(skill_dir.join("packets"))?;
     fs::create_dir_all(&sibling_dir)?;
     fs::create_dir_all(&leaf_dir)?;
@@ -225,13 +206,13 @@ runners:
     assert_success_contains(&publish, &["\"action\": \"publish\""])?;
 
     let install = runx_command()?
+        .env("RUNX_CWD", &root)
         .args([
-            "add",
+            "registry",
+            "install",
             "acme/bundled-root@1.0.0",
             "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--to",
-            install_dir.to_str().ok_or("non-utf8 install dir")?,
             "--json",
         ])
         .output()?;
@@ -326,7 +307,8 @@ runners:
     let add = runx_command()?
         .current_dir(&workspace)
         .args([
-            "add",
+            "registry",
+            "install",
             "acme/carrier@1.0.0",
             "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
@@ -467,7 +449,6 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let package = runx_command()?
         .args([
             "registry",
-            "connector",
             "package",
             connector.to_str().ok_or("non-utf8 connector dir")?,
             "--json",
@@ -516,7 +497,6 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let refused = runx_command()?
         .args([
             "registry",
-            "connector",
             "package",
             connector.to_str().ok_or("non-utf8 connector dir")?,
             "--publisher",
@@ -551,27 +531,26 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     let install_command = runx_contracts::CopyableCommand::posix(vec![
         "runx".to_owned(),
         "registry".to_owned(),
-        "connector".to_owned(),
         "install".to_owned(),
         "acme/acme-ops@1.0.0".to_owned(),
     ])?;
+    let detail = json!({"status": "success", "connector": {
+        "ref": "acme/acme-ops",
+        "version": "1.0.0",
+        "name": "Acme Ops",
+        "description": "Reads Acme items.",
+        "content_digest": content_digest,
+        "manifest_digest": package.manifest_digest,
+        "connector_digest": package.connector_digest,
+        "runtime_capability": false,
+        "trust_tier": "community",
+        "operations": [{"name": "item.read", "description": "Read an item."}],
+        "install_command": install_command,
+    }});
+    // No skill holds the name, so `registry install` installs the connector.
     let registry = crate::support::MockRegistry::serve(&[
-        (
-            "/v1/connectors/acme/acme-ops",
-            json!({"status": "success", "connector": {
-                "ref": "acme/acme-ops",
-                "version": "1.0.0",
-                "name": "Acme Ops",
-                "description": "Reads Acme items.",
-                "content_digest": content_digest,
-                "manifest_digest": package.manifest_digest,
-                "connector_digest": package.connector_digest,
-                "runtime_capability": false,
-                "trust_tier": "community",
-                "operations": [{"name": "item.read", "description": "Read an item."}],
-                "install_command": install_command,
-            }}),
-        ),
+        ("/v1/connectors/acme/acme-ops", detail.clone()),
+        ("/v1/connectors/acme/acme-ops/versions/1.0.0", detail),
         (
             "/v1/connectors/acme/acme-ops/versions/1.0.0/package",
             json!({"status": "success", "package": {
@@ -598,25 +577,10 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
                 .env("RUNX_HOME", &home)
                 .env("RUNX_CWD", &project)
                 .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
-                .args(["registry", "connector"])
+                .args(["registry"])
                 .args(args)
                 .output()?)
         };
-
-    let read = connector_command(&[
-        "read",
-        "acme/acme-ops",
-        "--registry",
-        &registry.url,
-        "--json",
-    ])?;
-    assert_success_contains(
-        &read,
-        &[
-            "\"action\": \"connector_read\"",
-            "\"ref\": \"acme/acme-ops\"",
-        ],
-    )?;
 
     let install = connector_command(&[
         "install",
@@ -658,8 +622,6 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     ])?;
     assert_success_contains(&again, &["\"status\": \"unchanged\""])?;
 
-    let unpinned = connector_command(&["install", "acme/acme-ops", "--json"])?;
-    assert_json_failure_contains(&unpinned, "needs a hosted registry")?;
     fs::remove_dir_all(root)?;
     Ok(())
 }
@@ -668,7 +630,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("installed");
+    let install_dir = root.join("skills");
     publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
     publish_fixture_version(&root, &registry_dir, "2.0.0", "Echo v2")?;
     sign_registry_version(&registry_dir, "1.0.0")?;
@@ -676,13 +638,13 @@ fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error
 
     for (subject, version_flag) in [("acme/echo@1.0.0", None), ("acme/echo", Some("2.0.0"))] {
         let install = runx_command()?
+            .env("RUNX_CWD", &root)
             .args([
-                "add",
+                "registry",
+                "install",
                 subject,
                 "--registry",
                 registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-                "--to",
-                install_dir.to_str().ok_or("non-utf8 install dir")?,
             ])
             .args(
                 version_flag
@@ -756,21 +718,21 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
             mutate(version);
             Ok(())
         })?;
-        let install_dir = root.join("installed");
+        let install_dir = root.join("skills");
 
         let install = runx_command()?
+            .env("RUNX_CWD", &root)
             .args([
-                "add",
+                "registry",
+                "install",
                 "acme/echo@1.0.0",
                 "--registry",
                 registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-                "--to",
-                install_dir.to_str().ok_or("non-utf8 install dir")?,
                 "--json",
             ])
             .output()?;
 
-        assert_json_failure_contains(&install, &format!("add {error_kind}:"))?;
+        assert_json_failure_contains(&install, &format!("registry install {error_kind}:"))?;
         assert!(
             !install_dir.exists(),
             "{error_kind} should leave no install dir"
@@ -790,17 +752,17 @@ fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std:
         }
         Ok(())
     })?;
-    let install_dir = root.join("installed");
+    let install_dir = root.join("skills");
 
     let install = runx_command()?
+        .env("RUNX_CWD", &root)
         .env("RUNX_REGISTRY_URL", "https://runx.ai")
         .args([
-            "add",
+            "registry",
+            "install",
             "acme/echo@1.0.0",
             "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--to",
-            install_dir.to_str().ok_or("non-utf8 install dir")?,
             "--json",
         ])
         .output()?;
@@ -840,67 +802,24 @@ fn registry_human_output_names_selected_version_and_digest()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-human");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("installed");
     publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
     publish_fixture_version(&root, &registry_dir, "2.0.0", "Echo v2")?;
     mutate_registry_version(&registry_dir, insert_signed_manifest)?;
 
-    let read_v1 = runx_command()?
-        .args([
-            "registry",
-            "read",
-            "acme/echo",
-            "--version",
-            "1.0.0",
-            "--registry-dir",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-        ])
-        .output()?;
-    assert_success_contains(
-        &read_v1,
-        &[
-            "registry read    acme/echo",
-            "source           local",
-            "skill            acme/echo",
-            "version          1.0.0",
-            "digest           sha256:",
-            "trust            community",
-        ],
-    )?;
-
-    let resolve_v2 = runx_command()?
-        .args([
-            "registry",
-            "resolve",
-            "acme/echo@2.0.0",
-            "--registry-dir",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-        ])
-        .output()?;
-    assert_success_contains(
-        &resolve_v2,
-        &[
-            "registry resolve acme/echo@2.0.0",
-            "version          2.0.0",
-            "digest           sha256:",
-            "trust            community",
-        ],
-    )?;
-
     let install_v1 = runx_command()?
+        .env("RUNX_CWD", &root)
         .args([
-            "add",
+            "registry",
+            "install",
             "acme/echo@1.0.0",
             "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--to",
-            install_dir.to_str().ok_or("non-utf8 install dir")?,
         ])
         .output()?;
     assert_success_contains(
         &install_v1,
         &[
-            "add acme/echo@1.0.0",
+            "registry install acme/echo@1.0.0",
             "status           installed",
             "version          1.0.0",
             "digest           sha256:",
@@ -910,18 +829,12 @@ fn registry_human_output_names_selected_version_and_digest()
     )?;
 
     let file_registry = format!("file://{}", registry_dir.display());
-    let file_read = runx_command()?
-        .args([
-            "registry",
-            "read",
-            "acme/echo",
-            "--registry",
-            &file_registry,
-        ])
+    let file_search = runx_command()?
+        .args(["registry", "search", "echo", "--registry", &file_registry])
         .output()?;
     assert_success_contains(
-        &file_read,
-        &["registry read    acme/echo", "source           file"],
+        &file_search,
+        &["registry search  echo", "source           file"],
     )?;
 
     Ok(())
@@ -950,7 +863,7 @@ fn registry_human_output_names_search_results() -> Result<(), Box<dyn std::error
             "- acme/echo@1.0.0",
             "digest   sha256:",
             "trust    community",
-            "install  runx add acme/echo@1.0.0",
+            "install  runx registry install acme/echo@1.0.0",
             "run      runx skill acme/echo@1.0.0",
         ],
     )?;

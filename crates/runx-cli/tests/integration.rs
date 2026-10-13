@@ -9,7 +9,6 @@
 //! only distinct parser, security, protocol, and failure-boundary invariants.
 //! See .scafld/specs/active/test-surface-build-consolidation.md.
 
-mod connect;
 mod connector;
 mod credential;
 mod doctor;

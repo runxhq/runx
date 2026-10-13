@@ -76,7 +76,7 @@ fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn s
                 "digest": "abc",
                 "profile_digest": "profile-abc",
                 "link": {
-                    "install_command": {"shell": "posix", "argv": ["runx", "add", "runx/hello@sha-123"], "copy_text": "runx add runx/hello@sha-123"},
+                    "install_command": {"shell": "posix", "argv": ["runx", "registry", "install", "runx/hello@sha-123"], "copy_text": "runx registry install runx/hello@sha-123"},
                     "run_command": {"shell": "posix", "argv": ["runx", "skill", "runx/hello@sha-123"], "copy_text": "runx skill runx/hello@sha-123"}
                 },
                 "record": { "owner": "runx", "trust_tier": "first_party" }
@@ -138,7 +138,7 @@ fn successful_skill_response(status: &str, publish_status: &str) -> RuntimeHttpR
                 "version": "sha-123",
                 "digest": "abc",
                 "trust_tier": "community",
-                "install_command": {"shell": "posix", "argv": ["runx", "add", "kam/hello@sha-123"], "copy_text": "runx add kam/hello@sha-123"},
+                "install_command": {"shell": "posix", "argv": ["runx", "registry", "install", "kam/hello@sha-123"], "copy_text": "runx registry install kam/hello@sha-123"},
                 "run_command": {"shell": "posix", "argv": ["runx", "skill", "kam/hello@sha-123"], "copy_text": "runx skill kam/hello@sha-123"},
                 "public_url": "https://runx.test/x/kam/hello"
             }

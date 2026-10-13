@@ -120,13 +120,12 @@ receipt reference the input fixture, schema, and validated output.
 Extract a compact evidence packet from the packaged RFC 9110 fixture:
 
 ```bash
-runx skill "$PWD" \
-  --runner extract \
-  --input input_path=fixtures/rfc9110-http-semantics.html \
-  --input schema_path=packets/extraction.schema.json \
-  --input source_url=https://www.rfc-editor.org/rfc/rfc9110.html \
-  --input content_type=text/html \
-  --input max_items=18 \
+runx skill "$PWD" extract \
+  -i input_path=fixtures/rfc9110-http-semantics.html \
+  -i schema_path=packets/extraction.schema.json \
+  -i source_url=https://www.rfc-editor.org/rfc/rfc9110.html \
+  -i content_type=text/html \
+  -i max_items=18 \
   --json
 ```
 

@@ -28,7 +28,7 @@ pub use seal::{
     RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt, step_receipt,
 };
 pub use signing::{
-    Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED,
+    Ed25519CounterSealVerifier, Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED,
     RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
     RUNX_RECEIPT_SIGN_KID_ENV, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
     RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV, RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust,

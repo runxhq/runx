@@ -1,8 +1,8 @@
-//! `runx registry connector package|publish|read|install`. Packaging reads a
-//! connector directory with the runtime's own loader. Publish, read and
+//! The connector half of `runx registry package|publish|install`. Packaging
+//! reads a connector directory with the runtime's own loader. Publish and
 //! install use a hosted registry, the only registry that holds published
-//! connectors; install verifies the version and writes it to the local
-//! package cache (`RunxPaths::connectors()`).
+//! connectors; install verifies the version and writes it to the project's
+//! connectors (`RunxPaths::connectors()`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -20,72 +20,13 @@ use super::{
     usage_error,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ConnectorAction {
-    /// `package <dir>`: a connector packaged on its own.
-    Package,
-    /// `publish <dir>`: that package, published to a hosted registry.
-    Publish,
-    /// `read <publisher>/<id>[@version]`.
-    Read,
-    /// `install <publisher>/<id>[@version]`: into the local package cache.
-    Install,
-}
-
-impl ConnectorAction {
-    pub(crate) fn parse(value: &str) -> Result<Self, String> {
-        match value {
-            "package" => Ok(Self::Package),
-            "publish" => Ok(Self::Publish),
-            "read" => Ok(Self::Read),
-            "install" => Ok(Self::Install),
-            other => Err(format!("unknown registry connector subcommand {other}")),
-        }
-    }
-}
-
-/// `<publisher>/<id>` and the version after `@`, when one is named.
-pub(crate) fn parse_connector_subject(
-    value: &str,
-) -> Result<(ConnectorRef, Option<String>), String> {
-    let (connector_ref, version) = match value.split_once('@') {
-        Some((connector_ref, version)) => (connector_ref, Some(version)),
-        None => (value, None),
-    };
-    let connector_ref = ConnectorRef::new(connector_ref).ok_or_else(|| {
-        format!("{value} is not a connector ref; expected <publisher>/<id>[@version]")
-    })?;
-    if let Some(version) = version
-        && !runx_contracts::is_registry_version(version)
-    {
-        return Err(format!("{version} is not a registry version label"));
-    }
-    Ok((connector_ref, version.map(str::to_owned)))
-}
-
-pub(super) fn run_connector(
-    action: ConnectorAction,
-    plan: RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<RegistryCliOutput, RegistryCliError> {
-    match action {
-        ConnectorAction::Package => package(plan, env, cwd),
-        ConnectorAction::Publish => publish(plan, env, cwd),
-        ConnectorAction::Read => read(plan, env, cwd),
-        ConnectorAction::Install => install(plan, env, cwd),
-    }
-}
-
 // Function rationale: a standalone connector's package is the exact artifact
 // its publisher submits, read by the same loader the runtime uses.
-fn package(
-    plan: RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
+pub(super) fn package(
+    plan: &RegistryPlan,
+    directory: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let directory = runx_runtime::RunxPaths::resolve(env, cwd).existing_input(&plan.subject);
-    let connector = prepare_registry_connector_package(&directory)
+    let connector = prepare_registry_connector_package(directory)
         .map_err(|error| internal_error(error.to_string()))?;
     output::write_output(
         plan.json,
@@ -95,19 +36,19 @@ fn package(
                 connector: Box::new(connector),
             },
         },
-        || "\n  registry connector package  ready\n\n".to_owned(),
+        || "\n  registry package ready\n\n".to_owned(),
     )
 }
 
-fn publish(
-    plan: RegistryPlan,
+pub(super) fn publish(
+    plan: &RegistryPlan,
+    directory: &Path,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let directory = runx_runtime::RunxPaths::resolve(env, cwd).existing_input(&plan.subject);
-    let package = prepare_registry_connector_package(&directory)
+    let package = prepare_registry_connector_package(directory)
         .map_err(|error| internal_error(error.to_string()))?;
-    let registry_url = hosted_registry(&plan, env, cwd, "publish")?;
+    let registry_url = hosted_registry(plan, env, cwd)?;
     let environment =
         runx_runtime::HostedApiEnvironment::resolve_publish(Some(&registry_url), env, cwd)
             .map_err(|error| usage_error(error.to_string()))?;
@@ -153,55 +94,33 @@ fn publish(
     )
 }
 
-fn read(
-    plan: RegistryPlan,
+/// Installs `connector_ref` at `version`, or its current version.
+pub(super) fn install(
+    plan: &RegistryPlan,
+    connector_ref: &ConnectorRef,
+    version: Option<String>,
+    registry_url: &str,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let (connector_ref, version) = subject(&plan)?;
-    let registry_url = hosted_registry(&plan, env, cwd, "read")?;
-    let connector = remote_registry_client(&registry_url, env)?
-        .read_connector(&connector_ref, version.as_deref())?
-        .ok_or_else(|| not_found(&plan.subject))?;
-    let human = output::render_connector_read(&connector);
-    output::write_output(
-        plan.json,
-        &RegistryEnvelope {
-            status: "success",
-            registry: RegistryPayload::ConnectorRead {
-                source: "remote",
-                connector: Box::new(connector),
-            },
-        },
-        || human,
-    )
-}
-
-fn install(
-    plan: RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<RegistryCliOutput, RegistryCliError> {
-    let (connector_ref, version) = subject(&plan)?;
-    let registry_url = hosted_registry(&plan, env, cwd, "install")?;
     let source_authority = RegistryTarget::Remote {
-        registry_url: registry_url.clone(),
+        registry_url: registry_url.to_owned(),
     }
     .manifest_source_authority();
-    let client = remote_registry_client(&registry_url, env)?;
+    let client = remote_registry_client(registry_url, env)?;
     let version = match version {
         Some(version) => version,
         None => {
             client
-                .read_connector(&connector_ref, None)?
+                .read_connector(connector_ref, None)?
                 .ok_or_else(|| not_found(&plan.subject))?
                 .version
         }
     };
     let published = client
-        .connector_package(&connector_ref, &version)?
+        .connector_package(connector_ref, &version)?
         .ok_or_else(|| not_found(&format!("{connector_ref}@{version}")))?;
-    if published.connector_ref != connector_ref || published.version != version {
+    if &published.connector_ref != connector_ref || published.version != version {
         return Err(internal_error(format!(
             "the registry served {}@{} for {connector_ref}@{version}",
             published.connector_ref, published.version
@@ -219,7 +138,7 @@ fn install(
             manifest_source_authority: source_authority,
         },
     )
-    .map_err(|error| internal_error(format!("registry connector install: {error}")))?;
+    .map_err(|error| internal_error(format!("registry install: {error}")))?;
     let human = output::render_connector_install(&installed);
     output::write_output(
         plan.json,
@@ -234,33 +153,20 @@ fn install(
     )
 }
 
-/// The ref the plan names, with the version from `@` or `--version`.
-fn subject(plan: &RegistryPlan) -> Result<(ConnectorRef, Option<String>), RegistryCliError> {
-    let (connector_ref, named) = parse_connector_subject(&plan.subject).map_err(usage_error)?;
-    match (named, plan.version.clone()) {
-        (Some(named), Some(flag)) if named != flag => Err(usage_error(format!(
-            "{} names version {named} but --version is {flag}",
-            plan.subject
-        ))),
-        (named, flag) => Ok((connector_ref, named.or(flag))),
-    }
-}
-
 /// Connectors are published only to a hosted registry.
 fn hosted_registry(
     plan: &RegistryPlan,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    command: &str,
 ) -> Result<String, RegistryCliError> {
     match resolve_registry_target(plan, env, cwd) {
         RegistryTarget::Remote { registry_url } => Ok(registry_url),
-        RegistryTarget::Local { .. } => Err(usage_error(format!(
-            "runx registry connector {command} needs a hosted registry: pass --registry https://api.runx.ai or set RUNX_REGISTRY_URL"
-        ))),
+        RegistryTarget::Local { .. } => Err(usage_error(
+            "a connector publishes only to a hosted registry: pass --registry https://api.runx.ai or set RUNX_REGISTRY_URL",
+        )),
     }
 }
 
 fn not_found(subject: &str) -> RegistryCliError {
-    internal_error(format!("registry connector not found: {subject}"))
+    internal_error(format!("registry package not found: {subject}"))
 }

@@ -95,10 +95,9 @@ fn workspace_env_is_loaded_from_discovered_project_root() -> Result<(), Box<dyn 
 {
     let temp = crate::support::temp_root("runx-cli-workspace-env-nested");
     let nested = temp.join("nested/operator");
-    let runx_dir = temp.join(".runx");
     fs::create_dir_all(&nested)?;
-    fs::create_dir_all(&runx_dir)?;
-    fs::write(runx_dir.join("project.json"), valid_project_state())?;
+    // The repository marks the project root.
+    fs::create_dir_all(temp.join(".git"))?;
     let skill_dir = write_env_probe_skill(&temp)?;
     fs::write(temp.join(".env"), format!("PROBE_TOKEN={SECRET}\n"))?;
 
@@ -209,10 +208,9 @@ fn resume_loads_workspace_env_from_discovered_project_root()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-workspace-env-resume");
     let nested = temp.join("nested/operator");
-    let runx_dir = temp.join(".runx");
     fs::create_dir_all(&nested)?;
-    fs::create_dir_all(&runx_dir)?;
-    fs::write(runx_dir.join("project.json"), valid_project_state())?;
+    // The repository marks the project root.
+    fs::create_dir_all(temp.join(".git"))?;
     let skill_dir = write_resume_env_skill(&temp)?;
     let receipt_dir = temp.join("receipts");
     fs::write(temp.join(".env"), "RESUME_PROBE_TOKEN=before-resume\n")?;
@@ -302,12 +300,11 @@ fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     crate::support::plugin_with_source_connectors(&temp, &["github"])?;
     let mut command = native_command()?;
     command.current_dir(&temp).args([
-        "credential",
-        "set",
+        "connector",
+        "use",
         "github",
         "--credential",
         "token",
-        "--from-stdin",
         "--json",
     ]);
     let output = run_with_stdin(command, "")?;
@@ -331,11 +328,8 @@ fn cli_rejects_secret_env_value_on_argv() -> Result<(), Box<dyn std::error::Erro
     fs::create_dir_all(&temp)?;
     let output = native_command()?
         .current_dir(&temp)
-        .arg("credential")
-        .arg("set")
-        .arg("github")
+        .args(["connector", "use", "github", "--credential", "token"])
         .arg(SECRET)
-        .arg("--from-stdin")
         .arg("--json")
         .output()?;
 
@@ -347,7 +341,7 @@ fn cli_rejects_secret_env_value_on_argv() -> Result<(), Box<dyn std::error::Erro
     let stdout = String::from_utf8(output.stdout)?;
     let stderr = String::from_utf8(output.stderr)?;
     assert!(
-        message.contains("must be provided through --from-stdin"),
+        message.contains("usage: runx connector use"),
         "expected an error about argv secret material, got: {message}"
     );
     assert!(
@@ -383,10 +377,6 @@ fn run_with_stdin(
         .ok_or("credential command stdin was not piped")?
         .write_all(value.as_bytes())?;
     Ok(child.wait_with_output()?)
-}
-
-fn valid_project_state() -> &'static str {
-    r#"{"version":1,"project_id":"proj_workspace_env_test","created_at":"2026-07-16T00:00:00Z"}"#
 }
 
 fn json_failure_message(stdout: &[u8]) -> Result<String, Box<dyn std::error::Error>> {

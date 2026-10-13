@@ -73,14 +73,7 @@ impl SlackConnect {
     fn use_grant(&self, root: &Path) -> TestResult {
         let output = self
             .command(root)
-            .args([
-                "connector",
-                "use",
-                "slack",
-                "--grant",
-                SLACK_GRANT,
-                "--json",
-            ])
+            .args(["connector", "use", "slack", SLACK_GRANT, "--json"])
             .output()?;
         assert_json(&output, 0)?;
         Ok(())
@@ -344,7 +337,7 @@ fn a_store_append_replays_once_and_appends_one_event() -> TestResult {
                 "expected_version=0",
                 "--input",
                 "idempotency_key=launch-readiness:classify:v1",
-                "--input-json",
+                "--input",
                 r#"event={"type":"route.classified","lane":"classify"}"#,
             ])
             .arg("--receipt-dir")

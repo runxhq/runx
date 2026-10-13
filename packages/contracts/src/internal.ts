@@ -22,9 +22,7 @@ export const RUNX_CONTRACT_IDS = {
   registryBinding: `${RUNX_SCHEMA_BASE_URL}/runx/registry-binding/v1.json`,
   reviewReceiptOutput: `${RUNX_SCHEMA_BASE_URL}/runx/review-receipt-output/v1.json`,
   doctor: `${RUNX_SCHEMA_BASE_URL}/runx/doctor/v1.json`,
-  dev: `${RUNX_SCHEMA_BASE_URL}/runx/dev/v1.json`,
   list: `${RUNX_SCHEMA_BASE_URL}/runx/list/v1.json`,
-  runSummary: `${RUNX_SCHEMA_BASE_URL}/runx/run-summary/v1.json`,
   receipt: `${RUNX_SCHEMA_BASE_URL}/runx/receipt/v1.json`,
   fixture: `${RUNX_SCHEMA_BASE_URL}/runx/fixture/v1.json`,
   toolManifest: `${RUNX_SCHEMA_BASE_URL}/runx/tool/manifest/v1.json`,
@@ -65,9 +63,7 @@ export const RUNX_CONTRACT_IDS = {
 
 export const RUNX_LOGICAL_SCHEMAS = {
   doctor: "runx.doctor.v1",
-  dev: "runx.dev.v1",
   list: "runx.list.v1",
-  runSummary: "runx.run-summary.v1",
   receipt: "runx.receipt.v1",
   fixture: "runx.fixture.v1",
   toolManifest: "runx.tool.manifest.v1",

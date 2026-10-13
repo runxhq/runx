@@ -1,7 +1,6 @@
 //! The pure Rust parser for runx skills, graphs, and tools.
 
 pub mod connector;
-pub mod dev_fixture;
 pub mod error;
 pub mod eval;
 pub mod graph;
@@ -19,11 +18,6 @@ pub mod yaml;
 
 pub use connector::{
     ValidatedConnector, parse_connector_manifest, validate_connector_manifest, whole_match,
-};
-pub use dev_fixture::{
-    DevExpectedStatus, DevFixture, DevFixtureError, DevFixtureExpectation, DevFixtureGit,
-    DevFixtureGitConfig, DevFixtureLane, DevFixtureTarget, DevFixtureTargetKind,
-    DevFixtureWorkspace, DevOutputExpectation, parse_dev_fixture,
 };
 pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};

@@ -1,28 +1,25 @@
-// Module rationale: verify owns receipt-directory tree checks plus the single-receipt machine verdict.
-use std::collections::{BTreeMap, BTreeSet};
+// Module rationale: verify parses the receipt, store and notary surfaces and
+// renders the verdicts runx-receipts and the runtime's receipt store reach.
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::{ED25519, UnparsedPublicKey};
-use runx_contracts::{Receipt, Reference, ReferenceType, sha256_prefixed};
 use runx_receipts::{
-    ReceiptProofContext, ReceiptVerifyVerdict, receipt_edge_references,
-    verify_receipt_document_verdict,
+    NotaryVerifyVerdict, ReceiptProofContext, ReceiptVerifyVerdict,
+    ed25519_public_key_from_spki_pem, verify_notary_document, verify_receipt_document_verdict,
 };
 use runx_runtime::{
-    Ed25519ReceiptVerifier, RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV,
-    RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV, RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptPathInputs,
-    ReceiptTreeConfig, ReceiptTrust, RuntimeReceiptConfig, RuntimeReceiptSignaturePolicy,
-    RunxPaths, resolve_receipt_path, verify_runtime_receipt_tree,
+    Ed25519CounterSealVerifier, Ed25519ReceiptVerifier, LocalReceiptStore,
+    RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
+    RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptPathInputs, ReceiptStoreError, ReceiptTrust,
+    RuntimeReceiptConfig, RuntimeReceiptSignaturePolicy, RunxPaths, StoreTreeVerification,
+    resolve_receipt_path,
 };
 use serde::Serialize;
 
-const RECEIPT_REFERENCE_PREFIX: &str = "runx:receipt:";
 const SINGLE_RECEIPT_MAX_BYTES: usize = 10 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -108,20 +105,41 @@ struct FileIssue {
     message: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct NotaryVerifyVerdict {
-    schema: &'static str,
-    valid: bool,
-    counter_seal: NotaryCounterSealReport,
-    findings: Vec<FindingReport>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct NotaryCounterSealReport {
-    schema: Option<String>,
-    digest_status: &'static str,
-    signature_status: &'static str,
-    trusted_key_count: usize,
+impl VerifyReport {
+    fn of(receipt_dir: &Path, verification: StoreTreeVerification) -> Self {
+        let valid = verification.valid();
+        Self {
+            receipt_dir: receipt_dir.display().to_string(),
+            trees: verification
+                .trees
+                .into_iter()
+                .map(|tree| TreeReport {
+                    root_receipt_id: tree.root_receipt_id,
+                    receipt_count: tree.receipt_count,
+                    valid: tree.verification.valid,
+                    findings: tree
+                        .verification
+                        .findings
+                        .into_iter()
+                        .map(|finding| FindingReport {
+                            code: finding.code.as_str().to_owned(),
+                            path: finding.path,
+                            message: finding.message,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            unreadable_files: verification
+                .unreadable
+                .into_iter()
+                .map(|file| FileIssue {
+                    file: file.file.display().to_string(),
+                    message: file.message,
+                })
+                .collect(),
+            valid,
+        }
+    }
 }
 
 pub fn run_verify_command(
@@ -132,7 +150,6 @@ pub fn run_verify_command(
     run_verify_command_with_stdin(args, env, cwd, io::empty())
 }
 
-// Function rationale: argument dispatch keeps tree and single-receipt modes mutually exclusive in one parser.
 pub fn run_verify_command_with_stdin<R: Read>(
     args: &[OsString],
     env: &BTreeMap<String, String>,
@@ -154,65 +171,21 @@ pub fn run_verify_command_with_stdin<R: Read>(
         paths: &paths,
     });
     let verifier = receipt_verifier(env, &paths, parsed.trust())?;
-
-    let (receipts, unreadable_files) = load_receipts(&resolved.path)?;
-    let trees = group_trees(&receipts);
-
-    let selected: Vec<&ReceiptTree> = match parsed.receipt_id.as_deref() {
-        Some(receipt_id) => {
-            let selected = trees
-                .iter()
-                .filter(|tree| tree.member_ids.contains(receipt_id))
-                .collect::<Vec<_>>();
-            if selected.is_empty() {
-                return Err(VerifyCliError::InvalidArgs(format!(
-                    "receipt {receipt_id} was not found in {}",
-                    resolved.path.display()
-                )));
+    let verification = LocalReceiptStore::new(&resolved.path)
+        .verify_trees(
+            parsed.receipt_id.as_deref(),
+            RuntimeReceiptSignaturePolicy::verifying(&verifier),
+        )
+        .map_err(|error| match error {
+            ReceiptStoreError::ReceiptNotInStore { .. } => {
+                VerifyCliError::InvalidArgs(error.to_string())
             }
-            selected
-        }
-        None => trees.iter().collect(),
-    };
-
-    let mut tree_reports = Vec::new();
-    for tree in selected {
-        let policy = RuntimeReceiptSignaturePolicy::verifying(&verifier);
-        // Supplied receipts are the candidate children; the root itself is the
-        // traversal anchor and must not be offered as its own child.
-        let members: Vec<Receipt> = tree
-            .member_ids
-            .iter()
-            .filter(|id| id.as_str() != tree.root.id.as_str())
-            .filter_map(|id| receipts.iter().find(|receipt| receipt.id.as_str() == id))
-            .cloned()
-            .collect();
-        let verification =
-            verify_runtime_receipt_tree(&tree.root, members, ReceiptTreeConfig::default(), policy);
-        tree_reports.push(TreeReport {
-            root_receipt_id: tree.root.id.to_string(),
-            receipt_count: tree.member_ids.len(),
-            valid: verification.valid,
-            findings: verification
-                .findings
-                .into_iter()
-                .map(|finding| FindingReport {
-                    code: finding.code.as_str().to_owned(),
-                    path: finding.path,
-                    message: finding.message,
-                })
-                .collect(),
-        });
-    }
-
-    let valid = tree_reports.iter().all(|tree| tree.valid) && unreadable_files.is_empty();
-    let report = VerifyReport {
-        receipt_dir: resolved.path.display().to_string(),
-        trees: tree_reports,
-        unreadable_files,
-        valid,
-    };
-
+            error => VerifyCliError::Store(format!(
+                "failed to read receipt dir {}: {error}",
+                resolved.path.display()
+            )),
+        })?;
+    let report = VerifyReport::of(&resolved.path, verification);
     let output = if parsed.json {
         format!(
             "{}\n",
@@ -447,7 +420,7 @@ fn run_notary_verify<R: Read>(
 ) -> Result<VerifyCliResult, VerifyCliError> {
     let document = read_single_receipt_input(input, cwd, stdin)?;
     let trusted_keys = trusted_notary_keys_from_paths(trusted_key_paths, cwd)?;
-    let verdict = verify_notary_document(&document, &trusted_keys);
+    let verdict = verify_notary_document(&document, &trusted_keys, &Ed25519CounterSealVerifier);
     let output = if json {
         format!(
             "{}\n",
@@ -460,183 +433,6 @@ fn run_notary_verify<R: Read>(
         output,
         failed: !verdict.valid,
     })
-}
-
-// Function rationale: hosted notary verification traverses one
-// public projection and accumulates all findings for operator diagnostics.
-fn verify_notary_document(document: &[u8], trusted_keys: &[Vec<u8>]) -> NotaryVerifyVerdict {
-    let mut findings = Vec::new();
-    let root = match serde_json::from_slice::<serde_json::Value>(document) {
-        Ok(value) => value,
-        Err(error) => {
-            findings.push(finding(
-                "notary_parse_error",
-                "$",
-                format!("notary verification document is not valid JSON: {error}"),
-            ));
-            return notary_verdict(None, "missing", "missing", 0, findings);
-        }
-    };
-    let Some(notary) = locate_notary_verification(&root) else {
-        findings.push(finding(
-            "notary_verification_missing",
-            "$",
-            "notary verification document must contain receipt.notary_verification",
-        ));
-        return notary_verdict(None, "missing", "missing", 0, findings);
-    };
-    let Some(counter_seal) = notary
-        .get("counter_seal")
-        .and_then(serde_json::Value::as_object)
-    else {
-        findings.push(finding(
-            "counter_seal_missing",
-            "notary_verification.counter_seal",
-            "notary verification is missing counter_seal",
-        ));
-        return notary_verdict(None, "missing", "missing", trusted_keys.len(), findings);
-    };
-    let schema = counter_seal
-        .get("schema")
-        .and_then(serde_json::Value::as_str)
-        .map(ToOwned::to_owned);
-    let Some(payload) = counter_seal.get("payload") else {
-        findings.push(finding(
-            "counter_seal_payload_missing",
-            "notary_verification.counter_seal.payload",
-            "counter seal is missing its signed payload",
-        ));
-        return notary_verdict(schema, "missing", "missing", trusted_keys.len(), findings);
-    };
-    let canonical_payload = match runx_contracts::canonical_stable_json(payload) {
-        Ok(value) => value,
-        Err(error) => {
-            findings.push(finding(
-                "counter_seal_payload_invalid",
-                "notary_verification.counter_seal.payload",
-                format!("counter seal payload cannot be canonicalized: {error}"),
-            ));
-            return notary_verdict(schema, "invalid", "missing", trusted_keys.len(), findings);
-        }
-    };
-    let expected_digest = sha256_prefixed(canonical_payload.as_bytes());
-    let digest_status = match counter_seal
-        .get("digest")
-        .and_then(serde_json::Value::as_str)
-    {
-        Some(actual) if actual == expected_digest => "valid",
-        Some(_) => {
-            findings.push(finding(
-                "counter_seal_digest_mismatch",
-                "notary_verification.counter_seal.digest",
-                "counter seal digest does not match the canonical payload",
-            ));
-            "invalid"
-        }
-        None => {
-            findings.push(finding(
-                "counter_seal_digest_missing",
-                "notary_verification.counter_seal.digest",
-                "counter seal is missing digest",
-            ));
-            "missing"
-        }
-    };
-    bind_counter_seal_to_projection(&root, payload, counter_seal, &mut findings);
-    let signature_status = verify_counter_seal_signature(
-        notary,
-        counter_seal,
-        &canonical_payload,
-        trusted_keys,
-        &mut findings,
-    );
-    let trusted_key_count = trusted_keys.len();
-    notary_verdict(
-        schema,
-        digest_status,
-        signature_status,
-        trusted_key_count,
-        findings,
-    )
-}
-
-fn locate_notary_verification(
-    root: &serde_json::Value,
-) -> Option<&serde_json::Map<String, serde_json::Value>> {
-    root.get("receipt")
-        .and_then(|receipt| receipt.get("notary_verification"))
-        .and_then(serde_json::Value::as_object)
-}
-
-// Function rationale: counter-seal validation intentionally binds
-// digest, public key, signature, and trust-key diagnostics in one check.
-fn verify_counter_seal_signature(
-    notary: &serde_json::Map<String, serde_json::Value>,
-    counter_seal: &serde_json::Map<String, serde_json::Value>,
-    canonical_payload: &str,
-    trusted_keys: &[Vec<u8>],
-    findings: &mut Vec<FindingReport>,
-) -> &'static str {
-    let Some(signature) = counter_seal
-        .get("signature")
-        .and_then(serde_json::Value::as_object)
-    else {
-        findings.push(finding(
-            "counter_seal_signature_missing",
-            "notary_verification.counter_seal.signature",
-            "counter seal is missing signature",
-        ));
-        return "missing";
-    };
-    if signature.get("alg").and_then(serde_json::Value::as_str) != Some("Ed25519") {
-        findings.push(finding(
-            "counter_seal_signature_algorithm_unsupported",
-            "notary_verification.counter_seal.signature.alg",
-            "counter seal signature algorithm must be Ed25519",
-        ));
-        return "invalid";
-    }
-    let Some(signature_value) = signature.get("value").and_then(serde_json::Value::as_str) else {
-        findings.push(finding(
-            "counter_seal_signature_value_missing",
-            "notary_verification.counter_seal.signature.value",
-            "counter seal signature value is missing",
-        ));
-        return "missing";
-    };
-    let signature_bytes = match decode_signature(signature_value) {
-        Some(bytes) if bytes.len() == 64 => bytes,
-        Some(_) | None => {
-            findings.push(finding(
-                "counter_seal_signature_malformed",
-                "notary_verification.counter_seal.signature.value",
-                "counter seal signature is not a valid Ed25519 signature",
-            ));
-            return "invalid";
-        }
-    };
-    if trusted_keys.is_empty() {
-        findings.push(finding(
-            "notary_trusted_key_missing",
-            "--notary-key",
-            "notary verification requires at least one external trusted Ed25519 public key",
-        ));
-        return "missing";
-    }
-    record_embedded_key_mismatch(notary, trusted_keys, findings);
-    if trusted_keys.iter().any(|key| {
-        UnparsedPublicKey::new(&ED25519, key)
-            .verify(canonical_payload.as_bytes(), &signature_bytes)
-            .is_ok()
-    }) {
-        return "valid";
-    }
-    findings.push(finding(
-        "counter_seal_signature_mismatch",
-        "notary_verification.counter_seal.signature",
-        "counter seal signature did not verify against any external trusted notary key",
-    ));
-    "invalid"
 }
 
 fn trusted_notary_keys_from_paths(
@@ -660,198 +456,6 @@ fn trusted_notary_keys_from_paths(
         })?);
     }
     Ok(keys)
-}
-
-fn embedded_notary_keys(
-    notary: &serde_json::Map<String, serde_json::Value>,
-    findings: &mut Vec<FindingReport>,
-) -> Vec<Vec<u8>> {
-    let Some(keys) = notary
-        .get("signer_public_keys")
-        .and_then(serde_json::Value::as_array)
-    else {
-        return Vec::new();
-    };
-    let mut decoded = Vec::new();
-    for (index, key) in keys.iter().enumerate() {
-        let Some(pem) = key
-            .get("public_key_pem")
-            .and_then(serde_json::Value::as_str)
-        else {
-            findings.push(finding(
-                "notary_trusted_key_missing_pem",
-                format!("notary_verification.signer_public_keys[{index}].public_key_pem"),
-                "trusted notary key is missing public_key_pem",
-            ));
-            continue;
-        };
-        match ed25519_public_key_from_spki_pem(pem) {
-            Ok(raw) => decoded.push(raw),
-            Err(message) => findings.push(finding(
-                "notary_trusted_key_malformed",
-                format!("notary_verification.signer_public_keys[{index}].public_key_pem"),
-                message,
-            )),
-        }
-    }
-    decoded
-}
-
-fn record_embedded_key_mismatch(
-    notary: &serde_json::Map<String, serde_json::Value>,
-    trusted_keys: &[Vec<u8>],
-    findings: &mut Vec<FindingReport>,
-) {
-    let embedded = embedded_notary_keys(notary, findings);
-    if embedded.is_empty() {
-        return;
-    }
-    let has_trusted_embedded_key = embedded
-        .iter()
-        .any(|candidate| trusted_keys.iter().any(|trusted| trusted == candidate));
-    if !has_trusted_embedded_key {
-        findings.push(finding(
-            "notary_embedded_key_untrusted",
-            "notary_verification.signer_public_keys",
-            "embedded notary keys do not include any externally trusted key",
-        ));
-    }
-}
-
-fn bind_counter_seal_to_projection(
-    root: &serde_json::Value,
-    payload: &serde_json::Value,
-    counter_seal: &serde_json::Map<String, serde_json::Value>,
-    findings: &mut Vec<FindingReport>,
-) {
-    let Some(receipt) = root.get("receipt").and_then(serde_json::Value::as_object) else {
-        return;
-    };
-    require_matching_text(
-        receipt,
-        "digest",
-        payload,
-        "digest",
-        "receipt.digest",
-        "notary_verification.counter_seal.payload.digest",
-        findings,
-    );
-    require_matching_text(
-        receipt,
-        "mode",
-        payload,
-        "mode",
-        "receipt.mode",
-        "notary_verification.counter_seal.payload.mode",
-        findings,
-    );
-    require_matching_text(
-        receipt,
-        "binary_version",
-        payload,
-        "binary_version",
-        "receipt.binary_version",
-        "notary_verification.counter_seal.payload.binary_version",
-        findings,
-    );
-    if let Some(projected_payload_digest) = counter_seal
-        .get("payload_digest")
-        .and_then(serde_json::Value::as_str)
-    {
-        match serde_json::to_string(payload) {
-            Ok(canonical_payload) => {
-                let actual_payload_digest = sha256_prefixed(canonical_payload.as_bytes());
-                if projected_payload_digest != actual_payload_digest {
-                    findings.push(finding(
-                        "counter_seal_payload_digest_mismatch",
-                        "notary_verification.counter_seal.payload_digest",
-                        "projected counter-seal payload digest does not match the signed payload",
-                    ));
-                }
-            }
-            Err(error) => findings.push(finding(
-                "counter_seal_payload_digest_invalid",
-                "notary_verification.counter_seal.payload_digest",
-                format!("projected counter-seal payload cannot be canonicalized: {error}"),
-            )),
-        }
-    }
-}
-
-fn require_matching_text(
-    left: &serde_json::Map<String, serde_json::Value>,
-    left_key: &str,
-    right: &serde_json::Value,
-    right_key: &str,
-    left_path: &str,
-    right_path: &str,
-    findings: &mut Vec<FindingReport>,
-) {
-    let left_value = left.get(left_key).and_then(serde_json::Value::as_str);
-    let right_value = right.get(right_key).and_then(serde_json::Value::as_str);
-    if left_value != right_value {
-        findings.push(finding(
-            "notary_projection_binding_mismatch",
-            format!("{left_path} <-> {right_path}"),
-            "public projection field does not match the signed notary payload",
-        ));
-    }
-}
-
-fn ed25519_public_key_from_spki_pem(pem: &str) -> Result<Vec<u8>, String> {
-    const ED25519_SPKI_PREFIX: &[u8] = &[
-        0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
-    ];
-    let body = pem
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.starts_with("-----BEGIN ") && !line.starts_with("-----END "))
-        .collect::<String>();
-    let der = STANDARD
-        .decode(body)
-        .map_err(|_| "trusted notary key PEM is not valid base64".to_owned())?;
-    if der.len() != ED25519_SPKI_PREFIX.len() + 32 || !der.starts_with(ED25519_SPKI_PREFIX) {
-        return Err("trusted notary key PEM is not an Ed25519 SPKI public key".to_owned());
-    }
-    Ok(der[ED25519_SPKI_PREFIX.len()..].to_vec())
-}
-
-/// A counter seal's signature is `base64:` and unpadded base64url, as the
-/// notary writes it and as a receipt's is; no other spelling is read.
-fn decode_signature(value: &str) -> Option<Vec<u8>> {
-    URL_SAFE_NO_PAD.decode(value.strip_prefix("base64:")?).ok()
-}
-
-fn notary_verdict(
-    schema: Option<String>,
-    digest_status: &'static str,
-    signature_status: &'static str,
-    trusted_key_count: usize,
-    findings: Vec<FindingReport>,
-) -> NotaryVerifyVerdict {
-    NotaryVerifyVerdict {
-        schema: "runx.notary_verify_verdict.v1",
-        valid: findings.is_empty() && digest_status == "valid" && signature_status == "valid",
-        counter_seal: NotaryCounterSealReport {
-            schema,
-            digest_status,
-            signature_status,
-            trusted_key_count,
-        },
-        findings,
-    }
-}
-
-fn finding(
-    code: impl Into<String>,
-    path: impl Into<String>,
-    message: impl Into<String>,
-) -> FindingReport {
-    FindingReport {
-        code: code.into(),
-        path: path.into(),
-        message: message.into(),
-    }
 }
 
 fn render_notary_verdict(verdict: &NotaryVerifyVerdict) -> String {
@@ -896,187 +500,6 @@ fn receipt_verifier(
         }));
     }
     Ok(verifier)
-}
-
-fn load_receipts(root: &Path) -> Result<(Vec<Receipt>, Vec<FileIssue>), VerifyCliError> {
-    let mut receipts = Vec::new();
-    let mut issues = Vec::new();
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(error) => {
-            return Err(VerifyCliError::Store(format!(
-                "failed to read receipt dir {}: {error}",
-                root.display()
-            )));
-        }
-    };
-    for entry in entries {
-        let entry = entry.map_err(|error| {
-            VerifyCliError::Store(format!(
-                "failed to read receipt dir {}: {error}",
-                root.display()
-            ))
-        })?;
-        let path = entry.path();
-        if !is_content_addressed_receipt_path(&path) {
-            continue;
-        }
-        match fs::read_to_string(&path) {
-            Ok(contents) => match runx_receipts::decode_receipt(contents.as_bytes()) {
-                Ok(receipt) => receipts.push(receipt),
-                Err(error) => issues.push(FileIssue {
-                    file: path.display().to_string(),
-                    message: format!("not a valid receipt: {error}"),
-                }),
-            },
-            Err(error) => issues.push(FileIssue {
-                file: path.display().to_string(),
-                message: format!("unreadable: {error}"),
-            }),
-        }
-    }
-    receipts.sort_by(|left, right| left.id.cmp(&right.id));
-    Ok((receipts, issues))
-}
-
-fn is_content_addressed_receipt_path(path: &Path) -> bool {
-    path.extension().and_then(|value| value.to_str()) == Some("json")
-        && path
-            .file_stem()
-            .and_then(|value| value.to_str())
-            .and_then(|stem| stem.strip_prefix("sha256-"))
-            .is_some_and(|digest| {
-                digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
-            })
-}
-
-#[derive(Clone, Debug)]
-struct ReceiptTree {
-    root: Receipt,
-    member_ids: BTreeSet<String>,
-}
-
-fn group_trees(receipts: &[Receipt]) -> Vec<ReceiptTree> {
-    let by_id: BTreeMap<&str, &Receipt> = receipts
-        .iter()
-        .map(|receipt| (receipt.id.as_str(), receipt))
-        .collect();
-    // Runtime receipts form an immutable parent -> child DAG. Signed
-    // child-to-parent lineage links are valid input, but are never required to
-    // discover a tree.
-    // A child may be shared by more than one root, so each root owns its own
-    // reachable member set instead of forcing every receipt into one group.
-    let (children_by_parent, parents_by_child) = receipt_tree_edges(receipts);
-    let root_ids = root_receipt_ids(receipts, &by_id, &parents_by_child);
-    let mut trees = root_ids
-        .iter()
-        .filter_map(|root_id| receipt_tree_from_root(root_id, &by_id, &children_by_parent))
-        .collect::<Vec<_>>();
-    append_uncovered_cycle_trees(receipts, &by_id, &children_by_parent, &mut trees);
-    trees.sort_by(|left, right| left.root.id.cmp(&right.root.id));
-    trees
-}
-
-fn receipt_tree_edges(
-    receipts: &[Receipt],
-) -> (
-    BTreeMap<String, BTreeSet<String>>,
-    BTreeMap<String, BTreeSet<String>>,
-) {
-    let mut children_by_parent: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut parents_by_child: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for receipt in receipts {
-        for child in receipt_edge_references(receipt) {
-            if let Some(child_id) = referenced_receipt_id(child) {
-                children_by_parent
-                    .entry(receipt.id.to_string())
-                    .or_default()
-                    .insert(child_id.to_owned());
-                parents_by_child
-                    .entry(child_id.to_owned())
-                    .or_default()
-                    .insert(receipt.id.to_string());
-            }
-        }
-    }
-    (children_by_parent, parents_by_child)
-}
-
-fn root_receipt_ids(
-    receipts: &[Receipt],
-    by_id: &BTreeMap<&str, &Receipt>,
-    parents_by_child: &BTreeMap<String, BTreeSet<String>>,
-) -> BTreeSet<String> {
-    receipts
-        .iter()
-        .filter(|receipt| {
-            parents_by_child
-                .get(receipt.id.as_str())
-                .is_none_or(|parents| {
-                    parents
-                        .iter()
-                        .all(|parent| !by_id.contains_key(parent.as_str()))
-                })
-        })
-        .map(|receipt| receipt.id.to_string())
-        .collect()
-}
-
-fn append_uncovered_cycle_trees(
-    receipts: &[Receipt],
-    by_id: &BTreeMap<&str, &Receipt>,
-    children_by_parent: &BTreeMap<String, BTreeSet<String>>,
-    trees: &mut Vec<ReceiptTree>,
-) {
-    // Malformed cycles have no natural root. Anchor each still-uncovered
-    // component once so structural verification can report the cycle.
-    let mut covered = trees
-        .iter()
-        .flat_map(|tree| tree.member_ids.iter().cloned())
-        .collect::<BTreeSet<_>>();
-    for receipt in receipts {
-        if covered.contains(receipt.id.as_str()) {
-            continue;
-        }
-        if let Some(tree) = receipt_tree_from_root(receipt.id.as_str(), by_id, children_by_parent) {
-            covered.extend(tree.member_ids.iter().cloned());
-            trees.push(tree);
-        }
-    }
-}
-
-fn receipt_tree_from_root(
-    root_id: &str,
-    by_id: &BTreeMap<&str, &Receipt>,
-    children_by_parent: &BTreeMap<String, BTreeSet<String>>,
-) -> Option<ReceiptTree> {
-    let root = (*by_id.get(root_id)?).clone();
-    let mut member_ids = BTreeSet::new();
-    let mut pending = vec![root_id.to_owned()];
-    while let Some(receipt_id) = pending.pop() {
-        if !member_ids.insert(receipt_id.clone()) {
-            continue;
-        }
-        if let Some(children) = children_by_parent.get(&receipt_id) {
-            pending.extend(
-                children
-                    .iter()
-                    .filter(|child| by_id.contains_key(child.as_str()))
-                    .cloned(),
-            );
-        }
-    }
-    Some(ReceiptTree { root, member_ids })
-}
-
-fn referenced_receipt_id(reference: &Reference) -> Option<&str> {
-    if reference.reference_type != ReferenceType::Receipt {
-        return None;
-    }
-    reference
-        .uri
-        .strip_prefix(RECEIPT_REFERENCE_PREFIX)
-        .filter(|id| !id.is_empty())
 }
 
 fn render_report(report: &VerifyReport) -> String {
@@ -1174,8 +597,10 @@ mod tests {
     use std::io;
 
     use super::*;
+    use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use ring::signature::KeyPair;
-    use runx_contracts::ReceiptIssuerType;
+    use runx_contracts::{Receipt, ReceiptIssuerType, sha256_prefixed};
     use runx_runtime::receipts::step_receipt;
     use runx_runtime::{
         Ed25519ReceiptSigner, InvocationOutput, LocalReceiptStore,
@@ -1291,30 +716,6 @@ mod tests {
         let report: JsonValue = serde_json::from_str(&result.output).map_err(io::Error::other)?;
         assert_eq!(report["valid"], JsonValue::Bool(true));
         assert_eq!(report["unreadable_files"].as_array().map(Vec::len), Some(0));
-        Ok(())
-    }
-
-    #[test]
-    fn groups_runtime_tree_from_child_refs() -> Result<(), io::Error> {
-        let signer = fixture_signer().map_err(io::Error::other)?;
-        let mut root = production_signed_receipt(&signer)
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        let mut child = root.clone();
-        child.id = "sha256:immutable-child".into();
-        child.digest = "sha256:immutable-child-body".into();
-        let mut child_ref =
-            Reference::with_uri(ReferenceType::Receipt, format!("runx:receipt:{}", child.id));
-        child_ref.locator = Some(child.digest.clone());
-        root.lineage.children.push(child_ref);
-
-        let trees = group_trees(&[root.clone(), child.clone()]);
-
-        assert_eq!(trees.len(), 1);
-        assert_eq!(trees[0].root.id, root.id);
-        assert_eq!(
-            trees[0].member_ids,
-            BTreeSet::from([root.id.to_string(), child.id.to_string()])
-        );
         Ok(())
     }
 
@@ -1503,21 +904,6 @@ mod tests {
             matches!(error, VerifyCliError::InvalidReceiptVerifier(message) if message.contains("has no trusted receipt key"))
         );
         Ok(())
-    }
-
-    #[test]
-    fn a_counter_seal_signature_has_one_spelling() {
-        let signature = [7_u8; 64];
-        assert_eq!(
-            super::decode_signature(&format!("base64:{}", URL_SAFE_NO_PAD.encode(signature))),
-            Some(signature.to_vec())
-        );
-        for other in [
-            URL_SAFE_NO_PAD.encode(signature),
-            format!("base64:{}", STANDARD.encode(signature)),
-        ] {
-            assert_eq!(super::decode_signature(&other), None, "{other}");
-        }
     }
 
     #[test]

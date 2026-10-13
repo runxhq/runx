@@ -88,7 +88,7 @@ pub(crate) fn provider_env(caller: &HarnessCaller) -> BTreeMap<String, String> {
 }
 
 /// Confirm and select the fixture's grant as the instance the case's hosted
-/// operations run under, as `runx connector use --grant` would, in the kernel
+/// operations run under, as `runx connector use <connector> <grant>` would, in the kernel
 /// `env` resolves for `cwd`, reading the grant from the harness's Connect.
 pub(crate) fn seed_provider_grant(
     caller: &HarnessCaller,

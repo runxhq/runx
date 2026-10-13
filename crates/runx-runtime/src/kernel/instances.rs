@@ -1,7 +1,7 @@
 //! Connector instances: what a connector requirement resolves to.
 //!
-//! An instance is confirmed during setup (`runx connect`, `runx credential
-//! set`, `runx connector use`) and selected as its connector's default. A
+//! An instance is confirmed during setup (`runx connector use`) and selected
+//! as its connector's default. A
 //! call resolves to exactly one instance, from one of three sources:
 //!
 //! - **Injected:** a host (the hosted worker, an embedder) injects a complete

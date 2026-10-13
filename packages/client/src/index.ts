@@ -74,7 +74,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         return output as NativePackageOutput;
       },
       materializeConnector: async (options) => {
-        const output = parseJson(await execute(["registry", "connector", "package", argument(options.connectorPath), "--json"], options), [0]);
+        const output = parseJson(await execute(["registry", "package", argument(options.connectorPath), "--json"], options), [0]);
         const connector = record(output.registry) ? output.registry.connector : undefined;
         if (output.status !== "success" || !record(output.registry) || output.registry.action !== "connector_package" || !record(connector)
           || !["ref", "version", "content_digest", "manifest_digest", "connector_digest"].every((field) => typeof connector[field] === "string")

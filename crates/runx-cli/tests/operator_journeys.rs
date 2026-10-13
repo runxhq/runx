@@ -95,7 +95,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         .arg(&skill_dir)
         .arg("--receipt-dir")
         .arg(&receipt_dir)
-        .args(["--thread-title", "Docs bug"])
+        .args(["-i", "thread_title=Docs bug"])
         .output()?;
     assert_exit(&pause, 2)?;
     let pause_text = String::from_utf8(pause.stdout)?;
@@ -283,14 +283,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
 
     let confirm = |grant: &str| {
         operator(&root)
-            .args([
-                "connector",
-                "use",
-                "google-analytics",
-                "--grant",
-                grant,
-                "--json",
-            ])
+            .args(["connector", "use", "google-analytics", grant, "--json"])
             .output()
     };
     assert_json(&confirm("grant_google_read")?, 0)?;
@@ -425,14 +418,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     };
     assert_json(
         &operator()
-            .args([
-                "connector",
-                "use",
-                "slack",
-                "--grant",
-                "grant_slack_send",
-                "--json",
-            ])
+            .args(["connector", "use", "slack", "grant_slack_send", "--json"])
             .output()?,
         0,
     )?;

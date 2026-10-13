@@ -4,8 +4,8 @@ use serde::de::DeserializeOwned;
 use super::connector_install::RegistryConnectorVersion;
 use super::http::RegistryClientError;
 use super::types::{
-    AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
-    RegistrySkillVersion,
+    AcquiredRegistrySkill, RegistryConnectorDetail, RegistryConnectorSearchResult,
+    RegistrySearchResult, RegistrySkillDetail, RegistrySkillVersion,
 };
 
 #[derive(Deserialize)]
@@ -51,6 +51,13 @@ struct ConnectorEnvelope {
 }
 
 #[derive(Deserialize)]
+struct ConnectorSearchEnvelope {
+    #[serde(rename = "status")]
+    _status: SuccessStatus,
+    connectors: Vec<RegistryConnectorSearchResult>,
+}
+
+#[derive(Deserialize)]
 struct ConnectorPackageEnvelope {
     #[serde(rename = "status")]
     _status: SuccessStatus,
@@ -93,6 +100,13 @@ pub(crate) fn parse_connector(
     body: &str,
 ) -> Result<RegistryConnectorDetail, RegistryClientError> {
     decode::<ConnectorEnvelope>(route, body).map(|envelope| envelope.connector)
+}
+
+pub(crate) fn parse_connector_search(
+    route: &str,
+    body: &str,
+) -> Result<Vec<RegistryConnectorSearchResult>, RegistryClientError> {
+    decode::<ConnectorSearchEnvelope>(route, body).map(|envelope| envelope.connectors)
 }
 
 pub(crate) fn parse_connector_package(

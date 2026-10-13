@@ -97,7 +97,7 @@ mod tests {
             let help = command_help_text(spec.name);
             assert!(help.is_some(), "missing help for {}", spec.name);
         }
-        assert_eq!(COMMAND_SPECS.len(), 22);
+        assert_eq!(COMMAND_SPECS.len(), 17);
     }
 
     #[test]
@@ -126,16 +126,16 @@ mod tests {
             catalog["commands"].as_array().map(Vec::len),
             Some(COMMAND_SPECS.len())
         );
-        let credential = catalog["commands"]
+        let connector = catalog["commands"]
             .as_array()
             .and_then(|commands| {
                 commands
                     .iter()
-                    .find(|command| command["name"] == "credential")
+                    .find(|command| command["name"] == "connector")
             })
-            .ok_or_else(|| std::io::Error::other("credential command missing from catalog"))?;
+            .ok_or_else(|| std::io::Error::other("connector command missing from catalog"))?;
         assert!(
-            credential["options"]
+            connector["options"]
                 .as_array()
                 .is_some_and(|options| options.iter().any(|option| {
                     option

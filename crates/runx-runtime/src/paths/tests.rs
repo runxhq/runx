@@ -83,12 +83,13 @@ fn a_blank_root_is_unset() {
 
 #[test]
 fn the_workspace_is_the_nearest_marked_directory() -> std::io::Result<()> {
+    // A repository marks a project, as a skills/ directory does; nothing is
+    // initialized to mark one.
     let root = tempfile::tempdir()?;
     let workspace = root.path().join("app");
-    let nested = workspace.join("skills").join("demo");
-    std::fs::create_dir_all(workspace.join(".runx"))?;
+    let nested = workspace.join("src").join("deep");
+    std::fs::create_dir_all(workspace.join(".git"))?;
     std::fs::create_dir_all(&nested)?;
-    std::fs::write(workspace.join(".runx").join("project.json"), "{}")?;
 
     let marked = RunxPaths::resolve(&BTreeMap::new(), &nested);
     let unmarked = RunxPaths::resolve(&BTreeMap::new(), root.path());

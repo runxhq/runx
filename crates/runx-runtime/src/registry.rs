@@ -70,9 +70,9 @@ pub use trust_anchor::{
 pub use types::{
     AcquiredRegistrySkill, ProfileMode, PublishSkillMarkdownResult, PublishStatus,
     RegistryAttestation, RegistryConnectorDetail, RegistryConnectorOperation,
-    RegistryLinkResolution, RegistryManifestSignature, RegistryManifestSigner, RegistryPackageFile,
-    RegistryPublishHarnessReport, RegistryPublisher, RegistrySearchResult, RegistrySignedManifest,
-    RegistrySkill, RegistrySkillDetail, RegistrySkillResolution, RegistrySkillVersion,
-    RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind, ResolvedRegistryRef, TrustSignal,
-    TrustTier,
+    RegistryConnectorSearchResult, RegistryLinkResolution, RegistryManifestSignature,
+    RegistryManifestSigner, RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher,
+    RegistrySearchResult, RegistrySignedManifest, RegistrySkill, RegistrySkillDetail,
+    RegistrySkillResolution, RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject,
+    RegistrySubjectKind, ResolvedRegistryRef, TrustSignal, TrustTier,
 };

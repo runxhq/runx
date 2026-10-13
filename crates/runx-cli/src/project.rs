@@ -2,12 +2,9 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_contracts::JsonValue;
 use runx_runtime::WorkspaceEnv;
-use runx_runtime::{InitGeneratedValues, RunxInitOptions, RunxInitResult, runx_init};
-use serde::Serialize;
 
-use crate::router::{InitPlan, NewPlan};
+use crate::router::NewPlan;
 use crate::skill::{SkillAction, SkillPlan};
 
 pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) -> ExitCode {
@@ -21,16 +18,13 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
     };
 
     let mut inputs = BTreeMap::from([
-        ("objective".to_owned(), JsonValue::String(plan.objective)),
-        ("package_name".to_owned(), JsonValue::String(name)),
-        ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-        ("target_dir".to_owned(), JsonValue::String(target_dir)),
+        ("objective".to_owned(), plan.objective),
+        ("package_name".to_owned(), name),
+        ("repo_root".to_owned(), ".".to_owned()),
+        ("target_dir".to_owned(), target_dir),
     ]);
     if let Some(project_context) = plan.project_context {
-        inputs.insert(
-            "project_context".to_owned(),
-            JsonValue::String(project_context),
-        );
+        inputs.insert("project_context".to_owned(), project_context);
     }
 
     crate::skill::run_native_skill_with_workspace(
@@ -46,12 +40,7 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
             expected_execution_closure_digest: None,
             json: plan.json,
             diagnostics: false,
-            trusted_command_execution: true,
-            full_operator_context: false,
-            inputs: crate::skill::CliInputs {
-                texts: BTreeMap::new(),
-                json: inputs,
-            },
+            inputs: crate::skill::CliInputs { texts: inputs },
             input_document: None,
             act: None,
             run_authority: None,
@@ -62,66 +51,6 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
     )
 }
 
-pub fn run_native_init(plan: InitPlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let paths = workspace.paths();
-    let options = RunxInitOptions {
-        paths: paths.clone(),
-        generated: InitGeneratedValues::generate(),
-    };
-
-    match runx_init(&options) {
-        Ok(result) => render_init_result(plan.json, &result),
-        Err(error) => {
-            let _ignored = write_stderr_line(&format!("runx: {error}"));
-            ExitCode::from(1)
-        }
-    }
-}
-
-fn write_json<T: serde::Serialize>(command: &str, result: &T) -> ExitCode {
-    match serde_json::to_string_pretty(result) {
-        Ok(output) => write_stdout_line(&output),
-        Err(error) => {
-            let _ignored = write_stderr_line(&format!(
-                "runx: failed to serialize {command} result: {error}"
-            ));
-            ExitCode::from(1)
-        }
-    }
-}
-
-fn render_init_result(json: bool, result: &RunxInitResult) -> ExitCode {
-    if json {
-        return write_json(
-            "init",
-            &InitJsonResult {
-                status: "success",
-                init: result,
-            },
-        );
-    }
-    write_stdout(&render_key_values(
-        "runx init",
-        &[
-            (
-                "created",
-                Some(if result.created { "yes" } else { "no" }.to_owned()),
-            ),
-            ("project", Some(result.project_dir.display().to_string())),
-            ("project_id", Some(result.project_id.clone())),
-        ],
-    ))
-}
-
-fn render_key_values(title: &str, rows: &[(&str, Option<String>)]) -> String {
-    let mut output = format!("\n  {title}  success\n\n");
-    for (key, value) in rows {
-        output.push_str(&format!("  {key}  {}\n", value.as_deref().unwrap_or("-")));
-    }
-    output.push('\n');
-    output
-}
-
 fn resolve_new_target(
     name: &str,
     directory: Option<&Path>,
@@ -129,7 +58,7 @@ fn resolve_new_target(
 ) -> Result<String, String> {
     let requested = directory
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from(name));
+        .unwrap_or_else(|| Path::new("skills").join(name));
     let relative = if requested.is_absolute() {
         let workspace = workspace.canonicalize().map_err(|error| {
             format!(
@@ -194,20 +123,6 @@ fn normalize_skill_name(value: &str) -> Result<String, String> {
         return Err("runx new package name must contain a letter or number".to_owned());
     }
     Ok(normalized)
-}
-
-#[derive(Serialize)]
-struct InitJsonResult<'a> {
-    status: &'static str,
-    init: &'a RunxInitResult,
-}
-
-fn write_stdout(message: &str) -> ExitCode {
-    crate::cli_io::write_stdout_code(message, 0)
-}
-
-fn write_stdout_line(message: &str) -> ExitCode {
-    crate::cli_io::write_stdout_code(&format!("{message}\n"), 0)
 }
 
 fn write_stderr_line(message: &str) -> ExitCode {

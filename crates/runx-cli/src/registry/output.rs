@@ -1,4 +1,4 @@
-use runx_runtime::registry::{InstallStatus, RegistrySkillResolution, TrustTier};
+use runx_runtime::registry::{InstallStatus, TrustTier};
 
 use super::{RegistryCliError, RegistryCliOutput, internal_error};
 use runx_runtime::registry::HostedSkillPublishResult;
@@ -23,16 +23,8 @@ pub(super) enum RegistryPayload {
         source: &'static str,
         query: String,
         results: Vec<runx_runtime::registry::RegistrySearchResult>,
-    },
-    Read {
-        source: &'static str,
-        r#ref: String,
-        skill: Box<runx_runtime::registry::RegistrySkillDetail>,
-    },
-    Resolve {
-        source: &'static str,
-        r#ref: String,
-        resolution: RemoteOrLocalResolution,
+        /// The published connectors that match; a hosted registry only.
+        connectors: Vec<runx_runtime::registry::RegistryConnectorSearchResult>,
     },
     Install {
         source: &'static str,
@@ -54,10 +46,6 @@ pub(super) enum RegistryPayload {
     ConnectorPublish {
         publish: Box<runx_runtime::registry::HostedConnectorPublishResult>,
     },
-    ConnectorRead {
-        source: &'static str,
-        connector: Box<runx_runtime::registry::RegistryConnectorDetail>,
-    },
     ConnectorInstall {
         source: &'static str,
         install: Box<runx_runtime::registry::InstalledRegistryConnector>,
@@ -72,13 +60,6 @@ pub(super) enum RegistryPayload {
 pub(super) enum PublishPayload {
     Hosted(Box<HostedSkillPublishResult>),
     Local(Box<runx_runtime::registry::PublishSkillMarkdownResult>),
-}
-
-#[derive(serde::Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum RemoteOrLocalResolution {
-    Remote(Box<runx_runtime::registry::RegistrySkillDetail>),
-    Local(Box<RegistrySkillResolution>),
 }
 
 pub(super) fn write_output<T: serde::Serialize>(
@@ -103,11 +84,23 @@ pub(super) fn render_search(
     query: &str,
     source: &str,
     results: &[runx_runtime::registry::RegistrySearchResult],
+    connectors: &[runx_runtime::registry::RegistryConnectorSearchResult],
 ) -> String {
     let mut output = format!(
         "\n  registry search  {query}\n  source           {source}\n  results          {}\n\n",
-        results.len()
+        results.len() + connectors.len()
     );
+    for connector in connectors {
+        output.push_str(&format!(
+            "  - {}@{}  connector\n    {}\n    trust    {}\n    install  runx registry install {}@{}\n",
+            connector.connector_ref,
+            connector.version,
+            connector.name,
+            trust_tier_label(&connector.trust_tier),
+            connector.connector_ref,
+            connector.version,
+        ));
+    }
     for result in results {
         let category = result
             .category
@@ -132,55 +125,6 @@ pub(super) fn render_search(
     output
 }
 
-pub(super) fn render_read(
-    source: &str,
-    registry_ref: &str,
-    skill: &runx_runtime::registry::RegistrySkillDetail,
-) -> String {
-    let category = skill
-        .category
-        .as_ref()
-        .map(|category| format!("  category         {category}\n"))
-        .unwrap_or_default();
-    format!(
-        "\n  registry read    {registry_ref}\n  source           {source}\n  skill            {}\n{}  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  next             {}\n\n",
-        skill.skill_id,
-        category,
-        skill.version,
-        digest_label(&skill.digest),
-        trust_tier_label(&skill.trust_tier),
-        signed_manifest_label(skill.signed_manifest.as_ref()),
-        skill.run_command.copy_text,
-    )
-}
-
-pub(super) fn render_resolve(
-    source: &str,
-    registry_ref: &str,
-    resolution: &RemoteOrLocalResolution,
-) -> String {
-    match resolution {
-        RemoteOrLocalResolution::Remote(resolved) => format!(
-            "\n  registry resolve {registry_ref}\n  source           {source}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  next             {}\n\n",
-            resolved.skill_id,
-            resolved.version,
-            digest_label(&resolved.digest),
-            trust_tier_label(&resolved.trust_tier),
-            signed_manifest_label(resolved.signed_manifest.as_ref()),
-            resolved.run_command.copy_text,
-        ),
-        RemoteOrLocalResolution::Local(resolved) => format!(
-            "\n  registry resolve {registry_ref}\n  source           {source}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  next             {}\n\n",
-            resolved.skill_id,
-            resolved.version,
-            digest_label(&resolved.digest),
-            trust_tier_label(&resolved.trust_tier),
-            signed_manifest_label(resolved.signed_manifest.as_ref()),
-            resolved.run_command.copy_text,
-        ),
-    }
-}
-
 pub(super) fn render_install(
     source: &str,
     registry_ref: &str,
@@ -188,7 +132,7 @@ pub(super) fn render_install(
     signed_manifest: Option<&runx_runtime::registry::RegistrySignedManifest>,
 ) -> String {
     format!(
-        "\n  add {registry_ref}\n  source           {source}\n  status           {}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
+        "\n  registry install {registry_ref}\n  source           {source}\n  status           {}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
         install_status_label(&install.status),
         install.skill_id.as_deref().unwrap_or(&install.skill_name),
         install.version.as_deref().unwrap_or("unknown"),
@@ -216,7 +160,7 @@ pub(super) fn render_connector_publish(
     published: &runx_runtime::registry::HostedConnectorPublishResult,
 ) -> String {
     format!(
-        "\n  registry connector publish  {}\n  connector        {}@{}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  install          {}\n  page             {}\n\n",
+        "\n  registry publish {}\n  connector        {}@{}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  install          {}\n  page             {}\n\n",
         published.status,
         published.connector_ref,
         published.version,
@@ -228,37 +172,11 @@ pub(super) fn render_connector_publish(
     )
 }
 
-pub(super) fn render_connector_read(
-    connector: &runx_runtime::registry::RegistryConnectorDetail,
-) -> String {
-    let mut output = format!(
-        "\n  registry connector read  {}@{}\n  name             {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  operations       {}\n",
-        connector.connector_ref,
-        connector.version,
-        connector.name,
-        connector.content_digest,
-        connector.manifest_digest,
-        trust_tier_label(&connector.trust_tier),
-        connector.operations.len(),
-    );
-    for operation in &connector.operations {
-        output.push_str(&format!(
-            "    - {}  {}\n",
-            operation.name, operation.description
-        ));
-    }
-    output.push_str(&format!(
-        "  next             {}\n\n",
-        connector.install_command.copy_text
-    ));
-    output
-}
-
 pub(super) fn render_connector_install(
     install: &runx_runtime::registry::InstalledRegistryConnector,
 ) -> String {
     format!(
-        "\n  registry connector install  {}@{}\n  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
+        "\n  registry install {}@{}\n  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
         install.connector_ref,
         install.version,
         install_status_label(&install.status),

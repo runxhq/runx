@@ -10,7 +10,6 @@ import {
   actAssignmentV1Schema,
   credentialDeliveryObservationV1Schema,
   dataOperationResultV1Schema,
-  devV1Schema,
   doctorV1Schema,
   fixtureV1Schema,
   handoffSignalV1Schema,
@@ -29,7 +28,6 @@ import {
   paidInvocationV1Schema,
   quotePaidInvocationRequestV1Schema,
   cancelPaidInvocationResultV1Schema,
-  runSummaryV1Schema,
   runxContractSchemas,
   runxAuxiliarySchemas,
   runxGeneratedSchemaArtifacts,
@@ -42,7 +40,6 @@ import {
   validateResolutionRequestContract,
   validateDataOperationResultContract,
   validateActAssignmentContract,
-  validateDevReportContract,
   validateDoctorReportContract,
   validateHandoffSignalContract,
   validateHandoffStateContract,
@@ -77,8 +74,6 @@ describe("@runxhq/contracts", () => {
     expect(runxContractSchemas.dataOperationResult.$id).toBe(RUNX_CONTRACT_IDS.dataOperationResult);
     expect((toolManifestV1Schema.properties as Record<string, unknown>).source).toBeDefined();
     expect((toolManifestV1Schema.required as readonly string[])).not.toContain("version");
-    const devProperties = runxContractSchemas.dev.properties as Record<string, unknown> | undefined;
-    expect(devProperties?.doctor).toMatchObject({ $id: RUNX_CONTRACT_IDS.doctor });
   });
 
   it("publishes paid-invocation V1 through the curated contract registry", () => {
@@ -108,9 +103,7 @@ describe("@runxhq/contracts", () => {
     expect(dataOperationResultV1Schema).toBe(runxContractSchemas.dataOperationResult);
     expect(receiptV1Schema).toBe(runxContractSchemas.receipt);
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
-    expect(devV1Schema).toBe(runxContractSchemas.dev);
     expect(listV1Schema).toBe(runxContractSchemas.list);
-    expect(runSummaryV1Schema).toBe(runxContractSchemas.runSummary);
     expect(fixtureV1Schema).toBe(runxContractSchemas.fixture);
     expect(packetIndexV1Schema).toBe(runxContractSchemas.packetIndex);
     expect(actAssignmentV1Schema).toBe(runxContractSchemas.actAssignment);
@@ -348,7 +341,6 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["act-assignment.schema.json"]).toBe(runxContractSchemas.actAssignment);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
-    expect(runxGeneratedSchemaArtifacts["run-summary.schema.json"]).toBe(runxContractSchemas.runSummary);
     expect(runxGeneratedSchemaArtifacts["handoff-signal.schema.json"]).toBe(runxContractSchemas.handoffSignal);
     expect(runxGeneratedSchemaArtifacts["handoff-state.schema.json"]).toBe(runxContractSchemas.handoffState);
     expect(runxGeneratedSchemaArtifacts["suppression-record.schema.json"]).toBe(runxContractSchemas.suppressionRecord);
@@ -924,35 +916,6 @@ describe("@runxhq/contracts", () => {
     })).toMatchObject({
       requested_kind: "all",
       items: [expect.objectContaining({ kind: "tool", fixtures: 1 })],
-    });
-
-    expect(validateDevReportContract({
-      schema: RUNX_LOGICAL_SCHEMAS.dev,
-      status: "success",
-      doctor: {
-        schema: RUNX_LOGICAL_SCHEMAS.doctor,
-        status: "success",
-        summary: {
-          errors: 0,
-          warnings: 0,
-          infos: 0,
-        },
-        diagnostics: [],
-      },
-      fixtures: [{
-        name: "demo-fixture",
-        lane: "deterministic",
-        target: {
-          kind: "tool",
-        },
-        status: "success",
-        duration_ms: 12,
-        assertions: [],
-      }],
-      receipt_id: "rx_123",
-    })).toMatchObject({
-      status: "success",
-      receipt_id: "rx_123",
     });
   });
 

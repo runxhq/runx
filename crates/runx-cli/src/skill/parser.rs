@@ -6,10 +6,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonValue;
 use runx_runtime::WorkspaceEnv;
 
-use super::inputs::{
-    CliInputs, parse_direct_input_arg, parse_input_arg, parse_input_document_arg,
-    parse_json_input_arg,
-};
+use super::inputs::{CliInputs, parse_input_arg, parse_input_document_arg};
 use super::{SkillAction, SkillPlan};
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
@@ -34,10 +31,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     }
 
     if state.input_document.is_some() && !state.inputs.is_empty() {
-        return Err(
-            "runx skill --inputs cannot be combined with -i, --input, --input-json, or direct --name inputs"
-                .to_owned(),
-        );
+        return Err("runx skill --inputs cannot be combined with -i inputs".to_owned());
     }
 
     let Some(skill_path) = state.skill_path.as_ref() else {
@@ -90,8 +84,6 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         expected_execution_closure_digest: state.expected_execution_closure_digest,
         json: state.json,
         diagnostics: state.diagnostics,
-        trusted_command_execution: false,
-        full_operator_context: state.full_operator_context,
         inputs: state.inputs,
         input_document: state.input_document,
         act: state.act,
@@ -145,9 +137,7 @@ struct SkillParseState {
     expected_execution_closure_digest: Option<String>,
     json: bool,
     diagnostics: bool,
-    full_operator_context: bool,
     inspect: bool,
-    force_run: bool,
     inputs: CliInputs,
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
@@ -272,14 +262,6 @@ fn parse_skill_arg(
                 &mut state.inputs,
             )?;
         }
-        value if value.starts_with("--input-json=") => {
-            index = parse_json_input_arg(
-                args,
-                index,
-                Some(value.trim_start_matches("--input-json=")),
-                &mut state.inputs,
-            )?;
-        }
         value if value.starts_with("--inputs=") => {
             index = parse_input_document_arg(
                 args,
@@ -297,7 +279,6 @@ fn parse_skill_arg(
             )?;
         }
         "--input" => index = parse_input_arg(args, index, None, &mut state.inputs)?,
-        "--input-json" => index = parse_json_input_arg(args, index, None, &mut state.inputs)?,
         "--inputs" => {
             index = parse_input_document_arg(args, index, None, &mut state.input_document)?;
         }
@@ -329,17 +310,8 @@ fn parse_skill_arg(
             index += 1;
             state.run_id = Some(string_arg(args, index)?);
         }
-        "--run" => state.force_run = true,
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
-        value if value.starts_with("--full-operator-context=") => {
-            state.full_operator_context = parse_boolean_flag(
-                "skill",
-                "--full-operator-context",
-                value.trim_start_matches("--full-operator-context="),
-            )?;
-        }
-        "--full-operator-context" => state.full_operator_context = true,
         value if value.starts_with("--managed-agent=") => {
             state.managed_agent = parse_boolean_flag(
                 "skill",
@@ -361,8 +333,10 @@ fn parse_skill_arg(
                 &string_arg(args, index)?,
             )?);
         }
-        value if value.starts_with("--") => {
-            index = parse_direct_input_arg(args, index, value, &mut state.inputs)?;
+        value if value.starts_with('-') => {
+            return Err(format!(
+                "unknown runx skill flag {value}; give inputs as -i name=value"
+            ));
         }
         value => {
             if state.skill_path.is_none() && value == "inspect" {
@@ -458,45 +432,6 @@ mod tests {
             Some(std::path::Path::new("receipts"))
         );
         assert!(state.json);
-        Ok(())
-    }
-
-    #[test]
-    fn input_json_parses_strict_json_values() -> Result<(), String> {
-        let args = [
-            "skill",
-            "skills/data-store",
-            "--input-json",
-            "event",
-            r#"{"type":"posting.claimed","payload":{"actor":"agent-9"}}"#,
-            "--input-json=limits={\"rows\":10}",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
-        let plan = super::parse_skill_plan(&args)?;
-        assert_eq!(plan.action, SkillAction::Run);
-
-        assert_eq!(
-            plan.inputs
-                .json
-                .get("event")
-                .and_then(runx_contracts::JsonValue::as_object)
-                .and_then(|event| event.get("type"))
-                .and_then(runx_contracts::JsonValue::as_str),
-            Some("posting.claimed")
-        );
-        let rows = plan
-            .inputs
-            .json
-            .get("limits")
-            .and_then(runx_contracts::JsonValue::as_object)
-            .and_then(|limits| limits.get("rows"))
-            .and_then(|rows| match rows {
-                runx_contracts::JsonValue::Number(number) => number.as_f64(),
-                _ => None,
-            });
-        assert_eq!(rows, Some(10.0));
         Ok(())
     }
 
@@ -604,59 +539,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn full_operator_context_flag_is_not_a_skill_input() -> Result<(), String> {
-        let args = [
-            "skill",
-            "skills/weather-forecast",
-            "--full-operator-context",
-            "--input",
-            "location=hello",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
-        let plan = super::parse_skill_plan(&args)?;
-
-        assert!(plan.full_operator_context);
-        assert_eq!(plan.inputs.texts.len(), 1);
-        assert!(plan.inputs.texts.contains_key("location"));
-        Ok(())
-    }
-
-    #[test]
-    fn inline_operator_context_flags_are_not_skill_inputs() -> Result<(), String> {
-        let args = [
-            "skill",
-            "skills/weather-forecast",
-            "--full-operator-context=true",
-            "--input",
-            "location=hello",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
-        let plan = super::parse_skill_plan(&args)?;
-
-        assert!(plan.full_operator_context);
-        assert_eq!(plan.inputs.texts.len(), 1);
-        assert!(plan.inputs.texts.contains_key("location"));
-        Ok(())
-    }
-
-    #[test]
-    fn run_flag_executes_zero_input_runner() -> Result<(), String> {
-        let args = ["skill", "skills/ops-desk", "refresh", "--run"]
-            .into_iter()
-            .map(std::ffi::OsString::from)
-            .collect::<Vec<_>>();
-        let plan = super::parse_skill_plan(&args)?;
-
-        assert_eq!(plan.action, SkillAction::Run);
-        assert_eq!(plan.runner.as_deref(), Some("refresh"));
-        Ok(())
-    }
-
     /// A host's caller context binds the run, never its inputs, and is
     /// refused when it names anything but the two context lists.
     #[test]
@@ -708,23 +590,23 @@ mod tests {
         Ok(())
     }
 
+    /// A flag runx does not own is refused, never read as an input, so an
+    /// input is never mistaken for a flag nor a flag for an input.
     #[test]
-    fn input_json_rejects_non_json_values() -> Result<(), String> {
-        let args = [
-            "skill",
-            "skills/data-store",
-            "--input-json",
-            "event",
-            "plain text",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
-        let Err(error) = super::parse_skill_plan(&args) else {
-            return Err("invalid json input should fail".to_owned());
-        };
-
-        assert!(error.contains("--input-json event is invalid JSON"));
+    fn an_unknown_flag_is_refused_not_read_as_an_input() -> Result<(), String> {
+        for flag in ["--runner", "--input-json", "--location", "--run"] {
+            let args = ["skill", "skills/weather-forecast", flag, "value"]
+                .into_iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>();
+            let refused = super::parse_skill_plan(&args)
+                .err()
+                .ok_or(format!("{flag} was accepted"))?;
+            assert!(
+                refused.contains("give inputs as -i name=value"),
+                "{refused}"
+            );
+        }
         Ok(())
     }
 }

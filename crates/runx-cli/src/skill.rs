@@ -38,11 +38,9 @@ pub struct SkillPlan {
     pub expected_package_digest: Option<String>,
     pub expected_execution_closure_digest: Option<String>,
     pub json: bool,
+    /// Show everything: the full prepared context before the run, and the
+    /// run's context and trace inline in its output.
     pub diagnostics: bool,
-    /// Internal command authorization for composite CLI commands such as
-    /// `runx new`. User-supplied `runx skill` invocations cannot set this.
-    pub trusted_command_execution: bool,
-    pub full_operator_context: bool,
     pub inputs: CliInputs,
     pub input_document: Option<crate::document_input::DocumentInputSource>,
     /// The act the invoker states for the run (`--act`).
@@ -198,11 +196,6 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             plan.expected_package_digest.as_deref(),
             plan.expected_execution_closure_digest.as_deref(),
         )
-    } else if plan.trusted_command_execution {
-        match plan.runner.as_deref() {
-            Some(runner) => orchestrator.run_skill_with_runner(&request, runner),
-            None => orchestrator.run_skill(&request),
-        }
     } else {
         let mut prepared = match orchestrator.prepare_skill(
             request,
@@ -222,7 +215,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         };
         // Operator context is written to stderr, so it never pollutes a
         // --json stdout payload; every invocation gets the same preflight facts.
-        if let Err(error) = write_operator_context(prepared.report(), plan.full_operator_context) {
+        if let Err(error) = write_operator_context(prepared.report(), plan.diagnostics) {
             return write_skill_failure(
                 &error,
                 plan.json,

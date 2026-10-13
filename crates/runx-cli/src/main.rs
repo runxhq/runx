@@ -89,7 +89,6 @@ fn dispatch(action: RouterAction, workspace: Option<&runx_runtime::WorkspaceEnv>
 
 fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
     match action {
-        RouterAction::RunInit(plan) => runx_cli::run_native_init(plan, workspace),
         RouterAction::RunNew(plan) => runx_cli::run_native_new_with_workspace(plan, workspace),
         RouterAction::RunHistory(plan) => run_native_history(plan.args, workspace),
         RouterAction::RunVerify(plan) => run_native_verify(plan.args, workspace),
@@ -98,14 +97,8 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunMcp(plan) => runx_cli::mcp::run_native_mcp_with_workspace(plan, workspace),
         RouterAction::RunHarness(plan) => run_native_harness(plan, workspace),
         RouterAction::RunConfig(plan) => run_native_config(plan, workspace),
-        RouterAction::RunConnect(plan) => {
-            runx_cli::connect::run_native_connect_with_stdin(plan, workspace, io::stdin())
-        }
         RouterAction::RunConnector(plan) => {
             runx_cli::connector::run_native_connector(plan, workspace)
-        }
-        RouterAction::RunCredential(plan) => {
-            runx_cli::credential::run_native_credential_with_workspace(plan, workspace)
         }
         RouterAction::RunPolicy(plan) => runx_cli::policy::run_native_policy(plan, workspace),
         RouterAction::RunNotarize(plan) => runx_cli::notarize::run_native_notarize(plan, workspace),
@@ -114,10 +107,9 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
             runx_cli::resume::run_native_resume_with_workspace(plan, workspace)
         }
         RouterAction::RunSkill(plan) => {
-            runx_cli::skill::run_native_skill_with_workspace(plan, workspace)
+            runx_cli::skill::run_native_skill_with_workspace(*plan, workspace)
         }
         RouterAction::RunDoctor(plan) => runx_cli::doctor::run_native_doctor(plan, workspace),
-        RouterAction::RunDev(plan) => runx_cli::dev::run_native_dev(plan, workspace),
         RouterAction::RunExport(plan) => runx_cli::export::run_native_export(plan, workspace),
         RouterAction::RunTool(plan) => runx_cli::tool::run_native_tool(plan, workspace),
         RouterAction::Error(_)

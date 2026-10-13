@@ -74,7 +74,7 @@ export function assembleBinding(inputs) {
       owner,
       trust_tier: evidence.registry.trust_tier,
       version: evidence.registry.version,
-      install_command: `runx add ${skillId}@${evidence.registry.version}`,
+      install_command: `runx registry install ${skillId}@${evidence.registry.version}`,
       run_command: `runx skill ${skillId}@${evidence.registry.version}`,
       profile_path: `${bindingPath}/run.yaml`,
       materialized_package_is_registry_artifact: true,

@@ -159,9 +159,9 @@ runx skill data-store append_event \
   -i data_source_ref=local://runx-data-store/dev-board \
   -i resource=board_events \
   -i aggregate_id=posting-123 \
-  --input-json expected_version=0 \
+  -i expected_version=0 \
   -i idempotency_key=posting-123:create:v1 \
-  --input-json event='{"type":"posting.created","payload":{"title":"verify a receipt link"}}' \
+  -i event='{"type":"posting.created","payload":{"title":"verify a receipt link"}}' \
   --json
 ```
 

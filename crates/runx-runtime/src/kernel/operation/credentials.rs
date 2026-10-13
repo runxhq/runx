@@ -145,7 +145,7 @@ fn stored_profile(
     // another workspace: it may now hold another account.
     if stored.secret_ref != binding.material_ref {
         return Err(format!(
-            "credential profile {profile} was replaced after {} was bound to it; bind it again here with `runx connector use {} --profile {profile}`",
+            "credential profile {profile} was replaced after {} was bound to it; bind it again here with `runx connector use {} {profile}`",
             connector.connector_ref, connector.connector_ref
         ));
     }

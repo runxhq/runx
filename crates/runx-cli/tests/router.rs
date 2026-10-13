@@ -1,18 +1,16 @@
 use runx_cli::command_spec::COMMAND_SPECS;
 use runx_cli::config::{ConfigAction, ConfigPlan};
-use runx_cli::connect::{ConnectAction, ConnectPlan};
 use runx_cli::export::{ExportPlan, Target};
 use runx_cli::login::LoginPlan;
 use runx_cli::mcp::McpPlan;
 use runx_cli::policy::PolicyPlan;
-use runx_cli::registry::{ConnectorAction, RegistryAction, RegistryPlan};
+use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
-    DevPlan, DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, InitPlan, ListKind,
-    ListPlan, NewPlan, RouterAction, ToolAction, ToolPlan, add_help_text, command_help_text,
-    connect_help_text, harness_help_text, help_text, history_help_text, list_help_text,
-    login_help_text, notarize_help_text, registry_help_text, route_args, skill_help_text,
-    verify_help_text,
+    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan, NewPlan,
+    RouterAction, ToolAction, ToolPlan, command_help_text, harness_help_text, help_text,
+    history_help_text, list_help_text, login_help_text, notarize_help_text, registry_help_text,
+    route_args, skill_help_text, verify_help_text,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
@@ -42,7 +40,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -55,10 +53,6 @@ fn top_level_help_and_version_are_native() {
     assert_help_line(
         &help,
         "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--managed-agent [--managed-agent-rounds n]] [--diagnostics] [-j|--json]",
-    );
-    assert_help_line(
-        &help,
-        "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -75,11 +69,11 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx connect list|start|status|revoke ... [-j|--json]",
+        "runx connector list|inspect|use|revoke|import-mcp ... [-j|--json]",
     );
     assert_help_line(
         &help,
-        "runx connector list|inspect|instances|use|revoke|import-mcp ... [-j|--json]",
+        "runx registry search|install|package|publish ... [-j|--json]",
     );
     assert!(
         !help.contains("runx harness <fixture.yaml|skill-dir|SKILL.md>"),
@@ -148,7 +142,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
@@ -260,11 +254,6 @@ fn filesystem_paths_do_not_require_utf8() {
 #[test]
 fn documented_command_help_is_native() {
     assert_eq!(
-        plan(&["add", "--help"]),
-        RouterAction::PrintCommandHelp("add")
-    );
-    assert_eq!(plan(&["add", "-h"]), RouterAction::PrintCommandHelp("add"));
-    assert_eq!(
         plan(&["list", "--help"]),
         RouterAction::PrintCommandHelp("list")
     );
@@ -273,8 +262,8 @@ fn documented_command_help_is_native() {
         RouterAction::PrintCommandHelp("login")
     );
     assert_eq!(
-        plan(&["connect", "--help"]),
-        RouterAction::PrintCommandHelp("connect")
+        plan(&["connector", "--help"]),
+        RouterAction::PrintCommandHelp("connector")
     );
     assert_eq!(
         plan(&["registry", "--help"]),
@@ -286,10 +275,9 @@ fn documented_command_help_is_native() {
     );
 
     assert_help_line(
-        &add_help_text(),
-        "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
+        &registry_help_text(),
+        "runx registry install <publisher>/<name>[@version] [--registry url|path] [--registry-dir dir] [--version version] [--digest sha256] [-j|--json]",
     );
-    assert!(!add_help_text().contains("--installation-id"));
     assert_help_line(
         &list_help_text(),
         "runx list [tools|skills|graphs|packets|overlays] [--ok-only|--invalid-only] [-j|--json]",
@@ -298,7 +286,6 @@ fn documented_command_help_is_native() {
         &login_help_text(),
         "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
-    assert!(!connect_help_text().contains("connect invoke"));
     let resume_help = command_help_text("resume").unwrap_or_default();
     assert!(resume_help.contains("Put agent/task responses under"));
     assert!(
@@ -522,10 +509,10 @@ fn routes_canonical_skill_run_to_native_plan() {
             "--json",
             "--input",
             "severity=low",
-            "--thread-title",
-            "Docs bug",
+            "-i",
+            "thread_title=Docs bug",
         ]),
-        RouterAction::RunSkill(SkillPlan {
+        RouterAction::RunSkill(Box::new(SkillPlan {
             action: SkillAction::Run,
             skill_path: PathBuf::from("skills/issue-intake"),
             runner: Some("intake".to_owned()),
@@ -537,8 +524,6 @@ fn routes_canonical_skill_run_to_native_plan() {
             expected_execution_closure_digest: None,
             json: true,
             diagnostics: false,
-            trusted_command_execution: false,
-            full_operator_context: false,
             inputs: runx_cli::skill::CliInputs {
                 texts: [
                     ("thread_title".to_owned(), "Docs bug".to_owned()),
@@ -546,14 +531,13 @@ fn routes_canonical_skill_run_to_native_plan() {
                 ]
                 .into_iter()
                 .collect(),
-                json: Default::default(),
             },
             input_document: None,
             act: None,
             run_authority: None,
             context: None,
             managed_agent: Default::default(),
-        })
+        }))
     );
 }
 
@@ -608,21 +592,16 @@ fn skill_rejects_resolver_flags_for_management_actions() {
     }
 }
 
+/// One setup noun and one install: `connect`, `credential` and `add` are gone.
 #[test]
-fn routes_connect_to_native_plan() {
-    assert_eq!(
-        plan(&["connect", "list", "--json"]),
-        RouterAction::RunConnect(ConnectPlan {
-            action: ConnectAction::List,
-            api_base_url: None,
-            allow_local_api: false,
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["url-add", "github.com/kam/skills"]),
-        RouterAction::Error("unknown command url-add".to_owned())
-    );
+fn there_is_no_connect_credential_or_add_command() {
+    for command in ["connect", "credential", "add", "url-add"] {
+        assert_eq!(
+            plan(&[command, "list"]),
+            RouterAction::Error(format!("unknown command {command}")),
+            "{command}"
+        );
+    }
 }
 
 #[test]
@@ -777,13 +756,11 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
             managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
         })
     );
+    // A repository or a skills/ directory marks a project; nothing is
+    // initialized to mark one.
     assert_eq!(
-        plan(&["init", "--json"]),
-        RouterAction::RunInit(InitPlan { json: true })
-    );
-    assert_eq!(
-        plan(&["init", "-g"]),
-        RouterAction::Error("unexpected init argument -g".to_owned())
+        plan(&["init"]),
+        RouterAction::Error("unknown command init".to_owned())
     );
 }
 
@@ -826,39 +803,12 @@ fn new_requires_an_objective_and_explicit_managed_agent_consent() {
     );
 }
 
+/// `runx harness` runs every fixture; there is no second fixture loop.
 #[test]
-fn routes_dev_to_native_plan_with_declared_lane_shape() {
+fn there_is_no_dev_command() {
     assert_eq!(
-        plan(&["dev", "--lane", "deterministic", "--json"]),
-        RouterAction::RunDev(DevPlan {
-            root: None,
-            lane: Some("deterministic".to_owned()),
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["dev", "packages/demo", "--lane=all"]),
-        RouterAction::RunDev(DevPlan {
-            root: Some(PathBuf::from("packages/demo")),
-            lane: Some("all".to_owned()),
-            json: false,
-        })
-    );
-}
-
-#[test]
-fn dev_rejects_unknown_shapes_without_delegating() {
-    assert_eq!(
-        plan(&["dev", "--lane"]),
-        RouterAction::Error("--lane requires a value".to_owned())
-    );
-    assert_eq!(
-        plan(&["dev", "--watch"]),
-        RouterAction::Error("unknown dev flag --watch".to_owned())
-    );
-    assert_eq!(
-        plan(&["dev", "one", "two"]),
-        RouterAction::Error("runx dev accepts at most one root path".to_owned())
+        plan(&["dev"]),
+        RouterAction::Error("unknown command dev".to_owned())
     );
 }
 
@@ -898,7 +848,6 @@ fn routes_registry_to_native_plan() {
             registry_dir: Some(PathBuf::from("/tmp/runx-registry")),
             version: None,
             expected_digest: None,
-            destination: None,
             publisher: None,
             profile: None,
             trust_tier: None,
@@ -923,7 +872,6 @@ fn routes_registry_to_native_plan() {
             registry_dir: None,
             version: None,
             expected_digest: None,
-            destination: None,
             publisher: None,
             profile: Some(PathBuf::from("profiles/run.yaml")),
             trust_tier: None,
@@ -945,12 +893,11 @@ fn routes_registry_to_native_plan() {
 }
 
 #[test]
-fn routes_registry_connector_subcommands() {
+fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
     let digest = format!("sha256:{}", "a".repeat(64));
     assert_eq!(
         plan(&[
             "registry",
-            "connector",
             "install",
             "acme/ops-api@1.0.0",
             "--registry",
@@ -960,13 +907,12 @@ fn routes_registry_connector_subcommands() {
             "--json",
         ]),
         RouterAction::RunRegistry(RegistryPlan {
-            action: RegistryAction::Connector(ConnectorAction::Install),
+            action: RegistryAction::Install,
             subject: "acme/ops-api@1.0.0".to_owned(),
             registry: Some("https://runx.example".to_owned()),
             registry_dir: None,
             version: None,
             expected_digest: Some(digest.clone()),
-            destination: None,
             publisher: None,
             profile: None,
             trust_tier: None,
@@ -976,34 +922,23 @@ fn routes_registry_connector_subcommands() {
         })
     );
     assert_eq!(
-        plan(&["registry", "connector", "install", "acme/ops-api", "--to", "dir"]),
+        plan(&["registry", "install", "acme/ops-api", "--to", "dir"]),
+        RouterAction::Error("unknown registry flag --to".to_owned())
+    );
+    assert_eq!(
+        plan(&["registry", "publish", "connectors/ops-api", "--digest", &digest]),
         RouterAction::Error(
-            "runx registry connector install accepts only --registry, --version, --digest and --json"
+            "runx registry publish accepts only --registry, --registry-dir, --publisher, --version, --profile, --trust-tier, --upsert and --json"
                 .to_owned()
         )
     );
-    assert_eq!(
-        plan(&[
-            "registry",
-            "connector",
-            "publish",
-            "connectors/ops-api",
-            "--digest",
-            &digest
-        ]),
-        RouterAction::Error(
-            "runx registry connector publish accepts only --registry, --version and --json"
-                .to_owned()
-        )
-    );
-    assert!(matches!(
-        plan(&["registry", "connector", "read", "ops-api"]),
-        RouterAction::Error(message) if message.contains("not a connector ref")
-    ));
-    assert_eq!(
-        plan(&["registry", "connector", "remove", "acme/ops-api"]),
-        RouterAction::Error("unknown registry connector subcommand remove".to_owned())
-    );
+    for retired in ["read", "resolve", "connector"] {
+        assert_eq!(
+            plan(&["registry", retired, "acme/ops-api"]),
+            RouterAction::Error(format!("unknown registry subcommand {retired}")),
+            "{retired}"
+        );
+    }
 }
 
 #[test]
@@ -1017,7 +952,7 @@ fn rejects_zero_registry_limit() {
 #[test]
 fn rejects_unsafe_registry_version() {
     assert_eq!(
-        plan(&["add", "acme/echo@../bad"]),
+        plan(&["registry", "install", "acme/echo@../bad"]),
         RouterAction::Error(
             runx_contracts::validate_registry_version("../bad")
                 .err()
@@ -1025,7 +960,7 @@ fn rejects_unsafe_registry_version() {
         )
     );
     assert!(matches!(
-        plan(&["add", "acme/echo@-rf"]),
+        plan(&["registry", "install", "acme/echo@-rf"]),
         RouterAction::Error(message) if message.contains("starts with an ASCII letter or digit")
     ));
 }
@@ -1033,51 +968,13 @@ fn rejects_unsafe_registry_version() {
 #[test]
 fn every_command_that_prints_json_reads_dash_j_as_json() {
     assert!(matches!(
-        plan(&["add", "acme/echo@1.0.0", "-j"]),
+        plan(&["registry", "install", "acme/echo@1.0.0", "-j"]),
         RouterAction::RunRegistry(plan) if plan.json && plan.subject == "acme/echo@1.0.0"
     ));
     assert!(matches!(
         plan(&["export", "claude", "-j"]),
         RouterAction::RunExport(plan) if plan.json
     ));
-}
-
-#[test]
-fn routes_add_to_native_plan() {
-    assert_eq!(
-        plan(&[
-            "add",
-            "acme/sourcey@1.0.0",
-            "--registry",
-            "https://runx.example.test",
-            "--to",
-            "skills",
-            "--digest",
-            "sha256:abc",
-            "--json",
-        ]),
-        RouterAction::RunRegistry(RegistryPlan {
-            action: RegistryAction::Install,
-            subject: "acme/sourcey@1.0.0".to_owned(),
-            registry: Some("https://runx.example.test".to_owned()),
-            registry_dir: None,
-            version: None,
-            expected_digest: Some("sha256:abc".to_owned()),
-            destination: Some(PathBuf::from("skills")),
-            publisher: None,
-            profile: None,
-            trust_tier: None,
-            limit: None,
-            upsert: false,
-            json: true,
-        })
-    );
-    // One way to add: a skill ref. A repository is published with
-    // `runx registry publish`.
-    assert_eq!(
-        plan(&["add", "github.com/kam/skills", "--ref", "main"]),
-        RouterAction::Error("unknown add flag --ref".to_owned())
-    );
 }
 
 #[test]

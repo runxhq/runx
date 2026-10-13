@@ -44,7 +44,7 @@ fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
     let bare = scope.connector("github").unwrap_err();
     assert!(
         matches!(bare, ConnectorRegistryError::NoPlugin { .. })
-            && bare.to_string().contains("runx registry connector install"),
+            && bare.to_string().contains("runx registry install"),
         "{bare}"
     );
     let qualified = scope.connector("runx/github").unwrap_err();
@@ -54,7 +54,7 @@ fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
             ConnectorRegistryError::NotInstalledConnector { .. }
         ) && qualified
             .to_string()
-            .contains("runx registry connector install runx/github"),
+            .contains("runx registry install runx/github"),
         "{qualified}"
     );
 
@@ -451,7 +451,7 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
         matches!(refused, ConnectorRegistryError::NotInstalled { .. })
             && refused
                 .to_string()
-                .contains("runx registry connector install acme/ops-api@<version>"),
+                .contains("runx registry install acme/ops-api@<version>"),
         "{refused}"
     );
 

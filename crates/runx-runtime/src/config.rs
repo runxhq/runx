@@ -94,7 +94,6 @@ pub enum ConfigKey {
     AgentApiKey,
     AgentEndpointUrl,
     AgentAuthMode,
-    PublicApiToken,
 }
 
 /// A model API's wire format. Dialects are code; providers are data.
@@ -258,7 +257,6 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
         "agent.api_key" => Ok(ConfigKey::AgentApiKey),
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
         "agent.auth_mode" => Ok(ConfigKey::AgentAuthMode),
-        "public.api_token" => Ok(ConfigKey::PublicApiToken),
         _ => Err(ConfigError::UnsupportedKey {
             key: key.to_owned(),
         }),
@@ -348,11 +346,6 @@ pub fn update_runx_config_value(
             agent.auth_mode = Some(value.to_owned());
             config.agent = Some(agent);
         }
-        ConfigKey::PublicApiToken => {
-            let mut public = config.public.unwrap_or_default();
-            public.api_token_ref = Some(store_local_public_api_token(paths, value)?);
-            config.public = Some(public);
-        }
     }
     Ok(config)
 }
@@ -375,12 +368,6 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
             .agent
             .as_ref()?
             .api_key_ref
-            .as_ref()
-            .map(|_| "[encrypted]".to_owned()),
-        ConfigKey::PublicApiToken => config
-            .public
-            .as_ref()?
-            .api_token_ref
             .as_ref()
             .map(|_| "[encrypted]".to_owned()),
     }

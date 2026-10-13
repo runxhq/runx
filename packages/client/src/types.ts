@@ -127,7 +127,7 @@ export interface NativePackageOutput extends Readonly<Record<string, unknown>> {
   };
 }
 
-/** `runx registry connector package <dir> --json`: a connector's exact registry package. */
+/** `runx registry package <dir> --json` over a connector directory: its exact registry package. */
 export interface NativeConnectorPackageOutput extends Readonly<Record<string, unknown>> {
   readonly status: "success";
   readonly registry: {

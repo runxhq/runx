@@ -218,10 +218,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
 }
 
 pub fn is_secret_config_key(key: &str) -> bool {
-    matches!(
-        normalize_config_key(key),
-        "agent.api_key" | "public.api_token"
-    )
+    normalize_config_key(key) == "agent.api_key"
 }
 
 fn normalize_config_key(key: &str) -> &str {
@@ -232,7 +229,6 @@ fn normalize_config_key(key: &str) -> &str {
         "endpoint-url" => "agent.endpoint_url",
         "auth-mode" => "agent.auth_mode",
         "api-key" | "agent-key" => "agent.api_key",
-        "public-token" => "public.api_token",
         _ => key,
     }
 }
@@ -494,20 +490,10 @@ mod tests {
             value_from_stdin: true,
             json: true,
         };
-        let set_public_token = ConfigPlan {
-            action: ConfigAction::Set,
-            key: Some("public.api_token".to_owned()),
-            value: Some("rxk-secret-test".to_owned()),
-            value_from_stdin: true,
-            json: true,
-        };
         run_config_command(&set_provider, &env, &temp)?;
         let key_output = run_config_command(&set_key, &env, &temp)?;
-        let public_output = run_config_command(&set_public_token, &env, &temp)?;
         assert!(key_output.contains("\"value\": \"[encrypted]\""));
-        assert!(public_output.contains("\"value\": \"[encrypted]\""));
         assert!(!key_output.contains("sk-secret-test"));
-        assert!(!public_output.contains("rxk-secret-test"));
 
         let get_output = run_config_command(
             &ConfigPlan {
@@ -538,16 +524,12 @@ mod tests {
         assert!(list_output.contains("agent.provider"));
         assert!(list_output.contains("openai"));
         assert!(list_output.contains("agent.api_key"));
-        assert!(list_output.contains("public.api_token"));
         assert!(list_output.contains("[encrypted]"));
         assert!(!list_output.contains("sk-secret-test"));
-        assert!(!list_output.contains("rxk-secret-test"));
 
         let config_contents = fs::read_to_string(runx_home.join("config.json"))?;
         assert!(config_contents.contains("api_key_ref"));
-        assert!(config_contents.contains("api_token_ref"));
         assert!(!config_contents.contains("sk-secret-test"));
-        assert!(!config_contents.contains("rxk-secret-test"));
         fs::remove_dir_all(temp)?;
         Ok(())
     }

@@ -22,8 +22,8 @@ describe("hello-world example", () => {
         [
           "skill",
           "examples/hello-world",
-          "--message",
-          "hello from docs",
+          "-i",
+          "message=hello from docs",
           "--json",
         ],
         {

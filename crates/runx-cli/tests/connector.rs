@@ -1,8 +1,10 @@
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Stdio;
+use std::thread;
 
 use crate::support::{plugin_with_source_connectors, temp_root, unsigned_runx_command_at};
 
@@ -63,19 +65,18 @@ fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
     let (ok, set) = runx(
         root,
         &[
-            "credential",
-            "set",
+            "connector",
+            "use",
             "github",
             "--credential",
             "token",
             "--profile",
             "operator",
-            "--from-stdin",
         ],
         Some("ghp_connector_test_token"),
     )?;
     assert!(ok, "{set}");
-    let instance = set["credential"]["instance"]["instance_id"]
+    let instance = set["selected"]["instance_id"]
         .as_str()
         .ok_or("the credential confirmed no instance")?;
     assert!(instance.starts_with("credential."), "{set}");
@@ -92,7 +93,7 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
         assert!(ok, "{used}");
         assert_eq!(used["selected"]["instance_id"], instance.as_str());
 
-        let (ok, listed) = connector(&root, &["instances"])?;
+        let (ok, listed) = connector(&root, &["list"])?;
         assert!(ok, "{listed}");
         assert_eq!(listed["instances"][0]["selected"], true);
 
@@ -164,7 +165,7 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
                 .is_some_and(|message| message.contains("sign in")),
             "{refused}"
         );
-        let (_, listed) = connector(&root, &["instances"])?;
+        let (_, listed) = connector(&root, &["list"])?;
         assert_eq!(listed["instances"], serde_json::json!([]));
         Ok(())
     })();
@@ -188,11 +189,11 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
             "resource=items",
             "-i",
             "aggregate_id=a",
-            "--input-json",
+            "-i",
             "expected_version=0",
             "-i",
             &key,
-            "--input-json",
+            "-i",
             r#"event={"type":"item.created"}"#,
         ],
         None,
@@ -248,7 +249,7 @@ fn a_store_url_never_carries_a_password() -> TestResult {
             ],
         )?;
         assert!(!ok, "{refused}");
-        let (_, listed) = connector(&root, &["instances"])?;
+        let (_, listed) = connector(&root, &["list"])?;
         assert_eq!(listed["instances"], serde_json::json!([]));
         Ok(())
     })();
@@ -278,14 +279,13 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
     )?;
     let result = (|| -> TestResult {
         let set = [
-            "credential",
-            "set",
+            "connector",
+            "use",
             "acme",
             "--credential",
             "token",
             "--profile",
             "operator",
-            "--from-stdin",
         ];
         let (ok, refused) = runx(&root, &set, Some("acme_token"))?;
         assert!(!ok, "the workspace root is not in the plugin: {refused}");
@@ -299,9 +299,9 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
 
         let (ok, bound) = runx(&plugin, &set, Some("acme_token"))?;
         assert!(ok, "{bound}");
-        let instance = &bound["credential"]["instance"];
+        let instance = &bound["selected"];
         assert_eq!(instance["connector"], "acme/acme", "{bound}");
-        let (ok, listed) = connector(&root, &["instances"])?;
+        let (ok, listed) = connector(&root, &["list"])?;
         assert!(ok, "{listed}");
         assert_eq!(
             listed["instances"][0]["instance_id"],
@@ -326,4 +326,70 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
     })();
     fs::remove_dir_all(&root)?;
     result
+}
+
+/// `connector list` shows the signed-in account's runx Connect grants beside
+/// the connectors in reach.
+#[test]
+fn connector_list_reads_the_signed_in_accounts_grants() -> Result<(), Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let address = listener.local_addr()?;
+    let server = thread::spawn(move || -> Result<(), String> {
+        for (path, body) in [
+            (
+                "/v1/me",
+                r#"{"status":"success","principal":{"principal_id":"fixture-user","role":"user"}}"#,
+            ),
+            ("/v1/grants", r#"{"status":"success","grants":[]}"#),
+        ] {
+            let (mut stream, _) = listener.accept().map_err(|error| error.to_string())?;
+            let mut request = [0u8; 8192];
+            let length = stream
+                .read(&mut request)
+                .map_err(|error| error.to_string())?;
+            let request = String::from_utf8_lossy(&request[..length]);
+            if !request.starts_with(&format!("GET {path} HTTP/1.1")) {
+                return Err(format!("unexpected request for {path}: {request}"));
+            }
+            if !request
+                .to_ascii_lowercase()
+                .contains("authorization: bearer rxk_fixture")
+            {
+                return Err(format!("request for {path} omitted the bearer token"));
+            }
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    });
+
+    let output = crate::support::isolated_runx_command_with_inherited_cwd("connector-list-test")
+        .env("RUNX_PUBLIC_API_TOKEN", "rxk_fixture")
+        .env("RUNX_PUBLIC_API_BASE_URL", format!("http://{address}"))
+        .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
+        .args(["connector", "list", "--json"])
+        .output()?;
+    let server_result = server
+        .join()
+        .map_err(|_| "Connect fixture server panicked")?;
+    server_result.map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let body: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(body["grants"], serde_json::json!([]));
+    assert!(
+        body["connectors"]
+            .as_array()
+            .is_some_and(|connectors| !connectors.is_empty())
+    );
+    Ok(())
 }

@@ -30,7 +30,7 @@ class RunxClientTests(unittest.TestCase):
                 "required_scopes": ["repo:read"],
                 "tags": ["docs"],
                 "version": "1.0.0",
-                "install_command": {"shell": "posix", "argv": ["runx", "add", "acme/sourcey@1.0.0"], "copy_text": "runx add acme/sourcey@1.0.0"},
+                "install_command": {"shell": "posix", "argv": ["runx", "registry", "install", "acme/sourcey@1.0.0"], "copy_text": "runx registry install acme/sourcey@1.0.0"},
                 "run_command": {"shell": "posix", "argv": ["runx", "skill", "acme/sourcey@1.0.0"], "copy_text": "runx skill acme/sourcey@1.0.0"},
             }
         )
@@ -38,7 +38,7 @@ class RunxClientTests(unittest.TestCase):
         self.assertEqual(result.skill_id, "acme/sourcey")
         self.assertEqual(result.required_scopes, ("repo:read",))
         self.assertEqual(result.tags, ("docs",))
-        self.assertEqual(result.install_command.copy_text, "runx add acme/sourcey@1.0.0")
+        self.assertEqual(result.install_command.copy_text, "runx registry install acme/sourcey@1.0.0")
         self.assertEqual(result.run_command.argv, ("runx", "skill", "acme/sourcey@1.0.0"))
 
     def test_invokes_runx_cli_json_output(self) -> None:
@@ -52,7 +52,7 @@ class RunxClientTests(unittest.TestCase):
 
                     args = sys.argv[1:]
                     if args[:2] == ["registry", "search"]:
-                        command = lambda verb: {"shell": "posix", "argv": ["runx", verb, "acme/sourcey@1.0.0"], "copy_text": f"runx {verb} acme/sourcey@1.0.0"}
+                        command = lambda *verb: {"shell": "posix", "argv": ["runx", *verb, "acme/sourcey@1.0.0"], "copy_text": f"runx {' '.join(verb)} acme/sourcey@1.0.0"}
                         print(json.dumps({
                             "status": "success",
                             "registry": {"action": "search", "results": [{
@@ -64,7 +64,7 @@ class RunxClientTests(unittest.TestCase):
                                                 "trust_tier": "community",
                                 "required_scopes": [],
                                 "tags": [],
-                                "install_command": command("add"),
+                                "install_command": command("registry", "install"),
                                 "run_command": command("skill"),
                             }]},
                         }))
@@ -81,7 +81,7 @@ class RunxClientTests(unittest.TestCase):
             self.assertEqual(results[0].skill_id, "acme/sourcey")
             self.assertEqual(
                 run_report["args"],
-                ["skill", "skills/example", "--message", "hi", "--json"],
+                ["skill", "skills/example", "-i", "message=hi", "--json"],
             )
 
     def test_continue_run_invokes_skill_with_run_id_and_answers_file(self) -> None:

@@ -276,6 +276,18 @@ impl SignatureVerifier for Ed25519ReceiptVerifier {
     }
 }
 
+/// The Ed25519 primitive a hosted notary's counter-seal is checked with.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Ed25519CounterSealVerifier;
+
+impl runx_receipts::CounterSealVerifier for Ed25519CounterSealVerifier {
+    fn verifies(&self, public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
+        UnparsedPublicKey::new(&ED25519, public_key)
+            .verify(message, signature)
+            .is_ok()
+    }
+}
+
 /// The identity a runtime seals receipts under, and the verifier that checks
 /// each seal before it is kept.
 #[derive(Clone)]

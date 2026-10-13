@@ -117,7 +117,8 @@ class RunxClient:
     ) -> dict[str, Any]:
         args = ["skill", skill_path]
         for key, value in (inputs or {}).items():
-            args.extend([f"--{key}", str(value)])
+            text = value if isinstance(value, str) else json.dumps(value)
+            args.extend(["-i", f"{key}={text}"])
         return self.run_json(args)
 
     def continue_run(

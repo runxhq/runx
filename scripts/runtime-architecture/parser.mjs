@@ -39,21 +39,6 @@ export function checkCanonicalParserOwnership(findings) {
   if (/pub\s+fn\s+parse_harness_fixture|\bproject_parser_error\b|HarnessFixtureError::(?:Required|Empty|Invalid|UnknownReceiptField)/u.test(runtimeHarnessFixture)) {
     findings.push(`${relative(runtimeHarnessFixturePath)} mirrors parser-owned harness parsing or diagnostics`);
   }
-  const runtimeDevLoopPath = path.join(
-    workspaceRoot,
-    "crates/runx-runtime/src/dev/loop.rs",
-  );
-  const runtimeDevLoop = existsSync(runtimeDevLoopPath)
-    ? productionRustSource(readFileSync(runtimeDevLoopPath, "utf8"))
-    : "";
-  if (/\bparse_yaml_document\b|\bParsedDevFixture\b|fixture\.document|json_(?:object|string)_field\([^\n]*fixture/u.test(runtimeDevLoop)) {
-    findings.push(`${relative(runtimeDevLoopPath)} reparses parser-owned dev fixture contracts`);
-  }
-  const parserLibPath = path.join(workspaceRoot, "crates/runx-parser/src/lib.rs");
-  const parserLib = existsSync(parserLibPath) ? readFileSync(parserLibPath, "utf8") : "";
-  if (!parserLib.includes("parse_dev_fixture") || !parserLib.includes("DevFixture")) {
-    findings.push(`${relative(parserLibPath)} must own the typed runx dev fixture contract`);
-  }
   const runtimeConfigPath = path.join(workspaceRoot, "crates/runx-runtime/src/config.rs");
   const runtimeConfig = existsSync(runtimeConfigPath)
     ? productionRustSource(readFileSync(runtimeConfigPath, "utf8"))
@@ -96,7 +81,7 @@ export function checkCanonicalParserOwnership(findings) {
   const parserBridgePath = path.join(workspaceRoot, "scripts/lib/native-parser.mjs");
   const parserBridge = existsSync(parserBridgePath) ? readFileSync(parserBridgePath, "utf8") : "";
   for (const token of [
-    "parser\", \"eval",
+    "rustExampleBinary(\"runx-parser\", \"parser_eval\"",
     "validateRunnerManifestYamlBatch",
     "validateHarnessFixtureYamlBatch",
     "parsePacketSchemaDocumentsBatch",

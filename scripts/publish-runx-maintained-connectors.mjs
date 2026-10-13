@@ -33,16 +33,17 @@ function registryArgument() {
   return registry;
 }
 
-// `runx registry connector <args> --json`, parsed; a failed command stops the run.
+// `runx registry <args> --json` over a connector directory, parsed; a failed
+// command stops the run.
 function connectorCommand(args) {
-  const result = spawnSync(runx, ["registry", "connector", ...args, "--json"], {
+  const result = spawnSync(runx, ["registry", ...args, "--json"], {
     cwd: workspaceRoot,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     stdio: ["ignore", "pipe", "inherit"],
   });
   if (result.error) fail(`${runx} could not run: ${result.error.message}`);
-  if (result.status !== 0) fail(`runx registry connector ${args[0]} ${args[1]} exited with ${result.status}`);
+  if (result.status !== 0) fail(`runx registry ${args[0]} ${args[1]} exited with ${result.status}`);
   return JSON.parse(result.stdout).registry;
 }
 

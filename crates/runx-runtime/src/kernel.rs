@@ -16,6 +16,7 @@
 pub mod admission;
 pub mod authority;
 pub(crate) mod capability;
+pub mod connector_setup;
 pub mod connectors;
 pub(crate) mod custody;
 pub mod instances;

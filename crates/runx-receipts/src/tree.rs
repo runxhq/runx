@@ -1,4 +1,5 @@
 mod findings;
+mod groups;
 mod proof;
 mod resolver;
 mod traversal;
@@ -21,6 +22,8 @@ use findings::{child_receipt_findings, duplicate_child_findings, orphan_child_fi
 use proof::{StrictChildProofPolicy, StructuralChildProofPolicy, child_receipt_proof_findings};
 use resolver::SliceReceiptResolver;
 use traversal::TreeTraversal;
+
+pub use groups::{ReceiptTreeGroup, group_receipt_trees};
 
 /// How many levels a receipt tree may hold below its root.
 pub const MAX_RECEIPT_TREE_DEPTH: usize = 64;

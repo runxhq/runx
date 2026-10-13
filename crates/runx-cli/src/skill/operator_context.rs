@@ -70,7 +70,7 @@ pub(super) fn write_operator_context(
         append_resolution_trace(&mut out, report);
     }
     if !full {
-        out.push_str("  Full context: add --full-operator-context\n");
+        out.push_str("  Full context: add --diagnostics\n");
         let _ignored = writeln!(std::io::stderr(), "{out}");
         return Ok(());
     }

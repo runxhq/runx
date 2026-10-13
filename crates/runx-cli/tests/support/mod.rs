@@ -127,9 +127,10 @@ pub fn apply_fixture_signing(command: &mut Command, signing_key_id: &str) {
 }
 
 /// JSON commands keep their machine envelope on stdout. A governed skill run
-/// may additionally emit the compact, human-readable operator preflight on
-/// stderr. Accept only those two exact channel shapes so tests do not hide
-/// arbitrary warnings or diagnostics.
+/// may additionally emit the human-readable operator preflight on stderr:
+/// compact, or under `--diagnostics` followed by the full operator context.
+/// Accept only those exact channel shapes so tests do not hide arbitrary
+/// warnings.
 pub fn assert_json_stderr(stderr: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     let stderr = std::str::from_utf8(stderr)?;
     if stderr.is_empty() {
@@ -162,11 +163,12 @@ pub fn assert_json_stderr(stderr: &[u8]) -> Result<(), Box<dyn std::error::Error
     require_stderr_prefix(&lines, &mut cursor, "  Managed agent: ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Inputs: ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Digest: sha256:")?;
-    require_stderr_line(
-        &lines,
-        &mut cursor,
-        "  Full context: add --full-operator-context",
-    )?;
+    if lines.get(cursor) == Some(&"") {
+        require_stderr_line(&lines, &mut cursor, "")?;
+        require_stderr_line(&lines, &mut cursor, "Full operator context")?;
+        return Ok(());
+    }
+    require_stderr_line(&lines, &mut cursor, "  Full context: add --diagnostics")?;
     if cursor != lines.len() {
         return Err(format!("unexpected stderr for JSON command:\n{stderr}").into());
     }

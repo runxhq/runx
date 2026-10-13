@@ -167,7 +167,7 @@ fn native_skill_resolves_bare_local_skill_and_documented_input_flags()
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
             "--input",
-            "thread-title=Docs bug",
+            "thread_title=Docs bug",
             "--input",
             "severity",
             "low",
@@ -217,7 +217,7 @@ fn native_skill_prints_operator_context_and_admits_safe_run_by_default()
     assert!(stderr.contains("Boundaries:"));
     assert!(stderr.contains("trusted_host_process"));
     assert!(stderr.contains("remote_provider"));
-    assert!(stderr.contains("Full context: add --full-operator-context"));
+    assert!(stderr.contains("Full context: add --diagnostics"));
     assert!(!stderr.contains("--- root skill ---"));
     assert!(!stderr.contains("# Operator Context Fixture"));
     let stdout = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
@@ -236,7 +236,7 @@ fn native_skill_prints_operator_context_and_admits_safe_run_by_default()
             "skill",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--json",
-            "--full-operator-context",
+            "--diagnostics",
         ])
         .output()?;
     assert_eq!(full.status.code(), Some(2));
@@ -377,7 +377,6 @@ fn native_skill_positional_runner_selects_non_default_runner()
             "skill",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "second",
-            "--run",
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
             "--json",
@@ -456,8 +455,8 @@ fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn s
         .args([
             "skill",
             shim_dir.to_str().ok_or("non-utf8 shim dir")?,
-            "--thread-title",
-            "Docs bug",
+            "-i",
+            "thread_title=Docs bug",
             "--json",
         ])
         .output()?;
@@ -765,8 +764,8 @@ sleep 30
     let sentinel_path = root.join("survived");
     fs::write(&started_path, "")?;
     fs::write(&sentinel_path, "")?;
-    let started_input = format!("started-path={}", started_path.display());
-    let sentinel_input = format!("sentinel-path={}", sentinel_path.display());
+    let started_input = format!("started_path={}", started_path.display());
+    let sentinel_input = format!("sentinel_path={}", sentinel_path.display());
     let mut child = runx_command()
         .current_dir(&root)
         .env("RUNX_CWD", &root)

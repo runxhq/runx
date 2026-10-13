@@ -135,10 +135,10 @@
       "rationale": "Public hosted connect re-exports must be removed or replaced."
     },
     {
-      "path": "crates/runx-cli/src/connect.rs",
+      "path": "crates/runx-runtime/src/kernel/connector_setup.rs",
       "decision": "rewrite-provider-neutral",
       "removed": false,
-      "rationale": "The native client may call the generic grant and provider-operation contract; OAuth custody and provider brokerage remain private in Cloud."
+      "rationale": "`runx connector use` calls the generic Connect session and grant contract; OAuth custody and provider brokerage remain private in Cloud."
     },
     {
       "path": "crates/runx-cli/src/main.rs",

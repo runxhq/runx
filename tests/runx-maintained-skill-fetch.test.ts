@@ -49,7 +49,7 @@ describe("registry skill native fetch", () => {
         registryDir,
         "--input",
         "objective=Decide whether the supplied evidence supports an integration.",
-        "--input-json",
+        "--input",
         `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
@@ -65,7 +65,7 @@ describe("registry skill native fetch", () => {
         registryDir,
         "--input",
         "objective=Decide whether the supplied evidence supports an integration.",
-        "--input-json",
+        "--input",
         `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
@@ -104,7 +104,7 @@ describe("registry skill native fetch", () => {
         `sha256:${"0".repeat(64)}`,
         "--input",
         "objective=Decide whether the supplied evidence supports an integration.",
-        "--input-json",
+        "--input",
         `source_packets=${SOURCE_PACKETS}`,
         "--json",
       ]);
@@ -197,7 +197,7 @@ describe("registry skill native fetch", () => {
         "expected_version=0",
         "--input",
         "idempotency_key=posting-123:create:v1",
-        "--input-json",
+        "--input",
         "event={\"type\":\"posting.created\",\"payload\":{\"title\":\"cached data-store smoke\"}}",
         "--json",
       ]);

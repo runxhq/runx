@@ -19,6 +19,7 @@ include = ["Cargo.toml", "README.md", "src/**/*.rs"]
 workspace = true
 
 [dependencies]
+base64 = "0.23.1"
 runx-contracts.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -26,7 +27,6 @@ sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-base64 = "0.23.1"
 criterion = "0.8.2"
 jsonschema = { version = "0.56.0", default-features = false }
 ring = "0.17.14"

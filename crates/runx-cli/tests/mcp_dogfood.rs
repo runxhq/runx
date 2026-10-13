@@ -185,12 +185,8 @@ fn mcp_native_binary_reports_mid_session_framing_fault() -> Result<(), Box<dyn s
 fn mcp_native_binary_uses_one_workspace_env_snapshot_per_session()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = TestTempDir::new("runx-mcp-workspace-env")?;
-    let runx_dir = workspace.path().join(".runx");
-    fs::create_dir_all(&runx_dir)?;
-    fs::write(
-        runx_dir.join("project.json"),
-        r#"{"version":1,"project_id":"proj_mcp_workspace_env","created_at":"2026-07-16T00:00:00Z"}"#,
-    )?;
+    // The repository marks the project root.
+    fs::create_dir_all(workspace.path().join(".git"))?;
     fs::write(
         workspace.path().join(".env"),
         "MCP_DOGFOOD_MARKER=initial-snapshot\n",

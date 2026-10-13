@@ -173,17 +173,6 @@ fn local_registry_target(
     }
 }
 
-pub(crate) fn destination_root(
-    plan: &RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> PathBuf {
-    plan.destination
-        .as_ref()
-        .map(|path| super::resolve_path(path, env, cwd, false))
-        .unwrap_or_else(|| runx_runtime::RunxPaths::resolve(env, cwd).skills())
-}
-
 pub(crate) fn registry_source_description(target: &RegistryTarget) -> String {
     match target {
         RegistryTarget::Remote { registry_url } => {

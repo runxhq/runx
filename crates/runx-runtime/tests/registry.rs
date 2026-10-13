@@ -114,7 +114,7 @@ runners:
     assert_eq!(search_results[0].profile_digest, version.profile_digest);
     assert_eq!(
         search_results[0].install_command.copy_text,
-        "runx add acme/sourcey@1.0.0 --registry https://runx.example.test"
+        "runx registry install acme/sourcey@1.0.0 --registry https://runx.example.test"
     );
     assert_eq!(
         search_registry_with_options(&store, "content", RegistrySearchOptions::default())?[0]
@@ -342,7 +342,7 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
     assert_eq!(first.digest.len(), 64);
     assert_eq!(
         first.link.install_command.copy_text,
-        "runx add acme/echo@1.0.0 --registry https://runx.example.test"
+        "runx registry install acme/echo@1.0.0 --registry https://runx.example.test"
     );
     assert_eq!(
         first.link.run_command.copy_text,

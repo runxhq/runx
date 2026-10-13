@@ -5,12 +5,13 @@ use runx_contracts::connector::ConnectorRef;
 
 use super::connector_install::RegistryConnectorVersion;
 use super::payload::{
-    parse_acquire, parse_connector, parse_connector_package, parse_read, parse_record, parse_search,
+    parse_acquire, parse_connector, parse_connector_package, parse_connector_search, parse_read,
+    parse_record, parse_search,
 };
 use super::refs::{RegistryResolveError, resolve_remote_registry_ref};
 use super::types::{
-    AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
-    RegistrySkillVersion, ResolvedRegistryRef,
+    AcquiredRegistrySkill, RegistryConnectorDetail, RegistryConnectorSearchResult,
+    RegistrySearchResult, RegistrySkillDetail, RegistrySkillVersion, ResolvedRegistryRef,
 };
 
 use crate::http::{
@@ -170,6 +171,34 @@ impl<T: Transport> RegistryClient<T> {
             });
         }
         Ok(Some(record))
+    }
+
+    /// The published connectors matching `query`, each at its current version.
+    pub fn search_connectors(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<RegistryConnectorSearchResult>, RegistryClientError> {
+        let mut url = Url::parse(&format!("{}/v1/connectors", self.base_url)).map_err(|error| {
+            RegistryClientError::RuntimeHttp(RuntimeHttpError::InvalidUrl(error))
+        })?;
+        {
+            let mut pairs = url.query_pairs_mut();
+            let trimmed = query.trim();
+            if !trimmed.is_empty() {
+                pairs.append_pair("q", trimmed);
+            }
+            pairs.append_pair("limit", &limit.to_string());
+        }
+        let route = route_path(url.path(), url.query());
+        let response = self.transport.send(HttpRequest {
+            method: HttpMethod::Get,
+            url: url.to_string(),
+            headers: Vec::new(),
+            body: None,
+        })?;
+        ensure_success(&route, response.status)?;
+        parse_connector_search(&route, &response.body)
     }
 
     /// A published connector: `version`, or its current version.

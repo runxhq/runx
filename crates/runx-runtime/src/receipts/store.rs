@@ -545,6 +545,8 @@ pub enum ReceiptStoreError {
     ReceiptIndexStale { path: PathBuf, message: String },
     #[error("receipt store path cannot be projected safely: {reason}")]
     UnsafePathProjection { reason: String },
+    #[error("receipt {receipt_id} was not found in {}", path.display())]
+    ReceiptNotInStore { receipt_id: String, path: PathBuf },
 }
 
 impl ReceiptStoreError {
@@ -590,6 +592,9 @@ impl ReceiptStoreError {
             Self::UnsafePathProjection { .. } => {
                 "receipt store path cannot be projected safely".to_owned()
             }
+            Self::ReceiptNotInStore { receipt_id, .. } => {
+                format!("receipt {receipt_id} was not found in store {store_label}")
+            }
         }
     }
 }
@@ -605,6 +610,116 @@ fn receipt_file_name(receipt_id: &str) -> Result<String, ReceiptStoreError> {
     Err(ReceiptStoreError::InvalidReceiptId {
         receipt_id: receipt_id.to_owned(),
     })
+}
+
+/// One receipt tree of a store, verified.
+#[derive(Clone, Debug)]
+pub struct StoredReceiptTree {
+    pub root_receipt_id: String,
+    pub receipt_count: usize,
+    pub verification: runx_receipts::ReceiptVerification,
+}
+
+/// A file named as a receipt that does not read as one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnreadableReceiptFile {
+    pub file: PathBuf,
+    pub message: String,
+}
+
+/// A store's receipt trees, each verified, and the files that are not
+/// readable receipts.
+#[derive(Clone, Debug)]
+pub struct StoreTreeVerification {
+    pub trees: Vec<StoredReceiptTree>,
+    pub unreadable: Vec<UnreadableReceiptFile>,
+}
+
+impl StoreTreeVerification {
+    /// Every tree verifies and every receipt file reads.
+    #[must_use]
+    pub fn valid(&self) -> bool {
+        self.unreadable.is_empty() && self.trees.iter().all(|tree| tree.verification.valid)
+    }
+}
+
+impl LocalReceiptStore {
+    /// Every receipt tree in the store, or each one holding `receipt_id`,
+    /// verified under `signature_policy`. A file that does not read as a
+    /// receipt is reported, not fatal: one bad file never hides the rest.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the store cannot be listed, or when no tree
+    /// holds `receipt_id`.
+    pub fn verify_trees(
+        &self,
+        receipt_id: Option<&str>,
+        signature_policy: RuntimeReceiptSignaturePolicy<'_>,
+    ) -> Result<StoreTreeVerification, ReceiptStoreError> {
+        let unreadable_store = |source| ReceiptStoreError::StoreUnreadable {
+            path: self.root.clone(),
+            source,
+        };
+        let mut receipts = Vec::new();
+        let mut unreadable = Vec::new();
+        for entry in fs::read_dir(&self.root).map_err(unreadable_store)? {
+            let path = entry.map_err(unreadable_store)?.path();
+            let Some(expected_id) = path
+                .file_stem()
+                .and_then(OsStr::to_str)
+                .filter(|_| is_receipt_json_path(&path))
+                .and_then(receipt_id_from_file_stem)
+            else {
+                continue;
+            };
+            match read_receipt_file_without_proof(&path, &expected_id) {
+                Ok(receipt) => receipts.push(receipt),
+                Err(error) => unreadable.push(UnreadableReceiptFile {
+                    file: path,
+                    message: error.to_string(),
+                }),
+            }
+        }
+        receipts.sort_by(|left, right| left.id.cmp(&right.id));
+        let groups = runx_receipts::group_receipt_trees(&receipts)
+            .into_iter()
+            .filter(|group| receipt_id.is_none_or(|id| group.member_ids.contains(id)))
+            .collect::<Vec<_>>();
+        if let Some(receipt_id) = receipt_id
+            && groups.is_empty()
+        {
+            return Err(ReceiptStoreError::ReceiptNotInStore {
+                receipt_id: receipt_id.to_owned(),
+                path: self.root.clone(),
+            });
+        }
+        let trees = groups
+            .into_iter()
+            .map(|group| {
+                // The root anchors the traversal; it is never its own child.
+                let children = receipts
+                    .iter()
+                    .filter(|receipt| {
+                        receipt.id != group.root.id
+                            && group.member_ids.contains(receipt.id.as_str())
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                StoredReceiptTree {
+                    root_receipt_id: group.root.id.to_string(),
+                    receipt_count: group.member_ids.len(),
+                    verification: super::tree::verify_runtime_receipt_tree(
+                        &group.root,
+                        children,
+                        runx_receipts::ReceiptTreeConfig::default(),
+                        signature_policy,
+                    ),
+                }
+            })
+            .collect();
+        Ok(StoreTreeVerification { trees, unreadable })
+    }
 }
 
 fn is_receipt_json_path(path: &Path) -> bool {

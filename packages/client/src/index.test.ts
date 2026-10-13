@@ -87,7 +87,7 @@ describe("native invocation and decoding", () => {
       process.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: ${JSON.stringify(connector)} } }));`);
     const client = createRunxClient(config);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).resolves.toMatchObject({ registry: { connector: { ref: "acme/ops-api" } } });
-    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["registry", "connector", "package", "/connectors/ops-api", "--json"]);
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["registry", "package", "/connectors/ops-api", "--json"]);
     await expect(client.packages.materializeConnector({ connectorPath: "--help" })).rejects.toThrow("positional");
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { ref: 'acme/ops-api' } } }));`);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");

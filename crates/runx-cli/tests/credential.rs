@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 const SECRET: &str = "credential-command-secret-sentinel";
 
 #[test]
-fn credential_command_sets_lists_and_removes_without_exposing_material()
+fn connector_use_lists_and_revokes_a_credential_without_exposing_material()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-credential-command");
     let home = root.join("home");
@@ -14,21 +14,20 @@ fn credential_command_sets_lists_and_removes_without_exposing_material()
 
     let mut set = command(&root, &home)?;
     set.args([
-        "credential",
-        "set",
+        "connector",
+        "use",
         "exa",
         "--credential",
         "api_key",
         "--profile",
         "account-one",
-        "--from-stdin",
         "--json",
     ]);
     let set = run_with_stdin(set, SECRET)?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
-    assert_eq!(set_json["credential"]["profile"], "account-one");
-    let instance = &set_json["credential"]["instance"];
+    let instance = &set_json["selected"];
+    assert_eq!(instance["authority"]["profile"], "account-one");
     assert!(
         instance["instance_id"]
             .as_str()
@@ -40,26 +39,24 @@ fn credential_command_sets_lists_and_removes_without_exposing_material()
     assert!(instance["credential_declaration_digest"].is_string());
 
     let list = command(&root, &home)?
-        .args(["credential", "list", "--json"])
+        .args(["connector", "list", "--json"])
         .output()?;
     assert_success_without_secret(&list)?;
     let list_json = serde_json::from_slice::<serde_json::Value>(&list.stdout)?;
-    assert_eq!(
-        list_json["credential"]["profiles"][0]["name"],
-        "account-one"
-    );
+    assert_eq!(list_json["profiles"][0]["name"], "account-one");
 
-    let remove = command(&root, &home)?
-        .args(["credential", "remove", "account-one", "--json"])
+    let revoke = command(&root, &home)?
+        .args(["connector", "revoke", "account-one", "--json"])
         .output()?;
-    assert_success_without_secret(&remove)?;
-    let remove_json = serde_json::from_slice::<serde_json::Value>(&remove.stdout)?;
-    assert_eq!(remove_json["credential"]["removed"], true);
+    assert_success_without_secret(&revoke)?;
+    let revoke_json = serde_json::from_slice::<serde_json::Value>(&revoke.stdout)?;
+    assert_eq!(revoke_json["revoked"], "profile");
+    assert_eq!(revoke_json["name"], "account-one");
     Ok(())
 }
 
 #[test]
-fn credential_command_binds_a_connector_of_the_workspace_plugin()
+fn connector_use_binds_a_credential_for_a_connector_of_the_workspace_plugin()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-credential-plugin-connector");
     let home = root.join("home");
@@ -102,21 +99,17 @@ operations:
 
     let mut set = command(&root, &home)?;
     set.args([
-        "credential",
-        "set",
+        "connector",
+        "use",
         "notes",
         "--credential",
         "token",
-        "--from-stdin",
         "--json",
     ]);
     let set = run_with_stdin(set, SECRET)?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
-    assert_eq!(
-        set_json["credential"]["instance"]["connector"],
-        "acme/notes"
-    );
+    assert_eq!(set_json["selected"]["connector"], "acme/notes");
     Ok(())
 }
 
@@ -275,12 +268,11 @@ fn a_process_operation_receives_its_credential_and_its_receipt_records_the_deliv
     write_notes_plugin(&root)?;
     let mut set = command(&root, &home)?;
     set.args([
-        "credential",
-        "set",
+        "connector",
+        "use",
         "notes",
         "--credential",
         "token",
-        "--from-stdin",
         "--json",
     ]);
     assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
@@ -343,12 +335,11 @@ fn a_failed_process_operation_still_records_the_credential_it_received()
     write_notes_plugin(&root)?;
     let mut set = command(&root, &home)?;
     set.args([
-        "credential",
-        "set",
+        "connector",
+        "use",
         "notes",
         "--credential",
         "token",
-        "--from-stdin",
         "--json",
     ]);
     assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
