@@ -8,7 +8,7 @@ const cargoPublicApiVersion = "0.51.0";
 // The rustdoc JSON format moves with nightly, so the snapshot is read through
 // one pinned nightly; a floating one would change the gate under an unchanged
 // tree. Advance it with cargoPublicApiVersion.
-const publicApiToolchain = "nightly-2026-10-13";
+const snapshotNightly = "nightly-2026-10-13";
 
 const commands = apiOnly
   ? [checkPublicApiSnapshot]
@@ -70,7 +70,7 @@ function checkPublicApiSnapshot() {
 
   const result = spawnSync(
     "cargo",
-    [`+${publicApiToolchain}`, "public-api", "--manifest-path", "crates/runx-core/Cargo.toml", "-sss"],
+    [`+${snapshotNightly}`, "public-api", "--manifest-path", "crates/runx-core/Cargo.toml", "-sss"],
     { encoding: "utf8" },
   );
   if (result.status !== 0) {
@@ -87,16 +87,16 @@ function checkPublicApiSnapshot() {
   }
 
   console.error(`${expectedPath} is stale; regenerate with:`);
-  console.error(`  cargo +${publicApiToolchain} public-api --manifest-path crates/runx-core/Cargo.toml -sss > crates/runx-core/api-snapshot.txt`);
+  console.error(`  cargo +${snapshotNightly} public-api --manifest-path crates/runx-core/Cargo.toml -sss > crates/runx-core/api-snapshot.txt`);
   process.exit(1);
 }
 
 function ensurePublicApiToolchain() {
   const installed = spawnSync("rustup", ["toolchain", "list", "--quiet"], { encoding: "utf8" }).stdout ?? "";
-  if (installed.split(/\r?\n/u).some((line) => line.trim().startsWith(`${publicApiToolchain}-`))) {
+  if (installed.split(/\r?\n/u).some((line) => line.trim().startsWith(`${snapshotNightly}-`))) {
     return;
   }
-  run("rustup", ["toolchain", "install", publicApiToolchain, "--profile", "minimal"]);
+  run("rustup", ["toolchain", "install", snapshotNightly, "--profile", "minimal"]);
 }
 
 function cargoPublicApiInstalled() {
