@@ -1,0 +1,56 @@
+name: Publish TypeScript packages
+
+# The contracts and the client publish with each CLI release. A
+# `contracts-v<version>` or `client-v<version>` tag publishes that package at
+# the tagged commit without one, as release publish-npm does: a version
+# already on npm with these bytes is left as it is, and one with other bytes
+# is refused.
+on:
+  push:
+    tags:
+      - "contracts-v*.*.*"
+      - "client-v*.*.*"
+
+concurrency:
+  group: publish-typescript-packages-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve the package the tag names
+        id: package
+        run: |
+          set -euo pipefail
+          package="${GITHUB_REF_NAME%%-v*}"
+          version="${GITHUB_REF_NAME#*-v}"
+          declared=$(node -p "require('./packages/$package/package.json').version")
+          if [ "$declared" != "$version" ]; then
+            echo "::error::$GITHUB_REF_NAME names $version, but packages/$package is $declared"
+            exit 1
+          fi
+          echo "tarball=runxhq-$package-$version.tgz" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Pack TypeScript packages
+        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
+      - name: Publish the tagged package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/typescript-packages/$TARBALL"

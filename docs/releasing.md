@@ -72,7 +72,10 @@ place.
 Stages (the order is intentional — the GitHub Release must exist before any
 channel that downloads its archives):
 
-1. **prepare** — resolve the version, stamp + `--check` manifests, `verify:fast`.
+1. **prepare** — resolve the version, stamp + `--check` manifests, `verify:fast`,
+   and pack `@runxhq/contracts` and `@runxhq/client`: a version npm already
+   holds with other bytes stops the release before anything builds, so a
+   changed package needs a new version before the tag.
 2. **build** (5-platform matrix) — resolve the matrix from
    `packages/cli/native/supported-platforms.json`, run the shared hostile-module
    contract on each native runner, then build `runx` and `runx-js-worker`
@@ -95,9 +98,12 @@ channel that downloads its archives):
    publish the Release with all archives. This is the hub. The tagged workflow
    refuses an existing Release before compiling, so published archive bytes are
    never replaced by a whole-workflow retry.
-5. **publish-npm** — verify + publish the selector and native packages with npm
-   provenance. Each package is packed once; a version already in npm must have
-   the same tarball integrity, and publication is read back from the registry.
+5. **publish-npm** — verify + publish the selector and native packages, then
+   `@runxhq/contracts` and `@runxhq/client`, with npm provenance. Each package
+   is packed once; a version already in npm must have the same tarball
+   integrity, and publication is read back from the registry. A
+   `contracts-v<version>` or `client-v<version>` tag publishes that package
+   the same way without a CLI release (**Publish TypeScript packages**).
 6. **package-managers** — build the channel input from the published checksums
    (`build-channel-input.mjs`), verify the archive and contained CLI and worker
    digests and sizes, render Homebrew / Scoop / winget / AUR manifests
