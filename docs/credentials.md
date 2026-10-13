@@ -71,6 +71,26 @@ The request's declared `url` is the prefix the credential's URL must start
 with, and the URL is redacted wherever it would be echoed. HTTP only; an MCP
 server presents its credential as a header.
 
+A provider that reads its key from the request body, such as IndexNow, places
+one credential field at a JSON pointer in that body:
+
+```yaml
+auth:
+  site: {type: body, field: key, pointer: /key}
+requests:
+  - id: submit
+    method: POST
+    url: https://api.indexnow.org/indexnow
+    body: {host: example.com, urlList: {"$argument": "/urls"}}
+```
+
+Every request the operation renders must declare a literal JSON object that
+holds the pointer's parent and never sets the pointer itself, and no input the
+operation takes may be named by it. A rendered body that sets the member is
+refused, never overwritten. The value is redacted wherever the body would be
+echoed. Local placements only; an MCP server and a hosted placement present
+credentials as headers.
+
 A connector that takes no credential may only read. An approval alone never
 authorizes a write.
 
