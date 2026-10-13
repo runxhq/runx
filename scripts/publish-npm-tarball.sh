@@ -25,12 +25,13 @@ else
   npm publish "$tarball" --access public --tag latest
 fi
 
-for attempt in 1 2 3 4 5 6; do
+# The registry can take minutes to serve a new version.
+for attempt in $(seq 1 30); do
   observed=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null || true)
   if [ "$observed" = "\"$integrity\"" ]; then
     exit 0
   fi
-  sleep 5
+  sleep 10
 done
 echo "::error::${name}@${version} registry integrity readback did not match the candidate"
 exit 1
