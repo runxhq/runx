@@ -331,45 +331,34 @@ jobs:
         run: |
           pnpm exec tsx scripts/check-rust-cli-release-artifacts.ts \
             --artifact-dir ".runx/rust-cli-artifacts" --no-js-delegation --verify-signatures
+      - name: Pack TypeScript packages
+        # The contracts and the client the CLI's hosts build on ship with it;
+        # pnpm resolves their workspace dependencies to the packed versions.
+        run: |
+          set -euo pipefail
+          node scripts/build-workspace.mjs --pack
+          mkdir -p "$RUNNER_TEMP/typescript-packages"
+          for package in contracts client; do
+            (cd "packages/$package" && pnpm pack --pack-destination "$RUNNER_TEMP/typescript-packages")
+          done
       - name: Publish packages
-        working-directory: .runx/rust-cli-artifacts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
-          publish_package() {
-            dir="$1"
-            name=$(node -p "require('./${dir}package.json').name")
-            version=$(node -p "require('./${dir}package.json').version")
-            packed=$(cd "$dir" && npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP")
-            filename=$(node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename || !p.integrity) process.exit(1); process.stdout.write(p.filename)' "$packed")
-            integrity=$(node -e 'process.stdout.write(JSON.parse(process.argv[1])[0].integrity)' "$packed")
-            if published=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null); then
-              actual=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]))' "$published")
-              if [ "$actual" != "$integrity" ]; then
-                echo "::error::${name}@${version} exists with different tarball integrity"
-                exit 1
-              fi
-              echo "${name}@${version} already matches the packed candidate"
-            else
-              npm publish "$RUNNER_TEMP/$filename" --access public --tag latest
-            fi
-            matched=false
-            for attempt in 1 2 3 4 5 6; do
-              observed=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null || true)
-              if [ "$observed" = "\"$integrity\"" ]; then matched=true; break; fi
-              sleep 5
-            done
-            if [ "$matched" != true ]; then
-              echo "::error::${name}@${version} registry integrity readback did not match the candidate"
-              exit 1
-            fi
+          publish() {
+            packed=$(cd "$1" && npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP")
+            filename=$(node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename) process.exit(1); process.stdout.write(p.filename)' "$packed")
+            bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/$filename"
           }
-          for dir in */; do
-            if [ "$dir" != 'selector/' ]; then publish_package "$dir"; fi
+          for dir in .runx/rust-cli-artifacts/*/; do
+            if [ "$dir" != '.runx/rust-cli-artifacts/selector/' ]; then publish "$dir"; fi
           done
-          publish_package selector/
+          publish .runx/rust-cli-artifacts/selector/
+          for tarball in "$RUNNER_TEMP"/typescript-packages/*.tgz; do
+            bash scripts/publish-npm-tarball.sh "$tarball"
+          done
 
   package-managers:
     needs: [prepare, github-release]
