@@ -69,10 +69,10 @@ https://runx.ai/x/<owner>/<skill>@<version>
 Use the CLI when you are preparing work or checking for overlap:
 
 ```bash
-runx registry search "cve audit" --registry https://api.runx.ai --json
-runx skill inspect runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai --json
-runx registry install runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai
-runx skill runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai --json
+runx registry search "cve audit" --json
+runx skill inspect runx/cve-audit@sha-e11c90bbeb16 --json
+runx registry install runx/cve-audit@sha-e11c90bbeb16
+runx skill runx/cve-audit@sha-e11c90bbeb16 --json
 ```
 
 The command shape is deliberate:
@@ -213,7 +213,7 @@ Before opening a new first-party skill PR, do the overlap check in public:
 Useful commands:
 
 ```bash
-runx registry search "<capability>" --registry https://api.runx.ai --json
+runx registry search "<capability>" --json
 gh pr list --repo runxhq/runx --search "<capability> OR <category>" --state open
 gh issue list --repo runxhq/runx --search "<capability> OR <category>" --state open
 ```
@@ -241,7 +241,7 @@ Most new skills should start outside the first-party repo:
 runx new <skill-name> --objective "Describe the bounded operator outcome"
 runx harness ./<skill-name> --json
 runx login --for publish
-runx registry publish ./<skill-name>/SKILL.md --registry https://api.runx.ai
+runx registry publish ./<skill-name>/SKILL.md
 ```
 
 That gives the package a durable URL, immutable digest, install path, and
@@ -249,7 +249,7 @@ publisher identity without making runx maintain it. Community packages can still
 be used immediately:
 
 ```bash
-runx skill <owner>/<skill>@<version> --registry https://api.runx.ai --json
+runx skill <owner>/<skill>@<version> --json
 ```
 
 Promote a community skill toward first-party only when it has clear adoption,

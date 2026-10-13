@@ -99,7 +99,25 @@ pub(crate) fn resolve_registry_target(
             registry_url: registry.to_owned(),
         };
     }
+    // Nothing names a registry, so the hosted catalog serves it: a skill or
+    // connector arrives with no setup, and a publish goes where others fetch
+    // it, as the signed-in publisher. A local registry is always named, and an
+    // empty RUNX_REGISTRY_URL names none and keeps it.
+    if configured_registry.is_none() {
+        return RegistryTarget::Remote {
+            registry_url: hosted_registry_url(env),
+        };
+    }
     default_local_registry_target(configured_registry, env, cwd)
+}
+
+/// The hosted catalog: the runx API this runtime talks to.
+fn hosted_registry_url(env: &BTreeMap<String, String>) -> String {
+    env.get(runx_runtime::HOSTED_API_BASE_URL_ENV)
+        .map(|value| value.trim())
+        .filter(|value| is_remote_registry_url(value))
+        .unwrap_or(runx_runtime::DEFAULT_HOSTED_API_BASE_URL)
+        .to_owned()
 }
 
 fn explicit_registry_target(
@@ -202,4 +220,88 @@ fn file_url_path(value: &str) -> Option<PathBuf> {
 
 fn is_remote_registry_url(value: &str) -> bool {
     value.starts_with("https://") || value.starts_with("http://")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::registry::RegistryAction;
+
+    fn plan(action: RegistryAction, registry: Option<&str>) -> RegistryPlan {
+        RegistryPlan {
+            action,
+            subject: "runx/web-search".to_owned(),
+            registry: registry.map(ToOwned::to_owned),
+            version: None,
+            expected_digest: None,
+            publisher: None,
+            profile: None,
+            trust_tier: None,
+            limit: None,
+            upsert: false,
+            json: true,
+        }
+    }
+
+    fn target(
+        action: RegistryAction,
+        registry: Option<&str>,
+        env: &[(&str, &str)],
+    ) -> RegistryTarget {
+        let env = env
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .chain([("RUNX_HOME".to_owned(), "/home/runx".to_owned())])
+            .collect();
+        resolve_registry_target(&plan(action, registry), &env, Path::new("/work"))
+    }
+
+    fn remote_url(target: &RegistryTarget) -> Option<&str> {
+        match target {
+            RegistryTarget::Remote { registry_url } => Some(registry_url),
+            RegistryTarget::Local { .. } => None,
+        }
+    }
+
+    #[test]
+    fn every_verb_uses_the_hosted_catalog_when_nothing_names_a_registry() {
+        for action in [
+            RegistryAction::Search,
+            RegistryAction::Install,
+            RegistryAction::Publish,
+        ] {
+            assert_eq!(
+                remote_url(&target(action, None, &[])),
+                Some("https://api.runx.ai")
+            );
+        }
+    }
+
+    #[test]
+    fn the_hosted_catalog_follows_the_runtime_api_base() {
+        assert_eq!(
+            remote_url(&target(
+                RegistryAction::Install,
+                None,
+                &[("RUNX_PUBLIC_API_BASE_URL", "https://api.staging.runx.test")],
+            )),
+            Some("https://api.staging.runx.test")
+        );
+    }
+
+    #[test]
+    fn a_named_local_registry_or_an_empty_registry_url_stays_local() {
+        let local = [
+            target(RegistryAction::Install, Some("./registry"), &[]),
+            target(
+                RegistryAction::Install,
+                None,
+                &[("RUNX_REGISTRY_DIR", "/srv/registry")],
+            ),
+            target(RegistryAction::Install, None, &[("RUNX_REGISTRY_URL", "")]),
+        ];
+        for target in &local {
+            assert!(remote_url(target).is_none(), "{target:?}");
+        }
+    }
 }

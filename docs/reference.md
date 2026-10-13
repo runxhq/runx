@@ -476,8 +476,8 @@ its content digest (over every file, which names the version and which the
 registry signs), and its manifest, connector and operation digests. Its
 publisher is the namespace the nearest `plugin.json` declares.
 
-Connectors are published only to a hosted registry, so publishing and
-installing one take `--registry <url>` or `RUNX_REGISTRY_URL`:
+Connectors are published only to a hosted registry: the runx catalog unless
+`--registry <url>` or `RUNX_REGISTRY_URL` names another.
 
 - `runx registry publish <connector-dir> [--version <label>]` sends that
   package; the registry reads it natively, publishes it under the authenticated

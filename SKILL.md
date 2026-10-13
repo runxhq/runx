@@ -143,7 +143,7 @@ Run a skill:
 ```bash
 runx skill <skill-ref> --input key=value --json
 runx skill ./skills/<skill-name> --input request='...' --json
-runx skill <publisher>/<skill>@<version> --registry https://api.runx.ai --input key=value --json
+runx skill <publisher>/<skill>@<version> --input key=value --json
 ```
 
 Inspect and verify receipts:

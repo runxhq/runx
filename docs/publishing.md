@@ -1,17 +1,16 @@
 # Publishing a skill to the runx registry
 
 A runx skill is portable on its own, but to make it discoverable and installable
-by others it has to be **published to a registry**. There are two registries, and
-they behave differently.
+by others it has to be **published to a registry**.
 
-## The two registries
+## Registries
 
-- **Local workspace registry.** Lives under your workspace (`.runx`). No
-  credentials. Use it to test the publish path and to resolve a skill locally
-  before sharing it.
-- **The hosted runx registry** (`runx.ai/x`). The shared, public, signed catalog.
-  Publishing here is an authenticated write under *your* publisher identity, so it
-  requires a publish credential.
+- **The hosted runx registry** (`runx.ai/x`). The shared, public, signed catalog,
+  and the one every `runx registry` command and `runx skill <publisher>/<name>`
+  uses unless you name another. Publishing here is an authenticated write under
+  *your* publisher identity, so it requires a publish credential.
+- **A local registry.** A directory you name with `--registry <dir>` or
+  `RUNX_REGISTRY_DIR`, for self-hosting or offline work. No credentials.
 
 ## Before you publish
 
@@ -37,16 +36,6 @@ Keep profile YAML explicit: anchors, aliases, merge keys, custom tags,
 multi-document markers, duplicate mapping keys, and unknown profile fields are
 not supported.
 
-## Publish locally first
-
-```bash
-runx registry publish ./skills/<your-skill>/SKILL.md
-```
-
-This writes the skill into your local workspace registry. It takes no credentials
-and is the fast way to confirm the package resolves and installs before you push
-it to the shared catalog.
-
 ## Publish to the hosted registry
 
 The hosted registry is open by default and conservative in discovery. A new
@@ -69,7 +58,7 @@ The CLI form keeps the public API token out of command lines:
 
 ```bash
 runx login --for publish
-runx registry publish ./skills/<your-skill>/SKILL.md --registry https://api.runx.ai
+runx registry publish ./skills/<your-skill>/SKILL.md
 ```
 
 If the browser consent step is unavailable, pipe a token from the provider

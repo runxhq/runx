@@ -302,18 +302,13 @@ See [Demos](docs/demos.md).
 ## publish and trust
 
 A public skill is a standalone package: a substantive `SKILL.md`, optional
-`run.yaml`, and only the files Runx can consume. Publish locally first:
+`run.yaml`, and only the files Runx can consume. Prove it with its harness,
+then publish it to the hosted catalog:
 
 ```bash
-runx registry publish ./skills/<your-skill>
-```
-
-Then publish to the hosted catalog when you want shared discovery:
-
-```bash
+runx harness ./skills/<your-skill>
 runx login --for publish
-runx registry publish ./skills/<your-skill> \
-  --registry https://api.runx.ai
+runx registry publish ./skills/<your-skill>
 ```
 
 Hosted publishing reconstructs the submitted package, reruns its harness, and

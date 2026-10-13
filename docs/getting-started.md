@@ -104,6 +104,6 @@ runx history <receipt-id> --json
   automatically.
 - Publish a ready skill from a public repo at https://runx.ai/x/publish, or run
   `runx login --for publish` followed by
-  `runx registry publish ./skills/<name> --registry https://api.runx.ai`.
-  See [Publishing](./publishing.md) for the full local and hosted paths.
+  `runx registry publish ./skills/<name>`.
+  See [Publishing](./publishing.md) for the hosted and local registries.
 - See [API Surface](./api-surface.md) for public package exports.
