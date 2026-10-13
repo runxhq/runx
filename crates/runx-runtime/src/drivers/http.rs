@@ -319,118 +319,17 @@ impl Http<'_> {
         responses: Option<&BTreeMap<String, JsonObject>>,
         cursor: Option<&str>,
     ) -> Result<RuntimeHttpRequest, String> {
-        let inputs = self.inputs(item, responses);
-        let mut url = Url::parse(
-            &request
-                .url
-                .render_string(&inputs)
-                .map_err(|error| error.to_string())?,
+        let instance = match self.egress {
+            Egress::Direct(_) => Some(self),
+            Egress::Connect(_) => None,
+        };
+        render_request(
+            self.spec,
+            request,
+            &self.inputs(item, responses),
+            cursor,
+            instance,
         )
-        .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
-        // A credential that is the endpoint itself replaces the declared URL,
-        // which it must extend; the checks below hold for it as for any URL.
-        if let Some(credential_url) = self.credential_url(&url)? {
-            url = credential_url;
-        }
-        // A fragment never reaches the server: a URL carrying one names a
-        // request other than the one sent.
-        if url.fragment().is_some() {
-            return Err(format!("request {} has a URL fragment", request.id));
-        }
-        let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
-        if url.scheme() != "https"
-            || !self
-                .spec
-                .allowed_hosts
-                .iter()
-                .any(|allowed| runx_contracts::connector::host_allowed(allowed.as_str(), &host))
-        {
-            return Err(format!(
-                "request {} targets a host the implementation does not allow",
-                request.id
-            ));
-        }
-        // A page after the first carries the cursor in place of whatever the
-        // call started from.
-        let paged = cursor.and_then(|cursor| {
-            request
-                .pages
-                .as_ref()
-                .map(|pages| (pages.param.as_str(), cursor))
-        });
-        // A query parameter is optional: one whose argument the call does not
-        // carry is not sent, and a request that sends none has no query.
-        let mut pairs = Vec::with_capacity(request.query.len() + 1);
-        let mut cursor_sent = false;
-        for (name, template) in &request.query {
-            if let Some((param, cursor)) = paged
-                && param == name
-            {
-                pairs.push((param.to_owned(), cursor.to_owned()));
-                cursor_sent = true;
-                continue;
-            }
-            let value = match template.render(&inputs) {
-                Ok(value) => value,
-                Err(TemplateError::Unavailable {
-                    binding: "$argument",
-                    ..
-                }) => continue,
-                Err(error) => return Err(error.to_string()),
-            };
-            if let Some(value) = scalar_string(&value) {
-                pairs.push((name.clone(), value));
-            }
-        }
-        if let Some((param, cursor)) = paged
-            && !cursor_sent
-        {
-            pairs.push((param.to_owned(), cursor.to_owned()));
-        }
-        if !pairs.is_empty() {
-            url.query_pairs_mut().extend_pairs(pairs);
-        }
-        let method = match request.method {
-            ManifestMethod::Get => HttpMethod::Get,
-            ManifestMethod::Post => HttpMethod::Post,
-            ManifestMethod::Put => HttpMethod::Put,
-            ManifestMethod::Patch => HttpMethod::Patch,
-            ManifestMethod::Delete => HttpMethod::Delete,
-        };
-        let mut headers = Vec::with_capacity(request.headers.len() + 2);
-        for (name, template) in &request.headers {
-            let value = template
-                .render_string(&inputs)
-                .map_err(|error| error.to_string())?;
-            headers.push(RuntimeHttpHeader::new(name.clone(), value));
-        }
-        let mut body = request
-            .body
-            .as_ref()
-            .map(|template| template.render(&inputs))
-            .transpose()
-            .map_err(|error| error.to_string())?;
-        if let Egress::Direct(_) = self.egress {
-            self.credential_body(body.as_mut())?;
-        }
-        let body = match body {
-            Some(value) => {
-                headers.push(RuntimeHttpHeader::new("content-type", "application/json"));
-                Some(serde_json::to_string(&value).map_err(|error| error.to_string())?)
-            }
-            None => None,
-        };
-        if let Egress::Direct(_) = self.egress
-            && let Some(header) = self.authorization(method, &url)?
-        {
-            headers.push(header);
-        }
-        Ok(RuntimeHttpRequest {
-            method,
-            url: url.to_string(),
-            headers,
-            body,
-        })
     }
 
     /// A call's answer, decoded. A rate limit, a refused credential or a
@@ -587,6 +486,196 @@ impl Http<'_> {
             None => Ok(None),
         }
     }
+}
+
+/// One declared request as runx Connect is asked to send it: by its id, with
+/// the element of a repeated write by position and, for a write's checking
+/// read, the write's answers.
+pub(crate) struct DeclaredCall<'a> {
+    pub request: &'a str,
+    pub arguments: &'a JsonValue,
+    pub parameters: Option<&'a JsonObject>,
+    pub idempotency_key: Option<&'a str>,
+    /// The paid invocation Connect holds for the call's run.
+    pub invocation_id: Option<&'a str>,
+    pub item: Option<usize>,
+    pub responses: Option<&'a BTreeMap<String, JsonObject>>,
+}
+
+/// Render a declared request as runx Connect does, after
+/// `renderDeclaredRequest` in `packages/contracts/src/connector.ts`. It
+/// carries no credential: Connect's gateway presents the grant's.
+pub(crate) fn render_declared(
+    spec: &HttpImplementation,
+    call: &DeclaredCall<'_>,
+) -> Result<RuntimeHttpRequest, String> {
+    let checks = || spec.preconditions.iter().chain(&spec.readbacks);
+    let request = spec
+        .requests
+        .iter()
+        .chain(checks().map(|check| &check.request))
+        .find(|candidate| candidate.id.as_str() == call.request)
+        .ok_or_else(|| format!("the implementation declares no request {}", call.request))?;
+    let base = TemplateInputs {
+        arguments: Some(call.arguments),
+        parameters: call.parameters,
+        idempotency_key: call.idempotency_key,
+        invocation_id: call.invocation_id,
+        ..TemplateInputs::default()
+    };
+    let item = call
+        .item
+        .map(|index| {
+            // A checking read of a repeated write binds the write's item.
+            let each = request
+                .each
+                .as_ref()
+                .or_else(|| {
+                    checks()
+                        .any(|check| check.request.id == request.id)
+                        .then(|| spec.requests.iter().find_map(|write| write.each.as_ref()))
+                        .flatten()
+                })
+                .ok_or_else(|| format!("request {} does not repeat", request.id))?;
+            match each.render(&base).map_err(|error| error.to_string())? {
+                JsonValue::Array(mut items) if index < items.len() => Ok(items.swap_remove(index)),
+                JsonValue::Array(_) => Err(format!("the batch has no item {index}")),
+                _ => Err("each must render to an array".to_owned()),
+            }
+        })
+        .transpose()?;
+    let inputs = TemplateInputs {
+        item: item.as_ref(),
+        responses: call.responses,
+        ..base
+    };
+    render_request(spec, request, &inputs, None, None)
+}
+
+/// Render one declared request from `inputs`: its URL, checked against the
+/// implementation's hosts, its query, headers and body. Sent directly, the
+/// `instance` places its credential where the implementation presents it;
+/// through runx Connect there is none, since Connect's gateway presents the
+/// grant's.
+fn render_request(
+    spec: &HttpImplementation,
+    request: &HttpRequest,
+    inputs: &TemplateInputs<'_>,
+    cursor: Option<&str>,
+    instance: Option<&Http<'_>>,
+) -> Result<RuntimeHttpRequest, String> {
+    let mut url = Url::parse(
+        &request
+            .url
+            .render_string(inputs)
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
+    // A credential that is the endpoint itself replaces the declared URL,
+    // which it must extend; the checks below hold for it as for any URL.
+    if let Some(instance) = instance
+        && let Some(credential_url) = instance.credential_url(&url)?
+    {
+        url = credential_url;
+    }
+    // A fragment never reaches the server: a URL carrying one names a
+    // request other than the one sent.
+    if url.fragment().is_some() {
+        return Err(format!("request {} has a URL fragment", request.id));
+    }
+    let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+    if url.scheme() != "https"
+        || !spec
+            .allowed_hosts
+            .iter()
+            .any(|allowed| runx_contracts::connector::host_allowed(allowed.as_str(), &host))
+    {
+        return Err(format!(
+            "request {} targets a host the implementation does not allow",
+            request.id
+        ));
+    }
+    // A page after the first carries the cursor in place of whatever the
+    // call started from.
+    let paged = cursor.and_then(|cursor| {
+        request
+            .pages
+            .as_ref()
+            .map(|pages| (pages.param.as_str(), cursor))
+    });
+    // A query parameter is optional: one whose argument the call does not
+    // carry is not sent, and a request that sends none has no query.
+    let mut pairs = Vec::with_capacity(request.query.len() + 1);
+    let mut cursor_sent = false;
+    for (name, template) in &request.query {
+        if let Some((param, cursor)) = paged
+            && param == name
+        {
+            pairs.push((param.to_owned(), cursor.to_owned()));
+            cursor_sent = true;
+            continue;
+        }
+        let value = match template.render(inputs) {
+            Ok(value) => value,
+            Err(TemplateError::Unavailable {
+                binding: "$argument",
+                ..
+            }) => continue,
+            Err(error) => return Err(error.to_string()),
+        };
+        if let Some(value) = scalar_string(&value) {
+            pairs.push((name.clone(), value));
+        }
+    }
+    if let Some((param, cursor)) = paged
+        && !cursor_sent
+    {
+        pairs.push((param.to_owned(), cursor.to_owned()));
+    }
+    if !pairs.is_empty() {
+        url.query_pairs_mut().extend_pairs(pairs);
+    }
+    let method = match request.method {
+        ManifestMethod::Get => HttpMethod::Get,
+        ManifestMethod::Post => HttpMethod::Post,
+        ManifestMethod::Put => HttpMethod::Put,
+        ManifestMethod::Patch => HttpMethod::Patch,
+        ManifestMethod::Delete => HttpMethod::Delete,
+    };
+    let mut headers = Vec::with_capacity(request.headers.len() + 2);
+    for (name, template) in &request.headers {
+        let value = template
+            .render_string(inputs)
+            .map_err(|error| error.to_string())?;
+        headers.push(RuntimeHttpHeader::new(name.clone(), value));
+    }
+    let mut body = request
+        .body
+        .as_ref()
+        .map(|template| template.render(inputs))
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    if let Some(instance) = instance {
+        instance.credential_body(body.as_mut())?;
+    }
+    let body = match body {
+        Some(value) => {
+            headers.push(RuntimeHttpHeader::new("content-type", "application/json"));
+            Some(serde_json::to_string(&value).map_err(|error| error.to_string())?)
+        }
+        None => None,
+    };
+    if let Some(instance) = instance
+        && let Some(header) = instance.authorization(method, &url)?
+    {
+        headers.push(header);
+    }
+    Ok(RuntimeHttpRequest {
+        method,
+        url: url.to_string(),
+        headers,
+        body,
+    })
 }
 
 /// The answer of a request whose status refuses the caller rather than the
@@ -1121,7 +1210,8 @@ mod tests {
     }
 
     /// The declared-request cases runx Connect's renderer answers too
-    /// (`packages/contracts/src/connector-request.test.ts`).
+    /// (`packages/contracts/src/connector.test.ts`), as the kernel renders
+    /// each request and as Connect does.
     #[test]
     fn declared_requests_render_as_the_shared_cases_expect() -> Result<(), String> {
         let corpus: serde_json::Value = serde_json::from_str(include_str!(
@@ -1199,10 +1289,60 @@ mod tests {
                 };
                 driver.render(request, item.as_ref(), responses.as_ref(), None)
             })();
+            // As runx Connect renders it, from the same call its renderer's
+            // shared-case test makes.
+            let declared = render_declared(
+                &spec,
+                &DeclaredCall {
+                    request: case["request"].as_str().ok_or("request")?,
+                    arguments: &arguments,
+                    parameters: Some(&parameters),
+                    idempotency_key: corpus["idempotency_key"].as_str(),
+                    invocation_id: case["invocation_id"].as_str(),
+                    item: case["item"]
+                        .as_u64()
+                        .map(|item| usize::try_from(item).map_err(|error| error.to_string()))
+                        .transpose()?,
+                    responses: responses.as_ref(),
+                },
+            );
             if case["error"].as_bool() == Some(true) {
                 assert!(rendered.is_err(), "{name}: expected a refusal");
+                assert!(declared.is_err(), "{name}: expected Connect to refuse");
                 continue;
             }
+            let expected = &case["expected"];
+            let assert_expected = |rendered: &RuntimeHttpRequest, by: &str| {
+                let headers = rendered
+                    .headers
+                    .iter()
+                    .map(|header| {
+                        (
+                            header.name.clone(),
+                            serde_json::Value::from(header.value.clone()),
+                        )
+                    })
+                    .collect::<serde_json::Map<_, _>>();
+                let body = rendered
+                    .body
+                    .as_deref()
+                    .map(serde_json::from_str::<serde_json::Value>)
+                    .transpose()
+                    .map_err(|error| error.to_string())?;
+                assert_eq!(rendered.method.as_str(), expected["method"], "{name} {by}");
+                assert_eq!(rendered.url, expected["url"], "{name} {by}");
+                assert_eq!(
+                    serde_json::Value::Object(headers),
+                    expected["headers"],
+                    "{name} {by}"
+                );
+                assert_eq!(body.as_ref(), expected.get("body"), "{name} {by}");
+                Ok::<_, String>(())
+            };
+            assert_expected(
+                &declared.map_err(|error| format!("{name}: as Connect renders it: {error}"))?,
+                "as Connect renders it",
+            )?;
             // Only runx Connect supplies the paid invocation; the kernel never
             // holds it, so a request that sends it never renders to send
             // directly. Through Connect the kernel's rendering checks it, with
@@ -1244,32 +1384,10 @@ mod tests {
                 );
                 continue;
             }
-            let rendered = rendered.map_err(|error| format!("{name}: {error}"))?;
-            let headers = rendered
-                .headers
-                .iter()
-                .map(|header| {
-                    (
-                        header.name.clone(),
-                        serde_json::Value::from(header.value.clone()),
-                    )
-                })
-                .collect::<serde_json::Map<_, _>>();
-            let body = rendered
-                .body
-                .as_deref()
-                .map(serde_json::from_str::<serde_json::Value>)
-                .transpose()
-                .map_err(|error| error.to_string())?;
-            let expected = &case["expected"];
-            assert_eq!(rendered.method.as_str(), expected["method"], "{name}");
-            assert_eq!(rendered.url, expected["url"], "{name}");
-            assert_eq!(
-                serde_json::Value::Object(headers),
-                expected["headers"],
-                "{name}"
-            );
-            assert_eq!(body.as_ref(), expected.get("body"), "{name}");
+            assert_expected(
+                &rendered.map_err(|error| format!("{name}: {error}"))?,
+                "as the kernel renders it",
+            )?;
         }
         Ok(())
     }
