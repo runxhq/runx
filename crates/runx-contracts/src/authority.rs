@@ -1,8 +1,8 @@
 //! Authority algebra: terms, verbs, bounds and attenuation.
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::Reference;
+use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
@@ -89,9 +89,11 @@ impl TermLegitimacy {
     pub fn new(value: impl Into<String>) -> Option<Self> {
         let value = value.into();
         let valid = value.len() <= TERM_LEGITIMACY_MAX_LENGTH
-            && value.strip_prefix(TERM_LEGITIMACY_PREFIX).is_some_and(|id| {
-                !id.is_empty() && !id.chars().any(|c| c.is_whitespace() || c.is_control())
-            });
+            && value
+                .strip_prefix(TERM_LEGITIMACY_PREFIX)
+                .is_some_and(|id| {
+                    !id.is_empty() && !id.chars().any(|c| c.is_whitespace() || c.is_control())
+                });
         valid.then_some(Self(value))
     }
 
@@ -120,9 +122,7 @@ impl<'de> Deserialize<'de> for TermLegitimacy {
     {
         let value = String::deserialize(deserializer)?;
         Self::new(value.clone()).ok_or_else(|| {
-            serde::de::Error::custom(format!(
-                "{value:?} is not a reference to an execution term"
-            ))
+            serde::de::Error::custom(format!("{value:?} is not a reference to an execution term"))
         })
     }
 }

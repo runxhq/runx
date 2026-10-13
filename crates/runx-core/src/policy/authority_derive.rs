@@ -161,7 +161,10 @@ pub fn derive_execution_term(
         verbs: intent.verbs.clone(),
         bounds: intent.bounds.clone(),
         approvals,
-        expires_at: inherited_expiry(intent.expires_at.as_ref(), earliest_expiry(&parents).as_ref()),
+        expires_at: inherited_expiry(
+            intent.expires_at.as_ref(),
+            earliest_expiry(&parents).as_ref(),
+        ),
         issued_by_ref: request.issued_by_ref.clone(),
         credential_ref: request.capability.credential_ref.clone(),
     };

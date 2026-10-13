@@ -15,9 +15,9 @@
 
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
-    AuthorityBounds, AuthorityResourceFamily, AuthoritySubsetComparison,
-    AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
-    AuthorityUseLimit, AuthorityVerb, Reference, sha256_hex,
+    AuthorityBounds, AuthorityResourceFamily, AuthoritySubsetComparison, AuthoritySubsetProof,
+    AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit,
+    AuthorityVerb, Reference, sha256_hex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

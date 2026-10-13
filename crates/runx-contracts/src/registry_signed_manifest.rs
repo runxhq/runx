@@ -119,19 +119,32 @@ impl RegistrySignedManifest {
             ));
         }
         if !is_registry_version(&self.version) {
-            return Err(format!("version {:?} is not a registry version label", self.version));
+            return Err(format!(
+                "version {:?} is not a registry version label",
+                self.version
+            ));
         }
         if !is_sha256_digest(&self.content_digest) {
             return Err("content_digest must be sha256: and 64 lowercase hex digits".to_owned());
         }
         if !is_signer_term(&self.signer.id) || !is_signer_term(&self.signer.key_id) {
-            return Err("signer.id and signer.key_id must be short printable identifiers".to_owned());
+            return Err(
+                "signer.id and signer.key_id must be short printable identifiers".to_owned(),
+            );
         }
         if self.signature.alg != REGISTRY_MANIFEST_SIGNATURE_ALG {
-            return Err(format!("signature.alg must be {REGISTRY_MANIFEST_SIGNATURE_ALG}"));
+            return Err(format!(
+                "signature.alg must be {REGISTRY_MANIFEST_SIGNATURE_ALG}"
+            ));
         }
-        if !self.signature.value.starts_with(REGISTRY_MANIFEST_SIGNATURE_PREFIX) {
-            return Err(format!("signature.value must start with {REGISTRY_MANIFEST_SIGNATURE_PREFIX}"));
+        if !self
+            .signature
+            .value
+            .starts_with(REGISTRY_MANIFEST_SIGNATURE_PREFIX)
+        {
+            return Err(format!(
+                "signature.value must start with {REGISTRY_MANIFEST_SIGNATURE_PREFIX}"
+            ));
         }
         Ok(())
     }
@@ -174,7 +187,10 @@ fn is_skill_name(value: &str) -> bool {
 
 fn is_sha256_digest(value: &str) -> bool {
     value.strip_prefix("sha256:").is_some_and(|hex| {
-        hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        hex.len() == 64
+            && hex
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     })
 }
 
@@ -235,7 +251,9 @@ pub fn registry_content_digest<'a>(
     let mut seen = BTreeSet::new();
     for entry in &entries {
         if !seen.insert(entry.path) {
-            return Err(RegistryContentDigestError::DuplicatePath(entry.path.to_owned()));
+            return Err(RegistryContentDigestError::DuplicatePath(
+                entry.path.to_owned(),
+            ));
         }
     }
     Ok(canonical_digest(&ContentDocument { files: entries })?)

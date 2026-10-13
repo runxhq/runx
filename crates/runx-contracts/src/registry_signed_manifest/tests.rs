@@ -36,7 +36,11 @@ fn content_digests_match_the_shared_vectors() {
         );
     }
     for case in vectors["invalid_content"].as_array().expect("cases") {
-        assert!(registry_content_digest(files(&case["files"])).is_err(), "{}", case["name"]);
+        assert!(
+            registry_content_digest(files(&case["files"])).is_err(),
+            "{}",
+            case["name"]
+        );
     }
 }
 
@@ -58,7 +62,12 @@ fn signs_the_canonical_envelope_and_binds_every_file() {
             case["name"]
         );
         let signature = URL_SAFE_NO_PAD
-            .decode(manifest.signature.value.trim_start_matches(REGISTRY_MANIFEST_SIGNATURE_PREFIX))
+            .decode(
+                manifest
+                    .signature
+                    .value
+                    .trim_start_matches(REGISTRY_MANIFEST_SIGNATURE_PREFIX),
+            )
             .expect("signature");
         UnparsedPublicKey::new(&ED25519, &public_key)
             .verify(&payload, &signature)
@@ -83,7 +92,8 @@ fn an_envelope_signs_only_its_own_kind_subject_and_version() {
             .expect("named envelope");
         let manifest: RegistrySignedManifest =
             serde_json::from_value(envelope["manifest"].clone()).expect("manifest");
-        let subject: RegistrySubject = serde_json::from_value(case["subject"].clone()).expect("subject");
+        let subject: RegistrySubject =
+            serde_json::from_value(case["subject"].clone()).expect("subject");
         assert_eq!(
             manifest.signs(&subject, case["version"].as_str().expect("version")),
             case["signs"].as_bool().expect("signs"),

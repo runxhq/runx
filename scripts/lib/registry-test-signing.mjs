@@ -2,7 +2,11 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const SIGNED_MANIFEST_SCHEMA = "runx.registry.signed_manifest.v1";
+import {
+  REGISTRY_SIGNED_MANIFEST_SCHEMA,
+  registryContentDigest,
+  registrySignedManifestPayload,
+} from "@runxhq/contracts";
 
 export function createRegistryTestSigningKey({
   keyId = "runx-test-registry-ed25519",
@@ -18,50 +22,39 @@ export function createRegistryTestSigningKey({
   };
 }
 
+/**
+ * Sign the one skill version in a local registry with the envelope the
+ * registry serves: its subject, version and the content digest of its manual,
+ * profile and package files.
+ */
 export function signSingleRegistryVersion(registryDirectory, signingKey) {
   const versionPath = findSingleRegistryVersion(registryDirectory);
   const version = JSON.parse(readFileSync(versionPath, "utf8"));
-  const payload = signedManifestPayload(version, signingKey);
-  version.signed_manifest = {
-    schema: SIGNED_MANIFEST_SCHEMA,
-    skill_id: requiredString(version, "skill_id"),
+  const files = [
+    { path: "SKILL.md", content: requiredString(version, "markdown") },
+    ...(optionalString(version, "profile_document")
+      ? [{ path: "run.yaml", content: version.profile_document }]
+      : []),
+    ...(version.package_files ?? []),
+  ];
+  const manifest = {
+    schema: REGISTRY_SIGNED_MANIFEST_SCHEMA,
+    subject: { kind: "skill", ref: requiredString(version, "skill_id") },
     version: requiredString(version, "version"),
-    digest: requiredString(version, "digest"),
-    ...(optionalString(version, "profile_digest")
-      ? { profile_digest: version.profile_digest }
-      : {}),
-    ...(optionalString(version, "package_digest")
-      ? { package_digest: version.package_digest }
-      : {}),
-    signer: {
-      id: signingKey.signerId,
-      key_id: signingKey.keyId,
-    },
-    signature: {
-      alg: "ed25519",
-      value: `base64:${sign(
-        null,
-        Buffer.from(payload),
-        signingKey.privateKey,
-      ).toString("base64url")}`,
-    },
+    content_digest: registryContentDigest(files),
+    signer: { id: signingKey.signerId, key_id: signingKey.keyId },
+  };
+  const signature = sign(
+    null,
+    Buffer.from(registrySignedManifestPayload(manifest)),
+    signingKey.privateKey,
+  ).toString("base64url");
+  version.signed_manifest = {
+    ...manifest,
+    signature: { alg: "ed25519", value: `base64:${signature}` },
   };
   writeFileSync(versionPath, `${JSON.stringify(version, null, 2)}\n`, "utf8");
   return versionPath;
-}
-
-function signedManifestPayload(version, signingKey) {
-  return [
-    SIGNED_MANIFEST_SCHEMA,
-    `skill_id=${requiredString(version, "skill_id")}`,
-    `version=${requiredString(version, "version")}`,
-    `digest=${requiredString(version, "digest")}`,
-    `profile_digest=${optionalString(version, "profile_digest")}`,
-    `package_digest=${optionalString(version, "package_digest")}`,
-    `signer_id=${signingKey.signerId}`,
-    `key_id=${signingKey.keyId}`,
-    "",
-  ].join("\n");
 }
 
 function findSingleRegistryVersion(root) {
