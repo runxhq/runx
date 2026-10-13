@@ -848,7 +848,7 @@ fn assert_receipt_verifies(root: &Path, receipt_dir: &Path, receipt_id: &str) ->
 }
 
 /// The run sealed with this receipt, and the receipt inspects as the signed
-/// record: history lists the run, `--detail` reads the receipt.
+/// record: history lists the run, and its receipt id reads the receipt.
 fn assert_history_contains_local_receipt(
     root: &Path,
     receipt_dir: &Path,
@@ -865,7 +865,6 @@ fn assert_history_contains_local_receipt(
     let detail = command(root)
         .arg("history")
         .arg(receipt_id)
-        .arg("--detail")
         .arg("--receipt-dir")
         .arg(receipt_dir)
         .arg("--json")

@@ -26,7 +26,7 @@ a signed receipt while returning the process status shown above.
 Common follow-up:
 
 ```bash
-runx history <receipt-id> --detail --json
+runx history <receipt-id> --json
 ```
 
 ## Exit Code 1: Failure
@@ -38,7 +38,7 @@ found invalid requested output, or sealed a terminal `superseded`, `declined`,
 After package and runner resolution, blocked skill preparation writes a refusal
 receipt before returning exit code 1. With `--json`, the error includes its
 `receipt_id` and prepared-context digest; inspect it with
-`runx history <receipt-id> --detail`.
+`runx history <receipt-id>`.
 
 Common fixes:
 

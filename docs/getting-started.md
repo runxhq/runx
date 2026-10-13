@@ -53,7 +53,7 @@ directory stored in `$RUNX_RECEIPT_DIR` in Bash or
 a detailed history query:
 
 ```bash
-runx history <receipt-id> --detail --json
+runx history <receipt-id> --json
 ```
 
 The `runx.receipt_inspection.v1` projection should show the receipt status,
@@ -75,7 +75,7 @@ export RUNX_RECEIPT_SIGN_ISSUER_TYPE="hosted"
 All three variables must be set together. `RUNX_RECEIPT_SIGN_ISSUER_TYPE` must
 be `hosted` or `ci`; a local identity is only ever the home's own key. When
 configured, the runtime signs each receipt body digest with Ed25519 and writes
-the matching public key hash in the issuer metadata. `runx history --detail`
+the matching public key hash in the issuer metadata. `runx history <receipt-id>`
 and `runx verify` trust this home's own key and the configured signer's public
 key, so the operator that created the receipts does not configure the same key
 twice.
@@ -87,7 +87,7 @@ key, named by issuer type and key id:
 export RUNX_RECEIPT_VERIFY_ISSUER_TYPE="hosted"
 export RUNX_RECEIPT_VERIFY_KID="hosted-prod-key"
 export RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64="<32-byte-ed25519-public-key-base64>"
-runx history <receipt-id> --detail --json
+runx history <receipt-id> --json
 ```
 
 ## Next

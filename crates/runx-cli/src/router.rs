@@ -12,7 +12,7 @@ use crate::login::LoginPlan;
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 use crate::mcp::McpPlan;
 use crate::notarize::NotarizePlan;
-use crate::policy::{PolicyAction, PolicyPlan};
+use crate::policy::PolicyPlan;
 use crate::registry::{ConnectorAction, RegistryAction, RegistryPlan, parse_connector_subject};
 use crate::resume::ResumePlan;
 use crate::skill::SkillPlan;
@@ -31,7 +31,6 @@ pub enum RouterAction {
     RunList(ListPlan),
     RunLogin(LoginPlan),
     RunMcp(McpPlan),
-    RunTurn(crate::turn::TurnPlan),
     RunNew(NewPlan),
     RunHistory(HistoryPlan),
     RunVerify(VerifyPlan),
@@ -138,7 +137,6 @@ pub struct NewPlan {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct InitPlan {
-    pub global: bool,
     pub json: bool,
 }
 
@@ -292,17 +290,7 @@ fn route_args_with_optional_workspace(
         return RouterAction::RunVerify(VerifyPlan { args });
     }
 
-    if first_arg_is(&args, "turn") {
-        return crate::turn::parse_turn_plan(&args)
-            .map_or_else(RouterAction::Error, RouterAction::RunTurn);
-    }
-
     if first_arg_is(&args, "mcp") {
-        if mcp_runner_before_serve(&args) {
-            return RouterAction::Error(
-                "runx mcp --runner must follow the serve subcommand".to_owned(),
-            );
-        }
         return crate::mcp::parse_mcp_plan(&args)
             .map_or_else(RouterAction::Error, RouterAction::RunMcp);
     }
@@ -467,16 +455,6 @@ fn documented_command(args: &[OsString]) -> Option<&'static crate::command_spec:
 
 fn first_arg_is(args: &[OsString], expected: &str) -> bool {
     args.first().is_some_and(|arg| arg == OsStr::new(expected))
-}
-
-fn mcp_runner_before_serve(args: &[OsString]) -> bool {
-    args.iter()
-        .skip(1)
-        .take_while(|arg| arg.as_os_str() != OsStr::new("serve"))
-        .any(|arg| {
-            arg.to_str()
-                .is_some_and(|token| token == "--runner" || token.starts_with("--runner="))
-        })
 }
 
 // Function rationale: harness flag parsing stays local to the
@@ -763,17 +741,11 @@ fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
 }
 
 fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
-    let mut global = false;
     let mut json = false;
     let mut index = 1;
 
     while index < args.len() {
         let token = os_arg(args, index, "init")?;
-        if token == "-g" {
-            global = true;
-            index += 1;
-            continue;
-        }
         if !crate::cli_args::is_flag(token) {
             return Err(format!("unexpected init argument {token}"));
         }
@@ -787,18 +759,11 @@ fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {
                 json = true;
                 index += 1;
             }
-            "--global" => {
-                if inline_value.is_some() {
-                    return Err("--global does not take a value".to_owned());
-                }
-                global = true;
-                index += 1;
-            }
             _ => return Err(format!("unknown init flag {flag}")),
         }
     }
 
-    Ok(InitPlan { global, json })
+    Ok(InitPlan { json })
 }
 
 fn parse_dev_plan(args: &[OsString]) -> Result<DevPlan, String> {
@@ -979,15 +944,9 @@ fn parse_list_kind(value: &str) -> Option<ListKind> {
 }
 
 fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {
-    let subcommand = os_arg(args, 1, "policy")?;
-    let action = match subcommand {
-        "inspect" => PolicyAction::Inspect,
-        "lint" => PolicyAction::Lint,
-        _ => return Err(format!("unknown policy subcommand {subcommand}")),
-    };
     let mut json = false;
     let mut positionals = Vec::new();
-    let mut index = 2;
+    let mut index = 1;
 
     while index < args.len() {
         let Some(token) = args[index].to_str() else {
@@ -1015,10 +974,9 @@ fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {
     }
 
     let [path] = positionals.as_slice() else {
-        return Err("runx policy inspect|lint requires exactly one policy path".to_owned());
+        return Err("runx policy requires exactly one policy path".to_owned());
     };
     Ok(PolicyPlan {
-        action,
         path: path.clone(),
         json,
     })

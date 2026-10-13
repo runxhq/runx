@@ -98,10 +98,10 @@ runx skill sourcey/sourcey@1.0.0 --registry https://runx.example.test --json
 runx add sourcey/sourcey@1.0.0 --registry https://runx.example.test --to ./skills --json
 runx skill issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="Fix the failing build"
 runx resume <run-id> answers.json
-runx turn <run-id>
+runx mcp --run <run-id>
 runx history
-runx history <receipt-id> --detail --json
-runx mcp serve ./fixtures/skills/echo
+runx history <receipt-id> --json
+runx mcp ./fixtures/skills/echo
 runx skill ./skills/skill-build design --objective "build github review skill"
 runx harness ./fixtures/harness/echo-skill.yaml
 runx config set agent.provider openai
@@ -109,7 +109,7 @@ printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 ```
 
 `runx resume` continues a paused run from its run record. A sealed run is
-terminal; inspect its receipt with `runx history <receipt-id> --detail`. To execute
+terminal; inspect its receipt with `runx history <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
 receipts if you need to compare the outcomes. The current CLI has no standalone
 `replay` or run `diff` command.
@@ -145,8 +145,9 @@ request is refused, so no approval reaches a request a person has not seen,
 and a resumed run checks that each request it re-asks is the one it paused on.
 The pending run's `answers_template` contains the exact request ids to resolve.
 
-`runx turn <run-id>` serves the agent turns a paused run waits on as MCP tools
-over stdio. The tools are fixed and take a turn's address: `turn_list` shows
+`runx mcp --run <run-id>` serves the agent turns a paused run waits on as MCP
+tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves
+the same tools beside its skills, over the runs its own skill calls open. The tools are fixed and take a turn's address: `turn_list` shows
 everything the run waits on, `turn_status` reads a turn, `turn_call` makes a
 call in it and `turn_complete` ends it. A turn's address is the id of the step
 that asks it, as an approval's is its gate. A turn that a call opens in a child
@@ -735,7 +736,7 @@ policy, approvals, and resolution requests still behave the same way.
 
 ## Receipts
 
-Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx history <receipt-id> --detail` verifies a receipt's signature and surfaces `verified`, `unverified`, or `invalid` status. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
+Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx history <receipt-id>` verifies a receipt's signature and surfaces `verified`, `unverified`, or `invalid` status. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
 Graph receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,

@@ -1,11 +1,12 @@
 //! A run's open agent turns served as MCP tools. The tool set is fixed,
 //! `turn_list`, `turn_status`, `turn_call` and `turn_complete`, each taking a
 //! turn's address, so a turn a call opens mid-session is reachable in every
-//! client; a turn's own tools arrive with its status. `runx turn` serves one
-//! run's turns; a skill server serves the same tools over any run they name,
-//! so a turn its own skill call opened is worked on the same connection. Every call is made
-//! through the run: admitted against the turn's allowance and recorded in the
-//! run's stream. An action on a turn that is no longer open is refused.
+//! client; a turn's own tools arrive with its status. `runx mcp --run` serves
+//! one run's turns; a skill server serves the same tools over the runs its own
+//! skill calls opened, so a turn one of them opened is worked on the same
+//! connection. Every call is made through the run: admitted against the
+//! turn's allowance and recorded in the run's stream. An action on a turn that
+//! is no longer open is refused.
 use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome};
@@ -108,12 +109,23 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
     .collect()
 }
 
-/// The session a turn tool call works: the bound run, or the one it names.
-fn session(runs: &McpTurnRuns, arguments: &JsonObject) -> Result<Arc<TurnSession>, String> {
+/// The session a turn tool call works: the bound run, or the one it names,
+/// which this server's own calls must have opened (`served` is their run-id
+/// prefix). A skill server never works another host's run.
+fn session(
+    runs: &McpTurnRuns,
+    arguments: &JsonObject,
+    served: &str,
+) -> Result<Arc<TurnSession>, String> {
     match runs {
         McpTurnRuns::Bound(session) => Ok(Arc::clone(session)),
         McpTurnRuns::Named(execution) => {
             let run_id = text(arguments, "run")?;
+            if !run_id.starts_with(served) {
+                return Err(format!(
+                    "run {run_id} was not opened by this server; it works only the turns its own skill calls opened"
+                ));
+            }
             let workspace = crate::WorkspaceEnv::from_admitted(execution.env.clone())
                 .map_err(|error| error.to_string())?;
             crate::execution::orchestrator::LocalOrchestrator::with_effects(
@@ -132,8 +144,12 @@ fn session(runs: &McpTurnRuns, arguments: &JsonObject) -> Result<Arc<TurnSession
 }
 
 /// Do what one turn tool does, through the run.
-pub(super) fn execute_mcp_turn_tool(tool: &McpTurnTool, arguments: JsonObject) -> McpToolResult {
-    let result = session(&tool.runs, &arguments).and_then(|session| match tool.action {
+pub(super) fn execute_mcp_turn_tool(
+    tool: &McpTurnTool,
+    arguments: JsonObject,
+    served: &str,
+) -> McpToolResult {
+    let result = session(&tool.runs, &arguments, served).and_then(|session| match tool.action {
         McpTurnAction::List => session
             .waiting()
             .map(|requests| structured(&Waiting { requests }, false))

@@ -36,9 +36,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "init",
         top_level_usage: &[],
-        usage: &["runx init [-g|--global] [--json]"],
-        notes: &[],
-        options: &["-g, --global", "-j, --json"],
+        usage: &["runx init [--json]"],
+        notes: &[
+            "Marks this directory as a runx project, so runx finds it from any directory beneath it. A directory holding skills/ or pnpm-workspace.yaml is found without it.",
+        ],
+        options: &["-j, --json"],
     },
     CommandSpec {
         name: "verify",
@@ -63,11 +65,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         top_level_usage: &[],
         usage: &[
             "runx history [query] [--skill s] [--status s] [--since iso] [--until iso] [--limit n] [--json]",
-            "runx history <receipt-id> --detail [--receipt-dir dir] [--json]",
+            "runx history <receipt-id> [--receipt-dir dir] [--json]",
         ],
         notes: &[
             "Lists the workspace's runs, most recent first: running, paused (with the request each waits on and its resume command) or sealed (with its receipt).",
-            "--detail inspects and verifies one receipt from the receipt directory.",
+            "A receipt id inspects and verifies that one receipt from the receipt directory.",
         ],
         options: &[
             "--skill s",
@@ -75,8 +77,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--since iso        Runs started at or after this instant",
             "--until iso        Runs started at or before this instant",
             "--limit n",
-            "--detail           Inspect one receipt",
-            "--receipt-dir dir  Where --detail reads receipts from",
+            "--receipt-dir dir  Where a receipt id is read from",
             "-j, --json",
         ],
     },
@@ -220,12 +221,9 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "policy",
-        top_level_usage: &["runx policy inspect|lint <policy.json> [--json]"],
-        usage: &[
-            "runx policy inspect <policy.json> [--json]",
-            "runx policy lint <policy.json> [--json]",
-        ],
-        notes: &[],
+        top_level_usage: &[],
+        usage: &["runx policy <policy.json> [--json]"],
+        notes: &["Validates an operational policy and reads it back."],
         options: &["-j, --json"],
     },
     CommandSpec {
@@ -271,35 +269,29 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
-        name: "turn",
-        top_level_usage: &[],
-        usage: &["runx turn <run-id> [--receipt-dir dir]"],
-        notes: &[
-            "Serves the agent turns a paused run waits on as MCP tools over stdio: turn_list, turn_status, turn_call (a call to one of the tools the turn offers, ask_human included) and turn_complete.",
-            "Each call is admitted against the turn's allowance and the run's authority, executed, and recorded in the run. A write names its idempotency_key. A call that needs approval stays pending until runx resume answers it.",
-            "turn_complete ends the turn with its output; the run continues.",
-        ],
-        options: &["--receipt-dir dir"],
-    },
-    CommandSpec {
         name: "mcp",
         top_level_usage: &[],
         usage: &[
-            "runx mcp serve <skill-ref...> [--receipt-dir dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp <skill-ref...> [--runner runner] [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp --run <run-id> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
         ],
-        notes: &[],
+        notes: &[
+            "The governed MCP server. Each skill is a tool; a skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
+            "--run serves one paused run's open turns, for a host that hands its agent that run alone. Each call is admitted against the turn's allowance and the run's authority, executed and recorded; a call that needs approval stays pending until runx resume answers it; turn_complete ends the turn and the run continues.",
+        ],
         options: &[
-            "--receipt-dir dir",
+            "--run <run-id>  Serve this run's open turns",
+            "--runner runner  The runner every skill tool runs",
+            "-R, --receipt-dir dir",
             "--http-listen [addr]",
             "--http-allow-non-loopback",
-            "--runner runner  Must follow the serve subcommand",
         ],
     },
     CommandSpec {
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
             "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
@@ -309,6 +301,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with per-key inputs",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
             "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations and child-run bounds",
+            "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--full-operator-context  Print the complete prepared context before execution",
             "--managed-agent          Explicitly allow an in-process model loop for this run",

@@ -3,13 +3,17 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use runx_runtime::WorkspaceEnv;
+use runx_runtime::{TurnRequest, WorkspaceEnv};
 
-use crate::cli_args::{flag_value, optional_flag_value_or, os_arg, os_flag_value, split_flag};
+use crate::cli_args::{flag_value, optional_flag_value_or, os_flag_value, split_flag};
 
+/// `runx mcp`: the one governed MCP server. It serves skills, and the turns
+/// their own calls open, or the open turns of one run (`--run`), for a host
+/// such as Fieldwork that hands its agent that run alone.
 #[derive(Debug, Eq, PartialEq)]
 pub struct McpPlan {
     pub refs: Vec<PathBuf>,
+    pub run: Option<String>,
     pub receipt_dir: Option<PathBuf>,
     pub runner: Option<String>,
     /// When set, serve the governed MCP server over streamable HTTP at this
@@ -21,30 +25,32 @@ pub struct McpPlan {
 // Function rationale: flag parsing is kept in one linear pass so
 // CLI usage errors preserve exact native argument semantics.
 pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
-    let subcommand = os_arg(args, 1, "mcp")?;
-    if subcommand != "serve" {
-        return Err(format!("unknown mcp subcommand {subcommand}"));
-    }
     let mut refs = Vec::new();
+    let mut run = None;
     let mut receipt_dir = None;
     let mut runner = None;
     let mut http_listen = None;
     let mut http_allow_non_loopback = false;
-    let mut index = 2;
+    let mut index = 1;
     while index < args.len() {
         let Some(token) = args[index].to_str() else {
             refs.push(PathBuf::from(args[index].clone()));
             index += 1;
             continue;
         };
-        if !token.starts_with("--") {
+        if !token.starts_with('-') {
             refs.push(PathBuf::from(token));
             index += 1;
             continue;
         }
         let (flag, inline_value) = split_flag(token);
         match flag {
-            "--receipt-dir" => {
+            "--run" => {
+                let (value, next_index) = flag_value(args, index, flag, inline_value, "mcp")?;
+                run = Some(value);
+                index = next_index;
+            }
+            "--receipt-dir" | "-R" => {
                 let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
                 receipt_dir = Some(PathBuf::from(value));
                 index = next_index;
@@ -72,14 +78,31 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
                 http_allow_non_loopback = true;
                 index += 1;
             }
-            _ => return Err(format!("unknown mcp serve flag {flag}")),
+            _ => return Err(format!("unknown mcp flag {flag}")),
         }
     }
-    if refs.is_empty() {
-        return Err("runx mcp serve requires at least one skill reference.".to_owned());
+    match (&run, refs.is_empty()) {
+        (None, true) => {
+            return Err(
+                "runx mcp serves skill references, or one run's turns with --run <run-id>"
+                    .to_owned(),
+            );
+        }
+        (Some(_), false) => {
+            return Err(
+                "runx mcp serves skill references or one run's turns, not both: a skill server already works the turns its own calls open".to_owned(),
+            );
+        }
+        (Some(_), true) if runner.is_some() => {
+            return Err(
+                "runx mcp --runner selects a skill's runner; --run serves a run".to_owned(),
+            );
+        }
+        _ => {}
     }
     Ok(McpPlan {
         refs,
+        run,
         receipt_dir,
         runner,
         http_listen,
@@ -90,31 +113,13 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
 // Function rationale: native MCP startup owns one cohesive
 // stdio-vs-HTTP transport selection and error presentation boundary.
 pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let effects = match crate::runtime::runtime_effect_registry() {
-        Ok(effects) => effects,
+    let options = match server_options(&plan, workspace) {
+        Ok(options) => options,
         Err(error) => {
             let _ignored = writeln!(std::io::stderr(), "runx: {error}");
             return ExitCode::from(1);
         }
     };
-    let options =
-        match runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
-            &plan.refs,
-            "runx-cli",
-            env!("CARGO_PKG_VERSION"),
-            runx_runtime::adapters::mcp::McpServerExecutionOptions {
-                runner: plan.runner,
-                receipt_dir: plan.receipt_dir,
-                env: workspace.env().clone(),
-                effects,
-            },
-        ) {
-            Ok(options) => options,
-            Err(error) => {
-                let _ignored = writeln!(std::io::stderr(), "runx: {error}");
-                return ExitCode::from(1);
-            }
-        };
     let result = match &plan.http_listen {
         Some(listen_addr) => {
             let bearer_token = match runx_runtime::adapters::mcp::generate_mcp_http_bearer_token() {
@@ -160,4 +165,41 @@ pub fn run_native_mcp_with_workspace(plan: McpPlan, workspace: &WorkspaceEnv) ->
             ExitCode::from(1)
         }
     }
+}
+
+/// The tools the server offers: one run's open turns, or the skills and the
+/// turns their own calls open.
+fn server_options(
+    plan: &McpPlan,
+    workspace: &WorkspaceEnv,
+) -> Result<runx_runtime::adapters::mcp::McpServerOptions, String> {
+    if let Some(run_id) = &plan.run {
+        let session = crate::runtime::local_orchestrator(workspace.env())
+            .map_err(|error| error.to_string())?
+            .open_turns(&TurnRequest {
+                run_id: run_id.clone(),
+                receipt_dir: plan.receipt_dir.clone(),
+                env: workspace.env().clone(),
+                cwd: workspace.cwd().to_path_buf(),
+            })
+            .map_err(|error| error.to_string())?;
+        return Ok(runx_runtime::adapters::mcp::McpServerOptions::for_turns(
+            session,
+            "runx-cli",
+            env!("CARGO_PKG_VERSION"),
+        ));
+    }
+    let effects = crate::runtime::runtime_effect_registry().map_err(|error| error.to_string())?;
+    runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
+        &plan.refs,
+        "runx-cli",
+        env!("CARGO_PKG_VERSION"),
+        runx_runtime::adapters::mcp::McpServerExecutionOptions {
+            runner: plan.runner.clone(),
+            receipt_dir: plan.receipt_dir.clone(),
+            env: workspace.env().clone(),
+            effects,
+        },
+    )
+    .map_err(|error| error.to_string())
 }

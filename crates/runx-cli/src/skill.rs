@@ -23,7 +23,7 @@ pub use inputs::CliInputs;
 use inputs::read_input_document;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
-pub use parser::{parse_skill_plan, parse_skill_plan_with_workspace};
+pub use parser::{CallerContext, parse_skill_plan, parse_skill_plan_with_workspace};
 use resolver::{RegistryTrustState, ResolvedSkillRef, resolve_skill_ref_details};
 
 #[derive(Debug, PartialEq)]
@@ -49,6 +49,8 @@ pub struct SkillPlan {
     pub act: Option<runx_contracts::CallAct>,
     /// The trusted host's authority for the run (`--run-authority`).
     pub run_authority: Option<Box<runx_runtime::RunAuthority>>,
+    /// The caller's context for the run (`--context`).
+    pub context: Option<Box<CallerContext>>,
     pub managed_agent: ManagedAgentPolicy,
 }
 
@@ -154,8 +156,16 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         answers_path: None,
     };
     let request = SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
+        current_context: plan
+            .context
+            .as_ref()
+            .map(|context| context.current_context.clone())
+            .unwrap_or_default(),
+        historical_context: plan
+            .context
+            .as_ref()
+            .map(|context| context.historical_context.clone())
+            .unwrap_or_default(),
         run_authority: plan.run_authority.as_deref().cloned(),
         act: plan.act.clone(),
         skill_path,

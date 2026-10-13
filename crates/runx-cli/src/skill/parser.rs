@@ -50,9 +50,11 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     } else {
         SkillAction::Run
     };
-    if action == SkillAction::Inspect && state.run_authority.is_some() {
+    if action == SkillAction::Inspect && (state.run_authority.is_some() || state.context.is_some())
+    {
         return Err(
-            "runx skill --run-authority binds a run and is not accepted by inspect".to_owned(),
+            "runx skill --run-authority and --context bind a run and are not accepted by inspect"
+                .to_owned(),
         );
     }
     if action == SkillAction::Inspect
@@ -94,8 +96,27 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         input_document: state.input_document,
         act: state.act,
         run_authority: state.run_authority,
+        context: state.context,
         managed_agent,
     })
+}
+
+/// `--context <json>`: the caller's context for the run, as the
+/// `current_context` and `historical_context` an agent context envelope
+/// carries. Context informs the run and its children; it never grants
+/// authority.
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CallerContext {
+    #[serde(default)]
+    pub current_context: Vec<runx_contracts::ContextEntry>,
+    #[serde(default)]
+    pub historical_context: Vec<runx_contracts::ContextEntry>,
+}
+
+fn parse_context(value: &str) -> Result<Box<CallerContext>, String> {
+    serde_json::from_str(value)
+        .map_err(|error| format!("runx skill --context must be JSON caller context: {error}"))
 }
 
 /// `--run-authority <json>`: a trusted host's authority for the run.
@@ -131,6 +152,7 @@ struct SkillParseState {
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
     run_authority: Option<Box<runx_runtime::RunAuthority>>,
+    context: Option<Box<CallerContext>>,
     managed_agent: bool,
     managed_agent_rounds: Option<u32>,
 }
@@ -295,6 +317,13 @@ fn parse_skill_arg(
         "--run-authority" => {
             index += 1;
             state.run_authority = Some(parse_run_authority(&string_arg(args, index)?)?);
+        }
+        value if value.starts_with("--context=") => {
+            state.context = Some(parse_context(value.trim_start_matches("--context="))?);
+        }
+        "--context" => {
+            index += 1;
+            state.context = Some(parse_context(&string_arg(args, index)?)?);
         }
         "--run-id" => {
             index += 1;
@@ -625,6 +654,29 @@ mod tests {
 
         assert_eq!(plan.action, SkillAction::Run);
         assert_eq!(plan.runner.as_deref(), Some("refresh"));
+        Ok(())
+    }
+
+    /// A host's caller context binds the run, never its inputs, and is
+    /// refused when it names anything but the two context lists.
+    #[test]
+    fn caller_context_is_a_host_binding_not_a_skill_input() -> Result<(), String> {
+        let args = |context: &str| {
+            ["skill", "skills/ops-desk", "--context", context]
+                .into_iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>()
+        };
+        let plan = super::parse_skill_plan(&args(r#"{"current_context":[]}"#))?;
+        assert_eq!(
+            plan.context.as_deref(),
+            Some(&super::CallerContext::default())
+        );
+        assert!(plan.inputs.is_empty());
+        let refused = super::parse_skill_plan(&args(r#"{"memory":[]}"#))
+            .err()
+            .ok_or("an unknown context field was accepted")?;
+        assert!(refused.contains("--context"), "{refused}");
         Ok(())
     }
 

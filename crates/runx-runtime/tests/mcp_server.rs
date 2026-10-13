@@ -442,12 +442,11 @@ fn mcp_server_never_treats_configured_model_credentials_as_managed_agent_consent
     Ok(())
 }
 
-/// A skill server serves the turn tools over any run it names, so the turn a
-/// skill call opened is worked without starting `runx turn`.
+/// A skill server works only the turns its own skill calls opened: a second
+/// server, another host, cannot work a run the first one started.
 #[test]
 #[cfg(feature = "mcp")]
-fn a_skill_server_works_the_turn_its_own_skill_call_opened()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_skill_server_works_no_run_another_server_opened() -> Result<(), Box<dyn std::error::Error>> {
     let receipts = tempfile::tempdir()?;
     let options = McpServerOptions::from_skill_paths_with_execution(
         &[repo_root()?.join("fixtures/skills/agent-task")],
@@ -481,46 +480,27 @@ fn a_skill_server_works_the_turn_its_own_skill_call_opened()
     .ok_or("the paused call names its run")?
     .to_owned();
 
-    let turn = |extra: Option<(&str, JsonValue)>| {
-        let mut arguments = JsonObject::from([
-            ("run".to_owned(), JsonValue::String(run_id.clone())),
-            ("turn".to_owned(), JsonValue::String("default".to_owned())),
-        ]);
-        arguments.extend(extra.map(|(key, value)| (key.to_owned(), value)));
-        arguments
-    };
-    let worked = run_server_with_options(
-        vec![
-            call("turn_status", turn(None)),
-            call(
-                "turn_complete",
-                turn(Some((
-                    "output",
-                    JsonValue::Object(JsonObject::from([(
-                        "verdict".to_owned(),
-                        JsonValue::String("pass".to_owned()),
-                    )])),
-                ))),
-            ),
-        ],
+    let refused = run_server_with_options(
+        vec![call(
+            "turn_status",
+            JsonObject::from([
+                ("run".to_owned(), JsonValue::String(run_id)),
+                ("turn".to_owned(), JsonValue::String("default".to_owned())),
+            ]),
+        )],
         options,
     )?;
-    for response in &worked {
-        assert_no_json_rpc_error(response);
-        assert_ne!(
-            path(response, &["result", "isError"]),
-            Some(&JsonValue::Bool(true)),
-            "{response:?}"
-        );
-    }
+    assert_no_json_rpc_error(&refused[0]);
     assert_eq!(
-        path(
-            &worked[1],
-            &["result", "structuredContent", "runx", "status"]
-        ),
-        Some(&JsonValue::String("sealed".to_owned())),
+        path(&refused[0], &["result", "isError"]),
+        Some(&JsonValue::Bool(true)),
         "{:?}",
-        worked[1]
+        refused[0]
+    );
+    assert!(
+        serde_json::to_string(&refused[0])?.contains("not opened by this server"),
+        "{:?}",
+        refused[0]
     );
     Ok(())
 }
@@ -602,7 +582,7 @@ fn mcp_server_reports_duplicate_tool_names() -> Result<(), Box<dyn std::error::E
 
     assert_eq!(
         error.to_string(),
-        "runx mcp serve received duplicate tool name 'dup'. Serve unique skill names only."
+        "runx mcp received duplicate tool name 'dup'. Serve unique skill names only."
     );
     Ok(())
 }

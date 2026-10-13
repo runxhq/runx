@@ -106,7 +106,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      profiles and project bindings are the durable multi-account path.
 
 6. **Verify the result**
-   - List runs with `runx history`. Inspect an exact receipt with `runx history <receipt-id> --detail --json` and verify its signed tree with `runx verify <receipt-id> --json`.
+   - List runs with `runx history`. Inspect an exact receipt with `runx history <receipt-id> --json` and verify its signed tree with `runx verify <receipt-id> --json`.
    - Check that the receipt says the same action the user approved.
    - Confirm any effect through the skill's readback: provider status, published
      URL, transaction hash, delivered message id, deployment id, or denial.

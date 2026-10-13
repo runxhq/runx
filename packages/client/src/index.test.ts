@@ -58,7 +58,7 @@ describe("native invocation and decoding", () => {
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();
     const server = createRunxClient(config).turns.server({ runId: "run_test", receiptDir, environment: { SKILL_FLAG: "1" } });
-    expect(server).toMatchObject({ command: config.command, args: ["turn", "run_test", "--receipt-dir", receiptDir], cwd: config.cwd });
+    expect(server).toMatchObject({ command: config.command, args: ["mcp", "--run", "run_test", "--receipt-dir", receiptDir], cwd: config.cwd });
     expect(server.env).toMatchObject({ SKILL_FLAG: "1", RUNX_CWD: config.cwd, RUNX_PROJECT_DIR: config.projectDir, RUNX_HOME: config.home, NO_COLOR: "1" });
     expect(() => createRunxClient(config).turns.server({ runId: "--help", receiptDir })).toThrow("positional");
     expect(() => createRunxClient(config).turns.server({ runId: "run_test", receiptDir: "relative" })).toThrow("absolute");
@@ -111,16 +111,20 @@ describe("native invocation and decoding", () => {
     expect(captured.inputs).toEqual({ "receipt-dir": "untrusted", nested: { value: 1 } });
     expect(captured.home).toBe(config.home);
   });
-  it("gives a run the host's authority as one argument", async () => {
+  it("gives a run the host's authority, act and context as arguments", async () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
       process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
     const runAuthority = { actor_ref: { type: "principal", uri: "runx:principal:user_1" }, max_child_depth: 2 } as const;
-    await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority });
+    const act = { purpose: "reply to the thread" };
+    const context = { current_context: [] };
+    await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority, act, context });
     const args = JSON.parse(await readFile(capture, "utf8")) as string[];
     expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
+    expect(JSON.parse(args[args.indexOf("--act") + 1]!)).toEqual(act);
+    expect(JSON.parse(args[args.indexOf("--context") + 1]!)).toEqual(context);
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();

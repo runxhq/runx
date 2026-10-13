@@ -7,16 +7,11 @@ use super::InitError;
 use super::ids::{now_iso8601, random_uuid_v4};
 use crate::paths::RunxPaths;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum InitAction {
-    Project,
-    Global,
-}
-
+/// `runx init`: mark the workspace as a runx project, so runx resolves it
+/// from any directory beneath it. The installation's own state is recorded
+/// on first use.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunxInitOptions {
-    pub action: InitAction,
     pub paths: RunxPaths,
     pub generated: InitGeneratedValues,
 }
@@ -55,54 +50,25 @@ pub struct RunxInstallState {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RunxInitResult {
-    pub action: InitAction,
     pub created: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_dir: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub global_home_dir: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub installation_id: Option<String>,
+    pub project_dir: PathBuf,
+    pub project_id: String,
 }
 
 pub fn runx_init(options: &RunxInitOptions) -> Result<RunxInitResult, InitError> {
-    match options.action {
-        InitAction::Project => {
-            let ensured = ensure_runx_project_state(
-                &options.paths,
-                &options.generated.project_id,
-                &options.generated.created_at,
-            )?;
-            let tools_dir = options.paths.project_tools();
-            fs::create_dir_all(&tools_dir)
-                .map_err(|source| InitError::io("creating tools directory", tools_dir, source))?;
-            Ok(RunxInitResult {
-                action: InitAction::Project,
-                created: ensured.created,
-                project_dir: Some(options.paths.project().to_path_buf()),
-                project_id: Some(ensured.state.project_id),
-                global_home_dir: None,
-                installation_id: None,
-            })
-        }
-        InitAction::Global => {
-            let ensured = ensure_runx_install_state(
-                &options.paths,
-                &options.generated.installation_id,
-                &options.generated.created_at,
-            )?;
-            Ok(RunxInitResult {
-                action: InitAction::Global,
-                created: ensured.created,
-                project_dir: None,
-                project_id: None,
-                global_home_dir: Some(options.paths.home().to_path_buf()),
-                installation_id: Some(ensured.state.installation_id),
-            })
-        }
-    }
+    let ensured = ensure_runx_project_state(
+        &options.paths,
+        &options.generated.project_id,
+        &options.generated.created_at,
+    )?;
+    let tools_dir = options.paths.project_tools();
+    fs::create_dir_all(&tools_dir)
+        .map_err(|source| InitError::io("creating tools directory", tools_dir, source))?;
+    Ok(RunxInitResult {
+        created: ensured.created,
+        project_dir: options.paths.project().to_path_buf(),
+        project_id: ensured.state.project_id,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

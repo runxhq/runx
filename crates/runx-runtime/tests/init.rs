@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use runx_runtime::{InitAction, InitGeneratedValues, RunxInitOptions, RunxPaths, runx_init};
+use runx_runtime::{
+    InitGeneratedValues, RunxInitOptions, RunxPaths, ensure_runx_install_state, runx_init,
+};
 
 static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
 
@@ -10,7 +12,7 @@ static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
 fn init_project_state_is_reused() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::create("init-project")?;
     let project_dir = temp.path().join(".runx");
-    let options = init_options(InitAction::Project, &temp);
+    let options = init_options(&temp);
 
     let created = runx_init(&options)?;
     let reused = runx_init(&RunxInitOptions {
@@ -26,21 +28,23 @@ fn init_project_state_is_reused() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The installation's state is recorded on first use, once.
 #[test]
-fn init_global_records_the_installation() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = TestDir::create("init-global")?;
-    let home = temp.path().join("home");
-    let result = runx_init(&init_options(InitAction::Global, &temp))?;
+fn the_installation_is_recorded_once() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = TestDir::create("install-state")?;
+    let paths = paths_in(temp.path());
+    let created = ensure_runx_install_state(&paths, "inst_fixture", "2026-05-19T01:02:03.004Z")?;
+    let reused = ensure_runx_install_state(&paths, "inst_other", "2026-05-19T01:02:03.004Z")?;
 
-    assert!(result.created);
-    assert_eq!(result.global_home_dir, Some(home.clone()));
-    assert!(home.join("install.json").exists());
+    assert!(created.created);
+    assert!(!reused.created);
+    assert_eq!(reused.state.installation_id, "inst_fixture");
+    assert!(temp.path().join("home").join("install.json").exists());
     Ok(())
 }
 
-fn init_options(action: InitAction, temp: &TestDir) -> RunxInitOptions {
+fn init_options(temp: &TestDir) -> RunxInitOptions {
     RunxInitOptions {
-        action,
         paths: paths_in(temp.path()),
         generated: generated("proj_fixture", "inst_fixture", "2026-05-19T01:02:03.004Z"),
     }

@@ -1,4 +1,5 @@
-//! The `runx mcp serve` server: runx skills served as MCP tools.
+//! The `runx mcp` server: runx skills, and a run's agent turns, served as
+//! MCP tools.
 //!
 //! - `types`: server options, tools, and results.
 //! - `stdio_transport`: MCP's bounded newline-delimited stdio framing, shared

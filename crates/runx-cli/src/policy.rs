@@ -12,16 +12,10 @@ use runx_contracts::{
 use runx_runtime::WorkspaceEnv;
 use serde::Serialize;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PolicyAction {
-    Inspect,
-    Lint,
-}
-
+/// `runx policy <policy.json>`: validate an operational policy and read it
+/// back.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PolicyPlan {
-    pub action: PolicyAction,
     pub path: PathBuf,
     pub json: bool,
 }
@@ -49,7 +43,6 @@ pub fn run_policy_command(
     let readback = project_operational_policy_readback(&policy)?;
     let findings = readback.findings.clone();
     let result = PolicyCommandResult {
-        action: plan.action,
         status: if readback.valid { "success" } else { "failure" },
         path: display_policy_path(&resolved_path, env, cwd),
         policy: readback,
@@ -117,7 +110,6 @@ impl From<OperationalPolicyError> for PolicyCliError {
 
 #[derive(Serialize)]
 struct PolicyCommandResult {
-    action: PolicyAction,
     status: &'static str,
     path: String,
     policy: OperationalPolicyReadback,
@@ -134,9 +126,8 @@ fn render_policy_result(result: &PolicyCommandResult) -> String {
     let mut lines = vec![
         String::new(),
         format!(
-            "  {}  policy {}  {}",
+            "  {}  policy  {}",
             status_icon(result.status),
-            policy_action_name(result.action),
             result.status
         ),
     ];
@@ -214,13 +205,6 @@ fn render_key_value_rows(rows: &[(&str, String)]) -> Vec<String> {
 
 fn status_icon(status: &str) -> &'static str {
     if status == "success" { "ok" } else { "fail" }
-}
-
-fn policy_action_name(action: PolicyAction) -> &'static str {
-    match action {
-        PolicyAction::Inspect => "inspect",
-        PolicyAction::Lint => "lint",
-    }
 }
 
 fn source_thread_label(

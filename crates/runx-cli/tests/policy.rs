@@ -3,11 +3,10 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn policy_inspect_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::Error>> {
+fn policy_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::Error>> {
     let output = crate::support::repo_runx_command()
         .args([
             "policy",
-            "inspect",
             "fixtures/operational-policy/provider-like.json",
             "--json",
         ])
@@ -15,7 +14,6 @@ fn policy_inspect_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout)?;
-    assert!(stdout.contains(r#""action": "inspect""#));
     assert!(stdout.contains(r#""status": "success""#));
     assert!(stdout.contains(r#""policy_id": "provider-issue-flow""#));
     assert!(stdout.contains(r#""locator_count": 1"#));
@@ -25,11 +23,10 @@ fn policy_inspect_json_redacts_raw_locators() -> Result<(), Box<dyn std::error::
 }
 
 #[test]
-fn policy_lint_json_reports_semantic_failure() -> Result<(), Box<dyn std::error::Error>> {
+fn policy_json_reports_semantic_failure() -> Result<(), Box<dyn std::error::Error>> {
     let output = crate::support::repo_runx_command()
         .args([
             "policy",
-            "lint",
             "fixtures/operational-policy/invalid-no-available-runner.json",
             "--json",
         ])
@@ -37,7 +34,6 @@ fn policy_lint_json_reports_semantic_failure() -> Result<(), Box<dyn std::error:
 
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8(output.stdout)?;
-    assert!(stdout.contains(r#""action": "lint""#));
     assert!(stdout.contains(r#""status": "failure""#));
     assert!(stdout.contains(r#""code": "target_action_without_runner""#));
     assert_eq!(String::from_utf8(output.stderr)?, "");
@@ -45,18 +41,17 @@ fn policy_lint_json_reports_semantic_failure() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
-fn policy_inspect_human_output_is_stable() -> Result<(), Box<dyn std::error::Error>> {
+fn policy_human_output_is_stable() -> Result<(), Box<dyn std::error::Error>> {
     let output = crate::support::repo_runx_command()
         .args([
             "policy",
-            "inspect",
             "fixtures/operational-policy/minimal-single-repo.json",
         ])
         .output()?;
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout)?;
-    assert!(stdout.contains("policy inspect  success"));
+    assert!(stdout.contains("policy  success"));
     assert!(stdout.contains("policy    single-repo-review-flow"));
     assert!(stdout.contains("sources"));
     assert!(stdout.contains("github-issues: github; locators=1; thread=comment"));
@@ -69,7 +64,7 @@ fn policy_inspect_human_output_is_stable() -> Result<(), Box<dyn std::error::Err
 #[test]
 fn policy_missing_path_exits_usage() -> Result<(), Box<dyn std::error::Error>> {
     let output = crate::support::repo_runx_command()
-        .args(["policy", "inspect", "--json"])
+        .args(["policy", "--json"])
         .output()?;
 
     assert_eq!(output.status.code(), Some(64));
@@ -78,7 +73,7 @@ fn policy_missing_path_exits_usage() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["status"], "failure");
     assert_eq!(value["error"]["code"], "invalid_args");
     assert!(value["error"]["message"].as_str().is_some_and(|message| {
-        message.contains("runx policy inspect|lint requires exactly one policy path")
+        message.contains("runx policy requires exactly one policy path")
     }));
     Ok(())
 }
@@ -88,7 +83,6 @@ fn policy_json_exposes_redacted_readback_surface() -> Result<(), Box<dyn std::er
     let output = crate::support::repo_runx_command()
         .args([
             "policy",
-            "inspect",
             "fixtures/operational-policy/provider-like.json",
             "--json",
         ])
@@ -107,7 +101,7 @@ fn policy_rejects_invalid_created_at_contract_value() -> Result<(), Box<dyn std:
     let policy_path = write_invalid_created_at_policy()?;
     let policy_arg = policy_path.to_string_lossy().into_owned();
     let output = crate::support::repo_runx_command()
-        .args(["policy", "inspect", policy_arg.as_str(), "--json"])
+        .args(["policy", policy_arg.as_str(), "--json"])
         .output()?;
 
     assert_eq!(output.status.code(), Some(1));

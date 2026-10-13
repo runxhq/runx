@@ -45,7 +45,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         if (options.binding && options.runner && options.runner !== options.binding.runner) throw new TypeError("Selected runner differs from the execution binding.");
-        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), ...(options.runAuthority ? ["--run-authority", JSON.stringify(options.runAuthority)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
+        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), ...(options.runAuthority ? ["--run-authority", JSON.stringify(options.runAuthority)] : []), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       },
     },
@@ -59,7 +59,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     turns: {
       server: (options) => ({
         command: config.command,
-        args: ["turn", argument(options.runId), "--receipt-dir", absolute(options.receiptDir)],
+        args: ["mcp", "--run", argument(options.runId), "--receipt-dir", absolute(options.receiptDir)],
         env: Object.fromEntries(
           Object.entries({ ...skillEnvironment(options.environment), ...trustedEnv })
             .filter((entry): entry is [string, string] => typeof entry[1] === "string"),

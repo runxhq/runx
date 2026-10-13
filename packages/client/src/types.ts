@@ -1,4 +1,4 @@
-import type { ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -58,12 +58,25 @@ export interface SkillRunOptions extends SkillInspectOptions {
   readonly receiptDir: string;
   readonly binding?: ExecutionBinding;
   readonly runAuthority?: RunAuthority;
+  /** The act the run is invoked with: why it is made. The native CLI validates it. */
+  readonly act?: Readonly<Record<string, unknown>>;
+  /**
+   * The caller's context for the run: selected, admitted entries with their
+   * provenance and sharing. Context informs the run and its children; it
+   * never grants authority.
+   */
+  readonly context?: RunContext;
   /**
    * The run's submission identity. Submitting it again continues that run, and
    * a sealed run returns what it sealed, so a host's retry never runs a step
    * twice.
    */
   readonly runId?: string;
+}
+
+export interface RunContext {
+  readonly current_context?: AgentContextEnvelopeContract["current_context"];
+  readonly historical_context?: AgentContextEnvelopeContract["historical_context"];
 }
 
 export interface RunResumeOptions extends InvocationOptions {
@@ -80,9 +93,10 @@ export interface TurnServerOptions extends InvocationOptions {
 }
 
 /**
- * What an MCP stdio client starts to serve the agent turn a paused run waits
- * on. Every tool call is admitted, executed and recorded by the run;
- * `turn_complete` ends the turn and the run continues.
+ * What an MCP stdio client starts to serve the agent turns a paused run waits
+ * on (`runx mcp --run`), scoped to that run alone. Every tool call is
+ * admitted, executed and recorded by the run; `turn_complete` ends the turn
+ * and the run continues.
  */
 export interface TurnServer {
   readonly command: string;

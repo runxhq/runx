@@ -91,7 +91,7 @@ runx skill ./examples/hello-world -i message="hello, runx" --json
 The checked-in `examples/hello-world` skill runs a local command, and the final
 `--json` output is a `runx.skill_run.v1` result with `status: "sealed"` and a
 `receipt_id`. Inspect the governance record with
-`runx history <receipt-id> --detail --json`.
+`runx history <receipt-id> --json`.
 
 Some other examples:
 

@@ -125,7 +125,7 @@ pub use http::{
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
 };
 pub use init::{
-    InitAction, InitError, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
+    InitError, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
     RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
 };
 pub use kernel::authority::RunAuthority;

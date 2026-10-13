@@ -103,7 +103,9 @@ fn workspace_policy(
         .transpose()
 }
 
-/// Whether the host lets this run start `what`, a trusted host process.
+/// Whether the host lets this run start `what`, a trusted host process: the
+/// check a stdio MCP server makes before it starts one.
+#[cfg(feature = "mcp")]
 pub(crate) fn admit_host_process(
     environment: &BTreeMap<String, String>,
     what: &str,
@@ -202,7 +204,7 @@ mod tests {
             .err()
             .ok_or("a refusing host started a process")?;
         assert!(error.to_string().contains("starts no trusted host process"));
-        assert!(admit_host_process(&BTreeMap::new(), "stdio MCP server node").is_ok());
+        assert!(enforce_process_execution_policy("node", &[], &BTreeMap::new()).is_ok());
         Ok(())
     }
 

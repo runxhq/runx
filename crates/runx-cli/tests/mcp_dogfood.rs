@@ -128,7 +128,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
     let status = server.wait_timeout(Duration::from_secs(10))?;
     assert!(
         status.success(),
-        "runx mcp serve exited with {status}; stderr: {}",
+        "runx mcp exited with {status}; stderr: {}",
         server.stderr_string()?
     );
 
@@ -234,7 +234,7 @@ fn mcp_native_binary_uses_one_workspace_env_snapshot_per_session()
     let status = server.wait_timeout(Duration::from_secs(10))?;
     assert!(
         status.success(),
-        "runx mcp serve exited with {status}; stderr: {}",
+        "runx mcp exited with {status}; stderr: {}",
         server.stderr_string()?
     );
     Ok(())
@@ -458,7 +458,8 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
 
     let mut server = spawn_runx_stdio(
         &[
-            "turn".to_owned(),
+            "mcp".to_owned(),
+            "--run".to_owned(),
             run_id,
             "--receipt-dir".to_owned(),
             receipts.display().to_string(),
@@ -577,7 +578,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     let status = server.wait_timeout(Duration::from_secs(10))?;
     assert!(
         status.success(),
-        "runx turn exited with {status}; stderr: {}",
+        "runx mcp --run exited with {status}; stderr: {}",
         server.stderr_string()?
     );
     Ok(())
@@ -593,7 +594,7 @@ fn spawn_mcp_server_at(
     cwd: &Path,
     runx_cwd: Option<&Path>,
 ) -> Result<McpProcess, Box<dyn std::error::Error>> {
-    let mut command_args = vec!["mcp".to_owned(), "serve".to_owned()];
+    let mut command_args = vec!["mcp".to_owned()];
     command_args.extend_from_slice(args);
     spawn_runx_stdio(&command_args, cwd, runx_cwd)
 }
@@ -663,13 +664,13 @@ impl McpProcess {
             Err(RecvTimeoutError::Timeout) => {
                 let _ignored = self.child.kill();
                 Err(format!(
-                    "timed out waiting for runx mcp serve response to {label}; stderr: {}",
+                    "timed out waiting for runx mcp response to {label}; stderr: {}",
                     self.stderr_string()?
                 )
                 .into())
             }
             Err(RecvTimeoutError::Disconnected) => {
-                Err(format!("runx mcp serve stdout reader disconnected before {label}").into())
+                Err(format!("runx mcp stdout reader disconnected before {label}").into())
             }
         }
     }
@@ -690,7 +691,7 @@ impl McpProcess {
             if Instant::now() >= deadline {
                 let _ignored = self.child.kill();
                 let _ignored = self.child.wait();
-                return Err("timed out waiting for runx mcp serve to exit".into());
+                return Err("timed out waiting for runx mcp to exit".into());
             }
             std::thread::sleep(Duration::from_millis(25));
         }

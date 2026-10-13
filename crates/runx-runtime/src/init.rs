@@ -2,8 +2,8 @@ mod ids;
 mod state;
 
 pub use state::{
-    InitAction, InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState,
-    RunxProjectState, ensure_runx_install_state, ensure_runx_project_state, runx_init,
+    InitGeneratedValues, RunxInitOptions, RunxInitResult, RunxInstallState, RunxProjectState,
+    ensure_runx_install_state, ensure_runx_project_state, runx_init,
 };
 
 use std::fmt;

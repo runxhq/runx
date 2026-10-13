@@ -51,10 +51,10 @@ locators.
 Use the CLI gate before wiring a policy into a live runner:
 
 ```bash
-runx policy lint fixtures/operational-policy/provider-like.json --json
+runx policy fixtures/operational-policy/provider-like.json --json
 ```
 
-`runx policy inspect` returns the same redacted readback shape for admin
+`runx policy` returns a redacted readback shape for admin
 surfaces. It is safe to show to developers because it reports locator counts
 instead of raw Slack channels, Sentry projects, or provider thread locators.
 

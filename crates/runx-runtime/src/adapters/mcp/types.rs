@@ -51,10 +51,11 @@ pub struct McpTurnTool {
 /// Which runs' turns a turn tool works.
 #[derive(Clone, Debug)]
 pub enum McpTurnRuns {
-    /// The one run `runx turn` was started for.
+    /// The one run `runx mcp --run` serves.
     Bound(Arc<TurnSession>),
-    /// Any run the call names, in the workspace a skill server serves: a
-    /// turn its own skill call opened is reached without another server.
+    /// A run the call names, among those the skill server's own calls
+    /// opened: a turn its own skill call opened is worked on the same
+    /// connection.
     Named(Arc<McpServerExecutionOptions>),
 }
 

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use runx_contracts::JsonValue;
 use runx_runtime::WorkspaceEnv;
-use runx_runtime::{InitAction, InitGeneratedValues, RunxInitOptions, RunxInitResult, runx_init};
+use runx_runtime::{InitGeneratedValues, RunxInitOptions, RunxInitResult, runx_init};
 use serde::Serialize;
 
 use crate::router::{InitPlan, NewPlan};
@@ -55,6 +55,7 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
             input_document: None,
             act: None,
             run_authority: None,
+            context: None,
             managed_agent: plan.managed_agent,
         },
         workspace,
@@ -64,11 +65,6 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
 pub fn run_native_init(plan: InitPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let paths = workspace.paths();
     let options = RunxInitOptions {
-        action: if plan.global {
-            InitAction::Global
-        } else {
-            InitAction::Project
-        },
         paths: paths.clone(),
         generated: InitGeneratedValues::generate(),
     };
@@ -104,33 +100,15 @@ fn render_init_result(json: bool, result: &RunxInitResult) -> ExitCode {
             },
         );
     }
-    let title = match &result.action {
-        InitAction::Global => "runx global init",
-        InitAction::Project => "runx project init",
-    };
     write_stdout(&render_key_values(
-        title,
+        "runx init",
         &[
             (
                 "created",
                 Some(if result.created { "yes" } else { "no" }.to_owned()),
             ),
-            (
-                "project",
-                result
-                    .project_dir
-                    .as_ref()
-                    .map(|path| path.display().to_string()),
-            ),
-            ("project_id", result.project_id.clone()),
-            (
-                "home",
-                result
-                    .global_home_dir
-                    .as_ref()
-                    .map(|path| path.display().to_string()),
-            ),
-            ("installation_id", result.installation_id.clone()),
+            ("project", Some(result.project_dir.display().to_string())),
+            ("project_id", Some(result.project_id.clone())),
         ],
     ))
 }

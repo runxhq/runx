@@ -271,6 +271,8 @@ enum PreparedMcpToolCall {
     Turn {
         tool: super::types::McpTurnTool,
         arguments: JsonObject,
+        /// The run-id prefix of the runs this server's own calls opened.
+        served: String,
     },
 }
 
@@ -301,7 +303,11 @@ fn prepare_rmcp_tool_call(
             javascript: state.javascript.clone(),
             effects: state.options.effects.clone(),
         }),
-        McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn { tool, arguments }),
+        McpServerToolBehavior::Turn(tool) => Ok(PreparedMcpToolCall::Turn {
+            tool,
+            arguments,
+            served: state.served_run_prefix(),
+        }),
     }
 }
 
@@ -310,9 +316,13 @@ async fn execute_rmcp_tool_call(
 ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
     match prepared? {
         PreparedMcpToolCall::Fixed(result) => rmcp_call_tool_result(result).map(Into::into),
-        PreparedMcpToolCall::Turn { tool, arguments } => {
+        PreparedMcpToolCall::Turn {
+            tool,
+            arguments,
+            served,
+        } => {
             let result = tokio::task::spawn_blocking(move || {
-                super::server_turn::execute_mcp_turn_tool(&tool, arguments)
+                super::server_turn::execute_mcp_turn_tool(&tool, arguments, &served)
             })
             .await
             .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
@@ -526,6 +536,11 @@ impl McpServerState {
         })
     }
 
+    /// Every run this server's skill calls open carries this prefix.
+    pub(super) fn served_run_prefix(&self) -> String {
+        format!("rx_mcp_{}_", self.session_id)
+    }
+
     pub(super) fn next_run_id(&self, skill_name: &str) -> String {
         let sequence = self
             .next_run_sequence
@@ -534,8 +549,8 @@ impl McpServerState {
             })
             .map_or(u64::MAX, |previous| previous.saturating_add(1));
         format!(
-            "rx_mcp_{}_{}_{}",
-            self.session_id,
+            "{}{}_{}",
+            self.served_run_prefix(),
             identifier_segment(skill_name),
             sequence
         )
@@ -547,7 +562,7 @@ fn assert_unique_server_tool_names(tools: &[McpServerTool]) -> Result<(), McpSer
     for tool in tools {
         if !seen.insert(tool.name.as_str()) {
             return Err(McpServerError::new(format!(
-                "runx mcp serve received duplicate tool name '{}'. Serve unique skill names only.",
+                "runx mcp received duplicate tool name '{}'. Serve unique skill names only.",
                 tool.name
             )));
         }
@@ -632,6 +647,91 @@ mod tests {
             );
         }
         assert_eq!(state.javascript.session_stats().spawned_process_count, 1);
+        Ok(())
+    }
+
+    /// A skill server works the turn its own skill call opened, on the same
+    /// connection, until the run seals.
+    #[test]
+    fn a_skill_server_works_the_turn_its_own_skill_call_opened()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let options = McpServerOptions::from_skill_paths_with_execution(
+            &[std::path::PathBuf::from(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../fixtures/skills/agent-task"
+            ))],
+            "runx-test",
+            "0.0.0",
+            super::super::types::McpServerExecutionOptions {
+                receipt_dir: Some(root.path().join("receipts")),
+                env: [
+                    ("RUNX_CWD".to_owned(), root.path().display().to_string()),
+                    (
+                        "RUNX_HOME".to_owned(),
+                        root.path().join("home").display().to_string(),
+                    ),
+                ]
+                .into(),
+                ..Default::default()
+            },
+        )?;
+        let state = McpServerState::new(options)?;
+        let tool = |name: &str| {
+            state
+                .options
+                .tools
+                .iter()
+                .find(|tool| tool.name == name)
+                .map(|tool| tool.result.clone())
+        };
+        let Some(McpServerToolBehavior::Skill(execution)) = tool("reviewer-boundary") else {
+            return Err("expected the skill tool".into());
+        };
+        let started = execute_mcp_server_skill(
+            &state.next_run_id("reviewer-boundary"),
+            *execution,
+            [("prompt".to_owned(), JsonValue::String("review".to_owned()))].into(),
+            state.javascript.clone(),
+            state.options.effects.clone(),
+        )?;
+        let runx = |result: &McpToolResult| {
+            result
+                .structured_content
+                .as_ref()
+                .and_then(|content| content.get("runx"))
+                .and_then(JsonValue::as_object)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let run_id = runx(&started)
+            .get("run_id")
+            .and_then(JsonValue::as_str)
+            .ok_or("the paused call names its run")?
+            .to_owned();
+        let Some(McpServerToolBehavior::Turn(complete)) = tool("turn_complete") else {
+            return Err("expected the turn_complete tool".into());
+        };
+        let completed = super::super::server_turn::execute_mcp_turn_tool(
+            &complete,
+            [
+                ("run".to_owned(), JsonValue::String(run_id)),
+                ("turn".to_owned(), JsonValue::String("default".to_owned())),
+                (
+                    "output".to_owned(),
+                    JsonValue::Object(
+                        [("verdict".to_owned(), JsonValue::String("pass".to_owned()))].into(),
+                    ),
+                ),
+            ]
+            .into(),
+            &state.served_run_prefix(),
+        );
+        assert!(!completed.is_error, "{completed:?}");
+        assert_eq!(
+            runx(&completed).get("status"),
+            Some(&JsonValue::String("sealed".to_owned()))
+        );
         Ok(())
     }
 

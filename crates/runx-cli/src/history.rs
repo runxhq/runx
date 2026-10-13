@@ -84,7 +84,7 @@ fn run_receipt_detail(
     cwd: &Path,
 ) -> Result<HistoryCliResult, HistoryCliError> {
     let receipt_reference = parsed.query.as_deref().ok_or_else(|| {
-        HistoryCliError::InvalidArgs("history --detail requires one exact receipt id".to_owned())
+        HistoryCliError::InvalidArgs("history needs one receipt id to inspect".to_owned())
     })?;
     let filter = &parsed.filter;
     if filter.skill.is_some()
@@ -94,7 +94,7 @@ fn run_receipt_detail(
         || filter.limit.is_some()
     {
         return Err(HistoryCliError::InvalidArgs(
-            "history --detail does not accept list filters".to_owned(),
+            "history <receipt-id> takes no list filters".to_owned(),
         ));
     }
     let receipt_config = RuntimeReceiptConfig::default();
@@ -152,15 +152,11 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
         }
         let (flag, inline_value) = cli_args::split_flag(token);
         match flag {
-            "--json" | "-j" | "--detail" => {
+            "--json" | "-j" => {
                 if inline_value.is_some() {
                     return Err(invalid_args(format!("{flag} does not take a value")));
                 }
-                if flag != "--detail" {
-                    parsed.json = true;
-                } else {
-                    parsed.detail = true;
-                }
+                parsed.json = true;
                 index += 1;
             }
             "--receipt-dir" | "--skill" | "--status" | "--since" | "--until" | "--limit" => {
@@ -188,14 +184,21 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
             }
         }
     }
+    // A receipt id names one receipt to inspect; anything else searches.
+    parsed.detail = matches!(positionals.as_slice(), [only] if is_receipt_id(only));
     parsed.query = (!positionals.is_empty()).then(|| positionals.join(" "));
     parsed.filter.query = parsed.query.clone();
-    if parsed.detail && positionals.len() != 1 {
-        return Err(invalid_args(
-            "history --detail requires one exact receipt id",
-        ));
-    }
     Ok(parsed)
+}
+
+/// A receipt's id: `sha256:` and the 64 hex digits of its content address.
+fn is_receipt_id(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(|hex| {
+        hex.len() == 64
+            && hex
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    })
 }
 
 fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option<&Path>) -> String {
@@ -244,7 +247,7 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
     }
     lines.push(String::new());
     lines.push(if paused == 0 {
-        "  next  runx history <receipt-id> --detail --json".to_owned()
+        "  next  runx history <receipt-id> --json".to_owned()
     } else {
         "  next  pipe one answers object into one of the commands above".to_owned()
     });
@@ -325,22 +328,21 @@ mod tests {
     }
 
     #[test]
-    fn parses_exact_detail_request_and_rejects_list_filters() -> Result<(), io::Error> {
-        let parsed = parse_history_args(&[
-            "history".into(),
-            "sha256:receipt".into(),
-            "--detail".into(),
-            "--json".into(),
-        ])
-        .map_err(|error| io::Error::other(error.to_string()))?;
+    fn a_receipt_id_names_one_receipt_and_takes_no_list_filters() -> Result<(), io::Error> {
+        let receipt_id = format!("sha256:{}", "a".repeat(64));
+        let parsed =
+            parse_history_args(&["history".into(), receipt_id.clone().into(), "--json".into()])
+                .map_err(|error| io::Error::other(error.to_string()))?;
         assert!(parsed.detail);
-        assert_eq!(parsed.query.as_deref(), Some("sha256:receipt"));
+        assert_eq!(parsed.query.as_deref(), Some(receipt_id.as_str()));
+        let searched = parse_history_args(&["history".into(), "sha256:receipt".into()])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(!searched.detail);
 
         let invalid = run_history_command(
             &[
                 "history".into(),
-                "sha256:receipt".into(),
-                "--detail".into(),
+                receipt_id.into(),
                 "--status".into(),
                 "closed".into(),
             ],
@@ -402,7 +404,6 @@ mod tests {
             &[
                 "history".into(),
                 receipt.id.to_string().into(),
-                "--detail".into(),
                 "--receipt-dir".into(),
                 receipt_dir.into_os_string(),
                 "--json".into(),

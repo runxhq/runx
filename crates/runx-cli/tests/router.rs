@@ -4,7 +4,7 @@ use runx_cli::connect::{ConnectAction, ConnectPlan};
 use runx_cli::export::{ExportPlan, Target};
 use runx_cli::login::LoginPlan;
 use runx_cli::mcp::McpPlan;
-use runx_cli::policy::{PolicyAction, PolicyPlan};
+use runx_cli::policy::PolicyPlan;
 use runx_cli::registry::{ConnectorAction, RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
@@ -42,7 +42,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -92,7 +92,7 @@ fn top_level_help_and_version_are_native() {
 }
 
 #[test]
-fn nested_skill_history_verify_and_publish_help_are_native() {
+fn nested_skill_history_verify_and_notarize_help_are_native() {
     assert_eq!(
         plan(&["skill", "--help"]),
         RouterAction::PrintCommandHelp("skill")
@@ -148,7 +148,7 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
+        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i key=value] [--input-json key=json] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--full-operator-context] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [--flag value] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
@@ -164,7 +164,7 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
     );
     assert_help_line(
         &history_help_text(),
-        "runx history <receipt-id> --detail [--receipt-dir dir] [--json]",
+        "runx history <receipt-id> [--receipt-dir dir] [--json]",
     );
     assert_help_line(
         &verify_help_text(),
@@ -216,8 +216,9 @@ fn filesystem_paths_do_not_require_utf8() {
     let path_buf = PathBuf::from(path.clone());
 
     assert_eq!(
-        route_args(vec!["mcp".into(), "serve".into(), path.clone()]),
+        route_args(vec!["mcp".into(), path.clone()]),
         RouterAction::RunMcp(McpPlan {
+            run: None,
             refs: vec![path_buf.clone()],
             receipt_dir: None,
             runner: None,
@@ -385,13 +386,13 @@ fn routes_mcp_serve_to_native_plan() {
     assert_eq!(
         plan(&[
             "mcp",
-            "serve",
             "fixtures/skills/echo",
             "--receipt-dir=receipts",
             "--runner",
             "default",
         ]),
         RouterAction::RunMcp(McpPlan {
+            run: None,
             refs: vec![PathBuf::from("fixtures/skills/echo")],
             receipt_dir: Some(PathBuf::from("receipts")),
             runner: Some("default".to_owned()),
@@ -404,8 +405,9 @@ fn routes_mcp_serve_to_native_plan() {
 #[test]
 fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_in() {
     assert_eq!(
-        plan(&["mcp", "serve", "fixtures/skills/echo", "--http-listen"]),
+        plan(&["mcp", "fixtures/skills/echo", "--http-listen"]),
         RouterAction::RunMcp(McpPlan {
+            run: None,
             refs: vec![PathBuf::from("fixtures/skills/echo")],
             receipt_dir: None,
             runner: None,
@@ -416,12 +418,12 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
     assert_eq!(
         plan(&[
             "mcp",
-            "serve",
             "fixtures/skills/echo",
             "--http-listen=0.0.0.0:8080",
             "--http-allow-non-loopback",
         ]),
         RouterAction::RunMcp(McpPlan {
+            run: None,
             refs: vec![PathBuf::from("fixtures/skills/echo")],
             receipt_dir: None,
             runner: None,
@@ -434,12 +436,33 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
 #[test]
 fn mcp_rejects_unknown_shapes_without_delegating() {
     assert_eq!(
-        plan(&["mcp", "serve", "fixtures/skills/echo", "--legacy-js-only"]),
-        RouterAction::Error("unknown mcp serve flag --legacy-js-only".to_owned())
+        plan(&["mcp", "fixtures/skills/echo", "--legacy-js-only"]),
+        RouterAction::Error("unknown mcp flag --legacy-js-only".to_owned())
     );
     assert_eq!(
-        plan(&["mcp", "--runner=default", "serve", "fixtures/skills/echo"]),
-        RouterAction::Error("runx mcp --runner must follow the serve subcommand".to_owned())
+        plan(&["mcp"]),
+        RouterAction::Error(
+            "runx mcp serves skill references, or one run's turns with --run <run-id>".to_owned()
+        )
+    );
+    assert!(matches!(
+        plan(&["mcp", "fixtures/skills/echo", "--run", "rx_1"]),
+        RouterAction::Error(message) if message.contains("not both")
+    ));
+    assert_eq!(
+        plan(&["mcp", "--run", "rx_1", "-R", "receipts"]),
+        RouterAction::RunMcp(McpPlan {
+            run: Some("rx_1".to_owned()),
+            refs: Vec::new(),
+            receipt_dir: Some(PathBuf::from("receipts")),
+            runner: None,
+            http_listen: None,
+            http_allow_non_loopback: false,
+        })
+    );
+    assert_eq!(
+        plan(&["turn", "rx_1"]),
+        RouterAction::Error("unknown command turn".to_owned())
     );
 }
 
@@ -528,6 +551,7 @@ fn routes_canonical_skill_run_to_native_plan() {
             input_document: None,
             act: None,
             run_authority: None,
+            context: None,
             managed_agent: Default::default(),
         })
     );
@@ -650,23 +674,21 @@ fn routes_config_to_native_plan() {
 }
 
 #[test]
-fn routes_policy_to_native_plan_and_rejects_unknown_subcommands() {
+fn routes_policy_to_native_plan() {
     assert_eq!(
         plan(&[
             "policy",
-            "inspect",
             "fixtures/operational-policy/provider-like.json",
             "--json",
         ]),
         RouterAction::RunPolicy(PolicyPlan {
-            action: PolicyAction::Inspect,
             path: PathBuf::from("fixtures/operational-policy/provider-like.json"),
             json: true,
         })
     );
     assert_eq!(
-        plan(&["policy", "apply"]),
-        RouterAction::Error("unknown policy subcommand apply".to_owned())
+        plan(&["policy", "a.json", "b.json"]),
+        RouterAction::Error("runx policy requires exactly one policy path".to_owned())
     );
 }
 
@@ -756,11 +778,12 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
         })
     );
     assert_eq!(
-        plan(&["init", "-g", "--json"]),
-        RouterAction::RunInit(InitPlan {
-            global: true,
-            json: true,
-        })
+        plan(&["init", "--json"]),
+        RouterAction::RunInit(InitPlan { json: true })
+    );
+    assert_eq!(
+        plan(&["init", "-g"]),
+        RouterAction::Error("unexpected init argument -g".to_owned())
     );
 }
 
@@ -1092,7 +1115,7 @@ fn routes_tool_to_native_plan_and_rejects_unknown_subcommands() {
 #[test]
 fn native_router_argument_errors_exit_with_usage_code() -> Result<(), Box<dyn std::error::Error>> {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_runx"))
-        .args(["policy", "inspect", "--json"])
+        .args(["policy", "--json"])
         .output()?;
 
     assert_eq!(output.status.code(), Some(64));
@@ -1101,26 +1124,8 @@ fn native_router_argument_errors_exit_with_usage_code() -> Result<(), Box<dyn st
     assert_eq!(value["status"], "failure");
     assert_eq!(value["error"]["code"], "invalid_args");
     assert!(value["error"]["message"].as_str().is_some_and(|message| {
-        message.contains("runx policy inspect|lint requires exactly one policy path")
+        message.contains("runx policy requires exactly one policy path")
     }));
-    Ok(())
-}
-
-#[test]
-fn mcp_runner_before_serve_fails_closed_in_native_binary() -> Result<(), Box<dyn std::error::Error>>
-{
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_runx"))
-        .env("RUNX_RUST_CLI", "1")
-        .env("RUNX_JS_BIN", repo_root()?.join("packages/cli/bin/runx"))
-        .env("RUNX_NPM_PACKAGE", "@runxhq/cli@0.5.22")
-        .args(["mcp", "--runner=default", "serve", "fixtures/skills/echo"])
-        .output()?;
-
-    assert_eq!(output.status.code(), Some(64));
-    assert!(
-        String::from_utf8(output.stderr)?
-            .contains("runx mcp --runner must follow the serve subcommand")
-    );
     Ok(())
 }
 
