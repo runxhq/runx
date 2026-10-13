@@ -11,6 +11,7 @@ use runx_runtime::registry::{
 
 use crate::registry::{self, RegistryAction, RegistryPlan};
 
+#[derive(Clone, Copy)]
 pub(super) struct SkillResolverOptions<'a> {
     pub(super) env: &'a BTreeMap<String, String>,
     pub(super) registry: Option<&'a str>,
@@ -50,7 +51,56 @@ pub(crate) struct ResolvedSkillRef {
     pub(crate) runnable_path: PathBuf,
 }
 
+/// A graph nests skills at most this deep; deeper is a cycle, not a graph.
+const MAX_NESTED_FETCH_DEPTH: usize = 16;
+
 pub(crate) fn resolve_skill_ref_details(
+    skill_ref: &Path,
+    cwd: &Path,
+    options: SkillResolverOptions<'_>,
+) -> Result<ResolvedSkillRef, String> {
+    let resolved = resolve_skill_ref(skill_ref, cwd, options)?;
+    fetch_unheld_registry_refs(&resolved.runnable_path, cwd, options)?;
+    Ok(resolved)
+}
+
+/// A skill arrives when run, and so does every registry skill its runners
+/// name: each one the project does not hold is fetched exactly as a top-level
+/// ref is, into the project's skills directory, until the closure holds them
+/// all, since a fetched skill can name its own.
+fn fetch_unheld_registry_refs(
+    skill_path: &Path,
+    cwd: &Path,
+    options: SkillResolverOptions<'_>,
+) -> Result<(), String> {
+    for _ in 0..=MAX_NESTED_FETCH_DEPTH {
+        let unheld = runx_runtime::unheld_registry_refs_at(skill_path, options.env)
+            .map_err(|error| error.to_string())?;
+        if unheld.is_empty() {
+            return Ok(());
+        }
+        for reference in unheld {
+            let parsed =
+                parse_registry_ref(runx_parser::registry_ref(&reference).unwrap_or(&reference));
+            resolve_registry_skill(
+                &parsed.skill_id,
+                parsed.version.as_deref(),
+                cwd,
+                SkillResolverOptions {
+                    expected_digest: None,
+                    ..options
+                },
+            )
+            .map_err(|error| format!("fetching {reference}: {error}"))?;
+        }
+    }
+    Err(format!(
+        "{} names registry skills more than {MAX_NESTED_FETCH_DEPTH} levels deep",
+        skill_path.display()
+    ))
+}
+
+fn resolve_skill_ref(
     skill_ref: &Path,
     cwd: &Path,
     options: SkillResolverOptions<'_>,

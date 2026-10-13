@@ -279,8 +279,19 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     })
 }
 
-/// The registry refs a loaded package names that `env`'s registry directory
-/// does not hold.
+/// The registry refs the package at `skill_path` names that neither the
+/// project nor a named local registry holds: what `runx skill` fetches before
+/// the run.
+pub fn unheld_registry_refs_at(
+    skill_path: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<Vec<String>, SkillInspectionError> {
+    let loaded = super::load_validated_skill_package(skill_path)?;
+    unheld_loaded_registry_refs(&loaded, env)
+}
+
+/// The registry refs a loaded package names that the project and `env`'s
+/// registry directory do not hold.
 pub(crate) fn unheld_loaded_registry_refs(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,

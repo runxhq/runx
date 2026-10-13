@@ -644,6 +644,97 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A graph's registry step arrives when the graph runs: `runx skill` fetches
+/// it as it fetches a top-level ref, into the project's skills, and the run
+/// resolves the step from there.
+#[test]
+fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-registry-nested");
+    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let graph = root.join("project").join("nested");
+    fs::create_dir_all(&graph)?;
+    fs::write(
+        graph.join("SKILL.md"),
+        "---\nname: nested\ndescription: Run the echo registry skill as a step.\n---\n\nRun echo as a step.\n",
+    )?;
+    fs::write(
+        graph.join("run.yaml"),
+        "skill: nested\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+    )?;
+
+    let run = |root: &Path| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let output = trusted_registry_runx_command(root)?
+            .args([
+                "skill",
+                graph.to_str().ok_or("non-utf8 graph dir")?,
+                "--registry",
+                registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                "--json",
+            ])
+            .output()?;
+        assert_json(&output, Some(2))
+    };
+    let installed = root.join("project/skills/acme/echo/1.0.0");
+    let first = run(&root)?;
+    assert_eq!(
+        needs_agent_skill_directory(&first)?.canonicalize()?,
+        installed.canonicalize()?
+    );
+
+    // Held, it is not fetched again: the run resolves the installed version
+    // even with the registry gone.
+    fs::remove_dir_all(&registry_dir)?;
+    let second = run(&root)?;
+    assert_eq!(
+        needs_agent_skill_directory(&second)?.canonicalize()?,
+        installed.canonicalize()?
+    );
+    Ok(())
+}
+
+/// A registry context skill arrives the same way: fetched into the project's
+/// skills before the run, and given to the turn from there.
+#[test]
+fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-registry-context");
+    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let skill = root.join("project").join("with-context");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: with-context\ndescription: Write with the echo skill as context.\n---\n\nWrite with context.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "skill: with-context\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: write\n        agent: { role: writer, task: write }\n        context_skills: [registry:acme/echo@1.0.0]\n        outputs:\n          result: object\n",
+    )?;
+
+    let output = trusted_registry_runx_command(&root)?
+        .args([
+            "skill",
+            skill.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--json",
+        ])
+        .output()?;
+    let output_json = assert_json(&output, Some(2))?;
+    let request = pending_request_artifact(&output_json)?;
+    let context = request["invocation"]["envelope"]["current_context"]
+        .as_array()
+        .ok_or("the turn has no current context")?;
+    let echo = context
+        .iter()
+        .find(|entry| entry["data"]["ref"] == "registry:acme/echo@1.0.0")
+        .ok_or("the turn's context omits the registry skill")?;
+    assert_eq!(echo["data"]["source"], "installed", "{echo}");
+    assert!(
+        root.join("project/skills/acme/echo/1.0.0/SKILL.md")
+            .is_file()
+    );
+    Ok(())
+}
+
 #[test]
 fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::error::Error>> {
     let unsigned_root = crate::support::temp_root("runx-skill-registry-unsigned");
@@ -692,6 +783,74 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
     );
     assert!(!mismatch_root.join("project").join("skills").exists());
 
+    Ok(())
+}
+
+/// A tool whose program is missing fails its step once: the failure names
+/// the program, and the run's tree is the graph and that one step.
+#[cfg(unix)]
+#[test]
+fn a_missing_program_fails_its_step_once_and_is_named() -> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-missing-program");
+    let skill_dir = root.join("missing-program");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: missing-program\ndescription: Run a program that is not installed.\n---\n\nRun a program that is not installed.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: missing-program\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: run\n        tool: { command: runx-test-program-not-installed }\n        outputs:\n          message: string\n",
+    )?;
+    let receipt_dir = root.join("receipts");
+
+    let output = runx_command()
+        .current_dir(&root)
+        .args([
+            "skill",
+            "./missing-program",
+            "--receipt-dir",
+            receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
+            "--json",
+        ])
+        .output()?;
+    let output_json = assert_json(&output, Some(1))?;
+    assert_eq!(output_json["outcome"], "failed", "{output_json}");
+    assert!(
+        output_json["result"]["message"]
+            .as_str()
+            .is_some_and(|message| message
+                .contains("runx-test-program-not-installed is not installed or not on PATH")),
+        "{output_json}"
+    );
+
+    let mut receipts = Vec::new();
+    for entry in fs::read_dir(&receipt_dir)? {
+        let path = entry?.path();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        if name.starts_with("sha256-") && name.ends_with(".json") {
+            receipts.push(serde_json::from_slice::<serde_json::Value>(&fs::read(
+                &path,
+            )?)?);
+        }
+    }
+    let kinds = |kind: &str| {
+        receipts
+            .iter()
+            .filter(|receipt| receipt["subject"]["kind"] == kind)
+            .collect::<Vec<_>>()
+    };
+    let (graphs, steps) = (kinds("graph"), kinds("step"));
+    assert_eq!((graphs.len(), steps.len()), (1, 1), "{receipts:?}");
+    let step_id = steps[0]["id"].as_str().ok_or("step receipt has no id")?;
+    let children = graphs[0]["lineage"]["children"]
+        .as_array()
+        .ok_or("graph receipt has no children")?;
+    assert_eq!(children.len(), 1, "{children:?}");
+    assert_eq!(children[0]["uri"], format!("runx:receipt:{step_id}"));
     Ok(())
 }
 

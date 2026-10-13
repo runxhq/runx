@@ -279,7 +279,7 @@ pub fn run_native_connector(plan: ConnectorPlan, workspace: &WorkspaceEnv) -> Ex
             &crate::cli_error::json_failure_output(&error, "connector_failed"),
             1,
         ),
-        Err(error) => crate::cli_io::write_stderr_code(&format!("runx connector: {error}\n")),
+        Err(error) => crate::cli_io::write_stderr_code(&format!("runx connector: {error}\n"), 1),
     }
 }
 
@@ -543,15 +543,17 @@ fn inspect_text(
         ));
     }
     if records.is_empty() {
+        // How to set one up is the whole answer: each operation would only
+        // repeat that it has no instance.
         out.push_str("instances: none\n");
         for form in setup_forms(connector) {
             out.push_str(&format!("  set up: {form}\n"));
         }
-    } else {
-        out.push_str("instances:\n");
-        for record in records {
-            out.push_str(&format!("  {}", instance_line(record)));
-        }
+        return out;
+    }
+    out.push_str("instances:\n");
+    for record in records {
+        out.push_str(&format!("  {}", instance_line(record)));
     }
     for line in readiness.iter().map(crate::skill::readiness_line) {
         out.push_str(&line);

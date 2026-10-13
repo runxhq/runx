@@ -70,6 +70,34 @@ fn exports_claude_project_scope_with_project_relative_skill_ref()
         "runx skill {}",
         fixture.project.to_str().unwrap_or_default()
     )));
+    // The export is committed, so it names its source the same way on every
+    // machine.
+    assert!(shim.contains("<!-- runx-export:claude source=skills/visible package-digest="));
+    assert!(!shim.contains(fixture.project.to_str().unwrap_or_default()));
+    Ok(())
+}
+
+#[test]
+fn a_project_export_runs_runx_from_path() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-claude-project-path")?;
+    fixture.write_skill("visible", None)?;
+    let mut env = fixture.env.clone();
+    env.remove("RUNX_EXPORT_BIN");
+
+    let plan = |project| ExportPlan {
+        target: Target::Claude,
+        refs: Vec::new(),
+        project,
+        json: false,
+    };
+    run_export_command(&plan(true), &fixture.project, &env)?;
+    let shim = fixture.read_project_file(".claude/skills/visible/SKILL.md")?;
+    assert!(shim.contains("allowed-tools: Bash(runx skill *) Bash(runx resume *)"));
+
+    // A user export stays pinned to this machine's binary.
+    run_export_command(&plan(false), &fixture.project, &env)?;
+    let shim = fixture.read_home_file(".claude/skills/visible/SKILL.md")?;
+    assert!(!shim.contains("allowed-tools: Bash(runx skill *)"));
     Ok(())
 }
 

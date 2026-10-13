@@ -190,8 +190,17 @@ fn server_options(
         ));
     }
     let effects = crate::runtime::runtime_effect_registry().map_err(|error| error.to_string())?;
+    // Each ref resolves as `runx skill` resolves it, so the server offers the
+    // same skill a run would.
+    let skill_paths = plan
+        .refs
+        .iter()
+        .map(|skill_ref| {
+            crate::skill::resolve_skill_package(skill_ref, workspace.env(), workspace.cwd())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
-        &plan.refs,
+        &skill_paths,
         "runx-cli",
         env!("CARGO_PKG_VERSION"),
         runx_runtime::adapters::mcp::McpServerExecutionOptions {

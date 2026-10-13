@@ -9,6 +9,8 @@ const RESOURCE_LIMIT_SHELL: &str = "/bin/sh";
 #[cfg(unix)]
 const RESOURCE_LIMIT_ARG0: &str = "runx-resource-limits";
 #[cfg(unix)]
+const MISSING_COMMAND_CHECK: &str = "{ command -v \"$1\" >/dev/null 2>&1 || { printf '%s is not installed or not on PATH\\n' \"$1\" >&2; exit 127; }; }";
+#[cfg(unix)]
 const RESOURCE_LIMIT_FILE_BLOCK_BYTES: u64 = 512;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 const RESOURCE_LIMIT_MEMORY_KIB_BYTES: u64 = 1024;
@@ -19,11 +21,13 @@ const CHILD_MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 #[cfg(unix)]
 const CHILD_MAX_CPU_SECONDS: u64 = 60;
 #[cfg(any(target_os = "linux", target_os = "android"))]
-// Node 24 reserves large V8 pointer-compression and WebAssembly address regions
-// before its TypeScript loader executes user code. Smaller ceilings kill an
-// otherwise bounded tool during runtime initialization. This remains a virtual-
-// address limit; CPU, file, descriptor, process, and output bounds still apply.
-const CHILD_MAX_ADDRESS_SPACE_BYTES: u64 = 16 * 1024 * 1024 * 1024;
+// Memory is bounded by what a tool commits, not by the address space it
+// reserves: V8 reserves large unbacked regions for pointer compression and for
+// every WebAssembly memory, so an address-space ceiling refuses a wasm-using
+// tool with free memory to spare. The data limit counts committed private
+// writable memory only; CPU, file, descriptor, process, and output bounds
+// still apply.
+const CHILD_MAX_DATA_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 
 #[cfg(unix)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,9 +58,9 @@ fn child_resource_limits() -> Vec<ChildResourceLimit> {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     push_scaled_limit(
         &mut limits,
-        "-v",
-        Resource::As,
-        CHILD_MAX_ADDRESS_SPACE_BYTES,
+        "-d",
+        Resource::Data,
+        CHILD_MAX_DATA_BYTES,
         RESOURCE_LIMIT_MEMORY_KIB_BYTES,
     );
     limits
@@ -121,7 +125,10 @@ fn resource_limit_shell_args_for_limits(
         script.push_str(&limits.len().to_string());
         script.push_str(" && ");
     }
-    script.push_str("exec \"$@\"");
+    // A command that cannot be found is named as the tool's own failure, not
+    // as this wrapper's shell error.
+    script.push_str(MISSING_COMMAND_CHECK);
+    script.push_str(" && exec \"$@\"");
 
     let mut args = vec!["-c".to_owned(), script, RESOURCE_LIMIT_ARG0.to_owned()];
     args.extend(limits.iter().map(|limit| limit.value.to_string()));
@@ -187,7 +194,9 @@ mod tests {
             args,
             vec![
                 "-c".to_owned(),
-                "ulimit -n \"$1\" && ulimit -t \"$2\" && shift 2 && exec \"$@\"".to_owned(),
+                format!(
+                    "ulimit -n \"$1\" && ulimit -t \"$2\" && shift 2 && {MISSING_COMMAND_CHECK} && exec \"$@\""
+                ),
                 RESOURCE_LIMIT_ARG0.to_owned(),
                 "256".to_owned(),
                 "60".to_owned(),

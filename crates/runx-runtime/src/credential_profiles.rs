@@ -30,6 +30,14 @@ pub enum CredentialProfileError {
     EmptyCredential,
     #[error("credential secret must not be empty")]
     EmptySecret,
+    #[error(
+        "credential profile {name} holds {connector}'s {credential}; name another profile, or revoke that one first"
+    )]
+    ProfileHeldByAnother {
+        name: String,
+        connector: ConnectorRef,
+        credential: String,
+    },
     #[error(transparent)]
     Config(#[from] ConfigError),
     #[error(transparent)]
@@ -56,6 +64,17 @@ pub fn set_local_credential_profile(
     let config_path = paths.config_file();
     let mut config = load_runx_config_file(&config_path)?;
     let credentials = config.credentials.get_or_insert_with(Default::default);
+    // A profile is replaced only by the credential it holds: binding another
+    // connector's under its name would break every instance pinned to it.
+    if let Some(held) = credentials.profiles.get(name)
+        && (&held.connector != connector || held.credential != credential)
+    {
+        return Err(CredentialProfileError::ProfileHeldByAnother {
+            name: name.to_owned(),
+            connector: held.connector.clone(),
+            credential: held.credential.clone(),
+        });
+    }
     let prior_ref = credentials
         .profiles
         .get(name)

@@ -23,10 +23,7 @@ use crate::router::{DoctorMode, DoctorPlan};
 pub fn run_native_doctor(plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
     match run_doctor_command(&plan, workspace.env(), workspace.cwd()) {
         Ok(output) => crate::cli_io::write_stdout_code(&output.stdout, output.exit_code),
-        Err(error) => {
-            let _ignored = crate::cli_io::write_stderr_code(&format!("runx: {error}\n"));
-            ExitCode::from(1)
-        }
+        Err(error) => crate::cli_io::write_stderr_code(&format!("runx: {error}\n"), 1),
     }
 }
 

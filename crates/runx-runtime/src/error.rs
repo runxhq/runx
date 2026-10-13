@@ -321,6 +321,21 @@ impl RuntimeError {
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
+            Self::AuthorityDenied {
+                verb,
+                step_id,
+                reason,
+            } => {
+                projection.insert(
+                    "code".to_owned(),
+                    JsonValue::String("authority_denied".to_owned()),
+                );
+                projection.insert("step_id".to_owned(), JsonValue::String(step_id.clone()));
+                if let Ok(verb) = JsonValue::from_serialize(verb) {
+                    projection.insert("verb".to_owned(), verb);
+                }
+                projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
+            }
             Self::ProviderReadbackPending { step_id, reason } => {
                 projection.insert(
                     "code".to_owned(),

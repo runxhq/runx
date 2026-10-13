@@ -130,7 +130,7 @@ pub fn run_export_command(
     validate_export_plan(plan)?;
     let root = canonicalize(cwd, "canonicalizing export root")?;
     validate_full_export_root(plan, &root)?;
-    let runx_bin = exported_runx_binary(env)?;
+    let runx_bin = exported_runx_binary(env, plan.project)?;
     let skills = runx_runtime::export::load_export_skills_with_options(RunxExportLoadOptions {
         root: &root,
         refs: &plan.refs,
@@ -166,12 +166,21 @@ pub fn run_export_command(
     Ok(export_report(plan, &files, pruned, rules_file, warnings))
 }
 
-fn exported_runx_binary(env: &BTreeMap<String, String>) -> Result<PathBuf, ExportError> {
+/// The runx a shim runs: this machine's binary for a user export, and runx
+/// on PATH for a project export, which is committed and runs on other
+/// machines.
+fn exported_runx_binary(
+    env: &BTreeMap<String, String>,
+    project: bool,
+) -> Result<PathBuf, ExportError> {
     if let Some(value) = env
         .get("RUNX_EXPORT_BIN")
         .filter(|value| !value.trim().is_empty())
     {
         return Ok(PathBuf::from(value));
+    }
+    if project {
+        return Ok(PathBuf::from("runx"));
     }
     std::env::current_exe().map_err(|source| ExportError::Io {
         context: "resolving current runx binary for export shim".to_owned(),

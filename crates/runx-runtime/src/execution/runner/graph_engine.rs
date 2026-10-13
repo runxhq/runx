@@ -593,6 +593,14 @@ impl GraphExecution {
         self.run_positions.contains_key(step_id)
     }
 
+    /// Whether `step_id`'s latest run is a failure it already sealed.
+    pub(super) fn has_failed_run(&self, step_id: &str) -> bool {
+        self.run_positions
+            .get(step_id)
+            .and_then(|index| self.runs.get(*index))
+            .is_some_and(|run| !run.outcome.succeeded())
+    }
+
     pub(super) fn attempt(&self, step_id: &str) -> u32 {
         self.state
             .steps

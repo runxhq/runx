@@ -2823,7 +2823,7 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
 }
 
 #[test]
-fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
+fn native_graph_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
@@ -2849,7 +2849,7 @@ fn native_graph_skill_run_rejects_nested_registry_skill_without_registry_dir()
     assert!(
         error
             .to_string()
-            .contains("RUNX_REGISTRY_DIR is not configured"),
+            .contains("is not installed in this project"),
         "unexpected error: {error}"
     );
 

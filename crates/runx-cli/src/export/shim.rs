@@ -40,7 +40,12 @@ fn render_shim(
     runx_bin: &Path,
 ) -> Result<String, ExportError> {
     if skill.mode == RunxExportMode::NativeInstructions {
-        return Ok(render_native_instructions(target, skill, runx_bin));
+        return Ok(render_native_instructions(
+            target,
+            skill,
+            command_target,
+            runx_bin,
+        ));
     }
     let runx_bin = display_path(runx_bin);
     let mut output = String::new();
@@ -88,13 +93,18 @@ fn render_shim(
     output.push_str(&format!(
         "<!-- {} source={} package-digest={} - generated, do not edit -->\n",
         target.marker(),
-        display_path(&skill.abs_dir),
+        command_target,
         skill.package_digest,
     ));
     Ok(output)
 }
 
-fn render_native_instructions(target: Target, skill: &RunxExportSkill, runx_bin: &Path) -> String {
+fn render_native_instructions(
+    target: Target,
+    skill: &RunxExportSkill,
+    command_target: &str,
+    runx_bin: &Path,
+) -> String {
     let mut output = String::new();
     output.push_str("---\n");
     output.push_str(&format!("name: {}\n", yaml_plain_or_quoted(&skill.name)));
@@ -111,7 +121,7 @@ fn render_native_instructions(target: Target, skill: &RunxExportSkill, runx_bin:
     output.push_str(&format!(
         "<!-- {} source={} package-digest={} - generated, do not edit -->\n",
         target.marker(),
-        display_path(&skill.abs_dir),
+        command_target,
         skill.package_digest,
     ));
     output

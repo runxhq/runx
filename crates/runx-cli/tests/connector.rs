@@ -167,6 +167,93 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
         );
         let (_, listed) = connector(&root, &["list"])?;
         assert_eq!(listed["instances"], serde_json::json!([]));
+
+        // Read by a person, the refusal still fails the command.
+        let plain = unsigned_runx_command_at(&root)
+            .env(
+                "PATH",
+                format!("{}:/usr/bin:/bin", root.join("bin").display()),
+            )
+            .args(["connector", "use", "github", "--session"])
+            .output()?;
+        assert_eq!(plain.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&plain.stderr).contains("sign in"));
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+/// A profile name holds one connector's credential: binding another
+/// connector's under it is refused, so the instance pinned to it keeps working.
+#[test]
+fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
+    let root = temp_root("runx-connector-profile-held");
+    plugin_with_source_connectors(&root, &["github", "linear"])?;
+    let result = (|| -> TestResult {
+        let (ok, github) = runx(
+            &root,
+            &[
+                "connector",
+                "use",
+                "github",
+                "--credential",
+                "token",
+                "--profile",
+                "shared",
+            ],
+            Some("ghp_connector_test_token"),
+        )?;
+        assert!(ok, "{github}");
+        let (ok, refused) = runx(
+            &root,
+            &[
+                "connector",
+                "use",
+                "linear",
+                "--credential",
+                "api_key",
+                "--profile",
+                "shared",
+            ],
+            Some("lin_connector_test_key"),
+        )?;
+        assert!(!ok, "{refused}");
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message
+                    .contains("credential profile shared holds runx/github's token")),
+            "{refused}"
+        );
+        let (_, inspected) = connector(&root, &["inspect", "github"])?;
+        assert!(
+            inspected["readiness"]
+                .as_array()
+                .is_some_and(|operations| operations
+                    .iter()
+                    .any(|operation| operation["ready"] == true)),
+            "{inspected}"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+#[test]
+fn inspect_without_an_instance_says_how_to_set_one_up_once() -> TestResult {
+    let root = temp_root("runx-connector-inspect-setup");
+    plugin_with_source_connectors(&root, &["github"])?;
+    let result = (|| -> TestResult {
+        let output = unsigned_runx_command_at(&root)
+            .args(["connector", "inspect", "github"])
+            .output()?;
+        assert!(output.status.success());
+        let text = String::from_utf8(output.stdout)?;
+        assert!(text.contains("instances: none\n"), "{text}");
+        assert!(text.contains("  set up: runx connector use "), "{text}");
+        assert!(!text.contains("shows how to set one up"), "{text}");
         Ok(())
     })();
     fs::remove_dir_all(&root)?;

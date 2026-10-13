@@ -180,6 +180,7 @@ pub use services::{
 };
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, inspect_skill_package, load_validated_skill_package,
+    unheld_registry_refs_at,
 };
 pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
 pub use tool_catalogs::{

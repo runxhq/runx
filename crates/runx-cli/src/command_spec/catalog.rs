@@ -122,7 +122,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "config",
         top_level_usage: &[
-            "runx config set|get|list|unset [provider|dialect|model|api-key|endpoint-url] [value] [-j|--json]",
+            "runx config set|get <provider|dialect|model|api-key|endpoint-url> [value] | list | unset endpoint-url [-j|--json]",
         ],
         usage: &[
             "runx config set <key> <value> [-j|--json]",

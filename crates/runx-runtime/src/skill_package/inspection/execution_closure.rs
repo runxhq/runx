@@ -19,6 +19,9 @@ struct ClosureAccumulator {
     skill_edges: BTreeSet<String>,
     direct_external_skill_edges: BTreeSet<DirectExternalSkillEdge>,
     unresolved_skill_edges: BTreeSet<String>,
+    /// Registry context skills neither the project nor a named local
+    /// registry holds; reported, never part of the closure.
+    unheld_context_registry_refs: BTreeSet<String>,
     package_bindings: BTreeSet<ExecutionPackageBinding>,
     connector_bindings: BTreeSet<ExecutionConnectorBinding>,
     local_packages: BTreeMap<PathBuf, BTreeSet<String>>,
@@ -222,12 +225,19 @@ pub(super) fn unheld_registry_refs(
     // An unresolved edge reads `<ref>#<runner>`.
     Ok(accumulators
         .into_iter()
-        .flat_map(|accumulator| accumulator.unresolved_skill_edges)
-        .filter_map(|edge| {
-            let reference = edge
-                .rsplit_once('#')
-                .map_or(edge.as_str(), |(reference, _)| reference);
-            runx_parser::registry_ref(reference).map(|_| reference.to_owned())
+        .flat_map(|accumulator| {
+            let context = accumulator.unheld_context_registry_refs;
+            accumulator
+                .unresolved_skill_edges
+                .into_iter()
+                .filter_map(|edge| {
+                    let reference = edge
+                        .rsplit_once('#')
+                        .map_or(edge.as_str(), |(reference, _)| reference);
+                    runx_parser::registry_ref(reference).map(|_| reference.to_owned())
+                })
+                .chain(context)
+                .collect::<Vec<_>>()
         })
         .collect())
 }
@@ -505,6 +515,21 @@ impl<'a> ExecutionClosureInspector<'a> {
             }
         }
         for step in &graph.steps {
+            if self.unheld_registry_refs == UnheldRegistryRefs::Report
+                && let Some(env) = self.env
+            {
+                for reference in &step.context_skills {
+                    if runx_parser::registry_ref(reference).is_some()
+                        && !crate::execution::skill_context::registry_holds_context_skill(
+                            reference, env,
+                        )?
+                    {
+                        walk.closure
+                            .unheld_context_registry_refs
+                            .insert(reference.clone());
+                    }
+                }
+            }
             match &step.kind {
                 StepKind::Tool(ToolTarget::Catalog(tool)) => {
                     walk.closure.components.insert(format!("tool:{tool}"));

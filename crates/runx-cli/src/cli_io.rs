@@ -34,10 +34,8 @@ pub(crate) fn read_stdin_secret(what: &str) -> Result<String, String> {
     Ok(secret)
 }
 
-pub(crate) fn write_stderr_code(message: &str) -> ExitCode {
-    if write_stderr(message).is_ok() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::from(1)
-    }
+/// A failure written to stderr, ending the command with its exit code.
+pub(crate) fn write_stderr_code(message: &str, exit_code: u8) -> ExitCode {
+    let _ignored = write_stderr(message);
+    ExitCode::from(exit_code)
 }

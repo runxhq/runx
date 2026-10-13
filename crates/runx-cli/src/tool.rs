@@ -13,10 +13,10 @@ use crate::router::{ToolAction, ToolPlan};
 pub fn run_native_tool(plan: ToolPlan, workspace: &WorkspaceEnv) -> ExitCode {
     match run_tool(plan, workspace) {
         Ok(output) => crate::cli_io::write_stdout_code(&output.stdout, output.exit_code),
-        Err(error) => {
-            let _ignored = crate::cli_io::write_stderr_code(&render_cli_error(&error.to_string()));
-            ExitCode::from(error.exit_code())
-        }
+        Err(error) => crate::cli_io::write_stderr_code(
+            &render_cli_error(&error.to_string()),
+            error.exit_code(),
+        ),
     }
 }
 

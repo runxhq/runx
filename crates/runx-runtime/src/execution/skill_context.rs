@@ -83,21 +83,69 @@ fn load_context_skill(
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
     if runx_parser::registry_ref(reference).is_some() {
+        let paths = crate::paths::RunxPaths::resolve(env, graph_dir);
+        if let Some(directory) =
+            crate::execution::graph::installed_registry_skill(reference, &paths)?
+        {
+            return load_context_skill_directory(
+                step_id,
+                reference,
+                &directory,
+                "installed",
+                env,
+                created_at,
+            );
+        }
         return load_registry_context_skill(step_id, reference, env, created_at);
     }
-    load_local_context_skill(step_id, graph_dir, reference, env, created_at)
+    validate_local_context_ref(step_id, reference)?;
+    load_context_skill_directory(
+        step_id,
+        reference,
+        &graph_dir.join(reference),
+        "local-path",
+        env,
+        created_at,
+    )
 }
 
-fn load_local_context_skill(
-    step_id: &str,
-    graph_dir: &Path,
+/// Whether the project or a named local registry holds the context skill a
+/// registry ref names.
+pub(crate) fn registry_holds_context_skill(
     reference: &str,
+    env: &BTreeMap<String, String>,
+) -> Result<bool, RuntimeError> {
+    let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
+    if crate::execution::graph::installed_registry_skill(reference, &paths)?.is_some() {
+        return Ok(true);
+    }
+    let Some(registry_dir) = paths.registry_dir() else {
+        return Ok(false);
+    };
+    Ok(resolve_registry_skill(
+        &FileRegistryStore::new(registry_dir),
+        reference,
+        RegistryResolveOptions {
+            version: None,
+            registry_url: env.get("RUNX_REGISTRY_URL").cloned(),
+        },
+    )
+    .ok()
+    .flatten()
+    .is_some())
+}
+
+/// A context skill read from a package directory: a local path, or the
+/// installed version of a registry ref.
+fn load_context_skill_directory(
+    step_id: &str,
+    reference: &str,
+    skill_dir: &Path,
+    source: &str,
     env: &BTreeMap<String, String>,
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
-    validate_local_context_ref(step_id, reference)?;
-    let skill_dir = graph_dir.join(reference);
-    let package = crate::load_validated_skill_package(&skill_dir)?;
+    let package = crate::load_validated_skill_package(skill_dir)?;
     let skill_path = package.package_root.join("SKILL.md");
     let canonical_skill_path = skill_path.canonicalize().map_err(|source| {
         RuntimeError::io(
@@ -108,7 +156,7 @@ fn load_local_context_skill(
     validate_context_manifest(step_id, reference, package.manifest())?;
     let mut data = JsonObject::new();
     insert_string(&mut data, "ref", reference);
-    insert_string(&mut data, "source", "local-path");
+    insert_string(&mut data, "source", source);
     insert_string(&mut data, "security_boundary", "untrusted-agent-context");
     insert_string(&mut data, "name", &package.package.skill.name);
     if let Some(description) = &package.package.skill.description {
@@ -217,7 +265,7 @@ fn resolve_registry_context_skill(
         return Err(RuntimeError::InvalidRunStep {
             step_id: step_id.to_owned(),
             reason: format!(
-                "context skill '{reference}' is a registry ref, but RUNX_REGISTRY_DIR is not configured"
+                "context skill '{reference}' is not installed in this project; `runx skill` fetches it before the run, and RUNX_REGISTRY_DIR names a local registry"
             ),
         });
     };

@@ -177,7 +177,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
             };
             let key = normalize_config_key(key);
             if key != "agent.endpoint_url" {
-                return Err("runx config unset supports only agent.endpoint_url".to_owned());
+                return Err("runx config unset clears only endpoint-url; set another value with runx config set".to_owned());
             }
             Ok(ConfigPlan {
                 action,
@@ -292,7 +292,7 @@ fn execute_config_plan(
             let key = required_key(plan)?;
             if key != "agent.endpoint_url" {
                 return Err(ConfigCliError::InvalidArgs(
-                    "runx config unset supports only agent.endpoint_url".to_owned(),
+                    "runx config unset clears only endpoint-url; set another value with runx config set".to_owned(),
                 ));
             }
             let next = clear_runx_agent_endpoint_url(config);

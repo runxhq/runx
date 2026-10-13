@@ -509,7 +509,19 @@ fn render_report(report: &VerifyReport) -> String {
         output.push_str("no receipts found\n");
     }
     for tree in &report.trees {
-        let status = if tree.valid { "ok" } else { "INVALID" };
+        // A tree signed by a key this home does not trust is unverified,
+        // not tampered with; the run still fails until its key is trusted.
+        let status = if tree.valid {
+            "ok"
+        } else if tree
+            .findings
+            .iter()
+            .all(|finding| finding.code == "signature_key_missing")
+        {
+            "UNTRUSTED (signed by a key this home does not trust; configure its public key to verify it)"
+        } else {
+            "INVALID"
+        };
         output.push_str(&format!(
             "tree {} ({} receipt{}): {status}\n",
             tree.root_receipt_id,
@@ -1283,6 +1295,40 @@ mod tests {
                 case.name
             );
         }
+        Ok(())
+    }
+
+    /// A tree another home signed is unverified here, not tampered with: it
+    /// fails the run as untrusted, and says how to trust it.
+    #[cfg(unix)]
+    #[test]
+    fn a_workspace_tree_from_another_home_is_untrusted_not_invalid() -> Result<(), io::Error> {
+        let temp = tempfile_dir()?;
+        let source = home_env(&temp.join("source-home"));
+        let receipt = home_signed_receipt(&source, &temp)?;
+        let receipt_dir = temp.join("receipts");
+        fs::create_dir_all(&receipt_dir)?;
+        fs::write(
+            receipt_dir.join(format!("{}.json", receipt.id.to_string().replace(':', "-"))),
+            serde_json::to_vec(&receipt).map_err(io::Error::other)?,
+        )?;
+        let destination = home_env(&temp.join("destination-home"));
+        home_signed_receipt(&destination, &temp)?;
+
+        let result = run_verify_command(
+            &[
+                "verify".into(),
+                "--receipt-dir".into(),
+                receipt_dir.as_os_str().to_owned(),
+            ],
+            &destination,
+            &temp,
+        )
+        .map_err(|error| io::Error::other(error.to_string()))?;
+
+        assert!(result.failed, "{}", result.output);
+        assert!(result.output.contains("UNTRUSTED"), "{}", result.output);
+        assert!(!result.output.contains("INVALID"), "{}", result.output);
         Ok(())
     }
 

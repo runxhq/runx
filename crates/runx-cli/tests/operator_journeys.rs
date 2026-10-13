@@ -328,6 +328,8 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     assert_eq!(denied["outcome"], "blocked");
     assert_eq!(denied["closure"]["disposition"], "blocked");
     assert_eq!(denied["closure"]["reason"], "authority_denied");
+    assert_eq!(denied["refusal"]["code"], "authority_denied", "{denied}");
+    assert_eq!(denied["refusal"]["verb"], "read", "{denied}");
     assert_eq!(denied["trace"]["status"], "blocked");
     let receipt_id = json_string(&denied, "receipt_id")?;
     let run_id = json_string(&denied, "run_id")?;

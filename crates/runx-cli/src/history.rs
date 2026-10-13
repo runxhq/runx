@@ -145,7 +145,8 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
     let mut index = 1;
     while index < args.len() {
         let token = cli_args::os_arg(args, index, "history").map_err(invalid_args)?;
-        if !token.starts_with("--") {
+        // `-j` is the one short flag; anything else without `--` searches.
+        if token != "-j" && !token.starts_with("--") {
             positionals.push(token.to_owned());
             index += 1;
             continue;
@@ -324,6 +325,15 @@ mod tests {
         assert_eq!(parsed.filter.state.as_deref(), Some("paused"));
         assert_eq!(parsed.filter.limit, Some(5));
         assert!(parsed.json);
+        Ok(())
+    }
+
+    #[test]
+    fn short_json_flag_is_a_flag_not_a_query() -> Result<(), io::Error> {
+        let parsed = parse_history_args(&["history".into(), "-j".into()])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert!(parsed.json);
+        assert_eq!(parsed.query, None);
         Ok(())
     }
 

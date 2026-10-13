@@ -518,6 +518,13 @@ fn resolve_step_skill_directory(
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
     if let Some(skill) = step.skill().map(|target| target.reference.as_str()) {
         if runx_parser::registry_ref(skill).is_some() {
+            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            if let Some(directory) = installed_registry_skill(skill, &paths)? {
+                return Ok(ResolvedStepSkillDirectory {
+                    directory,
+                    registry: None,
+                });
+            }
             return materialize_registry_step_skill(graph_dir, step, skill, options);
         }
         if let Some(directory) = crate::registry::package_bundle::resolve_bundled_skill(
@@ -584,14 +591,17 @@ fn resolve_step_skill_directory(
     })
 }
 
-/// Whether the configured registry directory holds the skill a registry ref
-/// names, resolved exactly as execution resolves it.
+/// Whether the project or a named local registry holds the skill a registry
+/// ref names, resolved exactly as execution resolves it.
 pub(crate) fn registry_holds_step_skill(
     step: &GraphStep,
     reference: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
     let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
+    if installed_registry_skill(reference, &paths)?.is_some() {
+        return Ok(true);
+    }
     let Some(registry_dir) = paths.registry_dir() else {
         return Ok(false);
     };
@@ -630,7 +640,7 @@ fn materialize_registry_step_skill(
         return Err(RuntimeError::InvalidRunStep {
             step_id: step.id.clone(),
             reason: format!(
-                "nested skill '{reference}' is a registry ref, but RUNX_REGISTRY_DIR is not configured"
+                "nested skill '{reference}' is not installed in this project; `runx skill` fetches it before the run, and RUNX_REGISTRY_DIR names a local registry"
             ),
         });
     };
@@ -714,6 +724,34 @@ fn materialize_registry_step_skill(
         directory,
         registry: Some(provenance),
     })
+}
+
+/// The installed package a `registry:<owner>/<name>[@version]` ref names: the
+/// project's skills directory holds what `runx skill` fetched for it, once per
+/// version, and a ref with no version names the one version installed.
+pub(crate) fn installed_registry_skill(
+    reference: &str,
+    paths: &crate::RunxPaths,
+) -> Result<Option<PathBuf>, RuntimeError> {
+    let Some(registry_ref) = runx_parser::registry_ref(reference) else {
+        return Ok(None);
+    };
+    let parsed = crate::registry::parse_registry_ref(registry_ref);
+    if split_skill_id(&parsed.skill_id).is_err() {
+        return Ok(None);
+    }
+    // The directory the install wrote, named as it names it: each part
+    // reduced to a safe path segment, so no ref reaches outside the skills
+    // directory and every version spelling finds what was installed.
+    let parts = crate::registry::safe_skill_package_parts(registry_ref, &parsed.skill_id, None);
+    let root = paths.skills();
+    let directory = parts
+        .iter()
+        .fold(root.clone(), |path, part| path.join(part));
+    if parsed.version.is_some() {
+        return Ok(directory.join("SKILL.md").is_file().then_some(directory));
+    }
+    crate::resolve_local_skill_reference(paths, &directory, &[root])
 }
 
 fn prefixed_digest(digest: &str) -> String {
@@ -825,6 +863,40 @@ mod tests {
 
     fn object(json: serde_json::Value) -> JsonObject {
         serde_json::from_value(json).unwrap_or_default()
+    }
+
+    /// A nested ref resolves only to what the install wrote under the
+    /// project's skills directory, named the way the install names it.
+    #[test]
+    fn an_installed_registry_skill_is_found_only_where_the_install_wrote_it() -> Result<(), String>
+    {
+        let text = |error: std::io::Error| error.to_string();
+        let workspace = tempfile::tempdir().map_err(text)?;
+        let outside = tempfile::tempdir().map_err(text)?;
+        std::fs::write(outside.path().join("SKILL.md"), "---\nname: outside\n---\n")
+            .map_err(text)?;
+        let installed = workspace.path().join("skills/acme/echo/1.0.0-meta");
+        std::fs::create_dir_all(&installed).map_err(text)?;
+        std::fs::write(installed.join("SKILL.md"), "---\nname: echo\n---\n").map_err(text)?;
+        let env = std::collections::BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().display().to_string(),
+        )]);
+        let paths = crate::RunxPaths::resolve(&env, workspace.path());
+        let find = |reference: &str| {
+            super::installed_registry_skill(reference, &paths).map_err(|error| error.to_string())
+        };
+        assert_eq!(
+            find("registry:acme/echo@1.0.0+meta")?,
+            Some(installed.clone())
+        );
+        assert_eq!(find("registry:acme/echo")?, Some(installed));
+        assert_eq!(
+            find(&format!("registry:acme/echo@{}", outside.path().display()))?,
+            None
+        );
+        assert_eq!(find("registry:acme/echo@../../..")?, None);
+        Ok(())
     }
 
     const BINDINGS: &str = r#"

@@ -152,6 +152,22 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
     Ok(())
 }
 
+/// A served ref resolves as `runx skill` resolves it: a bundled skill by name.
+#[test]
+fn mcp_serves_a_skill_ref_not_only_a_path() -> Result<(), Box<dyn std::error::Error>> {
+    let mut server = spawn_mcp_server(&["skill-build".to_owned()])?;
+    write_frame(server.stdin_mut()?, &initialize_request(1))?;
+    server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    write_frame(server.stdin_mut()?, &initialized_notification())?;
+    write_frame(server.stdin_mut()?, &request(2, "tools/list", json!({})))?;
+    let tools = server.read_response("tools/list", MCP_REQUEST_TIMEOUT)?;
+    assert_eq!(
+        path_text(&tools, &["result", "tools", "0", "name"])?,
+        "skill-build"
+    );
+    Ok(())
+}
+
 #[test]
 fn mcp_native_binary_reports_mid_session_framing_fault() -> Result<(), Box<dyn std::error::Error>> {
     let skill_path = repo_root()?.join("fixtures/skills/mcp-echo");

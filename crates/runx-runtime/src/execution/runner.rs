@@ -635,17 +635,23 @@ where
             });
         }
         let mut execution = self.open_execution(&graph)?;
-        let step = graph
-            .steps
-            .iter()
-            .find(|step| step.id == step_id)
-            .ok_or_else(|| RuntimeError::StepMissing {
-                step_id: step_id.to_owned(),
-            })?;
-        let attempt = execution.failure_attempt(step_id);
-        let failed_run =
-            step_handlers::runtime_error_step_run(self, &graph.name, step, attempt, error)?;
-        execution.record_terminal_step_failure(self, host, step_id, failed_run)?;
+        if execution.has_failed_run(step_id) {
+            // The step sealed its own failure as it ran: the run is sealed
+            // failed over that receipt, not over an attempt it never made.
+            execution.fail_graph_at(self, host, step_id, None)?;
+        } else {
+            let step = graph
+                .steps
+                .iter()
+                .find(|step| step.id == step_id)
+                .ok_or_else(|| RuntimeError::StepMissing {
+                    step_id: step_id.to_owned(),
+                })?;
+            let attempt = execution.failure_attempt(step_id);
+            let failed_run =
+                step_handlers::runtime_error_step_run(self, &graph.name, step, attempt, error)?;
+            execution.record_terminal_step_failure(self, host, step_id, failed_run)?;
+        }
         let receipt = graph_receipt_with_closure(
             self.scope(&graph.name),
             &execution.runs,

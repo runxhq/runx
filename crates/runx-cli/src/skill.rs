@@ -58,6 +58,26 @@ pub enum SkillAction {
     Run,
 }
 
+/// The package a skill ref names, resolved as `runx skill` resolves it: a
+/// path, an installed or bundled skill, or a registry ref fetched with the
+/// registry skills it names.
+pub(crate) fn resolve_skill_package(
+    skill_ref: &Path,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<PathBuf, String> {
+    resolve_skill_ref_details(
+        skill_ref,
+        cwd,
+        resolver::SkillResolverOptions {
+            env,
+            registry: None,
+            expected_digest: None,
+        },
+    )
+    .map(|resolved| resolved.runnable_path)
+}
+
 // Function rationale: the top-level command path owns resolve/inspect/run/failure presentation in one explicit dispatch.
 pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let cwd = workspace.cwd().to_path_buf();

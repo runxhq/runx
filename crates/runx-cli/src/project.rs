@@ -125,10 +125,6 @@ fn normalize_skill_name(value: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
-fn write_stderr_line(message: &str) -> ExitCode {
-    crate::cli_io::write_stderr_code(&format!("{message}\n"))
-}
-
 fn write_new_failure(message: &str, json: bool, code: &str) -> ExitCode {
     if json {
         return crate::cli_io::write_stdout_code(
@@ -136,6 +132,5 @@ fn write_new_failure(message: &str, json: bool, code: &str) -> ExitCode {
             1,
         );
     }
-    let _ignored = write_stderr_line(&format!("runx: {message}"));
-    ExitCode::from(1)
+    crate::cli_io::write_stderr_code(&format!("runx: {message}\n"), 1)
 }

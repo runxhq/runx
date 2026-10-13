@@ -96,23 +96,35 @@ pub(super) fn write_registry_json(
         })?;
     contents.push('\n');
 
-    let mut options = fs::OpenOptions::new();
-    options.write(true);
-    if create_new {
-        options.create_new(true);
-    } else {
-        options.create(true).truncate(true);
-    }
+    // The record is written whole beside its path, then put in place in one
+    // step, so a reader sees the old record or the new one and never a mix;
+    // a failed write leaves the published record as it was.
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let staged = tempfile::Builder::new()
+        .prefix(".runx-registry-")
+        .suffix(".json.tmp")
+        .tempfile_in(parent)
+        .map_err(|source| io_error("staging", path, source))?;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(staged.path(), fs::Permissions::from_mode(0o600))
+            .map_err(|source| io_error("staging", path, source))?;
     }
-    let mut file = options
-        .open(path)
+    staged
+        .as_file()
+        .write_all(contents.as_bytes())
+        .and_then(|()| staged.as_file().sync_all())
         .map_err(|source| io_error("writing", path, source))?;
-    file.write_all(contents.as_bytes())
-        .map_err(|source| io_error("writing", path, source))
+    if create_new {
+        // A hard link publishes the record only if nothing holds the path.
+        fs::hard_link(staged.path(), path).map_err(|source| io_error("writing", path, source))
+    } else {
+        staged
+            .persist(path)
+            .map(|_| ())
+            .map_err(|error| io_error("writing", path, error.error))
+    }
 }
 
 pub(super) fn io_error(action: &'static str, path: &Path, source: io::Error) -> LocalRegistryError {
@@ -215,5 +227,76 @@ pub(super) fn trust_tier_string(value: &TrustTier) -> &'static str {
         TrustTier::FirstParty => "first_party",
         TrustTier::Verified => "verified",
         TrustTier::Community => "community",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Read;
+
+    use super::*;
+
+    fn version(description: &str) -> Result<RegistrySkillVersion, serde_json::Error> {
+        serde_json::from_value(serde_json::json!({
+            "skill_id": "acme/echo",
+            "owner": "acme",
+            "name": "echo",
+            "description": description,
+            "version": "1.0.0",
+            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "markdown": "# Echo\n",
+            "runner_names": [],
+            "trust_tier": "community",
+            "required_scopes": [],
+            "tags": [],
+            "publisher": { "kind": "organization", "id": "acme" },
+            "created_at": "2026-10-13T00:00:00Z",
+            "updated_at": "2026-10-13T00:00:00Z",
+        }))
+    }
+
+    /// A reader part way through a record finishes reading the record it
+    /// opened, whole, while the record is replaced.
+    #[test]
+    fn a_replaced_record_never_tears_under_a_reader() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let path = root.path().join("1.0.0.json");
+        write_registry_json(&path, &version("short")?, true)?;
+
+        let mut reader = fs::File::open(&path)?;
+        let mut head = [0_u8; 16];
+        reader.read_exact(&mut head)?;
+        write_registry_json(
+            &path,
+            &version(&"a much longer description ".repeat(64))?,
+            false,
+        )?;
+        let mut rest = Vec::new();
+        reader.read_to_end(&mut rest)?;
+
+        let read = [head.as_slice(), rest.as_slice()].concat();
+        let record: RegistrySkillVersion = serde_json::from_slice(&read)?;
+        assert_eq!(record.description.as_deref(), Some("short"));
+        let current: RegistrySkillVersion = serde_json::from_slice(&fs::read(&path)?)?;
+        assert!(
+            current
+                .description
+                .is_some_and(|text| text.starts_with("a much longer"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_new_record_is_refused_when_one_is_already_published()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let path = root.path().join("1.0.0.json");
+        write_registry_json(&path, &version("first")?, true)?;
+        assert!(write_registry_json(&path, &version("second")?, true).is_err());
+        let current: RegistrySkillVersion = serde_json::from_slice(&fs::read(&path)?)?;
+        assert_eq!(current.description.as_deref(), Some("first"));
+        let leftovers = fs::read_dir(root.path())?.count();
+        assert_eq!(leftovers, 1, "no staged file is left behind");
+        Ok(())
     }
 }

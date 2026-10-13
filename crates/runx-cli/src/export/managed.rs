@@ -22,9 +22,8 @@ pub(super) fn validate_write_targets(
         let generated_source = managed_source(&file.contents, target);
         let owned_by_this_export = existing_source == generated_source
             || (full_export
-                && existing_source.is_some_and(|source| {
-                    source_belongs_to_export_root(Path::new(source), export_root)
-                }));
+                && existing_source
+                    .is_some_and(|source| source_belongs_to_export_root(source, export_root)));
         if !owned_by_this_export {
             return Err(ExportError::InvalidArgs(format!(
                 "refusing to overwrite {} because it is not managed by this export",
@@ -118,7 +117,7 @@ pub(super) fn prune_managed_files(
         let Some(source) = managed_source(&contents, target) else {
             continue;
         };
-        if !source_belongs_to_export_root(Path::new(source), export_root) {
+        if !source_belongs_to_export_root(source, export_root) {
             continue;
         }
         fs::remove_file(&skill_file).map_err(|source| ExportError::Io {
@@ -156,7 +155,10 @@ fn managed_package_digest(contents: &str, target: Target) -> Option<&str> {
     })
 }
 
-fn source_belongs_to_export_root(source: &Path, export_root: &Path) -> bool {
+/// A project export names its source relative to the export root, so it
+/// reads the same on every machine; a user export names it absolutely.
+fn source_belongs_to_export_root(source: &str, export_root: &Path) -> bool {
+    let source = export_root.join(source);
     (export_root.join("SKILL.md").is_file() && source == export_root)
         || (export_root.join("skills").is_dir() && source.starts_with(export_root.join("skills")))
 }

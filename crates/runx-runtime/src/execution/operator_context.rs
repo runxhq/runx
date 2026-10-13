@@ -1006,8 +1006,8 @@ runners:
     }
 
     #[test]
-    fn operator_context_rejects_registry_child_without_registry_env() -> Result<(), Box<dyn Error>>
-    {
+    fn operator_context_rejects_a_registry_child_the_project_does_not_hold()
+    -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         let entry = temp.path().join("entry");
         write_skill(&entry, "entry", "# Entry")?;
@@ -1019,12 +1019,12 @@ runners:
                 None,
                 SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
             ),
-            "missing registry env must fail",
+            "an unheld registry child must fail",
         )?;
         assert!(
             error
                 .to_string()
-                .contains("RUNX_REGISTRY_DIR is not configured")
+                .contains("is not installed in this project")
         );
         Ok(())
     }

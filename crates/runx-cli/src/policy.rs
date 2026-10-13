@@ -24,8 +24,7 @@ pub fn run_native_policy(plan: PolicyPlan, workspace: &WorkspaceEnv) -> ExitCode
     match run_policy_command(&plan, workspace.env(), workspace.cwd()) {
         Ok(output) => crate::cli_io::write_stdout_code(&output.stdout, output.exit_code),
         Err(error) => {
-            let _ignored = crate::cli_io::write_stderr_code(&format!("runx: {error}\n"));
-            ExitCode::from(error.exit_code())
+            crate::cli_io::write_stderr_code(&format!("runx: {error}\n"), error.exit_code())
         }
     }
 }

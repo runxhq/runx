@@ -396,6 +396,7 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
     // http1-only client is a bot tell. The response cap measures DECODED
     // bytes (read_limited_response_body), so a decompression bomb stays bounded.
     let builder = reqwest::Client::builder()
+        .user_agent(format!("runx/{}", crate::EXECUTION_RUNTIME_RELEASE))
         .redirect(reqwest::redirect::Policy::none())
         .timeout(config.request_timeout)
         .connect_timeout(config.connect_timeout)
@@ -1467,6 +1468,54 @@ mod tests {
 
         assert_eq!(response.status, 302);
         assert!(request.starts_with("GET /start "));
+        Ok(())
+    }
+
+    /// A provider such as GitHub refuses a request that names no client, so
+    /// every request names runx unless its connector names itself.
+    #[test]
+    fn reqwest_transport_names_runx_unless_the_request_names_a_client()
+    -> Result<(), RuntimeHttpTestError> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let address = listener.local_addr()?;
+        let server = std::thread::spawn(move || -> Result<Vec<String>, std::io::Error> {
+            let mut requests = Vec::new();
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept()?;
+                let mut buffer = [0_u8; 2048];
+                let bytes_read = stream.read(&mut buffer)?;
+                requests.push(String::from_utf8_lossy(&buffer[..bytes_read]).to_ascii_lowercase());
+                stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                )?;
+            }
+            Ok(requests)
+        });
+
+        let transport = ReqwestHttpTransport::with_private_network_access_for_tests()?;
+        let read = |headers: Vec<RuntimeHttpHeader>| RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: format!("http://{address}/user"),
+            headers,
+            body: None,
+        };
+        transport.send(read(Vec::new()))?;
+        transport.send(read(vec![RuntimeHttpHeader::new(
+            "user-agent",
+            "provider-client/1.0",
+        )]))?;
+        let requests = server
+            .join()
+            .map_err(|_| RuntimeHttpTestError::ServerThread)??;
+
+        let runx = format!("user-agent: runx/{}", crate::EXECUTION_RUNTIME_RELEASE);
+        assert!(requests[0].contains(&runx), "{}", requests[0]);
+        assert!(
+            requests[1].contains("user-agent: provider-client/1.0"),
+            "{}",
+            requests[1]
+        );
+        assert!(!requests[1].contains(&runx), "{}", requests[1]);
         Ok(())
     }
 
