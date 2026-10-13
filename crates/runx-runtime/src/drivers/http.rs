@@ -392,12 +392,15 @@ impl Http<'_> {
                 .map_err(|error| error.to_string())?;
             headers.push(RuntimeHttpHeader::new(name.clone(), value));
         }
-        let body = request
+        let mut body = request
             .body
             .as_ref()
             .map(|template| template.render(&inputs))
             .transpose()
             .map_err(|error| error.to_string())?;
+        if let Egress::Direct(_) = self.egress {
+            self.credential_body(body.as_mut())?;
+        }
         let body = match body {
             Some(value) => {
                 headers.push(RuntimeHttpHeader::new("content-type", "application/json"));
@@ -547,6 +550,18 @@ impl Http<'_> {
             )
         })?;
         auth::credential_header(presentation, secret, method, url)
+    }
+
+    /// Place the instance's credential in the request body, when its
+    /// implementation presents it there.
+    fn credential_body(&self, body: Option<&mut JsonValue>) -> Result<(), String> {
+        let Some(secret) = self.call.credential else {
+            return Ok(());
+        };
+        match self.spec.auth.get(&secret.name) {
+            Some(presentation) => auth::credential_body(presentation, secret, body),
+            None => Ok(()),
+        }
     }
 
     /// The URL the instance's credential stands for, when its implementation
@@ -1019,6 +1034,56 @@ mod tests {
             .starts_with("OAuth ")
         );
         assert!(authorization("other", &[("token", "t-1")]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_body_credential_is_placed_at_its_pointer_and_nowhere_else() -> Result<(), String> {
+        let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
+            "allowed_hosts": ["api.indexnow.test"],
+            "auth": {"site": {"type": "body", "field": "key", "pointer": "/key"}},
+            "requests": [{"id": "submit", "method": "POST", "url": "https://api.indexnow.test/indexnow",
+                "body": {"host": "example.test", "urlList": {"$argument": "/urls"}}}],
+            "decode": [{"op": "auto_json"}],
+            "result_paths": {"submit": "acknowledgement"}
+        }))
+        .map_err(|error| error.to_string())?;
+        let arguments: JsonValue =
+            serde_json::from_value(serde_json::json!({"urls": ["https://example.test/a"]}))
+                .map_err(|error| error.to_string())?;
+        let (parameters, env) = (JsonObject::new(), BTreeMap::new());
+        let secret = crate::kernel::operation::credentials::CredentialSecret::new(
+            runx_contracts::connector::CredentialName::new("site").ok_or("a credential name")?,
+            [("key".to_owned(), "site-key-1".to_owned())]
+                .into_iter()
+                .collect(),
+        );
+        let mut call = AdmittedCall::for_tests(
+            &arguments,
+            &parameters,
+            &env,
+            runx_contracts::connector::OperationAccess::Mutate,
+        );
+        call.credential = Some(&secret);
+        let request = Http::new(Egress::Direct(&Pages), &call, &spec).render(
+            &spec.requests.as_slice()[0],
+            None,
+            None,
+            None,
+        )?;
+        let body: serde_json::Value =
+            serde_json::from_str(request.body.as_deref().ok_or("a body")?)
+                .map_err(|error| error.to_string())?;
+        assert_eq!(
+            body,
+            serde_json::json!({"host": "example.test", "key": "site-key-1", "urlList": ["https://example.test/a"]})
+        );
+        assert!(
+            request
+                .headers
+                .iter()
+                .all(|header| !header.value.contains("site-key-1"))
+        );
         Ok(())
     }
 

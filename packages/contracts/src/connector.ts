@@ -53,7 +53,9 @@ export type HttpAuth =
   | { readonly type: "bearer"; readonly field?: string }
   | { readonly type: "header"; readonly name: string; readonly field: string }
   | { readonly type: "oauth1" }
-  | { readonly type: "url"; readonly field: string };
+  | { readonly type: "url"; readonly field: string }
+  /** A credential field placed in the JSON body at an RFC 6901 pointer; local placement only. */
+  | { readonly type: "body"; readonly field: string; readonly pointer: string };
 
 export interface CredentialField {
   readonly name: string;

@@ -798,6 +798,14 @@ pub enum HttpAuth {
     /// request's declared URL is the prefix the credential's URL must start
     /// with.
     Url { field: CredentialName },
+    /// A declared credential field placed in the request's JSON body at
+    /// `pointer` (RFC 6901), for a provider that reads its key from the body,
+    /// such as IndexNow. The body's literal object holds the pointer's parent
+    /// and never sets it, and no input names it.
+    Body {
+        field: CredentialName,
+        pointer: NonEmptyString,
+    },
 }
 
 impl HttpAuth {
@@ -805,7 +813,10 @@ impl HttpAuth {
     #[must_use]
     pub fn fields(&self) -> Vec<&str> {
         match self {
-            Self::Bearer { field } | Self::Header { field, .. } | Self::Url { field } => {
+            Self::Bearer { field }
+            | Self::Header { field, .. }
+            | Self::Url { field }
+            | Self::Body { field, .. } => {
                 vec![field.as_str()]
             }
             Self::Oauth1 => OAUTH1_FIELDS.to_vec(),
@@ -813,15 +824,53 @@ impl HttpAuth {
     }
 
     /// The header the transport owns for this presentation; a credential
-    /// presented as the URL owns none.
+    /// presented as the URL or in the body owns none.
     #[must_use]
     pub fn header_name(&self) -> Option<&str> {
         match self {
             Self::Header { name, .. } => Some(name.as_str()),
             Self::Bearer { .. } | Self::Oauth1 => Some("authorization"),
-            Self::Url { .. } => None,
+            Self::Url { .. } | Self::Body { .. } => None,
         }
     }
+
+    /// The body pointer's segments, unescaped, when the credential is
+    /// presented in the body and its pointer is well formed.
+    #[must_use]
+    pub fn body_pointer(&self) -> Option<Vec<String>> {
+        let Self::Body { pointer, .. } = self else {
+            return None;
+        };
+        json_pointer_segments(pointer.as_str())
+    }
+}
+
+/// An RFC 6901 pointer's segments, unescaped: `/a/b~1c` is `["a", "b/c"]`.
+/// None for the empty pointer, an empty segment or a stray `~`.
+#[must_use]
+pub fn json_pointer_segments(pointer: &str) -> Option<Vec<String>> {
+    let rest = pointer.strip_prefix('/')?;
+    rest.split('/')
+        .map(|segment| {
+            if segment.is_empty() {
+                return None;
+            }
+            let mut unescaped = String::with_capacity(segment.len());
+            let mut characters = segment.chars();
+            while let Some(character) = characters.next() {
+                if character != '~' {
+                    unescaped.push(character);
+                    continue;
+                }
+                match characters.next() {
+                    Some('0') => unescaped.push('~'),
+                    Some('1') => unescaped.push('/'),
+                    _ => return None,
+                }
+            }
+            Some(unescaped)
+        })
+        .collect()
 }
 
 /// The credential fields an OAuth 1.0a signature uses.

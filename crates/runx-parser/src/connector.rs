@@ -291,7 +291,10 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
                 errors,
             );
             for (credential, presentation) in server_auth {
-                if matches!(presentation, HttpAuth::Oauth1 | HttpAuth::Url { .. }) {
+                if matches!(
+                    presentation,
+                    HttpAuth::Oauth1 | HttpAuth::Url { .. } | HttpAuth::Body { .. }
+                ) {
                     errors.push(
                         &format!("placements.local.mcp_server.auth.{credential}"),
                         "an MCP server authenticates with a bearer token or a declared credential header",
@@ -625,7 +628,12 @@ fn validate_operation(
                 .credential
                 .as_ref()
                 .and_then(|name| http.auth.get(name))
-                .is_some_and(|auth| !matches!(auth, HttpAuth::Oauth1 | HttpAuth::Url { .. })),
+                .is_some_and(|auth| {
+                    !matches!(
+                        auth,
+                        HttpAuth::Oauth1 | HttpAuth::Url { .. } | HttpAuth::Body { .. }
+                    )
+                }),
         };
         if !supported {
             errors.push(
@@ -1408,6 +1416,15 @@ fn validate_http(
             "auth says how each of the operation's credentials authenticates, and no other",
         );
     }
+    for (credential, presentation) in &http.auth {
+        validate_body_credential(
+            operation,
+            http,
+            presentation,
+            &format!("{field}.auth.{credential}"),
+            errors,
+        );
+    }
     let hosts = http
         .allowed_hosts
         .iter()
@@ -1420,6 +1437,74 @@ fn validate_http(
         &hosts,
         errors,
     );
+}
+
+/// A credential presented in the body is placed at its pointer in every
+/// request the implementation sends: each declares a literal JSON object that
+/// holds the pointer's parent and never sets the pointer, and no input the
+/// operation takes is named by it, so the call can neither supply nor
+/// displace the credential.
+fn validate_body_credential(
+    operation: &ConnectorOperation,
+    http: &HttpImplementation,
+    presentation: &HttpAuth,
+    field: &str,
+    errors: &mut Errors,
+) {
+    let HttpAuth::Body { pointer, .. } = presentation else {
+        return;
+    };
+    let Some(segments) = presentation.body_pointer() else {
+        errors.push(
+            &format!("{field}.pointer"),
+            format!("{pointer} is not a JSON pointer to a member, such as /key"),
+        );
+        return;
+    };
+    let Some((last, parent)) = segments.split_last() else {
+        return;
+    };
+    for request in http
+        .requests
+        .iter()
+        .chain(http.preconditions.iter().map(|readback| &readback.request))
+        .chain(http.readbacks.iter().map(|readback| &readback.request))
+    {
+        match request
+            .body
+            .as_ref()
+            .and_then(|body| body.literal_object(parent))
+        {
+            None => errors.push(
+                field,
+                format!(
+                    "request {} declares no literal JSON object at the parent of {pointer}, so it cannot carry the credential",
+                    request.id
+                ),
+            ),
+            Some(object) if object.contains_key(last) => errors.push(
+                field,
+                format!("request {} already sets {pointer}", request.id),
+            ),
+            Some(_) => {}
+        }
+    }
+    let named = segments.first().is_some_and(|first| {
+        operation
+            .input_schema
+            .as_ref()
+            .and_then(|schema| schema.get("properties"))
+            .is_some_and(|properties| match properties {
+                runx_contracts::JsonValue::Object(properties) => properties.contains_key(first),
+                _ => false,
+            })
+    });
+    if named {
+        errors.push(
+            field,
+            format!("an input named by {pointer} would collide with the credential"),
+        );
+    }
 }
 
 /// Operations that share one MCP tool must each fix the discriminating

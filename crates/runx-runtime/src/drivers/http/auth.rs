@@ -29,7 +29,7 @@ pub(crate) fn credential_header(
         return Ok(None);
     };
     let value = match presentation {
-        HttpAuth::Url { .. } => return Ok(None),
+        HttpAuth::Url { .. } | HttpAuth::Body { .. } => return Ok(None),
         HttpAuth::Bearer { field } => format!("Bearer {}", credential.field(field.as_str())?),
         HttpAuth::Header { field, .. } => credential.field(field.as_str())?.to_owned(),
         HttpAuth::Oauth1 => {
@@ -75,6 +75,47 @@ pub(crate) fn credential_url(
     let url = Url::parse(value).map_err(|_| "the credential's URL is invalid".to_owned())?;
     credential.presented(value);
     Ok(Some(url))
+}
+
+/// Place a credential presented in the body at its pointer in the request's
+/// rendered JSON body. The manifest guarantees a literal object holds the
+/// pointer's parent and sets nothing there; a body that renders otherwise is
+/// refused, never overwritten. The value is a secret, redacted wherever the
+/// body is echoed.
+pub(crate) fn credential_body(
+    presentation: &HttpAuth,
+    credential: &CredentialSecret,
+    body: Option<&mut runx_contracts::JsonValue>,
+) -> Result<(), String> {
+    let Some(segments) = presentation.body_pointer() else {
+        return Ok(());
+    };
+    let (last, parent) = segments
+        .split_last()
+        .ok_or("the credential's body pointer names no member")?;
+    let mut object = match body {
+        Some(runx_contracts::JsonValue::Object(object)) => object,
+        _ => return Err("the request has no JSON object body to carry the credential".to_owned()),
+    };
+    for segment in parent {
+        object = match object.get_mut(segment) {
+            Some(runx_contracts::JsonValue::Object(child)) => child,
+            _ => return Err("the request body has no object where the credential goes".to_owned()),
+        };
+    }
+    if object.contains_key(last) {
+        return Err("the request body already sets the credential's member".to_owned());
+    }
+    let HttpAuth::Body { field, .. } = presentation else {
+        return Ok(());
+    };
+    let value = credential.field(field.as_str())?;
+    object.insert(
+        last.clone(),
+        runx_contracts::JsonValue::String(value.to_owned()),
+    );
+    credential.presented(value);
+    Ok(())
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {

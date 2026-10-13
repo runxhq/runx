@@ -870,3 +870,77 @@ fn runtime_capability_is_declared_never_assumed() {
             .runtime_capability
     );
 }
+
+const INDEXNOW: &str = r#"
+schema: runx.connector.v1
+id: indexnow
+name: IndexNow
+description: Tell search engines a site's pages changed.
+runtime_capability: false
+auth:
+  credentials:
+    site:
+      kind: api_key
+      fields: [{name: key}]
+      delivery: {env: INDEXNOW_KEY}
+      audience: [api.indexnow.org]
+placements: {local: {auth: [credentials]}}
+operations:
+  urls.submit:
+    description: Submit changed URLs.
+    verb: write
+    scopes: [urls.submit]
+    credentials: [site]
+    target: {template: "https://api.indexnow.org/indexnow"}
+    approval: required
+    guarantees: {readback: unavailable}
+    input_schema:
+      type: object
+      required: [urls]
+      properties:
+        urls: {type: array, items: {type: string}}
+    implementation:
+      http:
+        allowed_hosts: [api.indexnow.org]
+        auth: {site: {type: body, field: key, pointer: /key}}
+        requests:
+          - id: submit
+            method: POST
+            url: "https://api.indexnow.org/indexnow"
+            body: {host: example.com, urlList: {"$argument": "/urls"}}
+        decode: [{op: auto_json}]
+        result_paths: {acknowledgement: acknowledgement}
+"#;
+
+#[test]
+fn a_body_credential_owns_its_pointer() {
+    validate(INDEXNOW).expect("a credential placed in a literal body object validates");
+    // The body already sets the member.
+    assert_rejects(
+        &INDEXNOW.replace(
+            "body: {host: example.com,",
+            "body: {key: fixed, host: example.com,",
+        ),
+        "already sets /key",
+    );
+    // An input could supply it.
+    assert_rejects(
+        &INDEXNOW.replace(
+            "        urls: {type: array, items: {type: string}}\n",
+            "        urls: {type: array, items: {type: string}}\n        key: {type: string}\n",
+        ),
+        "would collide with the credential",
+    );
+    // The body is computed, so where the credential lands is unknown.
+    assert_rejects(
+        &INDEXNOW.replace(
+            "body: {host: example.com, urlList: {\"$argument\": \"/urls\"}}",
+            "body: {\"$argument\": \"/urls\"}",
+        ),
+        "no literal JSON object",
+    );
+    assert_rejects(
+        &INDEXNOW.replace("pointer: /key", "pointer: key"),
+        "is not a JSON pointer",
+    );
+}

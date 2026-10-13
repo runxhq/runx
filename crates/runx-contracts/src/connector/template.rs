@@ -80,6 +80,24 @@ pub enum TemplateError {
 }
 
 impl Template {
+    /// The literal object the template declares at `path`, reached through
+    /// literal objects alone; none when a binding or any other value stands
+    /// on the way, since what it renders is not known until the call.
+    #[must_use]
+    pub fn literal_object(&self, path: &[String]) -> Option<&JsonObject> {
+        fn literal(value: &JsonValue) -> Option<&JsonObject> {
+            match value {
+                JsonValue::Object(object) if binding(object).is_none() => Some(object),
+                _ => None,
+            }
+        }
+        let mut object = literal(&self.0)?;
+        for segment in path {
+            object = literal(object.get(segment)?)?;
+        }
+        Some(object)
+    }
+
     /// Render against the call. Bindings are replaced; literals pass through.
     pub fn render(&self, inputs: &TemplateInputs<'_>) -> Result<JsonValue, TemplateError> {
         render(&self.0, inputs, 0)

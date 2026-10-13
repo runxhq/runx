@@ -6699,6 +6699,30 @@ export const runxSchemaArtifacts = {
                                   "field"
                                 ],
                                 "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "field": {
+                                    "maxLength": 64,
+                                    "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                    "type": "string"
+                                  },
+                                  "pointer": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "const": "body",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "field",
+                                  "pointer"
+                                ],
+                                "type": "object"
                               }
                             ]
                           },
@@ -7994,6 +8018,30 @@ export const runxSchemaArtifacts = {
                               "required": [
                                 "type",
                                 "field"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "field": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "pointer": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "body",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "field",
+                                "pointer"
                               ],
                               "type": "object"
                             }

@@ -1473,6 +1473,7 @@ fn mcp(
                     presentation,
                     runx_contracts::connector::HttpAuth::Oauth1
                         | runx_contracts::connector::HttpAuth::Url { .. }
+                        | runx_contracts::connector::HttpAuth::Body { .. }
                 ) {
                     return Err(unsupported(
                         "an MCP session presents its credential as a header",
