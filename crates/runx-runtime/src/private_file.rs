@@ -1,9 +1,9 @@
 // Module rationale: one discipline for the files runx keeps from other users.
-// A private file is created closed to others and never exists open, is read
-// only after its directory and the opened file are checked, and lives in a
-// directory this user owns that no one else can write. Where a platform gives
-// runx no owner-only protection it can set and check, nothing private is
-// written or read.
+// On unix a private file is created closed to others and never exists open,
+// is read only after its directory and the opened file are checked, and lives
+// in a directory this user owns that no one else can write. On Windows, as
+// every CLI there does, it is a plain file in the user's profile, which the
+// profile's own permissions keep from other users; only a link is refused.
 use std::io::{self, Read, Write};
 use std::path::Path;
 
@@ -24,8 +24,6 @@ pub enum PrivateFileFault {
     TooLarge,
     #[error("already exists")]
     Exists,
-    #[error("cannot be restricted to its owner on this platform")]
-    Unprotectable,
     #[error("is in {directory}, which {problem}")]
     Directory {
         directory: String,
@@ -219,36 +217,61 @@ mod platform {
     }
 }
 
-/// Elsewhere, including Windows: no owner-only protection runx can set and
-/// check without platform FFI, so nothing private is written or read, never
-/// weakened.
+/// Windows: plain files in the user's profile, whose permissions keep them
+/// from other users, as cargo, gh and aws keep theirs.
 #[cfg(not(unix))]
 mod platform {
-    use std::fs::File;
+    use std::fs::{self, File, OpenOptions};
+    use std::io;
     use std::path::Path;
 
-    use super::PrivateFileFault;
+    use super::{DirectoryProblem, PrivateFileFault, io_fault};
 
-    pub(crate) fn ensure_private_directory(_directory: &Path) -> Result<(), PrivateFileFault> {
-        Err(PrivateFileFault::Unprotectable)
+    pub(crate) fn ensure_private_directory(directory: &Path) -> Result<(), PrivateFileFault> {
+        fs::create_dir_all(directory).map_err(|error| io_fault(&error))?;
+        let metadata = fs::symlink_metadata(directory).map_err(|error| io_fault(&error))?;
+        let problem = if metadata.file_type().is_symlink() {
+            DirectoryProblem::Link
+        } else if !metadata.is_dir() {
+            DirectoryProblem::NotADirectory
+        } else {
+            return Ok(());
+        };
+        Err(PrivateFileFault::Directory {
+            directory: directory.display().to_string(),
+            problem,
+        })
     }
 
-    pub(crate) fn create_private(_path: &Path) -> Result<File, PrivateFileFault> {
-        Err(PrivateFileFault::Unprotectable)
+    pub(crate) fn create_private(path: &Path) -> Result<File, PrivateFileFault> {
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .map_err(|error| match error.kind() {
+                io::ErrorKind::AlreadyExists => PrivateFileFault::Exists,
+                _ => io_fault(&error),
+            })
     }
 
-    /// A file in a private file's place is refused rather than read
-    /// unprotected.
     pub(crate) fn open_private(path: &Path) -> Result<Option<File>, PrivateFileFault> {
-        match std::fs::symlink_metadata(path) {
-            Ok(_) => Err(PrivateFileFault::Unprotectable),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(super::io_fault(&error)),
+        let named = match fs::symlink_metadata(path) {
+            Ok(named) => named,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(io_fault(&error)),
+        };
+        if named.file_type().is_symlink() {
+            return Err(PrivateFileFault::Link);
         }
+        if !named.is_file() {
+            return Err(PrivateFileFault::NotAFile);
+        }
+        File::open(path).map(Some).map_err(|error| io_fault(&error))
     }
 
+    /// Windows cannot flush a directory; the file's own flush is what holds.
     pub(crate) fn sync_directory(_directory: &Path) -> Result<(), PrivateFileFault> {
-        Err(PrivateFileFault::Unprotectable)
+        Ok(())
     }
 }
 

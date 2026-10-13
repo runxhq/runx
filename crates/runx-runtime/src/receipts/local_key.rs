@@ -198,7 +198,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn local_key_is_created_once() -> Result<(), Box<dyn std::error::Error>> {
         let (_root, paths) = home()?;
@@ -222,7 +221,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
     fn concurrent_processes_publish_one_local_key() -> Result<(), Box<dyn std::error::Error>> {
         let (_root, paths) = home()?;
@@ -248,7 +246,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
     fn corrupt_or_unreadable_local_key_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         let (_root, paths) = home()?;
@@ -340,20 +337,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(not(unix))]
-    #[test]
-    fn local_signing_is_refused_where_the_key_cannot_be_protected()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let (_root, paths) = home()?;
-
-        assert_eq!(
-            load_or_create_local_signer(&paths).err().and_then(fault),
-            Some(LocalReceiptKeyFault::File(PrivateFileFault::Unprotectable))
-        );
-        assert!(!paths.local_receipt_key().exists());
-        Ok(())
-    }
-
     #[test]
     fn verification_never_creates_a_key() -> Result<(), Box<dyn std::error::Error>> {
         let (_root, paths) = home()?;
@@ -366,7 +349,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
     fn typed_trust_rejects_another_home_and_issuer_type() -> Result<(), Box<dyn std::error::Error>>
     {

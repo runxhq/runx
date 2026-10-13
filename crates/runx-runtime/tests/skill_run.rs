@@ -923,7 +923,6 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
     Ok(())
 }
 
-#[cfg(unix)]
 #[test]
 fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
