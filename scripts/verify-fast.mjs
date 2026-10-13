@@ -1,72 +1,11 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import os from "node:os";
-import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { fileURLToPath } from "node:url";
+import { cargo, prebuiltBinEnv, rustBuildArgs, workspaceRoot } from "./rust-build.mjs";
 
-const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cargo = process.platform === "win32" ? "cargo.exe" : "cargo";
-const cargoTargetDir = process.env.CARGO_TARGET_DIR
-  ? path.resolve(workspaceRoot, process.env.CARGO_TARGET_DIR)
-  : path.join(workspaceRoot, "crates", "target");
-const rustKernelBin = path.join(
-  cargoTargetDir,
-  "debug",
-  process.platform === "win32" ? "runx.exe" : "runx",
-);
-const rustHarnessFixtureOracleBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32" ? "runx-harness-fixture-oracles.exe" : "runx-harness-fixture-oracles",
-);
-const rustCapabilitySnapshotBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32"
-    ? "runx-native-capability-snapshot.exe"
-    : "runx-native-capability-snapshot",
-);
-const rustSchemaArtifactsBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32" ? "runx-schema-artifacts.exe" : "runx-schema-artifacts",
-);
-const rustPaidInvocationFixturesBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32"
-    ? "runx-paid-invocation-fixtures.exe"
-    : "runx-paid-invocation-fixtures",
-);
-const rustPrincipalIdFixturesBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32"
-    ? "runx-principal-id-fixtures.exe"
-    : "runx-principal-id-fixtures",
-);
-const rustX402FixturesBin = path.join(
-  cargoTargetDir,
-  "debug",
-  "examples",
-  process.platform === "win32" ? "runx-x402-fixtures.exe" : "runx-x402-fixtures",
-);
-
-const evalBinEnv = {
-  RUNX_RUST_CLI_BIN: rustKernelBin,
-  RUNX_HARNESS_FIXTURE_ORACLE_BIN: rustHarnessFixtureOracleBin,
-  RUNX_CAPABILITY_SNAPSHOT_BIN: rustCapabilitySnapshotBin,
-  RUNX_SCHEMA_ARTIFACTS_BIN: rustSchemaArtifactsBin,
-  RUNX_PAID_INVOCATION_FIXTURES_BIN: rustPaidInvocationFixturesBin,
-  RUNX_PRINCIPAL_ID_FIXTURES_BIN: rustPrincipalIdFixturesBin,
-  RUNX_X402_FIXTURES_BIN: rustX402FixturesBin,
-};
+const rustKernelBin = prebuiltBinEnv.RUNX_RUST_CLI_BIN;
+const evalBinEnv = prebuiltBinEnv;
 const rustBuildEnv = {
   CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? defaultCargoBuildJobs(),
 };
@@ -98,50 +37,11 @@ await runSerialGroup("rust structure checks", [
   step("rust:crate-graph", "pnpm", ["rust:crate-graph"]),
 ]);
 
-// One invocation for the shipped binaries and the build-only examples: the
-// resolver unifies runx-runtime's feature set across the packages, so its lib
-// compiles once instead of twice with divergent feature fingerprints.
+// One invocation for every shipped binary and build-only example (see
+// rust-build.mjs): the resolver unifies runx-runtime's feature set once, and
+// every later step and test wrapper reads these binaries instead of building.
 const rustBuild = await runStep(
-  step("build rust binaries", cargo, [
-    "build",
-    "--quiet",
-    "--manifest-path",
-    "crates/Cargo.toml",
-    "-p",
-    "runx-cli",
-    "-p",
-    "runx-runtime",
-    "-p",
-    "runx-js-worker",
-    "-p",
-    "runx-contracts",
-    "-p",
-    "runx-receipts",
-    "-p",
-    "runx-core",
-    "-p",
-    "runx-parser",
-    "--bin",
-    "runx",
-    "--example",
-    "runx-harness-fixture-oracles",
-    "--example",
-    "runx-native-capability-snapshot",
-    "--bin",
-    "runx-js-worker",
-    "--example",
-    "runx-schema-artifacts",
-    "--example",
-    "runx-paid-invocation-fixtures",
-    "--example",
-    "runx-principal-id-fixtures",
-    "--example",
-    "kernel_eval_batch",
-    "--example",
-    "parser_eval",
-    "--example",
-    "runx-x402-fixtures",
-  ]),
+  step("build rust binaries", cargo, rustBuildArgs),
   rustBuildEnv,
 );
 

@@ -8,8 +8,8 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
-const nativeRunx = process.env.RUNX_BIN
-  ? path.resolve(process.env.RUNX_BIN)
+const nativeRunx = process.env.RUNX_RUST_CLI_BIN
+  ? path.resolve(process.env.RUNX_RUST_CLI_BIN)
   : path.resolve("crates", "target", "debug", process.platform === "win32" ? "runx.exe" : "runx");
 
 describe("hello-world example", () => {

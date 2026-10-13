@@ -111,9 +111,11 @@ pnpm rust:check
 This is blocking evidence for Rust-owned kernel and contract surfaces. The command uses `cargo-deny` and `cargo-public-api`; if they are missing, install them with:
 
 ```bash
-cargo install cargo-deny cargo-public-api
-rustup toolchain install nightly --profile minimal
+cargo install cargo-deny
+cargo install cargo-public-api --version 0.51.0
 ```
+
+The public API snapshot is read through one pinned nightly, which the check installs on first use.
 
 `test:fast` uses `vitest.fast.config.ts` and is intended for package-adjacent iteration. `pnpm test` remains the full workspace suite and includes the isolated CLI package contract check.
 

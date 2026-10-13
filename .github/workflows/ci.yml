@@ -14,9 +14,12 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push supersedes its older run. A main push never
+# cancels another: each run classifies only its own diff, so a cancelled push
+# would leave its changes unverified.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
@@ -24,7 +27,9 @@ jobs:
     outputs:
       full: ${{ steps.changes.outputs.full }}
       skills: ${{ steps.changes.outputs.skills }}
+      core_skills: ${{ steps.changes.outputs.core_skills }}
       windows: ${{ steps.changes.outputs.windows }}
+      release: ${{ steps.changes.outputs.release }}
       light: ${{ steps.changes.outputs.light }}
     steps:
       - name: Checkout
@@ -66,7 +71,9 @@ jobs:
             {
               echo "full=true"
               echo "skills=true"
+              echo "core_skills=$(node --input-type=module -e 'import { bundledCoreSkills } from "./scripts/classify-ci-changes.mjs"; console.log(bundledCoreSkills().join(","))')"
               echo "windows=true"
+              echo "release=true"
               echo "light=false"
               echo "summary=no stable diff base; running all checks"
             } >> "$GITHUB_OUTPUT"
@@ -78,13 +85,13 @@ jobs:
         run: echo "${{ steps.changes.outputs.summary }}"
 
       - name: Setup pnpm for light checks
-        if: steps.changes.outputs.light == 'true'
+        if: steps.changes.outputs.light == 'true' || steps.changes.outputs.release == 'true'
         uses: pnpm/action-setup@v6
         with:
           version: 10.18.2
 
       - name: Setup Node for light checks
-        if: steps.changes.outputs.light == 'true'
+        if: steps.changes.outputs.light == 'true' || steps.changes.outputs.release == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -92,7 +99,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install workspace dependencies for light checks
-        if: steps.changes.outputs.light == 'true'
+        if: steps.changes.outputs.light == 'true' || steps.changes.outputs.release == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Documentation and release-surface checks
@@ -101,6 +108,26 @@ jobs:
           pnpm domains:check
           pnpm docs:api:check
           pnpm release:version:check
+          node scripts/generate-runx-maintained-lock.mjs --check
+
+      # Release tooling runs only in the release workflow, so a change to it is
+      # proven here, cheaply: every release script parses, the version is in
+      # sync, and the version's notes are complete.
+      - name: Release tooling checks
+        if: steps.changes.outputs.release == 'true'
+        run: |
+          bash -n scripts/publish-npm-tarball.sh
+          for script in scripts/build-release-archives.ts scripts/check-rust-cli-release-artifacts.ts \
+            scripts/check-runx-cli-release-notes.mjs scripts/global-npm-prefix.mjs \
+            scripts/publish-winget-manifest.mjs scripts/release-platform-matrix.mjs \
+            scripts/release-rust-cli.ts scripts/runx-cli-release-profile.mjs \
+            scripts/set-release-version.ts scripts/smoke-released-cli-live.mjs scripts/smoke-runx-image.mjs; do
+            node --check "$script"
+          done
+          pnpm release:version:check
+          node scripts/check-runx-cli-release-notes.mjs --version "$(node -p "require('./packages/cli/package.json').version")"
+          node scripts/check-publishable-package-manifests.mjs
+          node --test scripts/build-channel-input.test.mjs scripts/check-publishable-package-manifests.test.mjs
 
   linux-checks:
     needs: classify
@@ -127,10 +154,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      # Only the pinned toolchain is installed before the cache key is taken:
+      # the public API check installs its own pinned nightly when it runs, so
+      # no toolchain outside rust-toolchain.toml can move the key.
       - name: Setup pinned Rust toolchain
-        run: |
-          rustup show
-          rustup toolchain install nightly --profile minimal
+        run: rustup show
 
       - name: Restore Rust CI tools
         if: needs.classify.outputs.full == 'true'
@@ -170,10 +198,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-oss-checks-
 
+      # The one Linux debug cache: main writes it, and the release verify and
+      # runtime quality jobs, which build the same workspace, restore it.
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: crates
+          shared-key: linux-debug
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
@@ -184,13 +215,11 @@ jobs:
           pnpm verify:fast
           pnpm verify:fast:plan-check
 
-      - name: Build the skill harness runtime
+      - name: Build the core skill harness runtime
         if: needs.classify.outputs.skills == 'true' && needs.classify.outputs.full != 'true'
-        # Skill-only changes still run against the real runtime, but do not need
-        # fixture generators or the workspace-wide fast/full Rust corpora.
-        run: |
-          node scripts/build-workspace.mjs
-          cargo build -p runx-js-worker -p runx-cli --manifest-path crates/Cargo.toml
+        # A core skill change runs against the real runtime, without the
+        # fixture generators or the workspace-wide Rust corpora.
+        run: cargo build -p runx-js-worker -p runx-cli --manifest-path crates/Cargo.toml
 
       - name: Heavy graph scenarios
         if: needs.classify.outputs.full == 'true'
@@ -216,15 +245,17 @@ jobs:
         if: needs.classify.outputs.full == 'true'
         run: node scripts/check-rust-kernel-parity.mjs --api-only
 
-      - name: Runx-maintained skill operator audit
+      # The core skills ship in the binary, so their bundle, audit and
+      # harnesses are a CLI proof. Vendor skills are product content the
+      # registry proves when it publishes them; CI runs none of them.
+      - name: Core skills
         if: needs.classify.outputs.skills == 'true'
         run: |
-          node scripts/generate-runx-maintained-lock.mjs --check
-          node scripts/audit-core-skills.mjs --check --json
-
-      - name: Runx-maintained skill harness sweep
-        if: needs.classify.outputs.skills == 'true'
-        run: node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build
+          pnpm bundled-skills:check
+          node scripts/audit-core-skills.mjs --check --json --runx-bin crates/target/debug/runx \
+            --skills "${{ needs.classify.outputs.core_skills }}" > /dev/null
+          node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build \
+            --skills "${{ needs.classify.outputs.core_skills }}"
 
   windows-process-lifecycle:
     needs: classify

@@ -12,6 +12,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import { bundledCoreSkills } from "./classify-ci-changes.mjs";
+
 const schema = "runx.inline_harness_sweep.v1";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultPackageTimeoutMs = 120_000;
@@ -43,7 +45,7 @@ try {
 async function runSweep(options) {
   const started = performance.now();
   const runxBin = resolveRunxBinary(options);
-  const skills = runxMaintainedSkills();
+  const skills = selectSkills(runxMaintainedSkills(), options.skills);
   const allowed = new Set(options.allowed);
   const scratchRoot = path.join(repoRoot, ".runx", "harness-sweep");
   mkdirSync(scratchRoot, { recursive: true });
@@ -571,6 +573,32 @@ function resolveRunxBinary(options) {
   return binary;
 }
 
+// The named skills and every core skill whose runners or context name one of
+// them, by package path or registry ref: a change to a skill is proven by its
+// own harness and its core dependants', not the whole catalog.
+function selectSkills(skills, names) {
+  if (!names) return skills;
+  const selected = new Set(names);
+  const core = new Set(bundledCoreSkills());
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const skill of skills) {
+      if (selected.has(skill.name) || !core.has(skill.name)) continue;
+      const profile = path.join(repoRoot, "skills", skill.name, "run.yaml");
+      const text = existsSync(profile) ? readFileSync(profile, "utf8") : "";
+      if ([...selected].some((name) => new RegExp(`(?:\\.\\./|registry:runx/)${escapeRegExp(name)}(?![\\w-])`, "u").test(text))) {
+        selected.add(skill.name);
+        grew = true;
+      }
+    }
+  }
+  return skills.filter((skill) => selected.has(skill.name));
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 function runxMaintainedSkills() {
   const lockPath = path.join(repoRoot, "skills", "runx-maintained.lock.json");
   const lock = JSON.parse(readFileSync(lockPath, "utf8"));
@@ -654,6 +682,8 @@ function parseArgs(argv) {
       if (options.timeoutMs === 0) {
         throw new Error("--timeout-ms requires a positive integer");
       }
+    } else if (arg === "--skills") {
+      options.skills = requiredValue(argv, ++index, arg).split(/[,\s]+/u).filter(Boolean);
     } else if (arg === "--no-build") {
       options.noBuild = true;
     } else if (arg === "--keep-temp") {
@@ -661,7 +691,7 @@ function parseArgs(argv) {
     } else if (arg === "--self-test") {
       options.selfTest = true;
     } else if (arg === "--help" || arg === "-h") {
-      throw new Error("usage: node scripts/harness-sweep.mjs [--require n] [--allow skill[,skill]] [--expected-count n] [--output path] [--runx-bin path] [--timeout-ms n] [--no-build] [--keep-temp] [--self-test]");
+      throw new Error("usage: node scripts/harness-sweep.mjs [--skills skill[,skill]] [--require n] [--allow skill[,skill]] [--expected-count n] [--output path] [--runx-bin path] [--timeout-ms n] [--no-build] [--keep-temp] [--self-test]");
     } else {
       throw new Error(`unknown argument '${arg}'`);
     }

@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// Changes no build or runtime proof reads: checked by the light lane alone.
 const lightOnlyPatterns = [
   /^\.github\/dependabot\.yml$/u,
   /^\.scafld\/(?:runs|specs)\//u,
@@ -12,22 +16,19 @@ const lightOnlyPatterns = [
   /^docs\//u,
   /^llms\.txt$/u,
   /^plans\//u,
-];
-
-const skillPatterns = [
-  /^skills\//u,
+  // A vendor skill is product content the registry proves when it is
+  // published; CI checks only that the lock still describes it.
   /^skills\/runx-maintained\.lock\.json$/u,
-  /^scripts\/(?:audit-core-skills|check-codex-export|check-skill-version-drift|generate-runx-maintained-lock|harness-sweep)\.mjs$/u,
 ];
 
-const skillImpactPatterns = [
-  /^\.github\/workflows\/ci\.yml$/u,
-  /^crates\//u,
-  /^fixtures\/(?:harness|kernel|skills)\//u,
-  /^package\.json$/u,
-  /^pnpm-lock\.yaml$/u,
-  /^rust-toolchain\.toml$/u,
-  /^schemas\//u,
+// Release tooling runs only in the release workflow: a change to it alone is
+// checked by its own syntax and the version and notes checks, not the runtime
+// corpus. The candidate smoke stays in the full lane, since verify:fast runs it.
+const releasePatterns = [
+  /^\.github\/workflows\/release\.yml$/u,
+  /^packaging\//u,
+  /^release\//u,
+  /^scripts\/(?:build-channel-input(?:\.test)?|build-release-archives|check-publishable-package-manifests(?:\.test)?|check-rust-cli-release-artifacts|check-runx-cli-release-notes|global-npm-prefix|publish-npm-tarball|publish-winget-manifest|release-platform-matrix|release-rust-cli|runx-cli-release-profile|set-release-version|smoke-released-cli-live|smoke-runx-image)\.(?:mjs|sh|ts)$/u,
 ];
 
 const windowsPatterns = [
@@ -40,35 +41,36 @@ const windowsPatterns = [
   /^scripts\/harness-sweep\.mjs$/u,
 ];
 
-const knownPatterns = [
-  ...lightOnlyPatterns,
-  ...skillPatterns,
-  ...skillImpactPatterns,
-  /^\.github\//u,
-  /^(?:bindings|dist|examples|fixtures|packages|packaging|release|schemas|scripts|tests|tools)\//u,
-  /^crates\//u,
-  /^(?:\.gitattributes|\.gitignore)$/u,
-  /^SKILL\.md$/u,
-  /^(?:pnpm-workspace|tsconfig\.[^.]+|vitest(?:\.[^.]+)*)\.(?:json|ts|yaml)$/u,
-];
-
-export function classifyFiles(files) {
-  const normalized = [...new Set(files.map((file) => file.trim()).filter(Boolean))].sort();
-  const skillsChanged = normalized.some((file) => matches(skillPatterns, file));
-  const skillRuntimeChanged = normalized.some((file) => matches(skillImpactPatterns, file));
-  const unknown = normalized.some((file) => !matches(knownPatterns, file));
-  const full = normalized.length === 0 || normalized.some((file) =>
-    !matches(lightOnlyPatterns, file) && !matches(skillPatterns, file)
+/** The core skills the CLI ships, bundled into its binary. */
+export function bundledCoreSkills() {
+  const bundle = JSON.parse(
+    readFileSync(path.join(repoRoot, "crates", "runx-runtime", "bundled-skills.json"), "utf8"),
   );
+  const entries = Array.isArray(bundle.skills) ? bundle.skills : Object.values(bundle.skills ?? bundle);
+  return entries.map((entry) => String(entry.skill_id ?? entry.name).split("/").pop());
+}
+
+export function classifyFiles(files, coreSkills = bundledCoreSkills()) {
+  const normalized = [...new Set(files.map((file) => file.trim()).filter(Boolean))].sort();
+  const core = new Set(coreSkills);
+  const skillOf = (file) => /^skills\/([^/]+)\//u.exec(file)?.[1];
+  const vendorSkill = (file) => skillOf(file) !== undefined && !core.has(skillOf(file));
+  const light = (file) => matches(lightOnlyPatterns, file) || vendorSkill(file);
+  const changedCore = [...new Set(normalized.map(skillOf).filter((name) => name && core.has(name)))];
+  const full = normalized.length === 0 || normalized.some((file) =>
+    !light(file) && !matches(releasePatterns, file) && skillOf(file) === undefined
+  );
+  // The core skills ship in the binary: a runtime change proves all of them,
+  // a core skill change proves that skill and its dependants.
+  const coreSkillRuns = full ? [...core].sort() : changedCore.sort();
   return {
     files: normalized,
     full,
-    // Skill packages and the native runtime can alter runx-maintained skill behavior.
-    // Other known workspace changes stay behind the full correctness wall
-    // without paying for an unrelated catalog-wide harness sweep.
-    skills: normalized.length === 0 || skillsChanged || skillRuntimeChanged || unknown,
+    skills: coreSkillRuns.length > 0,
+    core_skills: coreSkillRuns,
     windows: normalized.length === 0 || normalized.some((file) => matches(windowsPatterns, file)),
-    light: !full && !skillsChanged,
+    release: normalized.length === 0 || normalized.some((file) => matches(releasePatterns, file)),
+    light: !full,
   };
 }
 
@@ -76,9 +78,10 @@ function main() {
   const [baseRef, headRef = "HEAD"] = process.argv.slice(2);
   if (!baseRef) fail("usage: node scripts/classify-ci-changes.mjs <base-ref> [head-ref]");
   const classification = classifyFiles(changedFiles(baseRef, headRef));
-  for (const key of ["full", "skills", "windows", "light"]) {
+  for (const key of ["full", "skills", "windows", "release", "light"]) {
     writeOutput(key, String(classification[key]));
   }
+  writeOutput("core_skills", classification.core_skills.join(","));
   writeOutput("changed_files", classification.files.join(" "));
   writeOutput("summary", summarize(classification));
 }
@@ -101,8 +104,9 @@ function changedFiles(base, head) {
 }
 
 function summarize(input) {
-  const lanes = [input.full ? "full" : undefined, input.skills ? "skills" : undefined,
-    input.windows ? "windows" : undefined, input.light ? "light" : undefined].filter(Boolean);
+  const lanes = [input.full ? "full" : undefined, input.skills ? `core skills (${input.core_skills.length})` : undefined,
+    input.windows ? "windows" : undefined, input.release ? "release" : undefined,
+    input.light ? "light" : undefined].filter(Boolean);
   return `${lanes.join("+")} checks for ${input.files.length} changed file(s)`;
 }
 

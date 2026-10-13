@@ -57,11 +57,19 @@ function buildReport(options) {
   const catalog = readNativeCatalog(runx);
   const toolCatalog = readNativeToolCatalog(runx);
   const findings = validateCoverage({ maintained, review, catalog });
+  // CI audits the skills a change proves; with none named, every one.
+  const unknown = [...(options.skills ?? [])].filter(
+    (name) => !maintained.some((record) => runxMaintainedName(record) === name),
+  );
+  if (unknown.length > 0) throw new Error(`--skills names skills that are not runx-maintained: ${unknown.join(", ")}`);
+  const audited = options.skills
+    ? maintained.filter((record) => options.skills.has(runxMaintainedName(record)))
+    : maintained;
   const entries = [];
   let rewrittenManualCount = 0;
   let semanticDiagnosticCount = 0;
 
-  for (const record of maintained) {
+  for (const record of audited) {
     const name = runxMaintainedName(record);
     const decision = review.get(name);
     const catalogItem = catalog.get(name);
@@ -144,7 +152,7 @@ function buildReport(options) {
     });
   }
 
-  const maximumNativeProcesses = maintained.length + 2;
+  const maximumNativeProcesses = audited.length + 2;
   if (nativeProcessCount > maximumNativeProcesses) {
     findings.push(
       `native audit launched ${nativeProcessCount} processes; expected at most ${maximumNativeProcesses}`,
@@ -160,6 +168,7 @@ function buildReport(options) {
     status: findings.length === 0 ? "passed" : "failed",
     summary: {
       runx_maintained: maintained.length,
+      audited: audited.length,
       reviewed: review.size,
       public: publicCount,
       internal: internalCount,
@@ -694,6 +703,7 @@ function parseOptions(args) {
     json: false,
     selfTest: false,
     runxBin: undefined,
+    skills: undefined,
     writeComposes: false,
   };
   for (let index = 0; index < args.length; index += 1) {
@@ -702,6 +712,12 @@ function parseOptions(args) {
     if (argument === "--json") options.json = true;
     else if (argument === "--self-test") options.selfTest = true;
     else if (argument === "--write-composes") options.writeComposes = true;
+    else if (argument === "--skills") {
+      const value = args[index + 1];
+      if (!value) throw new Error("--skills requires a comma-separated list");
+      options.skills = new Set(value.split(",").map((name) => name.trim()).filter(Boolean));
+      index += 1;
+    }
     else if (argument === "--runx-bin") {
       const value = args[index + 1];
       if (!value) throw new Error("--runx-bin requires a path");

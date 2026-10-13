@@ -64,8 +64,8 @@ dependencies. The runtime crate owns those.
 For kernel parity, run `pnpm rust:check` from `oss/` or
 `node ../scripts/check-rust-kernel-parity.mjs` from `oss/crates/`. Install
 optional tools with `cargo install cargo-deny` and
-`cargo install cargo-public-api --version 0.51.0`, plus
-`rustup toolchain install nightly --profile minimal`.
+`cargo install cargo-public-api --version 0.51.0`. The public API snapshot
+is read through one pinned nightly, which the check installs on first use.
 
 Commit the single workspace lockfile at `crates/Cargo.lock`; the workspace
 contains a binary and publishable libraries.

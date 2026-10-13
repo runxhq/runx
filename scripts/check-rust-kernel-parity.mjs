@@ -5,6 +5,10 @@ import { spawnSync } from "node:child_process";
 
 const apiOnly = process.argv.includes("--api-only");
 const cargoPublicApiVersion = "0.51.0";
+// The rustdoc JSON format moves with nightly, so the snapshot is read through
+// one pinned nightly; a floating one would change the gate under an unchanged
+// tree. Advance it with cargoPublicApiVersion.
+const publicApiToolchain = "nightly-2026-10-13";
 
 const commands = apiOnly
   ? [checkPublicApiSnapshot]
@@ -51,8 +55,6 @@ function checkTooling() {
   console.error(`missing Cargo parity tool(s): ${missing.join(", ")}`);
   console.error("Install optional Rust parity tools with:");
   console.error(`  cargo install cargo-deny && cargo install cargo-public-api --version ${cargoPublicApiVersion}`);
-  console.error("cargo-public-api also needs nightly rustdoc JSON:");
-  console.error("  rustup toolchain install nightly --profile minimal");
   process.exit(1);
 }
 
@@ -64,10 +66,11 @@ function checkPublicApiSnapshot() {
     process.exit(1);
   }
   checkCargoPublicApiVersion();
+  ensurePublicApiToolchain();
 
   const result = spawnSync(
     "cargo",
-    ["public-api", "--manifest-path", "crates/runx-core/Cargo.toml", "-sss"],
+    [`+${publicApiToolchain}`, "public-api", "--manifest-path", "crates/runx-core/Cargo.toml", "-sss"],
     { encoding: "utf8" },
   );
   if (result.status !== 0) {
@@ -84,8 +87,16 @@ function checkPublicApiSnapshot() {
   }
 
   console.error(`${expectedPath} is stale; regenerate with:`);
-  console.error("  cargo public-api --manifest-path crates/runx-core/Cargo.toml -sss > crates/runx-core/api-snapshot.txt");
+  console.error(`  cargo +${publicApiToolchain} public-api --manifest-path crates/runx-core/Cargo.toml -sss > crates/runx-core/api-snapshot.txt`);
   process.exit(1);
+}
+
+function ensurePublicApiToolchain() {
+  const installed = spawnSync("rustup", ["toolchain", "list", "--quiet"], { encoding: "utf8" }).stdout ?? "";
+  if (installed.split(/\r?\n/u).some((line) => line.trim().startsWith(`${publicApiToolchain}-`))) {
+    return;
+  }
+  run("rustup", ["toolchain", "install", publicApiToolchain, "--profile", "minimal"]);
 }
 
 function cargoPublicApiInstalled() {

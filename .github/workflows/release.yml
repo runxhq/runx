@@ -103,13 +103,48 @@ jobs:
         run: echo "matrix=$(node scripts/release-platform-matrix.mjs)" >> "$GITHUB_OUTPUT"
       - name: Verify committed manifests match the tag
         run: pnpm exec tsx scripts/set-release-version.ts --check "${{ steps.resolve.outputs.version }}"
-      - name: Fast verify
-        run: pnpm verify:fast
       - name: Verify release metadata checks
         run: node --test scripts/build-channel-input.test.mjs scripts/check-publishable-package-manifests.test.mjs
 
+  # The release revision's fast verification runs beside the platform builds
+  # instead of ahead of them; nothing is published until it, the runtime
+  # quality checks, and the smoke have all passed.
+  verify:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    # As CI sets it, so this job's cache key matches the one main writes.
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Set up pinned toolchain
+        run: rustup show
+      # A tag cannot read another tag's cache, only main's: restore CI's
+      # Linux debug cache and save nothing no later run could read.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+          shared-key: linux-debug
+          save-if: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Fast verify
+        run: pnpm verify:fast
+
   build:
-    needs: [prepare, runtime-quality]
+    needs: prepare
     strategy:
       fail-fast: true
       matrix: ${{ fromJSON(needs.prepare.outputs.platform_matrix) }}
@@ -262,7 +297,7 @@ jobs:
             --expected-version "${{ needs.prepare.outputs.version }}"
 
   github-release:
-    needs: [prepare, build, smoke]
+    needs: [prepare, verify, runtime-quality, build, smoke]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

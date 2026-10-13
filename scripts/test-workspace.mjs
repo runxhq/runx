@@ -1,17 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { cargo, prebuiltBinEnv, rustBuildArgs, workspaceRoot } from "./rust-build.mjs";
 
-const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const cargo = process.platform === "win32" ? "cargo.exe" : "cargo";
-const rustKernelBin = path.join(
-  workspaceRoot,
-  "crates",
-  "target",
-  "debug",
-  process.platform === "win32" ? "runx.exe" : "runx",
-);
 const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 
 ensureRustKernelBin();
@@ -33,7 +23,7 @@ async function runVitest(args, extraEnv = {}) {
         // Point every subprocess-backed suite at the single prebuilt binary so the
         // kernel-parity / parser / CLI eval paths never cold-start a debug binary
         // under parallel load.
-        RUNX_RUST_CLI_BIN: rustKernelBin,
+        ...prebuiltBinEnv,
         ...extraEnv,
       },
     });
@@ -48,34 +38,9 @@ async function runVitest(args, extraEnv = {}) {
   });
 }
 
+// The shared build: after verify:fast it finds nothing to rebuild.
 function ensureRustKernelBin() {
-  const result = spawnSync(
-    cargo,
-    [
-      "build",
-      "--quiet",
-      "--manifest-path",
-      "crates/Cargo.toml",
-      "-p",
-      "runx-cli",
-      "-p",
-      "runx-js-worker",
-      "-p",
-      "runx-core",
-      "-p",
-      "runx-parser",
-      "--bins",
-      "--example",
-      "kernel_eval_batch",
-      "--example",
-      "parser_eval",
-    ],
-    {
-      cwd: workspaceRoot,
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  const result = spawnSync(cargo, rustBuildArgs, { cwd: workspaceRoot, stdio: "inherit", env: process.env });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }

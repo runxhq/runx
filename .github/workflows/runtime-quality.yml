@@ -47,10 +47,14 @@ jobs:
         with:
           tool: cargo-deny
 
+      # CI's Linux debug cache already holds this build; restore it rather
+      # than keep a second copy of the same workspace.
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: crates
+          shared-key: linux-debug
+          save-if: false
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
