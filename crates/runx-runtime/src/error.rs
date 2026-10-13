@@ -118,6 +118,11 @@ pub enum RuntimeError {
         .names.join(", ")
     )]
     MissingEnvironment { names: Vec<String> },
+    #[error(
+        "environment variable(s) {} hold a connector credential, which a skill's declared environment never carries",
+        .names.join(", ")
+    )]
+    CredentialEnvironment { names: Vec<String> },
     #[error("deterministic JavaScript worker failed: {message}")]
     JavaScriptWorker { message: String },
     #[error("credential delivery failed: {0}")]
@@ -233,6 +238,7 @@ impl RuntimeError {
             | Self::UnsupportedRunnerSelection { .. }
             | Self::InvalidProcessInvocation { .. }
             | Self::MissingEnvironment { .. }
+            | Self::CredentialEnvironment { .. }
             | Self::JavaScriptWorker { .. }
             | Self::CredentialDelivery(_)
             | Self::ProviderEffectRejected { .. }

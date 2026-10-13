@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::JsonObject;
 use crate::connector::{
-    ConnectorDigestError, ConnectorRef, CredentialName, Digest, InstanceId, OperationName,
+    ConnectorDigestError, ConnectorRef, CredentialName, Digest, EnvName, InstanceId, OperationName,
     Placement, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
@@ -109,6 +109,16 @@ pub enum InstanceAuthority {
         scopes: Vec<NonEmptyString>,
         material_ref: NonEmptyString,
     },
+    /// The named connector credential, read on every call from the variable
+    /// its declaration delivers it in, in the process environment or the
+    /// workspace `.env`. The instance holds the variable's name, never its
+    /// value, so a key rotated there serves without binding again. `scopes`
+    /// is what the operator grants it, as for a stored credential.
+    Environment {
+        credential: CredentialName,
+        variable: EnvName,
+        scopes: Vec<NonEmptyString>,
+    },
     /// A local session the runtime can identify. A command session pins its
     /// account in the instance's `account_ref`. `scopes` is what the operator
     /// grants it: every scope its credential serves unless narrowed when it
@@ -127,6 +137,7 @@ impl InstanceAuthority {
         match self {
             Self::HostedGrant { .. } => "hosted_grant",
             Self::Credential { .. } => "credential",
+            Self::Environment { .. } => "environment",
             Self::Session { .. } => "session",
             Self::Public => "public",
         }

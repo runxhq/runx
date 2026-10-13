@@ -1,7 +1,8 @@
 //! Confirming instances: the setup half of [`super::instances`].
 //!
 //! Setup reads an authority source once (a signed-in tool's token, a stored
-//! credential profile, a runx Connect grant), pins what it found in an
+//! credential profile, a credential's environment variable, a runx Connect
+//! grant), pins what it found in an
 //! instance and selects that instance as its connector's default. Admission
 //! reads the same source again on every call and refuses when it no longer
 //! matches the pin.
@@ -122,6 +123,50 @@ pub(crate) fn set_credential(
         material_ref,
         parameters,
     )
+}
+
+/// Bind the connector's `credential` to the variable its declaration
+/// delivers it in, set now in the workspace's environment, and select that
+/// instance. The value is checked against the declaration and never stored:
+/// every call reads the variable again. `scopes` narrows the grant; empty
+/// means every scope the credential can serve.
+pub(crate) fn bind_environment(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    scopes: &[String],
+    parameters: JsonObject,
+    workspace: &WorkspaceEnv,
+) -> Result<ConnectorInstance, String> {
+    let parameters = instance_parameters(connector, parameters)?;
+    let variable = credential_declaration(connector, credential)?
+        .delivery
+        .env
+        .clone();
+    credentials::from_environment(workspace.env(), connector, credential, &variable)?;
+    let scopes = credential_scopes(connector, credential, scopes)?;
+    let mut instance = pinned(
+        connector,
+        super::instances::instance_id(&[
+            "environment",
+            connector.connector_ref.as_str(),
+            credential.as_str(),
+            variable.as_str(),
+        ])?,
+        Placement::Local,
+        format!(
+            "runx:principal:local-environment:{}:{variable}",
+            connector.manifest.id
+        ),
+        None,
+        InstanceAuthority::Environment {
+            credential: credential.clone(),
+            variable,
+            scopes: scopes.into_iter().map(Into::into).collect(),
+        },
+    );
+    instance.parameters = parameters;
+    confirm(instances, connector, instance)
 }
 
 /// Bind an already stored local credential profile to this connector. The

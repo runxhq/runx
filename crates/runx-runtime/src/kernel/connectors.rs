@@ -844,10 +844,21 @@ impl ConnectorScope {
             .collect())
     }
 
-    /// The variable every reachable connector delivers a credential in.
+    /// The variable every reachable connector delivers a credential in. A
+    /// project install that does not load is skipped: nothing can bind it.
     pub fn credential_variables(&self) -> Result<BTreeSet<String>, ConnectorRegistryError> {
-        Ok(self
-            .reachable()?
+        let mut connectors = self.connectors()?;
+        if !self.isolated() {
+            for reference in self.installed_refs()? {
+                connectors.extend(
+                    self.installed_versions(&reference)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(_, installed)| installed),
+                );
+            }
+        }
+        Ok(connectors
             .iter()
             .flat_map(|connector| connector.manifest.auth.credentials.values())
             .map(|declaration| declaration.delivery.env.as_str().to_owned())

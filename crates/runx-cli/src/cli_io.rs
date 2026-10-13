@@ -1,4 +1,4 @@
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::process::ExitCode;
 
 pub(crate) fn write_stdout(message: &str) -> io::Result<()> {
@@ -29,9 +29,24 @@ pub(crate) fn read_stdin_secret(what: &str) -> Result<String, String> {
         secret.pop();
     }
     if secret.is_empty() {
-        return Err(format!("{what} from stdin must not be empty"));
+        return Err(format!("no {what} was given on stdin"));
     }
     Ok(secret)
+}
+
+/// A credential the operator gives for `wanted`: typed at a prompt that does
+/// not echo it when stdin is a terminal, else piped whole on stdin.
+pub(crate) fn read_secret(wanted: &str) -> Result<String, String> {
+    if !io::stdin().is_terminal() {
+        return read_stdin_secret(wanted);
+    }
+    let secret = rpassword::prompt_password(format!("{wanted} (input hidden): "))
+        .map_err(|error| format!("reading {wanted}: {error}"))?;
+    let secret = secret.trim_end_matches(['\r', '\n']);
+    if secret.is_empty() {
+        return Err(format!("no {wanted} was given"));
+    }
+    Ok(secret.to_owned())
 }
 
 /// A failure written to stderr, ending the command with its exit code.

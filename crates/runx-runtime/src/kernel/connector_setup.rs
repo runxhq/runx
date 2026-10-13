@@ -1,17 +1,18 @@
 //! One place a connector's authority is set up, listed and removed:
 //! `runx connector use`, `runx connector list` and `runx connector revoke`.
 //!
-//! Four authority sources exist: an instance confirmed earlier, a local
-//! command session (a signed-in tool such as `gh`), a local secret profile,
-//! and a runx Connect grant. Setup composes the confirmations in
-//! [`super::setup`]; it never switches accounts silently, and a request it
-//! cannot resolve to one source is refused with the exact forms that would.
+//! Five authority sources exist: an instance confirmed earlier, a local
+//! command session (a signed-in tool such as `gh`), the variable a
+//! credential's declaration delivers it in, a local secret profile, and a
+//! runx Connect grant. Setup composes the confirmations in [`super::setup`];
+//! it never picks between accounts for the operator, and a request it cannot
+//! resolve to one source is refused with the exact forms that would.
 
 use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use runx_contracts::connector::{CredentialName, HostedAuth, LocalAuth};
+use runx_contracts::connector::{CredentialName, EnvName, HostedAuth, LocalAuth};
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject};
 use serde_json::Value;
 
@@ -45,19 +46,25 @@ pub enum UseRequest<'a> {
     Existing(&'a str),
     /// The connector's local command session, as signed in now.
     Session,
-    /// A new local secret profile holding `secret` as `credential`.
+    /// The connector's `credential`: bound to the variable its declaration
+    /// delivers it in when that is set, else read from the operator and
+    /// stored in `profile`, the connector's own name when none is given.
     Credential {
         credential: &'a CredentialName,
-        secret: &'a str,
-        profile: &'a str,
+        profile: Option<&'a str>,
     },
     /// A new runx Connect grant: delegated, or holding `credential` when the
-    /// connector's hosted placement takes the user's own.
+    /// connector's hosted placement takes the user's own, read from its
+    /// variable when that is set, else from the operator.
     Hosted {
-        credential: Option<(&'a CredentialName, &'a str)>,
+        credential: Option<&'a CredentialName>,
         target: Option<&'a str>,
     },
 }
+
+/// Asks the operator for a credential whose variable is not set, given what
+/// to ask for: the CLI asks on a terminal and reads stdin otherwise.
+pub type SecretReader<'a> = &'a dyn Fn(&str) -> Result<String, String>;
 
 /// What narrows the instance `use` confirms.
 #[derive(Clone, Debug, Default)]
@@ -119,15 +126,16 @@ pub enum Revoked {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SetupForm {
     pub command: String,
-    /// The command reads the credential's secret from stdin.
-    pub reads_secret: bool,
+    /// The variable the command reads the credential from; when it is not
+    /// set, the command asks for the credential.
+    pub variable: Option<EnvName>,
 }
 
 impl fmt::Display for SetupForm {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.command)?;
-        if self.reads_secret {
-            formatter.write_str(" (secret on stdin)")?;
+        if let Some(variable) = &self.variable {
+            write!(formatter, " (reads {variable}, else asks for it)")?;
         }
         Ok(())
     }
@@ -141,9 +149,17 @@ impl fmt::Display for SetupForm {
 pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
     let manifest = &connector.manifest;
     let use_ = format!("runx connector use {}", connector.connector_ref);
-    let form = |suffix: String, reads_secret: bool| SetupForm {
+    let form = |suffix: String| SetupForm {
         command: format!("{use_}{suffix}"),
-        reads_secret,
+        variable: None,
+    };
+    let credential = |prefix: &str, name: &CredentialName| SetupForm {
+        command: format!("{use_}{prefix} --credential {name}"),
+        variable: manifest
+            .auth
+            .credentials
+            .get(name)
+            .map(|declaration| declaration.delivery.env.clone()),
     };
     let mut forms = Vec::new();
     if let Some(local) = &manifest.placements.local {
@@ -151,7 +167,7 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
             match auth {
                 LocalAuth::None => {}
                 LocalAuth::Session if command_session(connector) => {
-                    forms.push(form(" --session".to_owned(), false));
+                    forms.push(form(" --session".to_owned()));
                 }
                 LocalAuth::Session => {}
                 LocalAuth::Credentials => forms.extend(
@@ -159,23 +175,21 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
                         .auth
                         .credentials
                         .keys()
-                        .map(|name| form(format!(" --credential {name}"), true)),
+                        .map(|name| credential("", name)),
                 ),
             }
         }
     }
     if let Some(hosted) = &manifest.placements.hosted {
         match (hosted.auth, &hosted.credential) {
-            (HostedAuth::Delegated, _) => forms.push(form(" --hosted".to_owned(), false)),
-            (HostedAuth::Credential, Some(name)) => {
-                forms.push(form(format!(" --hosted --credential {name}"), true));
-            }
+            (HostedAuth::Delegated, _) => forms.push(form(" --hosted".to_owned())),
+            (HostedAuth::Credential, Some(name)) => forms.push(credential(" --hosted", name)),
             (HostedAuth::Credential, None) => forms.extend(
                 manifest
                     .auth
                     .credentials
                     .keys()
-                    .map(|name| form(format!(" --hosted --credential {name}"), true)),
+                    .map(|name| credential(" --hosted", name)),
             ),
         }
     }
@@ -191,6 +205,9 @@ pub struct ConnectorSetup<'a> {
     /// The wire a local command session's account is read over, when an
     /// embedder gives one.
     transport: Option<Transport>,
+    /// Asks for a credential whose variable is not set, when the embedder
+    /// can ask anyone.
+    secrets: Option<SecretReader<'a>>,
 }
 
 impl<'a> ConnectorSetup<'a> {
@@ -201,6 +218,17 @@ impl<'a> ConnectorSetup<'a> {
             workspace,
             hosted: HostedClient::default(),
             transport: None,
+            secrets: None,
+        }
+    }
+
+    /// This setup, asking `reader` for a credential whose variable is not
+    /// set. Without one, such a credential is refused with its variable.
+    #[must_use]
+    pub fn reading_secrets(self, reader: SecretReader<'a>) -> Self {
+        Self {
+            secrets: Some(reader),
+            ..self
         }
     }
 
@@ -218,6 +246,7 @@ impl<'a> ConnectorSetup<'a> {
             workspace,
             hosted: HostedClient::with_transport(Arc::clone(&transport)),
             transport: Some(transport),
+            secrets: None,
         }
     }
 
@@ -252,19 +281,10 @@ impl<'a> ConnectorSetup<'a> {
             }
             UseRequest::Credential {
                 credential,
-                secret,
                 profile,
-            } => setup::set_credential(
-                self.instances,
-                connector,
-                profile,
-                credential,
-                secret,
-                &options.scopes,
-                options.parameters.clone(),
-                self.workspace,
-            )
-            .map(selected),
+            } => self
+                .credential(connector, credential, profile, options)
+                .map(selected),
             UseRequest::Hosted { credential, target } => {
                 self.hosted_grant(connector, credential, target, options)
             }
@@ -360,6 +380,9 @@ impl<'a> ConnectorSetup<'a> {
                     .map(|instance| UseOutcome::Selected(Box::new(instance)))
             }
             [Path::Session] => self.use_connector(connector, UseRequest::Session, options),
+            [Path::Credential(credential)] => self
+                .credential(connector, credential, None, options)
+                .map(|instance| UseOutcome::Selected(Box::new(instance))),
             [Path::Profile(name)] => self.existing(connector, name, options),
             [Path::Hosted] => self.use_connector(
                 connector,
@@ -373,9 +396,11 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
-    /// The paths that confirm a new instance with nothing only the operator
-    /// can supply, such as a secret. A public API is the floor: it is taken
-    /// only when no account is available.
+    /// The paths that confirm a new instance from what is already here: a
+    /// signed-in session, a credential's variable, a stored profile, a
+    /// Connect account. A public API is the floor, taken only when no account
+    /// is available; past it, a connector that takes one credential asks for
+    /// that credential.
     fn new_paths(&self, connector: &LoadedConnector) -> Result<Vec<Path>, String> {
         let manifest = &connector.manifest;
         let local = manifest
@@ -385,10 +410,15 @@ impl<'a> ConnectorSetup<'a> {
             .map(|local| local.auth.as_slice())
             .unwrap_or(&[]);
         let mut paths = Vec::new();
-        if local.contains(&LocalAuth::Session) && command_session(connector) {
+        if local.contains(&LocalAuth::Session) && self.session_signed_in(connector) {
             paths.push(Path::Session);
         }
         if local.contains(&LocalAuth::Credentials) {
+            for (name, declaration) in &manifest.auth.credentials {
+                if self.variable(&declaration.delivery.env).is_some() {
+                    paths.push(Path::Credential(name.clone()));
+                }
+            }
             for profile in
                 list_local_credential_profiles(self.workspace).map_err(|error| error.to_string())?
             {
@@ -408,7 +438,109 @@ impl<'a> ConnectorSetup<'a> {
         if paths.is_empty() && local.contains(&LocalAuth::None) {
             paths.push(Path::Public);
         }
+        if paths.is_empty()
+            && local.contains(&LocalAuth::Credentials)
+            && let [only] = manifest
+                .auth
+                .credentials
+                .keys()
+                .collect::<Vec<_>>()
+                .as_slice()
+        {
+            paths.push(Path::Credential((*only).clone()));
+        }
         Ok(paths)
+    }
+
+    /// The connector's `credential`, bound to its variable when that is set;
+    /// otherwise read from the operator and stored in `profile`.
+    fn credential(
+        &self,
+        connector: &LoadedConnector,
+        credential: &CredentialName,
+        profile: Option<&str>,
+        options: &UseOptions,
+    ) -> Result<ConnectorInstance, String> {
+        let variable = &declared(connector, credential)?.delivery.env;
+        if self.variable(variable).is_some() {
+            if profile.is_some() {
+                return Err(format!(
+                    "{}'s {credential} credential is read from {variable}, which is set; --profile stores a credential only when its variable is not",
+                    connector.connector_ref
+                ));
+            }
+            return setup::bind_environment(
+                self.instances,
+                connector,
+                credential,
+                &options.scopes,
+                options.parameters.clone(),
+                self.workspace,
+            );
+        }
+        let secret = self.secret(connector, credential)?;
+        setup::set_credential(
+            self.instances,
+            connector,
+            profile.unwrap_or(connector.connector_ref.as_str()),
+            credential,
+            &secret,
+            &options.scopes,
+            options.parameters.clone(),
+            self.workspace,
+        )
+    }
+
+    /// `credential`'s value for a new profile or hosted grant: its variable
+    /// when that is set, else what the operator gives.
+    fn secret(
+        &self,
+        connector: &LoadedConnector,
+        credential: &CredentialName,
+    ) -> Result<String, String> {
+        let declaration = declared(connector, credential)?;
+        let variable = &declaration.delivery.env;
+        if let Some(value) = self.variable(variable) {
+            return Ok(value.to_owned());
+        }
+        let read = self.secrets.ok_or_else(|| {
+            format!(
+                "{} needs its {credential} credential: set {variable}, or run `runx connector use` where it can ask for it",
+                connector.connector_ref
+            )
+        })?;
+        let wanted = match declaration.fields.as_slice() {
+            [_] => format!("{} {credential}", connector.connector_ref),
+            fields => format!(
+                "{} {credential}, a JSON object of {}",
+                connector.connector_ref,
+                fields
+                    .iter()
+                    .map(|field| field.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        };
+        read(&wanted).map_err(|error| format!("{error} (or set {variable})"))
+    }
+
+    /// The workspace's value for `variable`, when it holds one.
+    fn variable(&self, variable: &EnvName) -> Option<&str> {
+        self.workspace
+            .env()
+            .get(variable.as_str())
+            .map(String::as_str)
+            .filter(|value| !value.trim().is_empty())
+    }
+
+    /// The connector's command session yields a token now: its tool is
+    /// installed and signed in.
+    fn session_signed_in(&self, connector: &LoadedConnector) -> bool {
+        super::session::CommandSession::of(&connector.manifest).is_some_and(|session| {
+            session
+                .token(self.workspace.env(), self.workspace.cwd())
+                .is_ok()
+        })
     }
 
     fn signed_in(&self) -> bool {
@@ -428,9 +560,11 @@ impl<'a> ConnectorSetup<'a> {
         forms.extend(
             setup_forms(connector)
                 .into_iter()
-                .map(|form| match form.reads_secret {
-                    true => format!("`{}` with the secret on stdin", form.command),
-                    false => format!("`{}`", form.command),
+                .map(|form| match &form.variable {
+                    Some(variable) => {
+                        format!("`{}` (reads {variable}, else asks for it)", form.command)
+                    }
+                    None => format!("`{}`", form.command),
                 }),
         );
         let login = match connector.manifest.placements.hosted.is_some() && !self.signed_in() {
@@ -534,7 +668,7 @@ impl<'a> ConnectorSetup<'a> {
     fn hosted_grant(
         &self,
         connector: &LoadedConnector,
-        credential: Option<(&CredentialName, &str)>,
+        credential: Option<&CredentialName>,
         target: Option<&str>,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
@@ -554,8 +688,8 @@ impl<'a> ConnectorSetup<'a> {
                 ));
             }
             (HostedAuth::Credential, None) => return Err(needs_credential(connector)),
-            (HostedAuth::Credential, Some((name, secret))) => {
-                Some(self.credential_fields(connector, name, secret, hosted)?)
+            (HostedAuth::Credential, Some(name)) => {
+                Some(self.credential_fields(connector, name, hosted)?)
             }
         };
         let scopes = if options.scopes.is_empty() {
@@ -681,7 +815,6 @@ impl<'a> ConnectorSetup<'a> {
         &self,
         connector: &LoadedConnector,
         name: &CredentialName,
-        secret: &str,
         hosted: &runx_contracts::connector::HostedPlacement,
     ) -> Result<Value, String> {
         if let Some(declared) = hosted
@@ -694,14 +827,10 @@ impl<'a> ConnectorSetup<'a> {
                 connector.connector_ref
             ));
         }
-        let declaration = connector
-            .manifest
-            .auth
-            .credentials
-            .get(name)
-            .ok_or_else(|| format!("{} declares no credential {name}", connector.connector_ref))?;
-        let fields = super::operation::credentials::fields(declaration, secret)
-            .map_err(|reason| format!("the secret {reason}"))?;
+        let declaration = declared(connector, name)?;
+        let secret = self.secret(connector, name)?;
+        let fields = super::operation::credentials::fields(declaration, &secret)
+            .map_err(|reason| format!("the credential {reason}"))?;
         Ok(Value::Object(
             fields
                 .into_iter()
@@ -738,8 +867,27 @@ impl<'a> ConnectorSetup<'a> {
 enum Path {
     Public,
     Session,
+    /// A credential, from its variable when that is set, else asked for.
+    Credential(CredentialName),
     Profile(String),
     Hosted,
+}
+
+fn declared<'a>(
+    connector: &'a LoadedConnector,
+    credential: &CredentialName,
+) -> Result<&'a runx_contracts::connector::CredentialDeclaration, String> {
+    connector
+        .manifest
+        .auth
+        .credentials
+        .get(credential)
+        .ok_or_else(|| {
+            format!(
+                "{} declares no credential {credential}",
+                connector.connector_ref
+            )
+        })
 }
 
 /// A session the runtime confirms by running the command that prints its
@@ -754,9 +902,15 @@ fn command_session(connector: &LoadedConnector) -> bool {
 }
 
 fn needs_credential(connector: &LoadedConnector) -> String {
+    let forms = setup_forms(connector)
+        .into_iter()
+        .filter(|form| form.command.contains(" --hosted --credential "))
+        .map(|form| format!("`{form}`"))
+        .collect::<Vec<_>>();
     format!(
-        "{}'s hosted placement takes your own credential; run `runx connector use {} --hosted --credential <name>` with the secret on stdin",
-        connector.connector_ref, connector.connector_ref
+        "{}'s hosted placement takes your own credential; run {}",
+        connector.connector_ref,
+        forms.join(" or ")
     )
 }
 

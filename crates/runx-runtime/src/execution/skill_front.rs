@@ -340,6 +340,7 @@ fn bind_resolved(
     crate::execution_environment::resolve_declared_environment(
         &manifest.execution_requirements(runner),
         &skill_env,
+        skill_dir,
     )?;
     Ok(BoundRun {
         request,

@@ -234,11 +234,14 @@ effect merely by naming it in prose or input data.
 
 Credentials belong to connectors, and skills only name the connector
 operations they call. Add a skill (it brings the connectors it binds), then bind
-an account once by piping the secret on stdin:
+an account once. With the key in the variable the connector declares, `use`
+binds the connector to that variable and never copies the key; without it,
+`use` asks for the key:
 
 ```bash
 runx registry install runx/web-search
-printf '%s' "$EXA_API_KEY" | runx connector use runx/exa --credential api_key
+export EXA_API_KEY=...
+runx connector use runx/exa
 
 runx skill runx/web-search -i query="receipt verification" --json
 ```

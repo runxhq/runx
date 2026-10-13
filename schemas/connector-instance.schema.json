@@ -67,6 +67,39 @@
         {
           "additionalProperties": false,
           "properties": {
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "environment",
+              "type": "string"
+            },
+            "scopes": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "variable": {
+              "maxLength": 128,
+              "pattern": "^[A-Z][A-Z0-9_]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "credential",
+            "variable",
+            "scopes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
             "kind": {
               "const": "session",
               "type": "string"

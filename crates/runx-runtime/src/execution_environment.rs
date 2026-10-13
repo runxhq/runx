@@ -2,9 +2,11 @@
 //!
 //! The runtime keeps values out of manifests, inspection, receipts, and agent
 //! context. Executable adapters receive only values whose exact names were
-//! declared by the selected act.
+//! declared by the selected act, and never a variable a connector in reach
+//! holds a credential in.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use runx_contracts::{
     EnvironmentRequirementStatus, EnvironmentRequirements, ExecutionRequirements,
@@ -59,14 +61,29 @@ pub(crate) fn process_baseline_environment(
 pub(crate) fn resolve_declared_environment(
     requirements: &ExecutionRequirements,
     environment: &BTreeMap<String, String>,
+    skill_dir: &Path,
 ) -> Result<BTreeMap<String, String>, RuntimeError> {
-    resolve_environment(&requirements.environment, environment)
+    resolve_environment(&requirements.environment, environment, skill_dir)
 }
 
+/// The values of the variables the skill in `skill_dir` declares. A declared
+/// variable that a connector in its reach holds a credential in is refused.
 pub(crate) fn resolve_environment(
     requirements: &EnvironmentRequirements,
     environment: &BTreeMap<String, String>,
+    skill_dir: &Path,
 ) -> Result<BTreeMap<String, String>, RuntimeError> {
+    if requirements.names().next().is_some() {
+        let held = credential_variables(skill_dir, environment)?;
+        let names = requirements
+            .names()
+            .filter(|name| held.contains(*name))
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if !names.is_empty() {
+            return Err(RuntimeError::CredentialEnvironment { names });
+        }
+    }
     let missing = requirements
         .required
         .iter()
@@ -85,6 +102,22 @@ pub(crate) fn resolve_environment(
                 .map(|value| (name.to_owned(), value))
         })
         .collect())
+}
+
+/// The variable every connector the skill in `skill_dir` can reach holds a
+/// credential in, its project's installed versions included.
+pub(crate) fn credential_variables(
+    skill_dir: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<BTreeSet<String>, RuntimeError> {
+    crate::ConnectorScope::at(skill_dir)
+        .map(|scope| {
+            scope.in_project(crate::paths::RunxPaths::resolve(env, skill_dir).connectors())
+        })
+        .and_then(|scope| scope.credential_variables())
+        .map_err(|error| {
+            RuntimeError::effect_state("reading connector credentials", error.to_string())
+        })
 }
 
 /// The host's workspace policy, when it sets one.

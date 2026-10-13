@@ -36,21 +36,7 @@ pub(crate) fn isolate_harness_environment(
     });
 }
 
-/// The credential variables of every connector the skill in `skill_dir` can
-/// reach, its project's installed versions included.
-pub(crate) fn credential_variables(
-    skill_dir: &std::path::Path,
-    env: &BTreeMap<String, String>,
-) -> Result<BTreeSet<String>, crate::RuntimeError> {
-    crate::ConnectorScope::at(skill_dir)
-        .map(|scope| {
-            scope.in_project(crate::paths::RunxPaths::resolve(env, skill_dir).connectors())
-        })
-        .and_then(|scope| scope.credential_variables())
-        .map_err(|error| {
-            crate::RuntimeError::effect_state("reading connector credentials", error.to_string())
-        })
-}
+pub(crate) use crate::execution_environment::credential_variables;
 
 pub use assertions::HarnessReplayReceipt;
 pub use fixtures::{

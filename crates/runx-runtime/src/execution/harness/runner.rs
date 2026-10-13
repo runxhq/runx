@@ -395,8 +395,8 @@ fn wire_operations(
 /// Confirm and select the instances the case runs under, in the case's own
 /// kernel and home, with the fixture environment resolved as the run
 /// resolves it: each session as `runx connector use <connector> --session`
-/// would, and each credential, from the variable the case sets, as
-/// `runx connector use <connector> --credential` would.
+/// would, and each credential bound to the variable the case sets, as
+/// `runx connector use <connector>` would with that variable set.
 fn seed_harness_instances(
     fixture: &HarnessFixture,
     target_path: &Path,
@@ -462,25 +462,19 @@ fn seed_harness_instances(
             .auth
             .credentials
             .iter()
-            .filter_map(|(name, declaration)| {
-                fixture
-                    .env
-                    .get(declaration.delivery.env.as_str())
-                    .map(|secret| (name, secret))
-            });
-        let (Some((name, secret)), None) = (set.next(), set.next()) else {
+            .filter(|(_, declaration)| fixture.env.contains_key(declaration.delivery.env.as_str()))
+            .map(|(name, _)| name);
+        let (Some(name), None) = (set.next(), set.next()) else {
             return Err(failed(format!(
                 "the case sets the variable of exactly one of connector {}'s credentials",
                 connector.connector_ref
             ))
             .into());
         };
-        crate::kernel::setup::set_credential(
+        crate::kernel::setup::bind_environment(
             &instances,
             &connector,
-            manifest.id.as_str(),
             name,
-            secret,
             &[],
             runx_contracts::JsonObject::new(),
             &workspace,

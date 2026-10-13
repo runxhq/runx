@@ -29,8 +29,8 @@ hosted/cloud layer owns OAuth brokerage and hosted credential custody.
   receiving provider credentials.
 - `runx-cli` keeps the native OSS CLI shape. `runx connector use --hosted` is a
   client of the hosted grant lifecycle; it does not perform OAuth brokerage.
-  `runx connector use --credential` stores a local profile as a connector
-  instance.
+  `runx connector use` binds a credential's variable, or stores a local
+  profile, as a connector instance.
 - `runx-sdk` does not expose hosted connect-list APIs.
 - Public payment skills keep only thin v1 hosted operation contracts. Internal
   `mock-*` fixtures under `fixtures/skills` are deterministic simulators and

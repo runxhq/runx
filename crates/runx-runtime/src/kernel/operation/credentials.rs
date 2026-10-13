@@ -1,10 +1,12 @@
 //! Local connector credentials: a named secret in the operator's credential
-//! profiles, bound to a connector credential by an instance.
+//! profiles, or the variable the connector's declaration delivers it in,
+//! bound to a connector credential by an instance.
 //!
 //! A credential with one field is stored and delivered as that field's
 //! value; a credential with several is stored and delivered as a JSON object
-//! of its fields. The declaration fixes the field names, so a profile that
-//! does not hold them is refused at binding and again at delivery.
+//! of its fields. The declaration fixes the field names, so a profile or a
+//! variable that does not hold them is refused at binding and again at
+//! delivery.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -13,7 +15,9 @@ use std::path::Path;
 use crate::kernel::connectors::LoadedConnector;
 use runx_contracts::JsonValue;
 use runx_contracts::connector::credential_declaration_digest;
-use runx_contracts::connector::{ConnectorManifest, CredentialDeclaration, CredentialName};
+use runx_contracts::connector::{
+    ConnectorManifest, CredentialDeclaration, CredentialName, EnvName,
+};
 
 use crate::config::{load_local_credential_secret, load_runx_config_file};
 use crate::credentials::{SecretString, SecretTaint};
@@ -100,6 +104,30 @@ pub(crate) fn deliver(
     let fields = fields(declaration, value.expose())
         .map_err(|reason| format!("credential profile {profile} {reason}"))?;
     Ok(CredentialSecret::new(binding.credential.clone(), fields))
+}
+
+/// The credential an environment instance holds, read now from `variable`
+/// in the command's environment: the process's, filled from the workspace
+/// `.env`. The instance pins the connector, so the variable is still the one
+/// its declaration delivers the credential in.
+pub(crate) fn from_environment(
+    env: &BTreeMap<String, String>,
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    variable: &EnvName,
+) -> Result<CredentialSecret, String> {
+    let declaration = declaration(&connector.manifest, credential)?;
+    let value = env
+        .get(variable.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            format!(
+                "{} reads its {credential} credential from {variable}, which is not set in the environment or the workspace .env",
+                connector.connector_ref
+            )
+        })?;
+    let fields = fields(declaration, value).map_err(|reason| format!("{variable} {reason}"))?;
+    Ok(CredentialSecret::new(credential.clone(), fields))
 }
 
 /// What an instance's credential authority names: the profile, the
@@ -223,6 +251,35 @@ mod tests {
     use runx_contracts::connector::CredentialName;
 
     use super::{ProfileBinding, deliver};
+
+    #[test]
+    fn an_environment_credential_is_read_from_its_variable_on_every_call() {
+        let connector = crate::kernel::connectors::source_scope()
+            .connector("exa")
+            .unwrap();
+        let credential = CredentialName::new("api_key").unwrap();
+        let variable = runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap();
+        let read = |value: Option<&str>| {
+            let env = value
+                .map(|value| BTreeMap::from([("EXA_API_KEY".to_owned(), value.to_owned())]))
+                .unwrap_or_default();
+            super::from_environment(&env, &connector, &credential, &variable)
+        };
+        assert_eq!(
+            read(Some("first")).unwrap().field("api_key").unwrap(),
+            "first"
+        );
+        // A key rotated in the environment serves without binding again.
+        assert_eq!(
+            read(Some("second")).unwrap().field("api_key").unwrap(),
+            "second"
+        );
+        let refused = read(None).unwrap_err();
+        assert!(
+            refused.contains("reads its api_key credential from EXA_API_KEY, which is not set"),
+            "{refused}"
+        );
+    }
 
     /// Two workspaces share one runx home. Binding a profile name in the
     /// second must not move the first workspace's instance to its account.

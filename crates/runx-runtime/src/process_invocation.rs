@@ -128,8 +128,11 @@ pub fn prepare_process_invocation(
         crate::paths::RUNX_CWD_ENV.to_owned(),
         workspace_root.to_string_lossy().into_owned(),
     );
-    let declared_environment =
-        crate::execution_environment::resolve_environment(&tool.environment, &invocation_env)?;
+    let declared_environment = crate::execution_environment::resolve_environment(
+        &tool.environment,
+        &invocation_env,
+        &skill_directory,
+    )?;
     let args = tool
         .args
         .iter()

@@ -1,11 +1,11 @@
 # Credentials
 
 Credentials belong to connectors. A connector manifest declares each
-credential it accepts; an operator binds one account to the connector as an
-instance; a skill only names the connector operations it calls. The kernel
-delivers the instance's credential to the operation it admits, and no skill,
-agent prompt, input, or receipt ever holds the material. An agent should never
-guess an environment name, put a token on argv, or wrap a Runx call with custom
+credential it accepts and the variable that holds it; an operator binds one
+account to the connector as an instance; a skill only names the connector
+operations it calls. The kernel delivers the instance's credential to the
+operation it admits, and no skill, agent prompt, input, or receipt ever holds
+the material. A token never goes on argv, and no Runx call needs custom
 dotenv logic.
 
 ## Connector contract
@@ -113,13 +113,20 @@ and the operation's implementation digest in the receipt includes it.
 ## Binding an account
 
 An instance binds a connector to one account, and `runx connector use` is the
-one place it is made. Four sources can back it:
+one place it is made. Five sources can back it:
 
 ```bash
-# A local secret: stored as a profile (named after the connector unless
-# --profile names it) and bound as the instance. The secret is read from stdin.
-printf '%s' "$TWITTER_USER_AUTH" |
-  runx connector use runx/twitter --credential user --profile work
+# The credential's variable, as the connector declares it, set in the
+# environment or the workspace .env. The instance records the variable's
+# name, never its value; every call reads it again, so a rotated key needs
+# no new binding.
+export EXA_API_KEY=...
+runx connector use runx/exa
+
+# A secret you give: with its variable unset, use asks for it without
+# echoing on a terminal, or reads it from stdin when piped. It is stored as
+# a profile, named after the connector unless --profile names it.
+runx connector use runx/twitter --credential user --profile work
 
 # An instance, profile or grant confirmed earlier, by its id or name. It
 # serves what it was confirmed for; --scope narrows only a new one.
@@ -135,9 +142,17 @@ runx connector use runx/github --session --scope repo.read
 runx connector use runx/github --hosted --scope repo.read --target acme/app
 ```
 
-With nothing named, `runx connector use runx/github` takes the one available
-path, and refuses with the exact forms when there are several. It never
-switches accounts silently.
+With nothing named, `runx connector use <connector>` takes the one available
+path: an instance it already has, a signed-in session, a credential whose
+variable is set, a stored profile or a Connect grant. A connector that takes
+one credential and finds none of these asks for that credential. When there
+are several paths, it refuses with the exact form of each. It never picks
+between accounts for you. An instance bound to a variable acts as whichever
+account the variable holds: changing its value changes the account, as
+rotating a key does. `--credential <name>` picks among a connector's credentials; a
+credential whose variable is set is always bound to that variable, so
+`--profile` stores a secret only when the variable is unset. A session counts
+as a path only when its command is installed and signed in.
 
 A plugin's own connectors are bound from inside the plugin: run these
 commands in the plugin root or below it, and the instance is recorded in the
@@ -146,21 +161,22 @@ and an instance is recorded for the qualified connector, such as `acme/notes`,
 at the exact manifest and connector digests it was confirmed for; a changed
 connector needs its instance confirmed again.
 
-`runx connector use --credential` checks the secret against the declaration's
-`kind` and `fields`, stores it as a profile, and selects it as the connector's
-instance. `--scope` narrows what the instance may do, and `--parameter` pins a
+`runx connector use` checks a credential against the declaration's `kind`
+and `fields` before it binds it, whether it comes from the variable or is
+given, and selects the instance as the connector's. `--scope` narrows what the instance may do, and `--parameter` pins a
 value the connector's requests take. A run uses the selected instance and never
 falls back to another instance or account.
 `runx connector revoke <name>` removes one instance, one profile (and the
 instances that hold it) or one grant (and the instances that stand for it).
 Prior receipts are kept.
 
-An instance pins what it was confirmed for: the stored material, where the
-credential may be sent, what each operation means, and, for a plugin's
-connector, that plugin. When any of these changes (the profile is set again
-elsewhere, the connector's credential declaration or an operation changes, or
-another plugin ships a connector with the same id) the run refuses until the
-account is bound again.
+An instance pins what it was confirmed for: the stored material or the
+variable, where the credential may be sent, what each operation means, and,
+for a plugin's connector, that plugin. When any of these changes (the profile
+is set again elsewhere, the connector's credential declaration or an
+operation changes, or another plugin ships a connector with the same id) the
+run refuses until the account is bound again. An instance bound to a variable
+refuses a run in which the variable is not set.
 
 Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind
@@ -195,8 +211,14 @@ command or MCP server session. Runx's own `RUNX_` variables never come from
 state, Connect or receipt signing, nor supply authority a host admits.
 
 The snapshot supplies a runner's declared `environment.required` and
-`environment.optional` names: ordinary, non-secret configuration. It is not a
-credential source; credentials reach operations only through an instance.
+`environment.optional` names: ordinary, non-secret configuration. It also
+holds the variables connector credentials are read from, and those reach an
+operation only through an instance that `runx connector use` bound. A runner
+that declares a variable any connector in its reach holds a credential in is
+refused before it starts, so a skill's declared environment never carries a
+connector's credential. That closes the declared route only: a process tool
+is a trusted program on the operator's machine and can read what the operator
+can, a workspace `.env` included.
 
 ## Storage and threat model
 

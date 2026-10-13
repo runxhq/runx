@@ -32,8 +32,9 @@ runx connector use store --parameter url=sqlite:data/board.sqlite
 runx connector use store --parameter url=redis://cache.internal:6379/0
 ```
 
-A store that needs a password takes it as the instance's credential, read from
-stdin, never as part of the URL:
+A store that needs a password takes it as the instance's credential, never as
+part of the URL: from `RUNX_STORE_PASSWORD` when that is set in the process
+environment, otherwise asked for, or read from stdin when piped:
 
 ```bash
 printf '%s' "$BOARD_DB_PASSWORD" |

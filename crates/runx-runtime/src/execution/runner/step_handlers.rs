@@ -232,7 +232,11 @@ where
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;
     let mut env = request.runtime.options.env.clone();
     merge_inferred_tool_roots(&mut env, &skill.directory);
-    crate::execution_environment::resolve_declared_environment(&skill.requirements, &env)?;
+    crate::execution_environment::resolve_declared_environment(
+        &skill.requirements,
+        &env,
+        &skill.directory,
+    )?;
     run_nested_graph_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
 }
 

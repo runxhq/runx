@@ -90,6 +90,53 @@ fn process_tool_receives_allowlisted_workspace_env_without_wrapper()
     Ok(())
 }
 
+/// A skill names a connector credential's variable as its own environment:
+/// the run is refused before the tool starts, so the key never reaches it.
+#[test]
+fn a_skill_cannot_take_a_connector_credential_as_its_environment()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = crate::support::temp_root("runx-cli-credential-environment");
+    crate::support::plugin_with_source_connectors(&temp, &["exa"])?;
+    let skill_dir = temp.join("skills").join("key-probe");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: key-probe\ndescription: key-probe fixture.\n---\n# Key Probe\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"
+skill: key-probe
+runners:
+  probe:
+    default: true
+    steps:
+      - id: probe
+        tool: { command: sh, args: ["-c", 'printf ''{"key":"%s"}'' "$EXA_API_KEY"'], environment: { required: [EXA_API_KEY] } }
+        outputs:
+          key: string
+"#,
+    )?;
+
+    let output = native_command()?
+        .current_dir(&temp)
+        .env("EXA_API_KEY", SECRET)
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("--json")
+        .output()?;
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let stderr = String::from_utf8(output.stderr)?;
+    assert!(!output.status.success(), "{stdout}");
+    assert!(
+        stdout.contains("EXA_API_KEY hold a connector credential"),
+        "{stdout}\n{stderr}"
+    );
+    assert!(!stdout.contains(SECRET) && !stderr.contains(SECRET));
+    Ok(())
+}
+
 #[test]
 fn workspace_env_is_loaded_from_discovered_project_root() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -315,10 +362,40 @@ fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     );
     let message = json_failure_message(&output.stdout)?;
     assert!(
-        message.contains("must not be empty"),
+        message.contains("no runx/github token was given on stdin (or set GITHUB_TOKEN)"),
         "expected an error about the empty secret value, got: {message}"
     );
 
+    Ok(())
+}
+
+#[test]
+fn a_credential_in_its_variable_is_bound_without_being_copied()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = crate::support::temp_root("runx-cli-local-credential-environment");
+    crate::support::plugin_with_source_connectors(&temp, &["exa"])?;
+    let output = native_command()?
+        .current_dir(&temp)
+        .env("EXA_API_KEY", SECRET)
+        .args(["connector", "use", "exa", "--json"])
+        .stdin(Stdio::null())
+        .output()?;
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!(output.status.success(), "{stdout}");
+    let selected = serde_json::from_str::<Value>(&stdout)?;
+    assert_eq!(selected["selected"]["authority"]["kind"], "environment");
+    assert_eq!(selected["selected"]["authority"]["variable"], "EXA_API_KEY");
+
+    let listed = native_command()?
+        .current_dir(&temp)
+        .args(["connector", "list"])
+        .output()?;
+    let listed = String::from_utf8(listed.stdout)?;
+    assert!(
+        listed.contains("local environment from EXA_API_KEY"),
+        "{listed}"
+    );
+    assert!(!stdout.contains(SECRET) && !listed.contains(SECRET));
     Ok(())
 }
 

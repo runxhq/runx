@@ -218,9 +218,9 @@ environment-based auto-approval override; development configuration must not
 silently acquire live authority.
 
 Provider-backed skills list the connectors they call in `run.yaml`; bind an
-account with `runx connector use <connector> --credential <name>` (the secret
-on stdin), `--session` or `--hosted`. See [Credentials](credentials.md) for the
-storage contract.
+account with `runx connector use <connector>`: the credential's variable when it
+is set, else the secret asked for or piped on stdin, or `--session` or
+`--hosted`. See [Credentials](credentials.md) for the storage contract.
 
 Ctrl-C (or the terminal's configured interrupt shortcut) interrupts the whole
 active Runx context, including supervised tool, JavaScript, adapter, and MCP

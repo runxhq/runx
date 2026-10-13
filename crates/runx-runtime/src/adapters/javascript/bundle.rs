@@ -46,6 +46,7 @@ pub(super) fn validated_module_from_package(
         environment: crate::execution_environment::resolve_environment(
             &worker.environment,
             &request.env,
+            &request.skill_directory,
         )?,
         worker_path: request.env.get(super::WORKER_PATH_ENV).cloned(),
         limits,

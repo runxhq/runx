@@ -55,6 +55,7 @@ fn envelope(request: &SkillInvocation) -> Result<AgentContextEnvelope, RuntimeEr
     crate::execution_environment::resolve_declared_environment(
         &request.requirements,
         &request.env,
+        &request.skill_directory,
     )?;
     let manual = load_skill_instructions(&request.skill_directory)?;
     let raw_output = request

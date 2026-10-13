@@ -17,7 +17,7 @@ use runx_contracts::connector::{
     ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName,
 };
 use runx_contracts::schema::NonEmptyString;
-use runx_contracts::{ConnectorInstance, JsonObject, JsonValue, Readiness};
+use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, JsonValue, Readiness};
 use runx_runtime::CredentialProfileSummary;
 use runx_runtime::kernel::connector_setup::{
     AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest, setup_forms,
@@ -86,12 +86,14 @@ pub enum UseChoice {
     Existing(String),
     /// The connector's local session, as signed in now.
     Session,
-    /// A new local secret profile; the secret is read from stdin.
+    /// The named credential: its variable when that is set, else asked for
+    /// and stored in a profile.
     Credential {
         credential: CredentialName,
         profile: Option<String>,
     },
-    /// A new runx Connect grant; a credential, when named, is read from stdin.
+    /// A new runx Connect grant; a credential, when named, comes from its
+    /// variable or is asked for.
     Hosted {
         credential: Option<CredentialName>,
         target: Option<String>,
@@ -365,16 +367,6 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             parameters,
         } => {
             let connector = in_workspace(workspace, connector)?;
-            // A credential's secret is read from stdin, never argv.
-            let secret = match choice {
-                UseChoice::Credential { .. }
-                | UseChoice::Hosted {
-                    credential: Some(_),
-                    ..
-                } => crate::cli_io::read_stdin_secret("credential secret")?,
-                _ => String::new(),
-            };
-            let profile_default = connector.connector_ref.as_str().to_owned();
             let request = match choice {
                 UseChoice::Default => UseRequest::Default,
                 UseChoice::Existing(name) => UseRequest::Existing(name),
@@ -384,11 +376,10 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     profile,
                 } => UseRequest::Credential {
                     credential,
-                    secret: &secret,
-                    profile: profile.as_deref().unwrap_or(&profile_default),
+                    profile: profile.as_deref(),
                 },
                 UseChoice::Hosted { credential, target } => UseRequest::Hosted {
-                    credential: credential.as_ref().map(|name| (name, secret.as_str())),
+                    credential: credential.as_ref(),
                     target: target.as_deref(),
                 },
             };
@@ -397,7 +388,10 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 parameters: instance_parameters(parameters),
                 wait: HOSTED_GRANT_WAIT,
             };
+            // A credential whose variable is not set is asked for, never
+            // taken from argv.
             match ConnectorSetup::new(&instances, workspace)
+                .reading_secrets(&crate::cli_io::read_secret)
                 .use_connector(&connector, request, &options)?
             {
                 UseOutcome::Selected(instance) => {
@@ -620,17 +614,20 @@ fn instance_line(record: &InstanceRecord) -> String {
 }
 
 fn instance_summary(instance: &ConnectorInstance) -> String {
+    let source = match &instance.authority {
+        InstanceAuthority::Environment { variable, .. } => format!(" from {variable}"),
+        _ => instance
+            .account_ref
+            .as_ref()
+            .map(|account| format!(" as {account}"))
+            .unwrap_or_default(),
+    };
     format!(
-        "{} ({}, {} {}{})",
+        "{} ({}, {} {}{source})",
         instance.instance_id,
         instance.connector,
         instance.placement.as_str(),
         instance.authority.kind(),
-        instance
-            .account_ref
-            .as_ref()
-            .map(|account| format!(" as {account}"))
-            .unwrap_or_default()
     )
 }
 

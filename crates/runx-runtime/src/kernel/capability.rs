@@ -100,6 +100,28 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 Vec::new(),
             ))
         }
+        InstanceAuthority::Environment {
+            credential,
+            variable,
+            scopes,
+        } => {
+            super::operation::credentials::from_environment(
+                request.env,
+                request.connector,
+                credential,
+                variable,
+            )?;
+            Ok(capability(
+                instance,
+                request.connector,
+                None,
+                scopes
+                    .iter()
+                    .map(|scope| scope.as_str().to_owned())
+                    .collect(),
+                Vec::new(),
+            ))
+        }
         // A local session's account is checked where its authority is read:
         // the command session's token before each call, the browser by the
         // host tool that drives it.

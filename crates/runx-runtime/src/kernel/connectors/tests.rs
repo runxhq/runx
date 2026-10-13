@@ -397,6 +397,30 @@ fn a_plugin_connector_lives_in_the_directory_its_id_names() {
 
 /// Leave `publisher/id` installed as `version` under `home`, as a registry
 /// install does: the package's own `plugin.json` names its publisher.
+/// A project install that does not load is skipped when the credential
+/// variables in reach are read: nothing can bind it, and a skill that only
+/// declares ordinary environment must not fail on it.
+#[test]
+fn credential_variables_skip_an_install_that_does_not_load() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("connectors");
+    let work = root.path().join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    install(&home, "acme", "ops-api", "1.0.0", "First.");
+    let broken = home.join("acme").join("broken").join("1.0.0");
+    std::fs::create_dir_all(&broken).unwrap();
+    std::fs::write(broken.join("connector.yaml"), "not: [a connector").unwrap();
+    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+
+    assert!(scope.reachable().is_err());
+    assert!(
+        scope
+            .credential_variables()
+            .unwrap()
+            .contains("RUNX_STORE_PASSWORD")
+    );
+}
+
 fn install(home: &Path, publisher: &str, id: &str, version: &str, description: &str) -> PathBuf {
     let directory = home.join(publisher).join(id).join(version);
     std::fs::create_dir_all(&directory).unwrap();

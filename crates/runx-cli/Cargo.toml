@@ -29,6 +29,8 @@ base64 = "0.23.1"
 chrono = "0.4.45"
 ctrlc = "3.5.2"
 ring = "0.17.14"
+# A credential typed at a terminal is read without echo.
+rpassword = "7.5.4"
 runx-contracts.workspace = true
 runx-parser.workspace = true
 runx-receipts.workspace = true

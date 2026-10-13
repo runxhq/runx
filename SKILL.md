@@ -98,9 +98,11 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
    - Use `runx skill <skill> --input ... --json` or the skill's documented runner.
    - Provide structured inputs when possible. Do not bury critical values only
      in prose.
-   - If inspection reports a missing declared credential, configure it once with
-     `runx connector use <connector> --credential <name>`, the secret piped on stdin; do not invent wrapper scripts
-     or place secret values on argv.
+   - If inspection reports a missing declared credential, bind it once with
+     `runx connector use <connector>`: it binds the variable the connector
+     declares when that is set, and otherwise asks for the secret (hidden at a
+     terminal) or reads it from stdin when piped. Do not invent wrapper
+     scripts or place secret values on argv.
    - Keep secrets in the runtime's approved secret path, not in `SKILL.md`, chat,
      receipts, or committed fixtures. A project `.env` is a local fallback; stored
      profiles and project bindings are the durable multi-account path.

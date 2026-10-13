@@ -107,8 +107,13 @@ struct Project {
 
 impl Project {
     fn new() -> Self {
+        Self::with(&[])
+    }
+
+    /// A project whose environment also sets `variables`.
+    fn with(variables: &[(&str, &str)]) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let env = BTreeMap::from([
+        let mut env = BTreeMap::from([
             (
                 crate::HOSTED_API_BASE_URL_ENV.to_owned(),
                 BASE_URL.to_owned(),
@@ -117,7 +122,16 @@ impl Project {
                 crate::HOSTED_API_TOKEN_ENV.to_owned(),
                 "rxk_test".to_owned(),
             ),
+            (
+                crate::paths::RUNX_HOME_ENV.to_owned(),
+                root.path().join("home").to_string_lossy().into_owned(),
+            ),
         ]);
+        env.extend(
+            variables
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned())),
+        );
         let instances = Instances::new(
             KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, root.path())).unwrap(),
         );
@@ -279,12 +293,20 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
     })
     .to_string();
 
+    let asked = |wanted: &str| {
+        assert_eq!(
+            wanted,
+            "runx/aws access_key, a JSON object of region, account_id, access_key_id, secret_access_key, session_token"
+        );
+        Ok(secret.clone())
+    };
     let outcome = project
         .setup(&connect)
+        .reading_secrets(&asked)
         .use_connector(
             &aws,
             UseRequest::Hosted {
-                credential: Some((&CredentialName::new("access_key").unwrap(), &secret)),
+                credential: Some(&CredentialName::new("access_key").unwrap()),
                 target: None,
             },
             &options(Duration::ZERO),
@@ -323,7 +345,9 @@ fn a_hosted_credential_session_without_a_credential_names_the_form_that_sends_on
         .unwrap();
 
     assert!(
-        refused.contains("runx connector use runx/aws --hosted --credential <name>"),
+        refused.contains(
+            "`runx connector use runx/aws --hosted --credential access_key (reads AWS_CREDENTIALS, else asks for it)`"
+        ),
         "{refused}"
     );
     assert!(
@@ -360,4 +384,146 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         "runx Connect could not grant runx/slack: access denied"
     );
     assert!(project.instances.list().unwrap().is_empty());
+}
+
+fn selected(outcome: UseOutcome) -> Result<runx_contracts::ConnectorInstance, String> {
+    match outcome {
+        UseOutcome::Selected(instance) => Ok(*instance),
+        UseOutcome::Pending { finish, .. } => Err(format!("still pending: {finish}")),
+    }
+}
+
+fn never_asked(wanted: &str) -> Result<String, String> {
+    Err(format!("asked for {wanted}"))
+}
+
+#[test]
+fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), String> {
+    let exa = source_scope().connector("runx/exa").unwrap();
+    let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
+    let connect = Connect::new(Value::Null, &[]);
+
+    let instance = selected(
+        project
+            .setup(&connect)
+            .reading_secrets(&never_asked)
+            .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))?,
+    )?;
+
+    assert_eq!(
+        instance.authority,
+        InstanceAuthority::Environment {
+            credential: CredentialName::new("api_key").unwrap(),
+            variable: runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap(),
+            scopes: vec!["search.read".into()],
+        }
+    );
+    // The instance names the variable; the key is never copied anywhere.
+    assert!(
+        !serde_json::to_string(&instance)
+            .unwrap()
+            .contains("exa-fixture-key")
+    );
+    assert!(
+        crate::credential_profiles::list_local_credential_profiles(&project.workspace)
+            .unwrap()
+            .is_empty()
+    );
+    Ok(())
+}
+
+#[test]
+fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() -> Result<(), String>
+{
+    let exa = source_scope().connector("runx/exa").unwrap();
+    let project = Project::new();
+    let connect = Connect::new(Value::Null, &[]);
+    let asked = |wanted: &str| {
+        assert_eq!(wanted, "runx/exa api_key");
+        Ok("exa-typed-key".to_owned())
+    };
+
+    let instance = selected(
+        project
+            .setup(&connect)
+            .reading_secrets(&asked)
+            .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))?,
+    )?;
+
+    let InstanceAuthority::Credential { profile, .. } = &instance.authority else {
+        return Err(format!(
+            "a typed credential is stored: {:?}",
+            instance.authority
+        ));
+    };
+    assert_eq!(profile.as_str(), "runx/exa");
+    Ok(())
+}
+
+#[test]
+fn a_credential_that_cannot_be_asked_for_names_its_variable() {
+    let exa = source_scope().connector("runx/exa").unwrap();
+    let project = Project::new();
+    let connect = Connect::new(Value::Null, &[]);
+
+    let refused = project
+        .setup(&connect)
+        .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))
+        .err()
+        .unwrap();
+
+    assert!(refused.contains("set EXA_API_KEY"), "{refused}");
+}
+
+#[test]
+fn a_connector_with_several_credentials_names_each_and_its_variable() {
+    let twitter = source_scope().connector("runx/twitter").unwrap();
+    let project = Project::new();
+    let connect = Connect::new(Value::Null, &[]);
+
+    let refused = project
+        .setup(&connect)
+        .reading_secrets(&never_asked)
+        .use_connector(&twitter, UseRequest::Default, &options(Duration::ZERO))
+        .err()
+        .unwrap();
+
+    assert!(
+        refused.contains(
+            "`runx connector use runx/twitter --credential app` (reads TWITTER_BEARER_TOKEN, else asks for it)"
+        ),
+        "{refused}"
+    );
+    assert!(
+        refused.contains(
+            "`runx connector use runx/twitter --credential user` (reads TWITTER_USER_AUTH, else asks for it)"
+        ),
+        "{refused}"
+    );
+}
+
+#[test]
+fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
+    let exa = source_scope().connector("runx/exa").unwrap();
+    let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
+    let connect = Connect::new(Value::Null, &[]);
+
+    let refused = project
+        .setup(&connect)
+        .reading_secrets(&never_asked)
+        .use_connector(
+            &exa,
+            UseRequest::Credential {
+                credential: &CredentialName::new("api_key").unwrap(),
+                profile: Some("work"),
+            },
+            &options(Duration::ZERO),
+        )
+        .err()
+        .unwrap();
+
+    assert!(
+        refused.contains("is read from EXA_API_KEY, which is set"),
+        "{refused}"
+    );
 }
