@@ -22,11 +22,18 @@ if published=$(npm view "${name}@${version}" dist.integrity --json --prefer-onli
   fi
   echo "${name}@${version} already matches the packed candidate"
 else
-  npm publish "$tarball" --access public --tag latest
+  errors=$(mktemp)
+  status=0
+  npm publish "$tarball" --access public --tag latest 2>"$errors" || status=$?
+  cat "$errors" >&2
+  # npm processes a new version for minutes before serving it, so an earlier
+  # attempt's publish can still be staged; the readback proves its bytes.
+  if [ "$status" -ne 0 ] && ! grep -q 'previously staged version' "$errors"; then
+    exit "$status"
+  fi
 fi
 
-# The registry can take minutes to serve a new version.
-for attempt in $(seq 1 30); do
+for attempt in $(seq 1 60); do
   observed=$(npm view "${name}@${version}" dist.integrity --json --prefer-online 2>/dev/null || true)
   if [ "$observed" = "\"$integrity\"" ]; then
     exit 0
