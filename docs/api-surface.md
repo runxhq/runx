@@ -18,7 +18,7 @@ Version: `0.10.1`
 
 Typed Node client for the native Runx runtime
 
-Version: `0.1.0`
+Version: `0.1.1`
 
 | Import | Types | Runtime |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Version: `0.1.0`
 
 Runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.
 
-Version: `0.4.1`
+Version: `0.4.2`
 
 | Import | Types | Runtime |
 | --- | --- | --- |
