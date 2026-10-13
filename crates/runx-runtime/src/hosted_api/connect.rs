@@ -20,19 +20,19 @@ pub enum HostedConnectAction<'a> {
     },
 }
 
-/// A new Connect grant: the provider, the scopes it serves and, optionally,
-/// the one target it is narrowed to. Connect derives the rest of the grant's
-/// reference from the provider's operations.
+/// A new Connect grant: the exact connector it is for, the scopes it serves
+/// and, optionally, the one target it is narrowed to. Connect derives the
+/// rest of the grant's reference from the connector's operations.
 #[derive(Clone, Copy, Debug)]
 pub struct HostedConnectStart<'a> {
-    pub provider: &'a str,
+    pub connector_binding: &'a runx_contracts::connector::ConnectorBinding,
     pub scopes: &'a [String],
     pub target: Option<&'a str>,
 }
 
 #[derive(Serialize)]
 struct ConnectStartRequest<'a> {
-    provider: &'a str,
+    connector_binding: &'a runx_contracts::connector::ConnectorBinding,
     scopes: &'a [String],
     #[serde(rename = "target_locator", skip_serializing_if = "Option::is_none")]
     target: Option<&'a str>,
@@ -136,7 +136,7 @@ pub fn execute_hosted_connect(
         ),
         HostedConnectAction::Start(start) => {
             let body = serde_json::to_string(&ConnectStartRequest {
-                provider: start.provider,
+                connector_binding: start.connector_binding,
                 scopes: start.scopes,
                 target: non_empty(start.target),
             })

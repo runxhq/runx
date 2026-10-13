@@ -200,7 +200,12 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
         .collect::<Vec<_>>();
     declared.sort();
     declared.dedup();
-    assert_eq!(started[0]["provider"], "slack");
+    assert_eq!(
+        started[0]["connector_binding"],
+        serde_json::to_value(slack.binding()).unwrap(),
+        "Connect is asked for the exact connector the kernel loaded"
+    );
+    assert!(started[0].get("provider").is_none());
     assert_eq!(started[0]["scopes"], json!(declared));
     assert_eq!(connect.sent("/v1/connect/sessions/sess_1").len(), 2);
 }

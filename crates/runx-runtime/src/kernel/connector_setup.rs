@@ -579,7 +579,7 @@ impl<'a> ConnectorSetup<'a> {
         let mut opened = ConnectSession::from_response(
             session
                 .connect(HostedConnectAction::Start(HostedConnectStart {
-                    provider: manifest.id.as_str(),
+                    connector_binding: &connector.binding(),
                     scopes: &scopes,
                     target,
                 }))
