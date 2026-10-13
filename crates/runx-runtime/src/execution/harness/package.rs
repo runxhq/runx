@@ -1,23 +1,60 @@
+//! A skill package's harness: its runners' inline cases and its fixture
+//! files, each run as a case through the one harness engine.
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use runx_contracts::JsonObject;
+use runx_parser::RunnerHarnessCase;
+use serde::Serialize;
+
+use super::fixtures::{HarnessFixture, HarnessSetup};
+use super::runner::{load_harness_case, run_harness_case_with_adapter};
+use super::{HarnessExpectedStatus, HarnessFixtureKind, HarnessOptions, HarnessReplayError};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
-use crate::execution::harness::HarnessOptions;
-use crate::execution::harness::{
-    HarnessExpectedStatus, HarnessFixtureKind, HarnessReplayError, load_harness_fixture,
-};
-use crate::execution::skill_front::{ExecutableAdapter, PackageHarnessReport, SkillRunError};
+use crate::execution::skill_front::{ExecutableAdapter, SkillRunError};
 use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::services::ReceiptServices;
 
-use super::run_loaded_inline_harness_with_effects;
+/// Aggregate result of running a package's inline and conventional fixture
+/// cases. Mirrors the publish-harness summary the registry records: a status,
+/// counts, per-case assertion failures, case names, sealed receipt ids, and how
+/// many `kind: graph` fixtures proved the skill composes into a graph.
+#[derive(Clone, Debug, Serialize)]
+pub struct PackageHarnessReport {
+    pub status: &'static str,
+    pub case_count: usize,
+    pub assertion_error_count: usize,
+    pub assertion_errors: Vec<String>,
+    pub case_names: Vec<String>,
+    pub receipt_ids: Vec<String>,
+    pub graph_case_count: usize,
+}
 
-/// Run every harness case owned by a skill package: inline `harness.cases`
-/// plus conventional `fixtures/*.yaml` files. Discovery is deterministic and
-/// this is the single package entry point used by both the CLI and publishing.
+impl PackageHarnessReport {
+    fn not_declared() -> Self {
+        Self {
+            status: "not_declared",
+            case_count: 0,
+            assertion_error_count: 0,
+            assertion_errors: Vec::new(),
+            case_names: Vec::new(),
+            receipt_ids: Vec::new(),
+            graph_case_count: 0,
+        }
+    }
+}
+
+/// A case as loaded: its fixture and target, or why it could not be read.
+type LoadedCase = Result<(HarnessFixture, PathBuf), String>;
+
+/// Run every harness case a skill package owns, its runners' inline
+/// `harness.cases` and its conventional `fixtures/*.yaml` files, each as a
+/// case through the one harness engine. Discovery is deterministic, and this
+/// is the single package entry point the CLI and publishing use.
 pub(crate) fn run_package_harness_with_effects(
     skill_path: &Path,
     receipt_dir: Option<&Path>,
@@ -27,9 +64,9 @@ pub(crate) fn run_package_harness_with_effects(
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let workspace = crate::WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let mut base_env = workspace.env().clone();
-    crate::execution::harness::isolate_harness_environment(
+    super::isolate_harness_environment(
         &mut base_env,
-        &crate::execution::harness::credential_variables(&loaded.directory)?,
+        &super::credential_variables(&loaded.directory)?,
     );
     let harness = PackageHarnessEnvironment::prepare(
         base_env,
@@ -38,33 +75,77 @@ pub(crate) fn run_package_harness_with_effects(
         receipt_dir,
     )?;
     harness.stage_declared_files(&loaded)?;
-    let mut report = run_loaded_inline_harness_with_effects(
-        &loaded,
-        &harness.inline_cases(),
-        &harness.receipt_dir,
-        &harness.env,
-        effects,
-    )?;
-    replay_conventional_fixtures(&loaded.directory, &harness, effects, &mut report)?;
+    let mut report = PackageHarnessReport::not_declared();
+    let mut cases = inline_cases(&loaded)?;
+    for path in conventional_fixture_paths(&loaded.directory)? {
+        cases
+            .push(load_harness_case(&path).map_err(|error| format!("{}: {error}", path.display())));
+    }
+    replay_cases(cases, &harness, effects, &mut report)?;
     finalize_report(&mut report);
     Ok(report)
 }
 
-fn replay_conventional_fixtures(
-    skill_dir: &Path,
+/// A runner's inline cases, each the fixture it is: a skill case against the
+/// package itself.
+fn inline_cases(loaded: &crate::LoadedSkillPackage) -> Result<Vec<LoadedCase>, SkillRunError> {
+    let Some(harness) = loaded
+        .manifest()
+        .and_then(|manifest| manifest.harness.as_ref())
+    else {
+        return Ok(Vec::new());
+    };
+    let target = fs::canonicalize(&loaded.directory).map_err(|source| {
+        RuntimeError::io(
+            format!("resolving harness target {}", loaded.directory.display()),
+            source,
+        )
+    })?;
+    Ok(harness
+        .cases
+        .iter()
+        .map(|case| Ok((inline_fixture(case), target.clone())))
+        .collect())
+}
+
+fn inline_fixture(case: &RunnerHarnessCase) -> HarnessFixture {
+    HarnessFixture {
+        name: case.name.clone(),
+        kind: HarnessFixtureKind::Skill,
+        target: ".".to_owned(),
+        runner: case.runner.clone(),
+        setup: HarnessSetup::default(),
+        inputs: case.inputs.clone(),
+        env: case.env.clone(),
+        caller: case.caller.clone(),
+        expect: case.expect.clone(),
+        operator_journeys: case.operator_journeys.clone(),
+        metadata: JsonObject::new(),
+    }
+}
+
+fn replay_cases(
+    cases: Vec<LoadedCase>,
     harness: &PackageHarnessEnvironment,
     effects: &RuntimeEffectRegistry,
     report: &mut PackageHarnessReport,
 ) -> Result<(), SkillRunError> {
-    let fixture_paths = conventional_fixture_paths(skill_dir)?;
-    if fixture_paths.is_empty() {
+    if cases.is_empty() {
         return Ok(());
     }
     let mut base_options = HarnessOptions::new(harness.env.clone())?;
     base_options.effects = effects.clone();
     let receipt_services =
         ReceiptServices::from_signature_config(base_options.receipt_signature.clone());
-    for (index, fixture_path) in fixture_paths.into_iter().enumerate() {
+    for (index, case) in cases.into_iter().enumerate() {
+        report.case_count += 1;
+        let (fixture, target_path) = match case {
+            Ok(case) => case,
+            Err(error) => {
+                report.assertion_errors.push(error);
+                continue;
+            }
+        };
         let mut options = base_options.clone();
         options.env.insert(
             RUNX_RECEIPT_DIR_ENV.to_owned(),
@@ -73,64 +154,46 @@ fn replay_conventional_fixtures(
                 .to_string_lossy()
                 .into_owned(),
         );
-        report.case_count += 1;
-        match crate::execution::harness::run_harness_fixture_with_adapter(
-            &fixture_path,
-            ExecutableAdapter,
-            options.clone(),
-        ) {
+        let name = fixture.name.clone();
+        let is_graph = matches!(fixture.kind, HarnessFixtureKind::Graph);
+        let denial_expected = fixture.expect.status == Some(HarnessExpectedStatus::PolicyDenied);
+        match run_harness_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
             Ok(output) => {
                 persist_fixture_receipts(&receipt_services, &harness.receipt_dir, &output)?;
-                if matches!(output.fixture.kind, HarnessFixtureKind::Graph) {
+                if is_graph {
                     report.graph_case_count += 1;
                 }
                 report.case_names.push(output.fixture.name);
                 report.receipt_ids.push(output.receipt.id.to_string());
             }
-            Err(error) => {
-                if let Some((name, is_graph)) = expected_authority_denial(&fixture_path, &error) {
-                    if is_graph {
-                        report.graph_case_count += 1;
-                    }
-                    report.case_names.push(name);
-                } else {
-                    report
-                        .assertion_errors
-                        .push(format!("{}: {error}", fixture_path.display()));
+            Err(error) if denial_expected && is_authority_denial(&error) => {
+                if is_graph {
+                    report.graph_case_count += 1;
                 }
+                report.case_names.push(name);
             }
+            Err(error) => report.assertion_errors.push(format!("{name}: {error}")),
         }
     }
     Ok(())
 }
 
-/// Conventional graph fixtures execute below the skill front so they can
-/// expose step receipts and output assertions. That path returns a native
-/// authority denial directly instead of the skill front's sealed terminal
-/// envelope. Admit only that exact refusal when the fixture explicitly expects
-/// `policy_denied`; never let a broad `failure` expectation hide parser,
-/// harness, or runtime-invariant defects.
-fn expected_authority_denial(
-    fixture_path: &Path,
-    error: &HarnessReplayError,
-) -> Option<(String, bool)> {
-    if !matches!(
+/// A case runs below the skill front so it can expose step receipts and
+/// output assertions, so a native authority denial returns directly instead
+/// of as the front's sealed terminal envelope. Only that exact refusal stands
+/// for a case that expects `policy_denied`; a broad `failure` expectation
+/// never hides a parser, harness or runtime-invariant defect.
+fn is_authority_denial(error: &HarnessReplayError) -> bool {
+    matches!(
         error,
         HarnessReplayError::Runtime(RuntimeError::AuthorityDenied { .. })
-    ) {
-        return None;
-    }
-    let fixture = load_harness_fixture(fixture_path).ok()?;
-    (fixture.expect.status == Some(HarnessExpectedStatus::PolicyDenied)).then(|| {
-        let is_graph = matches!(fixture.kind, HarnessFixtureKind::Graph);
-        (fixture.name, is_graph)
-    })
+    )
 }
 
 fn persist_fixture_receipts(
     receipt_services: &ReceiptServices,
     receipt_dir: &Path,
-    output: &crate::execution::harness::HarnessReplayOutput,
+    output: &super::HarnessReplayOutput,
 ) -> Result<(), SkillRunError> {
     receipt_services.write_local_receipts(
         output
@@ -301,10 +364,6 @@ impl PackageHarnessEnvironment {
         Ok(())
     }
 
-    fn inline_cases(&self) -> PathBuf {
-        self.scratch_root.join("inline-cases")
-    }
-
     fn fixture_receipt_dir(&self, index: usize) -> PathBuf {
         self.scratch_root
             .join("fixture-receipts")
@@ -376,7 +435,7 @@ mod tests {
 
     use super::{
         PackageHarnessEnvironment, PackageHarnessReport, RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV,
-        RunxPaths, expected_authority_denial, finalize_report, run_package_harness_with_effects,
+        RunxPaths, finalize_report, is_authority_denial, run_package_harness_with_effects,
     };
 
     #[test]
@@ -501,21 +560,7 @@ runners:
     }
 
     #[test]
-    fn conventional_harness_admits_only_explicit_authority_denial()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let root = unique_test_root("conventional-authority-denial")?;
-        fs::create_dir_all(&root)?;
-        let fixture_path = root.join("denied.yaml");
-        fs::write(
-            &fixture_path,
-            r#"name: provider-read-is-denied
-kind: skill
-target: ..
-inputs: {}
-expect:
-  status: policy_denied
-"#,
-        )?;
+    fn only_a_native_authority_denial_stands_for_an_expected_policy_denial() {
         let denial = crate::execution::harness::HarnessReplayError::Runtime(
             crate::RuntimeError::AuthorityDenied {
                 verb: runx_contracts::AuthorityVerb::Read,
@@ -523,20 +568,14 @@ expect:
                 reason: "no admitted grant".to_owned(),
             },
         );
-        assert_eq!(
-            expected_authority_denial(&fixture_path, &denial),
-            Some(("provider-read-is-denied".to_owned(), false))
-        );
-
+        assert!(is_authority_denial(&denial));
         let unrelated = crate::execution::harness::HarnessReplayError::Runtime(
             crate::RuntimeError::SkillFailed {
                 skill_name: "provider-read".to_owned(),
                 message: "unexpected adapter defect".to_owned(),
             },
         );
-        assert_eq!(expected_authority_denial(&fixture_path, &unrelated), None);
-        fs::remove_dir_all(root)?;
-        Ok(())
+        assert!(!is_authority_denial(&unrelated));
     }
 
     #[test]
@@ -590,7 +629,6 @@ expect:
             harness.env.get(crate::paths::RUNX_PROJECT_DIR_ENV),
             Some(&scratch_root.join("project").to_string_lossy().into_owned())
         );
-        assert_eq!(harness.inline_cases(), scratch_root.join("inline-cases"));
         assert_ne!(
             harness.fixture_receipt_dir(0),
             harness.fixture_receipt_dir(1)

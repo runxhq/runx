@@ -314,11 +314,6 @@ impl HarnessExchanges {
         }
     }
 
-    /// How many exchanges the case declares.
-    pub(crate) fn len(&self) -> usize {
-        self.exchanges.len()
-    }
-
     pub(crate) fn answer(
         &self,
         request: &RuntimeHttpRequest,

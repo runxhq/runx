@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue};
 use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
-use serde::Serialize;
 use thiserror::Error;
 
 use crate::RuntimeError;
@@ -26,13 +25,11 @@ use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod executable_adapter;
 mod graph;
-mod inline_harness;
 mod resolution_answers;
 pub(crate) mod runner_manifest;
 mod turn_session;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
-pub(crate) use self::inline_harness::run_package_harness_with_effects;
 pub use self::turn_session::TurnSession;
 
 use self::runner_manifest::selected_runner;
@@ -82,13 +79,6 @@ pub enum SkillRunError {
 pub(crate) struct SkillRunOverrides {
     /// Select a runner by name instead of the manifest default.
     pub(crate) runner: Option<String>,
-    /// Resolution values seeded for a single fresh run, with human approvals
-    /// kept distinct from agent answers. `None` reads the request's
-    /// `answers_path`.
-    pub(crate) seeded_answers: Option<resolution_answers::ResolutionAnswers>,
-    /// Agent turns a harness caller works from its script, by request id.
-    pub(crate) turn_scripts:
-        std::collections::BTreeMap<String, runx_parser::harness_fixture::HarnessTurnScript>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
 }
@@ -500,35 +490,6 @@ pub(crate) fn restore_continuation_inputs(
     }
     request.inputs = record.inputs.into_iter().collect();
     Ok(())
-}
-
-/// Aggregate result of running a package's inline and conventional fixture
-/// cases. Mirrors the publish-harness summary the registry records: a status,
-/// counts, per-case assertion failures, case names, sealed receipt ids, and how
-/// many `kind: graph` fixtures proved the skill composes into a graph.
-#[derive(Clone, Debug, Serialize)]
-pub struct PackageHarnessReport {
-    pub status: &'static str,
-    pub case_count: usize,
-    pub assertion_error_count: usize,
-    pub assertion_errors: Vec<String>,
-    pub case_names: Vec<String>,
-    pub receipt_ids: Vec<String>,
-    pub graph_case_count: usize,
-}
-
-impl PackageHarnessReport {
-    fn not_declared() -> Self {
-        Self {
-            status: "not_declared",
-            case_count: 0,
-            assertion_error_count: 0,
-            assertion_errors: Vec::new(),
-            case_names: Vec::new(),
-            receipt_ids: Vec::new(),
-            graph_case_count: 0,
-        }
-    }
 }
 
 /// A run that waits: the requests it waits on, each with its id.

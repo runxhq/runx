@@ -23,10 +23,10 @@ On macOS 26, complete the
 [Developer Tools permission prerequisite](../CONTRIBUTING.md#macos-developer-tools-permission)
 if the initial build stalls.
 
-When no signer is configured, local `runx skill` and inline `runx harness` runs
-sign with the runx home's own key; harness fixture replay signs with the public
-fixture key so its receipts stay deterministic. Publishing and hosted
-verification require a hosted issuer.
+When no signer is configured, local `runx skill` runs sign with the runx home's
+own key. Every `runx harness` case, inline or fixture file, signs with the public
+fixture key whatever signer is configured, so its receipts stay deterministic.
+Publishing and hosted verification require a hosted issuer.
 
 Then inspect the emitted receipt. The full walkthrough is in
 [getting-started.md](getting-started.md), and the next step is
@@ -509,10 +509,8 @@ first-party skill.
 
 ## Skill And X Model
 
-Executable skills split authored skill content from execution profiles. `run.yaml`
-is the runx execution profile file; the short name is public compatibility for
-existing skill packages, but docs and code should describe it as the execution
-profile:
+Executable skills split authored skill content from execution profiles. A
+package's `run.yaml` is its execution profile:
 
 ```text
 skills/issue-to-pr/
@@ -520,8 +518,8 @@ skills/issue-to-pr/
   run.yaml
 ```
 
-Direct execution accepts the package directory or `SKILL.md` inside it. Flat
-`foo.md` skill files are no longer a supported execution surface.
+Direct execution accepts the package directory or the `SKILL.md` inside it. A
+lone markdown file is not a skill package.
 
 In a workspace that owns a `skills/` catalog, a root `SKILL.md` is the
 workspace operator manual exported to agents; it is not an executable package
@@ -606,7 +604,8 @@ README/changelog/setup docs, generated state, logs, screenshots, private
 provider config, or broad project plans inside a public skill. The public docs
 for the package belong in `SKILL.md`; external guides belong under `docs/`.
 
-See `../docs/skill-profile-model.md` for resolution rules, publication modes, trust tiers, MCP export, and composite skill behavior.
+See [skill-to-graph.md](skill-to-graph.md) for composing skills into a graph and
+[publishing.md](publishing.md) for publishing and trust tiers.
 
 Use `work-plan` for bounded change planning, `skill-build` for skill-package
 design and improvement, and the named downstream execution lane for mutation.

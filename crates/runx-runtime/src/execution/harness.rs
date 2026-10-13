@@ -1,10 +1,14 @@
 mod assertions;
 pub mod fixtures;
 mod json_assertions;
+mod package;
 mod provider_responses;
 pub mod runner;
 mod transport;
-pub(crate) mod turns;
+mod turns;
+
+pub use package::PackageHarnessReport;
+pub(crate) use package::run_package_harness_with_effects;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -45,18 +49,15 @@ pub(crate) fn credential_variables(
 }
 
 pub use assertions::HarnessReplayReceipt;
-pub(crate) use assertions::{assert_exchanges_requested, assert_receipt_expectation, status_name};
 pub use fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureCase, HarnessFixtureError,
     HarnessFixtureKind, HarnessFixtureStepOracle, HarnessSetup, ReceiptExpectation, list_cases,
     load_harness_fixture,
 };
-pub(crate) use json_assertions::assert_json_expectation;
 pub use runner::{
     HarnessOptions, HarnessReplayError, HarnessReplayOutput, replay_harness_fixture_with_adapter,
     run_harness_fixture, run_harness_fixture_with_adapter,
 };
-pub(crate) use transport::{effects_for_harness, provider_env, seed_provider_grant};
 
 #[cfg(test)]
 mod environment_tests {

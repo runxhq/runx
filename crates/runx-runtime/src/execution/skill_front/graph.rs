@@ -44,13 +44,11 @@ impl BoundRun {
     /// Start the run, or continue it with the answers its request brings, and
     /// drive it as far as it goes.
     pub(crate) fn execute(&self) -> Result<RunResult, SkillRunError> {
-        let answers = match (&self.overrides.seeded_answers, &self.request.answers_path) {
-            (Some(seeded), _) => seeded.clone(),
-            (None, Some(path)) => read_answers(path)?,
-            (None, None) => ResolutionAnswers::default(),
+        let answers = match &self.request.answers_path {
+            Some(path) => read_answers(path)?,
+            None => ResolutionAnswers::default(),
         };
         let mut host = RunHost::new(answers);
-        host.scripts = std::rc::Rc::new(self.overrides.turn_scripts.clone());
         #[cfg(feature = "agent")]
         {
             host.managed = self.request.managed_agent.max_rounds().map(|max_rounds| {
@@ -577,8 +575,6 @@ pub(super) enum TurnActed {
 /// suspends the run where it asks.
 pub(super) struct RunHost {
     answers: ResolutionAnswers,
-    /// The turns a harness caller works call by call, by request id.
-    scripts: std::rc::Rc<BTreeMap<String, runx_parser::harness_fixture::HarnessTurnScript>>,
     /// The answers turns are given while the run is driven, by address.
     given: BTreeMap<String, JsonValue>,
     act: Option<TurnAct>,
@@ -592,7 +588,6 @@ impl RunHost {
     fn new(answers: ResolutionAnswers) -> Self {
         Self {
             answers,
-            scripts: std::rc::Rc::default(),
             given: BTreeMap::new(),
             act: None,
             acted: None,
@@ -626,7 +621,7 @@ impl RunHost {
 
     /// Whether the host brings nothing a paused run could continue with.
     fn is_idle(&self) -> bool {
-        !self.manages() && self.answers.is_empty() && self.act.is_none() && self.scripts.is_empty()
+        !self.manages() && self.answers.is_empty() && self.act.is_none()
     }
 
     /// An action on a turn needs that turn open.
@@ -649,7 +644,7 @@ impl RunHost {
     /// One driver works a run's turns: the one it started with. Answers
     /// alone drive no turn.
     fn check_driver(&self, run_id: &str, driver: Option<Driver>) -> Result<(), SkillRunError> {
-        let attached = self.act.is_some() || !self.scripts.is_empty();
+        let attached = self.act.is_some();
         let drives = self.manages() || attached;
         match driver {
             None if drives => Err(invalid(format!(
@@ -697,11 +692,6 @@ impl RunHost {
             let agent_act = matches!(request, ResolutionRequest::AgentAct { .. });
             if self.answers.get(id, &digest).is_some()
                 || self.act.as_ref().is_some_and(|act| act.turn == id)
-                || (agent_act
-                    && (self.scripts.contains_key(id)
-                        || self
-                            .scripts
-                            .contains_key(crate::execution::run_record::local_request_id(id))))
                 || (self.manages() && agent_act)
             {
                 return Ok(true);
@@ -767,14 +757,6 @@ impl Host for RunHost {
                     TurnActed::Completed
                 }
             });
-            return Ok(());
-        }
-        let scripts = std::rc::Rc::clone(&self.scripts);
-        let answered = self.answers.answers_address(&address);
-        if let Some(output) =
-            crate::execution::harness::turns::work_scripted_turn(turn, self, &scripts, answered)?
-        {
-            self.given.insert(address, output);
             return Ok(());
         }
         #[cfg(feature = "agent")]

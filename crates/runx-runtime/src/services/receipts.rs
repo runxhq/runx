@@ -105,22 +105,6 @@ impl ReceiptServices {
         LocalReceiptStore::new(receipt_dir)
             .write_receipts(receipts, self.signature_config.signature_policy())
     }
-
-    pub(crate) fn list_local_receipts(
-        &self,
-        receipt_dir: &Path,
-    ) -> Result<Vec<Receipt>, ReceiptStoreError> {
-        LocalReceiptStore::new(receipt_dir).list(self.signature_config.signature_policy())
-    }
-
-    pub(crate) fn read_local_receipt(
-        &self,
-        receipt_id: &str,
-        receipt_dir: &Path,
-    ) -> Result<Receipt, ReceiptStoreError> {
-        LocalReceiptStore::new(receipt_dir)
-            .read_exact(receipt_id, self.signature_config.signature_policy())
-    }
 }
 
 fn receipt_read_error(message: impl Into<String>) -> RuntimeError {

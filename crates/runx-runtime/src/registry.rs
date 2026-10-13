@@ -1,7 +1,6 @@
 mod bundled;
 mod connector_install;
 mod http;
-mod index;
 mod install;
 mod local;
 pub(crate) mod package_bundle;
@@ -25,10 +24,6 @@ pub use connector_install::{
     RegistryConnectorVersion, install_registry_connector,
 };
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
-pub use index::{
-    IndexError, IndexRepositoryOptions, IndexResponse, IndexWarning, IndexedListing, IndexedRepo,
-    index_repository,
-};
 pub use install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
     InstallStatus, install_local_skill,

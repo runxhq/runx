@@ -20,7 +20,7 @@ use crate::execution::runner::turn::{Turn, call_tool};
 /// answer (`answered` says whether an answer names this one). Returns the
 /// turn's output once every call has settled, or `None` when the turn has
 /// no script or a call waits on something the caller did not answer.
-pub(crate) fn work_scripted_turn(
+pub(super) fn work_scripted_turn(
     turn: &mut dyn Turn,
     host: &mut dyn Host,
     scripts: &BTreeMap<String, HarnessTurnScript>,

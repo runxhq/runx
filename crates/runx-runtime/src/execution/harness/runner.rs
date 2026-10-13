@@ -205,11 +205,17 @@ pub fn run_harness_fixture_with_adapter<A>(
 where
     A: SkillAdapter,
 {
-    let receipt_signature = options.receipt_signature.clone();
-    let output = replay_harness_fixture_with_adapter(fixture_path, adapter, options)?;
-    assert_expectations(&output, receipt_signature.signature_policy())
-        .map_err(|error| expectation_error_with_output(error, &output))?;
-    Ok(output)
+    let (fixture, target_path) = load_harness_case(fixture_path.as_ref())?;
+    run_harness_case_with_adapter(fixture, target_path, adapter, options)
+}
+
+/// A fixture file's case and the skill or graph it targets.
+pub(crate) fn load_harness_case(
+    fixture_path: &Path,
+) -> Result<(HarnessFixture, PathBuf), HarnessReplayError> {
+    let fixture = load_harness_fixture(fixture_path)?;
+    let target_path = resolve_target_path(fixture_path, &fixture.target)?;
+    Ok((fixture, target_path))
 }
 
 /// Replay a case without asserting its expectations: for a generator that
@@ -223,9 +229,38 @@ pub fn replay_harness_fixture_with_adapter<A>(
 where
     A: SkillAdapter,
 {
-    let fixture_path = fixture_path.as_ref();
-    let mut fixture = load_harness_fixture(fixture_path)?;
-    let target_path = resolve_target_path(fixture_path, &fixture.target)?;
+    let (fixture, target_path) = load_harness_case(fixture_path.as_ref())?;
+    replay_harness_case(fixture, target_path, adapter, options)
+}
+
+/// Run one case, a fixture file's or a runner's inline case, against the
+/// skill or graph at `target_path`, and assert what it expects. Both kinds
+/// run here, through one engine.
+pub(crate) fn run_harness_case_with_adapter<A>(
+    fixture: HarnessFixture,
+    target_path: PathBuf,
+    adapter: A,
+    options: HarnessOptions,
+) -> Result<HarnessReplayOutput, HarnessReplayError>
+where
+    A: SkillAdapter,
+{
+    let receipt_signature = options.receipt_signature.clone();
+    let output = replay_harness_case(fixture, target_path, adapter, options)?;
+    assert_expectations(&output, receipt_signature.signature_policy())
+        .map_err(|error| expectation_error_with_output(error, &output))?;
+    Ok(output)
+}
+
+fn replay_harness_case<A>(
+    mut fixture: HarnessFixture,
+    target_path: PathBuf,
+    adapter: A,
+    options: HarnessOptions,
+) -> Result<HarnessReplayOutput, HarnessReplayError>
+where
+    A: SkillAdapter,
+{
     // Each case runs in a home and a project directory of its own, held
     // until the case is done: its profiles, instances, custody and usage
     // never reach the operator or another case.

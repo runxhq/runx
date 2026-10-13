@@ -13,36 +13,18 @@ use crate::http::{
 };
 use crate::kernel::operation::OperationEffect;
 
-/// The registry a harness case runs with: the case's exact HTTP exchanges are
-/// attached for the native tools, and operation steps run over the harness
-/// transport, which answers the provider fixture and those exchanges. Every
-/// other request is refused; a harness run never reaches the network. No public runtime input,
-/// environment variable or provider configuration can create this state;
-/// only the harness fronts call this function.
-pub(crate) fn effects_for_harness(
-    effects: &RuntimeEffectRegistry,
-    caller: &HarnessCaller,
-    scope: &crate::ConnectorScope,
-) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
-    let transport =
-        harness_transport(caller, scope).map_err(|message| RuntimeEffectError::Failed {
-            family: crate::kernel::operation::OPERATION_EFFECT_FAMILY.to_owned(),
-            operation: "binding the harness provider grant",
-            message,
-        })?;
-    effects_over(effects, transport, caller)
-}
-
-/// The registry with `transport` beneath operation steps and the caller's
-/// exact exchanges attached for the native tools that read them.
+/// The registry a harness case runs with: operation steps run over the
+/// harness transport, which answers the provider fixture and the case's
+/// exact HTTP exchanges. Every other request is refused; a harness run never
+/// reaches the network. No public runtime input, environment variable or
+/// provider configuration can create this state; only the harness engine
+/// calls this function.
 pub(super) fn effects_over(
     effects: &RuntimeEffectRegistry,
     transport: HarnessTransport,
     caller: &HarnessCaller,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
-    let mut effects = effects
-        .clone()
-        .with_harness_http(Some(Arc::clone(&transport.exchanges)));
+    let mut effects = effects.clone();
     effects.replace_effect(OperationEffect::harness(transport, &caller.mcp_calls))?;
     Ok(effects)
 }

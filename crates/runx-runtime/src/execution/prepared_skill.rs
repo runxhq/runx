@@ -1111,12 +1111,13 @@ mod tests {
             .refusal_receipt_id
             .as_deref()
             .ok_or("blocked preparation did not expose its refusal receipt")?;
-        let receipts =
+        let services =
             crate::services::ReceiptServices::resolve(&crate::services::WorkspaceEnv::new(
                 prepared.request().env.clone(),
                 prepared.request().cwd.clone(),
-            )?)?
-            .list_local_receipts(&receipt_dir)?;
+            )?)?;
+        let receipts = crate::receipts::store::LocalReceiptStore::new(&receipt_dir)
+            .list(services.signature_config().signature_policy())?;
         assert!(
             receipts
                 .iter()
@@ -1147,12 +1148,13 @@ mod tests {
         let prepared = prepare_skill_run(request, None, PreparedEntryProvenance::default())?;
         assert_eq!(prepared.report().status, PreparedSkillRunStatus::Blocked);
         assert!(prepared.report().refusal_receipt_id.is_some());
-        let receipts =
+        let services =
             crate::services::ReceiptServices::resolve(&crate::services::WorkspaceEnv::new(
                 prepared.request().env.clone(),
                 prepared.request().cwd.clone(),
-            )?)?
-            .list_local_receipts(&receipt_dir)?;
+            )?)?;
+        let receipts = crate::receipts::store::LocalReceiptStore::new(&receipt_dir)
+            .list(services.signature_config().signature_policy())?;
         let public = serde_json::to_string(&(prepared.report(), receipts))?;
         assert!(!public.contains(sentinel));
         assert!(public.contains("/secret_ref"));

@@ -12,10 +12,6 @@ mod catalog;
 #[derive(Clone)]
 pub struct RuntimeEffectRegistry {
     families: BTreeMap<&'static str, Arc<dyn RuntimeEffect>>,
-    /// The exact HTTP exchanges admitted by the harness front. This state has
-    /// no environment or skill-input loader and is absent from every live
-    /// registry.
-    harness_http: Option<Arc<crate::http::HarnessExchanges>>,
 }
 
 impl RuntimeEffectRegistry {
@@ -28,20 +24,7 @@ impl RuntimeEffectRegistry {
     pub fn empty() -> Self {
         Self {
             families: BTreeMap::new(),
-            harness_http: None,
         }
-    }
-
-    pub(crate) fn with_harness_http(
-        mut self,
-        exchanges: Option<Arc<crate::http::HarnessExchanges>>,
-    ) -> Self {
-        self.harness_http = exchanges;
-        self
-    }
-
-    pub(crate) fn harness_http_exchanges(&self) -> Option<&crate::http::HarnessExchanges> {
-        self.harness_http.as_deref()
     }
 
     pub fn with_effect<T>(effect: T) -> Result<Self, RuntimeEffectError>
@@ -207,13 +190,6 @@ impl fmt::Debug for RuntimeEffectRegistry {
         formatter
             .debug_struct("RuntimeEffectRegistry")
             .field("families", &families)
-            .field(
-                "harness_http_exchange_count",
-                &self
-                    .harness_http
-                    .as_ref()
-                    .map_or(0, |exchanges| exchanges.len()),
-            )
             .finish()
     }
 }

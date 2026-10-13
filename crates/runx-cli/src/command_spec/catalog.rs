@@ -338,16 +338,14 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "add",
         top_level_usage: &[],
         usage: &[
-            "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+            "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
         ],
         notes: &[],
         options: &[
             "--registry url|path  Registry URL or local registry path for skill refs",
             "--version version    Registry version for skill refs",
-            "--ref git-ref        Git ref for GitHub repository URLs",
             "--digest sha256      Expected package digest for skill refs",
             "--to dir             Install destination for skill refs",
-            "--api-base-url url   Hosted index API for GitHub repository URLs",
             "-j, --json",
         ],
     },

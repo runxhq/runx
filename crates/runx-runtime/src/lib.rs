@@ -104,7 +104,7 @@ pub use effects::{
 pub use error::RuntimeError;
 pub use harness::{
     HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessOptions,
-    HarnessReplayError, HarnessReplayOutput, load_harness_fixture,
+    HarnessReplayError, HarnessReplayOutput, PackageHarnessReport, load_harness_fixture,
     replay_harness_fixture_with_adapter, run_harness_fixture, run_harness_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
@@ -186,7 +186,6 @@ pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{
     VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, read_workspace_text,
 };
-pub use skill_front::PackageHarnessReport;
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, inspect_skill_package, load_validated_skill_package,
 };

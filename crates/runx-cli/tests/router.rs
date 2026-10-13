@@ -10,11 +10,11 @@ use runx_cli::policy::{PolicyAction, PolicyPlan};
 use runx_cli::registry::{ConnectorAction, RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
-    AddUrlPlan, DevPlan, DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, InitPlan,
-    JsonErrorPlan, ListKind, ListPlan, NewPlan, RouterAction, ToolAction, ToolPlan, add_help_text,
-    command_help_text, connect_help_text, harness_help_text, help_text, history_help_text,
-    list_help_text, login_help_text, publish_help_text, registry_help_text, route_args,
-    skill_help_text, verify_help_text,
+    DevPlan, DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, InitPlan, ListKind,
+    ListPlan, NewPlan, RouterAction, ToolAction, ToolPlan, add_help_text, command_help_text,
+    connect_help_text, harness_help_text, help_text, history_help_text, list_help_text,
+    login_help_text, publish_help_text, registry_help_text, route_args, skill_help_text,
+    verify_help_text,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
@@ -60,7 +60,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+        "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
     );
     assert_help_line(&help, "runx parser eval --input <file|-> --json");
     assert_help_line(
@@ -288,7 +288,7 @@ fn documented_command_help_is_native() {
 
     assert_help_line(
         &add_help_text(),
-        "runx add <skill-ref|repository-url> [--registry url|path] [--version version] [--ref git-ref] [--digest sha256] [--to dir] [--api-base-url url] [--json]",
+        "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
     );
     assert!(!add_help_text().contains("--installation-id"));
     assert_help_line(
@@ -1029,20 +1029,14 @@ fn rejects_unsafe_registry_version() {
 }
 
 #[test]
-fn add_indexes_any_repository_url_and_installs_skill_refs_and_paths() {
-    let indexes = |subject: &str| matches!(plan(&["add", subject]), RouterAction::RunAddUrl(_));
-    assert!(indexes("https://git.example.com/acme/skills"));
-    assert!(indexes("codeberg.org/acme/skills"));
-    assert!(!indexes("acme/sourcey@1.0.0"));
-    assert!(!indexes("./skills/sourcey"));
-    assert!(!indexes("https://git.example.com/acme"));
-}
-
-#[test]
 fn every_command_that_prints_json_reads_dash_j_as_json() {
     assert!(matches!(
-        plan(&["add", "codeberg.org/acme/skills", "-j"]),
-        RouterAction::RunAddUrl(plan) if plan.json && plan.repo == "codeberg.org/acme/skills"
+        plan(&["add", "acme/echo@1.0.0", "-j"]),
+        RouterAction::RunRegistry(plan) if plan.json && plan.subject == "acme/echo@1.0.0"
+    ));
+    assert!(matches!(
+        plan(&["export", "claude", "-j"]),
+        RouterAction::RunExport(plan) if plan.json
     ));
 }
 
@@ -1076,42 +1070,11 @@ fn routes_add_to_native_plan() {
             json: true,
         })
     );
+    // One way to add: a skill ref. A repository is published with
+    // `runx registry publish`.
     assert_eq!(
-        plan(&[
-            "add",
-            "github.com/kam/skills",
-            "--ref",
-            "main",
-            "--api-base-url",
-            "https://api.runx.test",
-            "--json",
-        ]),
-        RouterAction::RunAddUrl(AddUrlPlan {
-            repo: "github.com/kam/skills".to_owned(),
-            repo_ref: Some("main".to_owned()),
-            api_base_url: Some("https://api.runx.test".to_owned()),
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["add", "github.com/kam/skills", "--version", "main"]),
-        RouterAction::Error(
-            "runx add <repository-url> uses --ref for git refs, not --version".to_owned()
-        )
-    );
-    assert_eq!(
-        plan(&[
-            "add",
-            "github.com/kam/skills",
-            "--version",
-            "main",
-            "--json"
-        ]),
-        RouterAction::JsonError(JsonErrorPlan {
-            message: "runx add <repository-url> uses --ref for git refs, not --version".to_owned(),
-            code: "invalid_args".to_owned(),
-            exit_code: 64,
-        })
+        plan(&["add", "github.com/kam/skills", "--ref", "main"]),
+        RouterAction::Error("unknown add flag --ref".to_owned())
     );
 }
 

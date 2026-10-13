@@ -4,9 +4,8 @@
   "description": "The governed runtime for agent skills: explicit skills, bounded authority, gated actions, and a signed receipt for every run.",
   "folders": ["docs", "skills", "schemas", "examples"],
   "excludeFolders": ["target", "node_modules", "dist", "tests", "fixtures", "release-fixture-project"],
-  "excludeFiles": ["CHANGELOG.md"],
   "rules": [
-    "A skill is a SKILL.md contract; an execution profile is an run.yaml; a chain is a runx.yaml.",
+    "A skill is a SKILL.md contract; its execution profile is a run.yaml; a graph is a graph.yaml.",
     "Read a skill before running it: its manifest, the authority it requests, and its trust tier.",
     "Grant the narrowest authority the skill declares it needs, never a broader scope for convenience.",
     "Consequential actions pass through a gate; treat the signed receipt as the record of what ran, not the console output.",

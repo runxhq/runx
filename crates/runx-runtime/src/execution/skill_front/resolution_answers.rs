@@ -8,29 +8,14 @@ use super::{SkillRunError, invalid};
 use crate::RuntimeError;
 
 /// Resolution values retain their authority lane instead of flattening every
-/// caller-supplied value into an agent answer. Approval provenance is needed
-/// both by live resume files and by inline harness cases.
+/// caller-supplied value into an agent answer. Each is keyed by the address
+/// of the one open request it answers, once.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ResolutionAnswers {
     values: JsonObject,
     human_approvals: BTreeSet<String>,
-    keys: AnswerKeys,
     /// The digest of the request each addressed answer was spent on.
     spent: BTreeMap<String, String>,
-}
-
-/// How an answer names the request it answers.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum AnswerKeys {
-    /// By address: a resume answers one open request, once.
-    #[default]
-    Address,
-    /// As a harness script: an answer keyed by an address answers that
-    /// request; an agent's answer keyed by a request's id in its own run
-    /// answers every ask of that id, at any depth, that no address names. An
-    /// approval decides only the request it names: below the root, by its
-    /// full address.
-    Script,
 }
 
 impl ResolutionAnswers {
@@ -39,35 +24,6 @@ impl ResolutionAnswers {
             values,
             ..Self::default()
         }
-    }
-
-    /// These answers as a script: each answers every request with its id,
-    /// in whichever run asks it.
-    pub(super) fn scripted(self) -> Self {
-        Self {
-            keys: AnswerKeys::Script,
-            ..self
-        }
-    }
-
-    /// The key `request_id`, an address, is answered under.
-    fn key<'a>(&self, request_id: &'a str) -> &'a str {
-        match self.keys {
-            AnswerKeys::Script if !self.values.contains_key(request_id) => {
-                let local = crate::execution::run_record::local_request_id(request_id);
-                if self.human_approvals.contains(local) {
-                    request_id
-                } else {
-                    local
-                }
-            }
-            AnswerKeys::Address | AnswerKeys::Script => request_id,
-        }
-    }
-
-    /// Whether an answer names the request at `address` itself.
-    pub(super) fn answers_address(&self, address: &str) -> bool {
-        self.values.contains_key(address)
     }
 
     pub(super) fn from_lanes(
@@ -93,39 +49,35 @@ impl ResolutionAnswers {
 
     /// Spend the answer to `request_id` on the request with `digest`. An
     /// addressed answer answers that request wherever it is asked again,
-    /// and no other: a different request at its address waits. A script
-    /// answers each.
+    /// and no other: a different request at its address waits.
     pub(super) fn spend(&mut self, request_id: &str, digest: &str) {
-        if self.keys == AnswerKeys::Address {
-            self.spent.insert(request_id.to_owned(), digest.to_owned());
-        }
+        self.spent.insert(request_id.to_owned(), digest.to_owned());
     }
 
     /// The answer to `request_id`, the request with `digest`.
     pub(super) fn get(&self, request_id: &str, digest: &str) -> Option<&JsonValue> {
-        let key = self.key(request_id);
-        if self.spent.get(key).is_some_and(|spent| spent != digest) {
+        if self
+            .spent
+            .get(request_id)
+            .is_some_and(|spent| spent != digest)
+        {
             return None;
         }
-        self.values.get(key)
+        self.values.get(request_id)
     }
 
     pub(super) fn is_human_approval(&self, request_id: &str) -> bool {
-        self.human_approvals.contains(self.key(request_id))
+        self.human_approvals.contains(request_id)
     }
 
     /// A person approves only what they were shown: every approval a resume
     /// brings names one of `waiting`, the addresses the run is paused at, so
-    /// none reaches a request first asked during the resume. A script decides
-    /// whatever its case asks.
+    /// none reaches a request first asked during the resume.
     pub(super) fn check_waiting(
         &self,
         run_id: &str,
         waiting: &[&str],
     ) -> Result<(), SkillRunError> {
-        if self.keys == AnswerKeys::Script {
-            return Ok(());
-        }
         match self
             .human_approvals
             .iter()

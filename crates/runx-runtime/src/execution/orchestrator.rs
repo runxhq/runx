@@ -12,11 +12,11 @@ use std::path::PathBuf;
 use runx_contracts::{ClosureDisposition, JsonValue, Receipt};
 use thiserror::Error;
 
+use super::harness::PackageHarnessReport;
 use super::harness::{HarnessReplayError, HarnessReplayOutput};
 use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
-use super::skill_front::PackageHarnessReport;
 use super::skill_front::{SkillRunError, TurnSession};
 use crate::effects::RuntimeEffectRegistry;
 
@@ -266,7 +266,6 @@ impl LocalOrchestrator {
             &super::skill_front::SkillRunOverrides {
                 runner: Some(runner.to_owned()),
                 javascript: Some(javascript),
-                ..Default::default()
             },
             &self.effects,
             Some(package_digest),
@@ -395,7 +394,7 @@ impl LocalOrchestrator {
         &self,
         request: &PackageHarnessRequest,
     ) -> Result<PackageHarnessReport, OrchestratorError> {
-        Ok(super::skill_front::run_package_harness_with_effects(
+        Ok(super::harness::run_package_harness_with_effects(
             &request.skill_path,
             request.receipt_dir.as_deref(),
             &self.environment,

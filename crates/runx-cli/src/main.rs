@@ -8,7 +8,6 @@ use std::process::ExitCode;
 
 use runx_cli::router::{HarnessPlan, RouterAction, command_help_text, help_text};
 
-const HARNESS_SIGNING_HINT: &str = "runx: hint: harnesses seal signed receipts; set RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE together, or unset all three to sign with this home's local key.";
 const HARNESS_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/harness-receipts for an isolated project-local harness run.";
 
 fn main() -> ExitCode {
@@ -126,7 +125,6 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunDev(plan) => runx_cli::dev::run_native_dev(plan, workspace),
         RouterAction::RunExport(plan) => runx_cli::export::run_native_export(plan, workspace),
         RouterAction::RunTool(plan) => runx_cli::tool::run_native_tool(plan, workspace),
-        RouterAction::RunAddUrl(plan) => runx_cli::add::run_native_add(plan, workspace),
         RouterAction::Error(_)
         | RouterAction::JsonError(_)
         | RouterAction::PrintHelp
@@ -318,9 +316,6 @@ fn run_standalone_harness(
                     "runx: native harness replay failed for {}: {error_message}",
                     request.fixture_path.display()
                 ));
-                if let Some(hint) = harness_failure_hint(&error_message) {
-                    let _ignored = write_stderr_line(hint);
-                }
                 return ExitCode::from(1);
             }
         }
@@ -389,9 +384,6 @@ fn run_package_harness(
                 "runx: package harness failed for {}: {error_message}",
                 skill_path.display()
             ));
-            if let Some(hint) = harness_failure_hint(&error_message) {
-                let _ignored = write_stderr_line(hint);
-            }
             return ExitCode::from(1);
         }
     };
@@ -419,23 +411,9 @@ fn run_package_harness(
     }
 }
 
-fn harness_failure_hint(message: &str) -> Option<&'static str> {
-    if is_receipt_signing_error(message) {
-        return Some(HARNESS_SIGNING_HINT);
-    }
-    None
-}
-
 fn package_harness_report_hint(
     report: &runx_runtime::PackageHarnessReport,
 ) -> Option<&'static str> {
-    if report
-        .assertion_errors
-        .iter()
-        .any(|error| is_receipt_signing_error(error))
-    {
-        return Some(HARNESS_SIGNING_HINT);
-    }
     if report
         .assertion_errors
         .iter()
@@ -444,12 +422,6 @@ fn package_harness_report_hint(
         return Some(HARNESS_STALE_RECEIPT_STORE_HINT);
     }
     None
-}
-
-fn is_receipt_signing_error(message: &str) -> bool {
-    message.contains("configured receipt signing requires")
-        || message.contains("receipt signer key material")
-        || message.contains("receipt signer issuer type")
 }
 
 fn write_stdout(message: &str) -> ExitCode {
@@ -504,18 +476,6 @@ fn write_stderr_line(message: &str) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn package_harness_report_hint_recognizes_missing_signer() {
-        let report = failed_package_harness_report(
-            "smoke: skill run failed: configured receipt signing requires RUNX_RECEIPT_SIGN_KID, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64, and RUNX_RECEIPT_SIGN_ISSUER_TYPE to be set together",
-        );
-
-        assert_eq!(
-            package_harness_report_hint(&report),
-            Some(HARNESS_SIGNING_HINT)
-        );
-    }
 
     #[test]
     fn package_harness_report_hint_recognizes_stale_receipt_store() {

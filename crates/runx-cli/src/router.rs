@@ -51,7 +51,6 @@ pub enum RouterAction {
     RunResume(ResumePlan),
     RunSkill(SkillPlan),
     RunTool(ToolPlan),
-    RunAddUrl(AddUrlPlan),
     PrintHelp,
     PrintHelpJson,
     PrintCommandHelp(&'static str),
@@ -64,15 +63,6 @@ pub struct JsonErrorPlan {
     pub message: String,
     pub code: String,
     pub exit_code: u8,
-}
-
-/// Arguments for indexing a repository via `runx add <repository-url>`.
-#[derive(Debug, Eq, PartialEq)]
-pub struct AddUrlPlan {
-    pub repo: String,
-    pub repo_ref: Option<String>,
-    pub api_base_url: Option<String>,
-    pub json: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -686,9 +676,6 @@ fn non_empty_new_value(flag: &str, value: String) -> Result<String, String> {
 
 fn parse_add_plan(args: &[OsString]) -> Result<RouterAction, String> {
     let parsed = parse_add_args(args)?;
-    if is_repository_url(parsed.subject.as_deref().unwrap_or_default()) {
-        return add_url_plan(parsed).map(RouterAction::RunAddUrl);
-    }
     add_registry_plan(parsed).map(RouterAction::RunRegistry)
 }
 
@@ -697,10 +684,8 @@ struct AddParseState {
     subject: Option<String>,
     registry: Option<String>,
     version: Option<String>,
-    repo_ref: Option<String>,
     expected_digest: Option<String>,
     destination: Option<PathBuf>,
-    api_base_url: Option<String>,
     json: bool,
 }
 
@@ -711,7 +696,7 @@ fn parse_add_args(args: &[OsString]) -> Result<AddParseState, String> {
         let token = os_arg(args, index, "add")?;
         if !crate::cli_args::is_flag(token) {
             if parsed.subject.is_some() {
-                return Err("runx add accepts exactly one ref or repository URL".to_owned());
+                return Err("runx add accepts exactly one skill ref".to_owned());
             }
             parsed.subject = Some(token.to_owned());
             index += 1;
@@ -722,7 +707,7 @@ fn parse_add_args(args: &[OsString]) -> Result<AddParseState, String> {
         index = parse_add_flag(&mut parsed, args, index, flag, inline_value)?;
     }
     if parsed.subject.is_none() {
-        return Err("runx add requires a skill ref or repository URL".to_owned());
+        return Err("runx add requires a skill ref".to_owned());
     }
     Ok(parsed)
 }
@@ -744,15 +729,11 @@ fn parse_add_flag(
         }
         "--registry" => set_add_string(args, index, flag, inline_value, &mut parsed.registry),
         "--version" => set_add_string(args, index, flag, inline_value, &mut parsed.version),
-        "--ref" => set_add_string(args, index, flag, inline_value, &mut parsed.repo_ref),
         "--digest" => set_add_string(args, index, flag, inline_value, &mut parsed.expected_digest),
         "--to" => {
             let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
             parsed.destination = Some(PathBuf::from(value));
             Ok(next_index)
-        }
-        "--api-base-url" => {
-            set_add_string(args, index, flag, inline_value, &mut parsed.api_base_url)
         }
         _ => Err(format!("unknown add flag {flag}")),
     }
@@ -770,39 +751,7 @@ fn set_add_string(
     Ok(next_index)
 }
 
-fn add_url_plan(parsed: AddParseState) -> Result<AddUrlPlan, String> {
-    if parsed.registry.is_some() {
-        return Err(
-            "runx add <repository-url> uses --api-base-url for the hosted index API, not --registry"
-                .to_owned(),
-        );
-    }
-    if parsed.version.is_some() {
-        return Err("runx add <repository-url> uses --ref for git refs, not --version".to_owned());
-    }
-    if parsed.expected_digest.is_some() || parsed.destination.is_some() {
-        return Err(
-            "runx add <repository-url> indexes the repository and does not support --to or --digest"
-                .to_owned(),
-        );
-    }
-    Ok(AddUrlPlan {
-        repo: parsed.subject.unwrap_or_default(),
-        repo_ref: parsed.repo_ref,
-        api_base_url: parsed.api_base_url,
-        json: parsed.json,
-    })
-}
-
 fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
-    if parsed.repo_ref.is_some() {
-        return Err(
-            "runx add <skill-ref> uses --version for registry versions, not --ref".to_owned(),
-        );
-    }
-    if parsed.api_base_url.is_some() {
-        return Err("runx add <skill-ref> does not accept --api-base-url".to_owned());
-    }
     Ok(RegistryPlan {
         action: RegistryAction::Install,
         subject: parsed.subject.unwrap_or_default(),
@@ -818,26 +767,6 @@ fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
         upsert: false,
         json: parsed.json,
     })
-}
-
-/// A repository URL rather than a skill ref: an `http(s)` URL, or a host name
-/// (it has a dot) followed by at least an owner and a name. The hosted index
-/// decides which hosts it supports.
-fn is_repository_url(value: &str) -> bool {
-    let value = value.trim();
-    let path = value
-        .strip_prefix("https://")
-        .or_else(|| value.strip_prefix("http://"))
-        .unwrap_or(value);
-    let mut parts = path.split('/').filter(|part| !part.is_empty());
-    parts.next().is_some_and(|host| {
-        host.contains('.')
-            && !host.starts_with('.')
-            && host
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b':'))
-    }) && parts.next().is_some()
-        && parts.next().is_some()
 }
 
 fn parse_init_plan(args: &[OsString]) -> Result<InitPlan, String> {

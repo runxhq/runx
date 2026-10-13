@@ -206,9 +206,11 @@ fn inline_harness_rejects_step_output_expectation_drift() -> TestResult {
     )
 }
 
+/// Every harness case seals under the fixture identity: the caller's signing
+/// variables, even a partial set, never reach a case.
 #[test]
-fn package_harness_partial_signer_config_prints_actionable_hint() -> TestResult {
-    let root = crate::support::temp_root("runx-inline-harness-hint");
+fn package_harness_seals_under_the_fixture_identity_whatever_the_signer_env() -> TestResult {
+    let root = crate::support::temp_root("runx-inline-harness-signer");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(&skill_dir)?;
@@ -226,18 +228,20 @@ fn package_harness_partial_signer_config_prints_actionable_hint() -> TestResult 
         ])
         .output()?;
 
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
-    assert_eq!(report["status"], "failed");
-    let stderr = String::from_utf8(output.stderr)?;
-    assert!(stderr.contains("harnesses seal signed receipts"));
-    assert!(stderr.contains("RUNX_RECEIPT_SIGN_KID"));
+    assert_eq!(report["status"], "passed");
 
     Ok(())
 }
 
 #[test]
-fn standalone_fixture_uses_local_signing_and_persists_to_requested_store() -> TestResult {
+fn standalone_fixture_persists_to_requested_store() -> TestResult {
     let root = crate::support::temp_root("runx-standalone-harness-receipts");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join(".runx/receipts");
