@@ -1,6 +1,7 @@
 ---
 schema: runx.catalog-presentation.v1
 title: Deep research
+summary: "Investigate a decision and bring back the evidence behind the recommendation."
 method:
   - title: Bring the evidence
     description: A question, source packets or bounded local files.
