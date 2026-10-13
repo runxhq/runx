@@ -1150,7 +1150,7 @@ fn publish_registry_echo_version_into(
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry-dir",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--owner",
+            "--publisher",
             "acme",
             "--version",
             version,

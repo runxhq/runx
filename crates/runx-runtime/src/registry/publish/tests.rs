@@ -20,6 +20,7 @@ fn publish_skill_sends_the_complete_package_contract() -> Result<(), Box<dyn std
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: Some("skill: hello\nrunners: {}\n"),
             version: Some("sha-123"),
+            publisher: Some("kam"),
             package_files: &files,
         },
     )?;
@@ -35,6 +36,7 @@ fn publish_skill_sends_the_complete_package_contract() -> Result<(), Box<dyn std
     );
     let body = request_body(&requests[0])?;
     assert_eq!(body["version"], "sha-123");
+    assert_eq!(body["publisher"], "kam");
     assert_eq!(body["package_files"][0]["path"], "run.mjs");
     Ok(())
 }
@@ -51,6 +53,7 @@ fn publish_skill_rejects_an_unsuccessful_success_status_envelope()
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: None,
             version: None,
+            publisher: None,
             package_files: &[],
         },
     );

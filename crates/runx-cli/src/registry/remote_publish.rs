@@ -22,13 +22,14 @@ pub(super) fn publish_remote_skill_package(
             "remote registry publish derives trust from hosted verification; --trust-tier is local-only",
         ));
     }
-    if admin_publish_requested(plan) {
-        let token = admin_publish_token(env).ok_or_else(|| {
+    // An operator holding the registry's publish credential publishes into
+    // the namespace it names; everyone else publishes as their login.
+    if let Some(token) = admin_publish_token(env) {
+        let owner = plan.publisher.clone().ok_or_else(|| {
             usage_error(
-                "remote registry admin publish requires RUNX_HOSTED_REGISTRY_PUBLISH_TOKEN or RUNX_HOSTED_API_ADMIN_TOKEN",
+                "an operator publish names the namespace it publishes into with --publisher",
             )
         })?;
-        let owner = admin_publish_owner(plan, env)?;
         let transport = runx_runtime::hosted_api_transport(
             runx_runtime::hosted_private_network_allowed(false, env),
         )
@@ -66,17 +67,11 @@ pub(super) fn publish_remote_skill_package(
             markdown: package.markdown(),
             profile_document: package.profile_document(),
             version: plan.version.as_deref(),
+            publisher: plan.publisher.as_deref(),
             package_files: package.package_files(),
         },
     )
     .map_err(|error| internal_error(error.to_string()))
-}
-
-/// `--owner` names the namespace an administrator publishes into; `--upsert`
-/// only rewrites a local registry's version and never selects the hosted
-/// admin route, which has no such field.
-fn admin_publish_requested(plan: &RegistryPlan) -> bool {
-    plan.owner.is_some()
 }
 
 fn admin_publish_token(env: &BTreeMap<String, String>) -> Option<String> {
@@ -92,22 +87,4 @@ fn admin_publish_token(env: &BTreeMap<String, String>) -> Option<String> {
             .filter(|value| !value.is_empty())
             .map(str::to_owned)
     })
-}
-
-fn admin_publish_owner(
-    plan: &RegistryPlan,
-    env: &BTreeMap<String, String>,
-) -> Result<String, RegistryCliError> {
-    plan.owner
-        .as_deref()
-        .or_else(|| {
-            env.get("RUNX_HOSTED_REGISTRY_PUBLISH_OWNER")
-                .map(String::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-        })
-        .map(str::to_owned)
-        .ok_or_else(|| {
-            usage_error("remote registry admin publish requires --owner or RUNX_HOSTED_REGISTRY_PUBLISH_OWNER")
-        })
 }

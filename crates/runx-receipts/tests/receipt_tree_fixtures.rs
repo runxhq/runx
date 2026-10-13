@@ -29,14 +29,14 @@ struct TreeCase {
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct FixtureTreeConfig {
     max_depth: usize,
-    max_breadth: usize,
+    max_receipts: usize,
 }
 
 impl FixtureTreeConfig {
     fn to_receipt_config(self) -> ReceiptTreeConfig {
         ReceiptTreeConfig {
             max_depth: self.max_depth,
-            max_breadth: self.max_breadth,
+            max_receipts: self.max_receipts,
         }
     }
 }

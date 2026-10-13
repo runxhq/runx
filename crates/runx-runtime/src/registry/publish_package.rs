@@ -117,13 +117,30 @@ pub struct RegistryPublishPackageParts {
 pub fn prepare_registry_publish_package(
     request: RegistryPublishPackageRequest<'_>,
 ) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
+    let loaded = load_publish_package(&request)?;
+    prepare_loaded_package(&loaded, request.env, request.cwd)
+}
+
+/// The registry refs the package to publish names that the request's
+/// registry directory does not hold: what a publisher supplies, from the
+/// registry the refs name, before the package can be bound.
+pub fn unheld_publish_registry_refs(
+    request: RegistryPublishPackageRequest<'_>,
+) -> Result<Vec<String>, RegistryPublishPackageError> {
+    let loaded = load_publish_package(&request)?;
+    crate::skill_package::unheld_loaded_registry_refs(&loaded, request.env)
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))
+}
+
+fn load_publish_package(
+    request: &RegistryPublishPackageRequest<'_>,
+) -> Result<LoadedSkillPackage, RegistryPublishPackageError> {
     let subject_path =
         crate::RunxPaths::resolve(request.env, request.cwd).existing_input(request.subject);
     let profile_path =
         resolve_profile_path(&subject_path, request.profile, request.env, request.cwd);
     let load_path = profile_path.as_deref().unwrap_or(&subject_path);
-    let loaded = crate::load_validated_skill_package(load_path)?;
-    prepare_loaded_package(&loaded, request.env, request.cwd)
+    Ok(crate::load_validated_skill_package(load_path)?)
 }
 
 fn resolve_profile_path(

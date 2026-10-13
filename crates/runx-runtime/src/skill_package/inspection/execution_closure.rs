@@ -190,6 +190,48 @@ pub(super) fn inspect_local_execution_closure(
     Ok(closure)
 }
 
+/// The registry refs a package's runners and harness graphs name that the
+/// environment's registry directory does not hold: what a host supplies
+/// before the package's closure can be bound.
+pub(super) fn unheld_registry_refs(
+    loaded: Arc<LoadedSkillPackage>,
+    env: &BTreeMap<String, String>,
+) -> Result<BTreeSet<String>, SkillInspectionError> {
+    let runner_names = loaded
+        .manifest()
+        .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let harness_graphs = loaded
+        .package
+        .harness_fixtures
+        .iter()
+        .filter(|(_, fixture)| {
+            fixture.kind == runx_parser::harness_fixture::HarnessFixtureKind::Graph
+        })
+        .map(|(relative, fixture)| (relative.clone(), fixture.target.clone()))
+        .collect::<Vec<_>>();
+    let mut inspector =
+        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let mut accumulators = Vec::new();
+    for runner_name in runner_names {
+        accumulators.push(inspector.inspect_root_runner_accumulator(&runner_name)?);
+    }
+    for (fixture_path, target) in harness_graphs {
+        accumulators.push(inspector.inspect_harness_graph_accumulator(&fixture_path, &target)?);
+    }
+    // An unresolved edge reads `<ref>#<runner>`.
+    Ok(accumulators
+        .into_iter()
+        .flat_map(|accumulator| accumulator.unresolved_skill_edges)
+        .filter_map(|edge| {
+            let reference = edge
+                .rsplit_once('#')
+                .map_or(edge.as_str(), |(reference, _)| reference);
+            runx_parser::registry_ref(reference).map(|_| reference.to_owned())
+        })
+        .collect())
+}
+
 impl ClosureAccumulator {
     fn into_local_execution_closure(self) -> LocalExecutionClosure {
         LocalExecutionClosure {

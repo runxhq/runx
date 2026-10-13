@@ -33,6 +33,9 @@ fn main() {
         "root_empty": rec("rcpt_root", &[]),
         "root_to_a": rec("rcpt_root", &["rcpt_child_a"]),
         "root_to_a_b": rec("rcpt_root", &["rcpt_child_a", "rcpt_child_b"]),
+        "child_a_to_c": rec("rcpt_child_a", &["rcpt_child_c"]),
+        "child_b_to_c": rec("rcpt_child_b", &["rcpt_child_c"]),
+        "child_c": rec("rcpt_child_c", &[]),
         "root_malformed_uri": rec_raw_child("rcpt_root", "rcpt_child_a"),
         "root_wrong_namespace": rec_wrong_ns_child("rcpt_root", "rcpt_child_a"),
     });
@@ -156,16 +159,25 @@ fn main() {
             ]
         ),
         case(
-            "breadth-limit",
+            "count-limit",
             "root_to_a_b",
             &["child_a", "child_b"],
             &[],
-            cfg(64, 1),
+            cfg(64, 2),
             false,
             &[
-                ("ChildReceiptBreadthLimit", "lineage.children"),
+                ("ChildReceiptCountLimit", "lineage.children[1]"),
                 ("OrphanChildReceipt", "children[1].id"),
             ]
+        ),
+        case(
+            "shared-child",
+            "root_to_a_b",
+            &["child_a_to_c", "child_b_to_c", "child_c"],
+            &[],
+            cfg(64, 1024),
+            false,
+            &[("ChildReceiptShared", "children[1].lineage.children[0]"),]
         ),
     ]);
 
@@ -182,10 +194,10 @@ fn main() {
     println!("regenerated receipt-tree oracle");
 }
 
-fn cfg(max_depth: usize, max_breadth: usize) -> Value {
+fn cfg(max_depth: usize, max_receipts: usize) -> Value {
     json!({
         "max_depth": max_depth,
-        "max_breadth": max_breadth,
+        "max_receipts": max_receipts,
     })
 }
 

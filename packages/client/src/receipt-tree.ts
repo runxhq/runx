@@ -1,12 +1,8 @@
 import path from "node:path";
-import { canonicalJsonStringify, sha256Prefixed, validateReceiptContract, type ReceiptContract } from "@runxhq/contracts";
+import { RECEIPT_TREE_LIMITS, canonicalJsonStringify, sha256Prefixed, validateReceiptContract, type ReceiptContract } from "@runxhq/contracts";
 import { readBoundedJson } from "./artifacts.js";
 import type { ReceiptTree } from "./types.js";
 
-/** A tree deeper than the native verifier walks is refused. */
-export const MAX_RECEIPT_TREE_DEPTH = 64;
-/** The most receipts one run's tree may hold. */
-export const MAX_RECEIPT_TREE_MEMBERS = 1024;
 /** The largest one stored receipt may be. */
 export const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 
@@ -43,7 +39,7 @@ export async function readReceiptTree(rootId: string, receiptDir: string, budget
   const read = async (id: string): Promise<ReceiptContract> => {
     if (!CONTENT_ADDRESS.test(id)) throw new Error(`Receipt id ${id} is not a content address.`);
     if (seen.has(id)) throw new Error(`Receipt ${id} appears twice in its tree.`);
-    if (seen.size >= MAX_RECEIPT_TREE_MEMBERS) throw new Error(`Receipt tree exceeds ${MAX_RECEIPT_TREE_MEMBERS} receipts.`);
+    if (seen.size >= RECEIPT_TREE_LIMITS.maxReceipts) throw new Error(`Receipt tree exceeds ${RECEIPT_TREE_LIMITS.maxReceipts} receipts.`);
     seen.add(id);
     const stored = await readBoundedJson(path.join(receiptDir, `${id.replace(":", "-")}.json`), receiptDir, Math.min(remaining, MAX_RECEIPT_BYTES));
     remaining -= stored.bytes.byteLength;
@@ -62,7 +58,7 @@ export async function readReceiptTree(rootId: string, receiptDir: string, budget
     const next: ReceiptContract[] = [];
     for (const parent of level) {
       for (const reference of parent.lineage.children) {
-        if (depth > MAX_RECEIPT_TREE_DEPTH) throw new Error(`Receipt tree exceeds depth ${MAX_RECEIPT_TREE_DEPTH}.`);
+        if (depth > RECEIPT_TREE_LIMITS.maxDepth) throw new Error(`Receipt tree exceeds depth ${RECEIPT_TREE_LIMITS.maxDepth}.`);
         const id = reference.type === "receipt" && reference.uri.startsWith("runx:receipt:")
           ? reference.uri.slice("runx:receipt:".length)
           : undefined;

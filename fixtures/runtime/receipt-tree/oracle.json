@@ -2,8 +2,8 @@
   "cases": [
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [],
@@ -19,8 +19,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [],
@@ -36,8 +36,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -66,8 +66,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -85,8 +85,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -106,8 +106,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -131,8 +131,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -156,8 +156,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -190,8 +190,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -211,8 +211,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -232,8 +232,8 @@
     },
     {
       "config": {
-        "max_breadth": 1024,
-        "max_depth": 1
+        "max_depth": 1,
+        "max_receipts": 1024
       },
       "expected": {
         "findings": [
@@ -258,14 +258,14 @@
     },
     {
       "config": {
-        "max_breadth": 1,
-        "max_depth": 64
+        "max_depth": 64,
+        "max_receipts": 2
       },
       "expected": {
         "findings": [
           {
-            "code": "ChildReceiptBreadthLimit",
-            "path": "lineage.children"
+            "code": "ChildReceiptCountLimit",
+            "path": "lineage.children[1]"
           },
           {
             "code": "OrphanChildReceipt",
@@ -274,12 +274,35 @@
         ],
         "valid": false
       },
-      "name": "breadth-limit",
+      "name": "count-limit",
       "resolver_error_receipt_ids": [],
       "root_receipt": "root_to_a_b",
       "supplied_child_receipts": [
         "child_a",
         "child_b"
+      ]
+    },
+    {
+      "config": {
+        "max_depth": 64,
+        "max_receipts": 1024
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "ChildReceiptShared",
+            "path": "children[1].lineage.children[0]"
+          }
+        ],
+        "valid": false
+      },
+      "name": "shared-child",
+      "resolver_error_receipt_ids": [],
+      "root_receipt": "root_to_a_b",
+      "supplied_child_receipts": [
+        "child_a_to_c",
+        "child_b_to_c",
+        "child_c"
       ]
     }
   ],
@@ -454,6 +477,51 @@
         }
       }
     },
+    "child_a_to_c": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "id": "rcpt_child_a",
+      "issuer": {
+        "kid": "fixture-key",
+        "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "type": "receipt",
+            "uri": "runx:receipt:rcpt_child_c"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "disposition": "closed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "unsealed"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:rcpt_child_a"
+        }
+      }
+    },
     "child_b": {
       "acts": [],
       "authority": {
@@ -491,6 +559,91 @@
         "ref": {
           "type": "run",
           "uri": "runx:run:rcpt_child_b"
+        }
+      }
+    },
+    "child_b_to_c": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "id": "rcpt_child_b",
+      "issuer": {
+        "kid": "fixture-key",
+        "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "type": "receipt",
+            "uri": "runx:receipt:rcpt_child_c"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "disposition": "closed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "unsealed"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome": "sha256:14644dbfff3e029d8732c55b513d67563fec83a1dfb3b1c707a0511a0bebe0f3",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:rcpt_child_b"
+        }
+      }
+    },
+    "child_c": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "id": "rcpt_child_c",
+      "issuer": {
+        "kid": "fixture-key",
+        "public_key_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "type": "local"
+      },
+      "lineage": {
+        "children": []
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "disposition": "closed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "unsealed"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome": "sha256:9c75b3f6539127d32bc4de56437a884faea861df76ba57f55587d18eb41415ef",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:rcpt_child_c"
         }
       }
     },

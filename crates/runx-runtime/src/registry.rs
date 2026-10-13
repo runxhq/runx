@@ -10,6 +10,7 @@ pub use package_files::skill_content_digest;
 mod package_metadata;
 mod payload;
 mod publish;
+mod publish_closure;
 mod publish_package;
 mod refs;
 mod source_authority;
@@ -49,10 +50,11 @@ pub use publish::{
     HostedSkillPublishRequest, HostedSkillPublishResult, RegistryPublishError,
     publish_hosted_admin_skill, publish_hosted_connector, publish_hosted_skill,
 };
+pub use publish_closure::{PublishClosure, PublishClosureError, materialize_publish_closure};
 pub use publish_package::{
     RegistryConnectorPackage, RegistryPublishPackage, RegistryPublishPackageError,
     RegistryPublishPackageParts, RegistryPublishPackageRequest, prepare_registry_connector_package,
-    prepare_registry_publish_package,
+    prepare_registry_publish_package, unheld_publish_registry_refs,
 };
 pub use refs::{
     ParsedRegistryRef, RegistryResolveError, parse_registry_ref, safe_skill_package_parts,

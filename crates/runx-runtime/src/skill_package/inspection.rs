@@ -11,6 +11,7 @@ use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
 use super::LoadedSkillPackage;
 pub(crate) use execution_closure::LocalExecutionClosure;
 use execution_closure::inspect_local_execution_closure;
+use execution_closure::unheld_registry_refs;
 use execution_closure::{UnheldRegistryRefs, inspect_execution_closures};
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
@@ -276,6 +277,15 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
         digest,
         fully_bound,
     })
+}
+
+/// The registry refs a loaded package names that `env`'s registry directory
+/// does not hold.
+pub(crate) fn unheld_loaded_registry_refs(
+    loaded: &LoadedSkillPackage,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<Vec<String>, SkillInspectionError> {
+    unheld_registry_refs(Arc::new(loaded.clone()), env).map(|refs| refs.into_iter().collect())
 }
 
 pub(crate) fn inspect_loaded_local_execution_closure(

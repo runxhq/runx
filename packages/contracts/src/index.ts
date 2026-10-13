@@ -333,6 +333,7 @@ export {
   type ReceiptContract,
   validateReceiptContract,
   RECEIPT_CANONICALIZATION,
+  RECEIPT_TREE_LIMITS,
 } from "./schemas/receipt.js";
 
 export {

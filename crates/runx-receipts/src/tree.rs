@@ -22,17 +22,26 @@ use proof::{StrictChildProofPolicy, StructuralChildProofPolicy, child_receipt_pr
 use resolver::SliceReceiptResolver;
 use traversal::TreeTraversal;
 
+/// How many levels a receipt tree may hold below its root.
+pub const MAX_RECEIPT_TREE_DEPTH: usize = 64;
+/// How many receipts a receipt tree may hold, its root included.
+pub const MAX_RECEIPT_TREE_RECEIPTS: usize = 1024;
+
+/// The one rule every verifier of a runx receipt tree applies: a root and
+/// its descendants, each committed once by its parent's signed lineage, at
+/// most [`MAX_RECEIPT_TREE_RECEIPTS`] receipts and [`MAX_RECEIPT_TREE_DEPTH`]
+/// levels below the root.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReceiptTreeConfig {
     pub max_depth: usize,
-    pub max_breadth: usize,
+    pub max_receipts: usize,
 }
 
 impl Default for ReceiptTreeConfig {
     fn default() -> Self {
         Self {
-            max_depth: 64,
-            max_breadth: 1024,
+            max_depth: MAX_RECEIPT_TREE_DEPTH,
+            max_receipts: MAX_RECEIPT_TREE_RECEIPTS,
         }
     }
 }

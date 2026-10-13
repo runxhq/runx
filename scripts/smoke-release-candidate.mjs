@@ -120,7 +120,7 @@ runners:
     child,
     "--registry-dir",
     registry,
-    "--owner",
+    "--publisher",
     "acme",
     "--version",
     "1.0.0",

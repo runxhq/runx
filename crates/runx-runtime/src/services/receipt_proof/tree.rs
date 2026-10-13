@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use runx_contracts::{JsonObject, JsonValue, Receipt, ReferenceType};
 use runx_receipts::receipt_edge_references;
 
-use super::MAX_TREE_RECEIPTS;
 use crate::receipts::RuntimeReceiptSignaturePolicy;
 use crate::receipts::store::{LocalReceiptStore, ReceiptStoreError};
 
@@ -17,11 +16,12 @@ pub(super) fn load_children(
     let mut seen = BTreeSet::new();
     let mut pending = receipt_edge_references(root).cloned().collect::<Vec<_>>();
     while let Some(reference) = pending.pop() {
-        if children.len() >= MAX_TREE_RECEIPTS {
+        // A tree holds its root and at most this many descendants.
+        if children.len() + 1 >= runx_receipts::MAX_RECEIPT_TREE_RECEIPTS {
             finding(
                 &mut findings,
                 "receipt.tree.limit",
-                "receipt tree exceeds the native proof limit",
+                "the receipt tree exceeds the receipts a tree may hold",
             );
             break;
         }

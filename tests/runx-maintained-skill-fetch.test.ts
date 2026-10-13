@@ -336,7 +336,7 @@ function publishLocalRegistrySkill(input: {
     input.subject,
     "--registry-dir",
     input.registryDir,
-    "--owner",
+    "--publisher",
     input.owner,
     "--version",
     input.version,

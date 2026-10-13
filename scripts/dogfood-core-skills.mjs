@@ -165,7 +165,7 @@ function runRegistryResolverDogfood() {
         skillDir,
         "--registry-dir",
         registryDir,
-        "--owner",
+        "--publisher",
         "acme",
         "--version",
         "1.0.0",

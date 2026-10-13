@@ -324,7 +324,7 @@ fn registry_probe_plan() -> RegistryPlan {
         version: None,
         expected_digest: None,
         destination: None,
-        owner: None,
+        publisher: None,
         profile: None,
         trust_tier: None,
         limit: None,

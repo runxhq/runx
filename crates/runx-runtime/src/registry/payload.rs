@@ -5,6 +5,7 @@ use super::connector_install::RegistryConnectorVersion;
 use super::http::RegistryClientError;
 use super::types::{
     AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
+    RegistrySkillVersion,
 };
 
 #[derive(Deserialize)]
@@ -33,6 +34,13 @@ struct AcquireEnvelope {
     _status: SuccessStatus,
     install_count: u64,
     acquisition: AcquiredRegistrySkill,
+}
+
+#[derive(Deserialize)]
+struct RecordEnvelope {
+    #[serde(rename = "status")]
+    _status: SuccessStatus,
+    record: RegistrySkillVersion,
 }
 
 #[derive(Deserialize)]
@@ -71,6 +79,13 @@ pub(crate) fn parse_acquire(
         install_count: envelope.install_count,
         ..envelope.acquisition
     })
+}
+
+pub(crate) fn parse_record(
+    route: &str,
+    body: &str,
+) -> Result<RegistrySkillVersion, RegistryClientError> {
+    decode::<RecordEnvelope>(route, body).map(|envelope| envelope.record)
 }
 
 pub(crate) fn parse_connector(

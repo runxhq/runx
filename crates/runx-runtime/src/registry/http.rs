@@ -5,12 +5,12 @@ use runx_contracts::connector::ConnectorRef;
 
 use super::connector_install::RegistryConnectorVersion;
 use super::payload::{
-    parse_acquire, parse_connector, parse_connector_package, parse_read, parse_search,
+    parse_acquire, parse_connector, parse_connector_package, parse_read, parse_record, parse_search,
 };
 use super::refs::{RegistryResolveError, resolve_remote_registry_ref};
 use super::types::{
     AcquiredRegistrySkill, RegistryConnectorDetail, RegistrySearchResult, RegistrySkillDetail,
-    ResolvedRegistryRef,
+    RegistrySkillVersion, ResolvedRegistryRef,
 };
 
 use crate::http::{
@@ -140,6 +140,36 @@ impl<T: Transport> RegistryClient<T> {
         })?;
         ensure_success(&route, response.status)?;
         parse_acquire(&route, &response.body)
+    }
+
+    /// One executable published version as the registry signed it: the
+    /// record a registry directory holds, so a host can build a closure.
+    pub fn version_record(
+        &self,
+        skill_id: &str,
+        version: &str,
+    ) -> Result<Option<RegistrySkillVersion>, RegistryClientError> {
+        let (owner, name) = validated_skill_id(skill_id)?;
+        let route = format!(
+            "/v1/skills/{}/{}/versions/{}/record",
+            encode_segment(owner),
+            encode_segment(name),
+            encode_segment(version)
+        );
+        let Some(record) = self.get(&route, parse_record)? else {
+            return Ok(None);
+        };
+        if record.skill_id != skill_id || record.version != version {
+            return Err(RegistryClientError::Contract {
+                route,
+                field_path: "record".to_owned(),
+                message: format!(
+                    "the registry answered {}@{} for {skill_id}@{version}",
+                    record.skill_id, record.version
+                ),
+            });
+        }
+        Ok(Some(record))
     }
 
     /// A published connector: `version`, or its current version.

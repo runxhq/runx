@@ -12,6 +12,10 @@ pub struct HostedSkillPublishRequest<'a> {
     pub profile_document: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<&'a str>,
+    /// The namespace to publish into, for a principal that may publish into
+    /// several; the registry otherwise takes the principal's own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<&'a str>,
     #[serde(skip_serializing_if = "slice_empty")]
     pub package_files: &'a [RegistryPackageFile],
 }
@@ -167,7 +171,6 @@ fn invalid_request_json(error: serde_json::Error) -> RegistryPublishError {
 fn slice_empty<T>(values: &&[T]) -> bool {
     values.is_empty()
 }
-
 
 #[derive(Deserialize)]
 struct HostedSkillPublishEnvelope {

@@ -20,7 +20,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+// The one receipt-tree rule every runx verifier applies (runx-receipts
+// MAX_RECEIPT_TREE_DEPTH and MAX_RECEIPT_TREE_RECEIPTS): each receipt committed
+// once by its parent, at most 1024 receipts and 64 levels below the root.
 const MAX_ANCESTRY_DEPTH = 64;
+const MAX_TREE_RECEIPTS = 1024;
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -302,7 +306,7 @@ function check(label, ok, detail) {
   if (!ok) console.log(`         ${detail}`);
 }
 
-function verifyOne(filePath, depth, seen, receipt) {
+function verifyOne(filePath, depth, seen, ancestors, receipt) {
   const r = receipt ?? readReceipt(filePath);
   const prefix = depth === 0 ? "receipt" : `child depth=${depth}`;
   console.log(`${prefix}: ${filePath}`);
@@ -311,11 +315,18 @@ function verifyOne(filePath, depth, seen, receipt) {
   console.log(`  issuer     : ${r.issuer?.type}/${r.issuer?.kid}`);
   console.log("");
 
-  if (seen.has(r.id)) {
+  if (ancestors.has(r.id)) {
     check("ancestry is acyclic", false, `cycle at ${r.id}`);
     return;
   }
+  if (seen.has(r.id)) {
+    check("each receipt is committed once in its tree", false, `${r.id} is committed twice`);
+    return;
+  }
   seen.add(r.id);
+  check("the tree holds at most its receipt bound", seen.size <= MAX_TREE_RECEIPTS,
+    `receipts=${seen.size} bound=${MAX_TREE_RECEIPTS}`);
+  if (seen.size > MAX_TREE_RECEIPTS) return;
 
   // 1. The document has the receipt's published wire shape.
   const faults = schemaFaults(receiptSchema, r, "", []);
@@ -376,7 +387,7 @@ function verifyOne(filePath, depth, seen, receipt) {
         `locator=${expectedDigest} child=${child.digest}`);
     }
     console.log("");
-    verifyOne(resolved.sourcePath, depth + 1, seen, child);
+    verifyOne(resolved.sourcePath, depth + 1, seen, new Set([...ancestors, r.id]), child);
   }
   console.log("");
 }
@@ -390,7 +401,7 @@ async function main() {
   const receiptDir = arg("--receipt-dir") ?? path.dirname(rootPath);
   ancestryIndex = walkAncestry ? buildReceiptIndex(receiptDir) : new Map();
 
-  verifyOne(rootPath, 0, new Set(), rootReceipt);
+  verifyOne(rootPath, 0, new Set(), new Set(), rootReceipt);
   console.log("");
   console.log(allPass
     ? (walkAncestry

@@ -385,10 +385,10 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx registry connector publish <connector-dir> [--registry url] [--version version] [-j|--json]",
             "runx registry connector read <publisher>/<id>[@version] [--registry url] [--version version] [-j|--json]",
             "runx registry connector install <publisher>/<id>[@version] [--registry url] [--version version] [--digest sha256] [-j|--json]",
-            "runx registry publish <SKILL.md|skill-dir> [--registry url|path] [--owner owner] [--version version] [--profile run.yaml] [--trust-tier tier] [--upsert] [-j|--json]",
+            "runx registry publish <SKILL.md|skill-dir> [--registry url|path] [--publisher slug] [--version version] [--profile run.yaml] [--trust-tier tier] [--upsert] [-j|--json]",
         ],
         notes: &[
-            "Connectors are published to a hosted registry; install writes the local package cache.",
+            "Connectors are published to a hosted registry, each into the publisher its ref names; install adds one to the project's connectors directory.",
         ],
         options: &[
             "--registry url|path",
@@ -396,7 +396,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--version version",
             "--digest sha256",
             "--to dir",
-            "--owner owner",
+            "--publisher slug         The namespace a skill is published into",
             "--profile run.yaml",
             "--trust-tier first_party|verified|community",
             "--limit n",

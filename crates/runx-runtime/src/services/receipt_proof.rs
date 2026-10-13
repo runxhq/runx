@@ -17,7 +17,6 @@ use tree::{load_children, store_finding};
 
 const TOOL: &str = "receipt.prove";
 const MAX_RECEIPTS: usize = 100;
-const MAX_TREE_RECEIPTS: usize = 10_000;
 
 struct ProofProjection {
     matched: Vec<JsonValue>,

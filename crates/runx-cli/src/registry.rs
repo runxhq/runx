@@ -11,8 +11,9 @@ use runx_runtime::registry::{
     InstallLocalSkillOptions, PublishSkillMarkdownOptions, RegistryClient,
     RegistryManifestSourceAuthority, RegistryPublishPackageRequest, RegistryResolveOptions,
     RegistrySearchOptions, RegistrySkillResolution, TrustTier, TrustedRegistryManifestKey,
-    install_local_skill, prepare_registry_publish_package, publish_skill_markdown,
-    read_registry_skill, resolve_registry_skill, search_registry_with_options,
+    install_local_skill, materialize_publish_closure, prepare_registry_publish_package,
+    publish_skill_markdown, read_registry_skill, resolve_registry_skill,
+    search_registry_with_options,
 };
 use runx_runtime::{InitGeneratedValues, WorkspaceEnv, ensure_runx_install_state};
 
@@ -49,7 +50,8 @@ pub struct RegistryPlan {
     pub version: Option<String>,
     pub expected_digest: Option<String>,
     pub destination: Option<PathBuf>,
-    pub owner: Option<String>,
+    /// The namespace a publish goes into.
+    pub publisher: Option<String>,
     pub profile: Option<PathBuf>,
     pub trust_tier: Option<TrustTier>,
     pub limit: Option<usize>,
@@ -311,13 +313,27 @@ fn run_publish(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
+    let request = RegistryPublishPackageRequest {
         subject: &plan.subject,
         profile: plan.profile.as_deref(),
         env,
         cwd,
-    })
-    .map_err(|error| internal_error(error.to_string()))?;
+    };
+    // A package naming skills other publishers own binds them from the
+    // registry it is published to.
+    let closure = match &target {
+        RegistryTarget::Remote { registry_url } => materialize_publish_closure(
+            &remote_registry_client(registry_url, env)?,
+            registry_url,
+            request,
+        )
+        .map_err(|error| usage_error(error.to_string()))?,
+        RegistryTarget::Local { .. } => None,
+    };
+    let env = closure.as_ref().map_or(env, |closure| &closure.env);
+    let package =
+        prepare_registry_publish_package(RegistryPublishPackageRequest { env, ..request })
+            .map_err(|error| internal_error(error.to_string()))?;
     let orchestrator = crate::runtime::local_orchestrator(env).map_err(|error| {
         internal_error(format!("failed to initialize runtime effects: {error}"))
     })?;
@@ -356,7 +372,7 @@ fn run_publish(
                 &package.markdown,
                 PublishSkillMarkdownOptions {
                     ingest: IngestSkillOptions {
-                        owner: plan.owner,
+                        owner: plan.publisher,
                         version: plan.version,
                         profile_document: package.profile_document,
                         package_files: package.package_files,

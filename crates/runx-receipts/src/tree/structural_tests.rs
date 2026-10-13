@@ -148,7 +148,7 @@ fn depth_limit_blocks_hostile_nested_tree() -> Result<(), serde_json::Error> {
 }
 
 #[test]
-fn breadth_limit_blocks_hostile_fanout() -> Result<(), serde_json::Error> {
+fn a_tree_holds_at_most_its_receipt_count() -> Result<(), serde_json::Error> {
     let mut root = fixture(SUCCESS_RECEIPT)?;
     child_refs_mut(&mut root).push(reference(ReferenceType::Receipt, "second"));
     let first = child("rcpt_child_1")?;
@@ -160,15 +160,15 @@ fn breadth_limit_blocks_hostile_fanout() -> Result<(), serde_json::Error> {
             children: &[first, second],
         },
         ReceiptTreeConfig {
-            max_breadth: 1,
+            max_receipts: 2,
             ..ReceiptTreeConfig::default()
         },
     );
 
     assert_finding(
         &verification,
-        ReceiptFindingCode::ChildReceiptBreadthLimit,
-        "lineage.children",
+        ReceiptFindingCode::ChildReceiptCountLimit,
+        "lineage.children[1]",
     );
     Ok(())
 }

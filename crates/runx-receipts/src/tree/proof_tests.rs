@@ -210,6 +210,11 @@ fn strict_tree_proof_rejects_custom_resolver_duplicate_id_child_after_reached()
 
     assert_finding(
         &verification,
+        ReceiptFindingCode::ChildReceiptShared,
+        "lineage.children[1]",
+    );
+    assert_finding(
+        &verification,
         ReceiptFindingCode::SealDigestMismatch,
         "hidden_second.digest",
     );

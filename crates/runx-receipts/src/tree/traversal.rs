@@ -34,17 +34,8 @@ impl<R: ReceiptResolver, P: ChildProofPolicy> TreeTraversal<'_, R, P> {
 
         let mut findings = Vec::new();
         let children = receipt.lineage.children.as_slice();
-        if children.len() > self.config.max_breadth {
-            findings.push(ReceiptFinding {
-                code: ReceiptFindingCode::ChildReceiptBreadthLimit,
-                path: join(path, "lineage.children"),
-                message: "receipt refs exceed configured breadth limit".to_owned(),
-            });
-        }
-
         let child_findings = children
             .iter()
-            .take(self.config.max_breadth)
             .enumerate()
             .flat_map(|(index, child)| {
                 self.child_ref_findings(
@@ -91,13 +82,29 @@ impl<R: ReceiptResolver, P: ChildProofPolicy> TreeTraversal<'_, R, P> {
                 message: "child receipt refs must not point to an ancestor".to_owned(),
             }];
         }
-        let child_path = resolved.path.clone();
-        let mut findings = self.proof_policy.findings(&resolved.path, reference, child);
         if self.reached.contains(child.id.as_str()) {
+            // Refused, and whatever the second commitment resolves to is still
+            // checked, so a tampered copy behind a shared id is named.
+            let mut findings = vec![ReceiptFinding {
+                code: ReceiptFindingCode::ChildReceiptShared,
+                path: path.to_owned(),
+                message: "a receipt is committed once in its tree".to_owned(),
+            }];
+            findings.extend(self.proof_policy.findings(&resolved.path, reference, child));
             return findings;
         }
-        findings.extend(self.subtree_findings(&child_path, child, next_depth));
+        // The root and every receipt reached so far, and this one.
+        if self.reached.len() + 2 > self.config.max_receipts {
+            return vec![ReceiptFinding {
+                code: ReceiptFindingCode::ChildReceiptCountLimit,
+                path: path.to_owned(),
+                message: "the receipt tree exceeds the receipts a tree may hold".to_owned(),
+            }];
+        }
         self.reached.insert(child.id.to_string());
+        let child_path = resolved.path.clone();
+        let mut findings = self.proof_policy.findings(&resolved.path, reference, child);
+        findings.extend(self.subtree_findings(&child_path, child, next_depth));
         findings
     }
 }

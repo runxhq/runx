@@ -811,7 +811,7 @@ fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
         version: parsed.version,
         expected_digest: parsed.expected_digest,
         destination: parsed.destination,
-        owner: None,
+        publisher: None,
         profile: None,
         trust_tier: None,
         limit: None,
@@ -1374,7 +1374,7 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
         version: state.version,
         expected_digest: state.expected_digest,
         destination: state.destination,
-        owner: state.owner,
+        publisher: state.publisher,
         profile: state.profile,
         trust_tier: state.trust_tier,
         limit: state.limit,
@@ -1401,7 +1401,7 @@ fn validate_registry_action_flags(
         let shared = state.profile.is_none()
             && state.registry_dir.is_none()
             && state.destination.is_none()
-            && state.owner.is_none()
+            && state.publisher.is_none()
             && state.trust_tier.is_none()
             && state.limit.is_none()
             && !state.upsert;
@@ -1429,7 +1429,7 @@ fn registry_target_flags(state: &RegistryParseState) -> bool {
         || state.version.is_some()
         || state.expected_digest.is_some()
         || state.destination.is_some()
-        || state.owner.is_some()
+        || state.publisher.is_some()
         || state.trust_tier.is_some()
         || state.limit.is_some()
         || state.upsert
@@ -1444,7 +1444,7 @@ struct RegistryParseState {
     version: Option<String>,
     expected_digest: Option<String>,
     destination: Option<PathBuf>,
-    owner: Option<String>,
+    publisher: Option<String>,
     profile: Option<PathBuf>,
     trust_tier: Option<runx_runtime::registry::TrustTier>,
     limit: Option<usize>,
@@ -1504,7 +1504,9 @@ fn parse_registry_flag(
             set_registry_string_flag(args, index, flag, inline_value, &mut state.expected_digest)
         }
         "--to" => set_registry_path_flag(args, index, flag, inline_value, &mut state.destination),
-        "--owner" => set_registry_string_flag(args, index, flag, inline_value, &mut state.owner),
+        "--publisher" => {
+            set_registry_string_flag(args, index, flag, inline_value, &mut state.publisher)
+        }
         "--profile" => set_registry_path_flag(args, index, flag, inline_value, &mut state.profile),
         "--trust-tier" => set_registry_trust_tier_flag(args, index, flag, inline_value, state),
         "--limit" => set_registry_limit_flag(args, index, flag, inline_value, state),
