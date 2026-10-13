@@ -1,5 +1,5 @@
 skill: web-fetch
-version: "0.4.2"
+version: "0.4.3"
 
 catalog:
   kind: graph
@@ -56,3 +56,7 @@ runners:
           url: "$input.url"
           allowlist: "$input.allowlist"
           extract: "$input.extract"
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

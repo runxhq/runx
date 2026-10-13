@@ -1,5 +1,5 @@
 skill: issue-to-pr
-version: "0.4.8"
+version: "0.4.9"
 
 catalog:
   kind: graph
@@ -17,6 +17,7 @@ harness:
     - fixtures/bin/git
     - fixtures/bin/scafld
     - fixtures/scafld-pass.json
+    - fixtures/support/composed.graph
   cases: []
 
 input_definitions:

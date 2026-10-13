@@ -1,0 +1,23 @@
+name: skill-review-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    assess:
+      capability_profile:
+        skill_ref: fixtures/subject
+        summary: Digests one fixed value under a bounded read-only contract.
+      trust_assessment:
+        tier: local_harness
+        caveats:
+          - Provider effects are outside this skill's claim.
+      test_matrix:
+        - check: native harness
+          status: passed
+      recommendation_report:
+        recommendation: adopt_with_caveats
+        rationale: The bounded read-only contract and local harness are proven.
+expect:
+  status: sealed
+  steps: [skill-review, digest]
+  receipt: { schema: runx.receipt.v1 }

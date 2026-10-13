@@ -1,0 +1,18 @@
+name: settle-invoice-composed
+steps:
+  - id: settle-invoice
+    skill: ../..
+    runner: settle-invoice
+    inputs:
+      invoice_ref: invoice-test-001
+      amount_minor: 125
+      currency: USD
+      payee: { name: Demo, party_ref: "merchant:demo" }
+      rail: mpp
+      rail_profile_ref: "rail-profile:test"
+      parent_payment_authority: { term_id: "authority:test" }
+      idempotency_seed: invoice-test-001
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.settle-invoice

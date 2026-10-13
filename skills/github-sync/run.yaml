@@ -1,5 +1,5 @@
 skill: github-sync
-version: "0.5.9"
+version: "0.5.10"
 
 catalog:
   kind: skill
@@ -15,6 +15,7 @@ catalog:
 harness:
   files:
     - fixtures/bin/gh
+    - fixtures/support/composed.graph
   cases: []
 
 input_definitions:

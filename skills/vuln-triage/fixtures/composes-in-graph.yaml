@@ -1,0 +1,19 @@
+name: vuln-triage-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    draft:
+      advisory_draft:
+        title: Example dependency advisory
+        summary: A verified dependency finding requires an upgrade.
+        body: example/service includes example-lib 1.2.3, which is affected by GHSA-example-1234. Upgrade after compatibility testing.
+        affected_advisory_ids:
+          - GHSA-example-1234
+        disclosure_checklist:
+          - confirm the fixed version
+          - confirm deployment timing
+expect:
+  status: sealed
+  steps: [vuln-triage, digest]
+  receipt: { schema: runx.receipt.v1 }

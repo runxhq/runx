@@ -1,5 +1,5 @@
 skill: spend
-version: "0.5.5"
+version: "0.5.6"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 connectors:
   payment:
@@ -33,3 +33,7 @@ runners:
         result_fields: [payment_ref, rail, amount_minor, currency, status]
         input: $steps.spend.provider_operation.result
         expected_result: $steps.spend.provider_operation.result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

@@ -1,0 +1,16 @@
+name: conversation-review-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    judge:
+      draft:
+        kind: reply
+        summary: A call was requested.
+        reason: The sender asked for a scheduling response.
+        draft_message: Happy to talk. I will check my availability and get back to you with times.
+        request_quote: ""
+expect:
+  status: sealed
+  steps: [conversation-review, digest]
+  receipt: { schema: runx.receipt.v1 }

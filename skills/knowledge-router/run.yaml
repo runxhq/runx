@@ -1,5 +1,5 @@
 skill: knowledge-router
-version: "0.2.8"
+version: "0.2.9"
 
 catalog:
   kind: graph
@@ -12,6 +12,7 @@ catalog:
   category: ops
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: knowledge-router-validates-source-owner-and-skill
       operator_journeys:

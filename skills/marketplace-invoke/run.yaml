@@ -1,5 +1,5 @@
 skill: marketplace-invoke
-version: "0.4.3"
+version: "0.4.4"
 catalog:
   kind: graph
   audience: operator
@@ -215,3 +215,7 @@ runners:
         artifacts:
           named_emits: { stage_result: stage_result }
           packets: { stage_result: runx.external_job_stage.result.v1 }
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

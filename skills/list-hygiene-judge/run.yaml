@@ -1,5 +1,5 @@
 skill: list-hygiene-judge
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -70,6 +70,7 @@ input_definitions:
         evidence_version: { type: integer, minimum: 0 }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: list-hygiene-re-permissions-decayed-contact
       runner: judge

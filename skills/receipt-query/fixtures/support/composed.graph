@@ -1,0 +1,30 @@
+name: receipt-query-composed
+steps:
+  - id: receipt-query
+    skill: ../..
+    runner: read
+    inputs:
+      question: Which spend runs sealed for the ops principal in the supplied ledger slice?
+      filter:
+        principal: principal:ops
+        skill_ref: runx/spend
+        status:
+          - sealed
+        time_range:
+          from: "2026-06-01T00:00:00Z"
+          to: "2026-06-08T00:00:00Z"
+      proof:
+        verify_chain: true
+      receipts:
+        - receipt_id: rcpt_01HZX5K2spend
+          skill_ref: runx/spend
+          status: sealed
+          created_at: "2026-06-03T14:21:08Z"
+        - receipt_id: rcpt_01HZX9Q7spend
+          skill_ref: runx/spend
+          status: sealed
+          created_at: "2026-06-06T09:02:44Z"
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.receipt-query

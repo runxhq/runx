@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.4"
+version: "0.1.5"
 catalog:
   kind: graph
   audience: public
@@ -33,6 +33,7 @@ input_definitions:
     schema: { additionalProperties: true }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: normalizes-complete-private-and-cancelled-events
       runner: normalize-supplied

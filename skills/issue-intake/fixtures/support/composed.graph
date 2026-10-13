@@ -1,0 +1,42 @@
+name: issue-intake-composed
+steps:
+  - id: issue-intake
+    skill: ../..
+    runner: intake
+    inputs:
+      thread_title: README should point users to issue-to-pr
+      thread_body: The public docs should present issue-to-pr as the canonical command.
+      thread_locator: github://example/repo/issues/101
+      outbox_entry:
+        entry_id: github_issue_101
+        kind: message
+        locator: https://github.com/example/repo/issues/101
+        status: published
+        thread_locator: github://example/repo/issues/101
+      artifact:
+        schema: runx.artifact.v1
+        artifact_id: eb_docs_work_101
+        subject_locator: github://example/repo/issues/101
+        hydration:
+          status: complete
+          summary: GitHub issue body was the complete evidence for this docs fix.
+        sources:
+          - provider: github
+            kind: source_thread
+            locator: github://example/repo/issues/101
+            thread_locator: github://example/repo/issues/101
+            title: README should point users to issue-to-pr
+            body_preview: The public docs should present issue-to-pr as the canonical command.
+            hydration_status: complete
+        redaction:
+          status: not_required
+          summary: No provider secrets or direct identifiers were present.
+        summary: Bounded docs evidence is ready for triage.
+        created_at: 2026-05-15T00:00:00Z
+        updated_at: 2026-05-15T00:00:00Z
+      product_context: OSS runx documentation
+      operator_context: Prefer the canonical issue-to-pr name in user-facing replies.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.issue-intake

@@ -1,5 +1,5 @@
 skill: organic-growth
-version: "0.1.6"
+version: "0.1.7"
 
 catalog:
   kind: graph
@@ -11,6 +11,7 @@ catalog:
   approval: none
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: produces-cross-source-priorities-with-bound-evidence
       operator_journeys:

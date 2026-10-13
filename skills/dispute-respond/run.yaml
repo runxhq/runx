@@ -1,5 +1,5 @@
 skill: dispute-respond
-version: "0.6.1"
+version: "0.6.2"
 
 catalog:
   kind: graph
@@ -401,3 +401,7 @@ runners:
         result_fields: [dispute_id, filing_ref, request_digest, status]
         expected_result: $steps.file-response.provider_operation.result
         input: $steps.file-response.provider_operation.result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

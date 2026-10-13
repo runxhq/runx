@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.12"
+version: "0.2.13"
 
 catalog:
   kind: graph
@@ -408,3 +408,7 @@ runners:
         result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
         expected_result: $steps.deliver.provider_operation.result
         input: $steps.prepare-readback.read_request
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

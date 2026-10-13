@@ -1,5 +1,5 @@
 skill: moltbook
-version: "0.4.7"
+version: "0.4.8"
 
 catalog:
   kind: skill
@@ -49,6 +49,7 @@ input_definitions:
           items: { type: string, minLength: 1, maxLength: 512 }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: moltbook-scan-binds-fresh-opportunity
       operator_journeys:

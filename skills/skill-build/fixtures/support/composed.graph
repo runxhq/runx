@@ -1,0 +1,13 @@
+name: skill-build-composed
+steps:
+  - id: skill-build
+    skill: ../..
+    runner: design
+    inputs:
+      objective: Add a governed release-notes skill
+      repo_root: .
+      project_context: Runx OSS first-party catalog
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.skill-build

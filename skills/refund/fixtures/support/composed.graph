@@ -1,0 +1,15 @@
+name: refund-composed
+steps:
+  - id: refund
+    skill: ../..
+    runner: refund
+    inputs:
+      original_receipt_ref: "receipt:test:charge-001"
+      refund_request: { amount_minor: 125, currency: USD, reason: test }
+      parent_payment_authority: { term_id: "authority:test" }
+      settlement_family: mpp
+      idempotency_key: refund-test-001
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.refund

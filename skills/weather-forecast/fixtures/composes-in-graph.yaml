@@ -1,0 +1,32 @@
+name: weather-forecast-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    interpret:
+      forecast_draft:
+        decision: ready
+        location: Washington Monument
+        horizon: tomorrow
+        forecast_packet:
+          summary: The following week will be sunny.
+          periods:
+            - name: Next Week
+              forecast: Sunny
+          hazards: []
+          confidence: high
+          generated_at: 2026-06-09T00:00:00Z
+        provider_evidence:
+          provider: nws
+          source_refs:
+            - gridpoints/LWX/97,71/forecast
+          receipt_refs: []
+        safety_notes: []
+        stop_conditions: []
+        receipt_notes:
+          authority: context-only
+          mutation: false
+expect:
+  status: sealed
+  steps: [weather-forecast, digest]
+  receipt: { schema: runx.receipt.v1 }

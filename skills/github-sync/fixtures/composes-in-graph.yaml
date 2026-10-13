@@ -1,0 +1,7 @@
+name: github-sync-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [github-sync, digest]
+  receipt: { schema: runx.receipt.v1 }

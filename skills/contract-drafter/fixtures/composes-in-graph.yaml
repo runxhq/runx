@@ -1,0 +1,20 @@
+name: contract-drafter-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    assemble:
+      draft_doc:
+        title: Services Agreement
+        clauses:
+          - id: parties
+            heading: Parties
+            text: This Services Agreement is between Acme Pty Ltd and Globex LLC.
+          - id: fees
+            heading: Fees and Payment
+            text: Customer will pay USD 4000 for monthly platform maintenance.
+        deviations: []
+expect:
+  status: sealed
+  steps: [contract-drafter, digest]
+  receipt: { schema: runx.receipt.v1 }

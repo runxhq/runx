@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.8"
+version: "0.2.9"
 catalog:
   kind: graph
   audience: builder
@@ -12,6 +12,7 @@ harness:
   files:
     - fixtures/workspace/skills/moltbook/SKILL.md
     - fixtures/workspace/skills/moltbook/run.yaml
+    - fixtures/support/composed.graph
   cases:
     - name: prior-art-recommends-catalog-reuse
       operator_journeys:

@@ -1,0 +1,32 @@
+name: knowledge-router-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: authentication
+          rationale: The question joins API-key scope policy with analytics access.
+          source_refs:
+            - auth-docs
+            - campaigns-docs
+        source_matches:
+          - source_ref: auth-docs
+            matching_signal: API keys scoped to read-only
+            reason: Defines key scope behavior.
+          - source_ref: campaigns-docs
+            matching_signal: campaign analytics
+            reason: Defines the requested read surface.
+        owner_recommendation:
+          owner_ref: security-team
+          rationale: Authentication scope ownership is primary.
+          escalation_required: false
+        next_skill:
+          skill_ref: research
+          rationale: Resolve the bounded answer from both validated sources.
+expect:
+  status: sealed
+  steps: [knowledge-router, digest]
+  receipt: { schema: runx.receipt.v1 }

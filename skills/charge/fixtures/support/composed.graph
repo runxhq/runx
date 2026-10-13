@@ -1,0 +1,15 @@
+name: charge-composed
+steps:
+  - id: charge
+    skill: ../..
+    runner: charge
+    inputs:
+      mcp_tool_call: { tool: search.paid, arguments: { query: runx } }
+      provider_policy: { price_minor: 125, currency: USD, counterparty: "provider:demo" }
+      returned_credential: { family: mpp, credential_ref: "credential:test" }
+      verify_capability_ref: "capability:test"
+      idempotency_seed: charge-test-001
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.charge

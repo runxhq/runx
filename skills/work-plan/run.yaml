@@ -1,5 +1,5 @@
 skill: work-plan
-version: "0.2.8"
+version: "0.2.9"
 catalog:
   kind: graph
   audience: builder
@@ -12,6 +12,7 @@ harness:
   files:
     - fixtures/workspace/skills/issue-to-pr/SKILL.md
     - fixtures/workspace/skills/issue-to-pr/run.yaml
+    - fixtures/support/composed.graph
   cases:
     - name: work-plan-ready-from-issue-intake
       operator_journeys:

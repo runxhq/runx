@@ -1,5 +1,5 @@
 skill: vuln-triage
-version: "0.3.4"
+version: "0.3.5"
 
 catalog:
   kind: skill
@@ -184,3 +184,7 @@ runners:
             vulnerability_advisory_packet: vulnerability_advisory_packet
           packets:
             vulnerability_advisory_packet: runx.security.vulnerability_advisory.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

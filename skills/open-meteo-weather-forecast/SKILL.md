@@ -34,8 +34,10 @@ and covers the whole globe, so this is the worldwide counterpart to the US-only
 ## Output packets
 
 Two runners are exposed. The default `main` runner runs `locate` then
-`forecast`. The `air_quality` runner runs `locate` then `air_quality`. Each
-graph step produces a typed sealed packet:
+`forecast` and returns the forecast packet. The `air_quality` runner runs
+`locate` then `air_quality` and returns the air-quality packet. The geocoding
+evidence stays in the sealed receipt. Each graph step produces a typed sealed
+packet:
 
 - `locate` produces Open-Meteo geocoding provider evidence.
 - `forecast` produces Open-Meteo forecast provider evidence.

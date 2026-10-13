@@ -1,0 +1,7 @@
+name: skill-adopt-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [skill-adopt, digest]
+  receipt: { schema: runx.receipt.v1 }

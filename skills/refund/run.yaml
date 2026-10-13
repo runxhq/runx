@@ -1,5 +1,5 @@
 skill: refund
-version: "0.6.5"
+version: "0.6.6"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 connectors:
   payment:
@@ -31,3 +31,7 @@ runners:
         result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status]
         input: $steps.refund.provider_operation.result
         expected_result: $steps.refund.provider_operation.result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

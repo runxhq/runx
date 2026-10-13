@@ -1,5 +1,5 @@
 skill: open-meteo-weather-forecast
-version: "0.1.6"
+version: "0.1.7"
 
 catalog:
   kind: graph
@@ -38,7 +38,7 @@ runners:
         required: false
         default: "3"
         description: Number of forecast days to request.
-    result_from: [locate, forecast]
+    result_from: [forecast]
     steps:
       - id: locate
         operation: open-meteo/geocode.search
@@ -64,7 +64,7 @@ runners:
         type: string
         required: true
         description: Decimal longitude selected from the location evidence.
-    result_from: [locate, air_quality]
+    result_from: [air_quality]
     steps:
       - id: locate
         operation: open-meteo/geocode.search
@@ -75,3 +75,7 @@ runners:
         input:
           latitude: $input.latitude
           longitude: $input.longitude
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

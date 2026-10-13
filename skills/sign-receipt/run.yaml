@@ -1,5 +1,5 @@
 skill: sign-receipt
-version: "0.3.1"
+version: "0.3.2"
 
 catalog:
   owner: runx
@@ -48,3 +48,7 @@ runners:
           principal: $input.principal
           claim: $input.claim
           scope: $input.scope
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

@@ -1,0 +1,19 @@
+name: data-store-composed
+steps:
+  - id: data-store
+    skill: ../..
+    runner: append_event
+    inputs:
+      data_source_ref: local://runx-data-store/append-fixture
+      resource: generic_events
+      aggregate_id: item-1
+      expected_version: 0
+      idempotency_key: item-1:create:v1
+      event:
+        type: item.created
+        payload:
+          label: first item
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.data-store

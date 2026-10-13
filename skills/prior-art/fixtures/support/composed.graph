@@ -1,0 +1,23 @@
+name: prior-art-composed
+steps:
+  - id: prior-art
+    skill: ../..
+    runner: prior-art-agent
+    inputs:
+      objective: Add a Moltbook opportunity scan to an existing governed pipeline.
+      repo_root: fixtures/workspace
+      source_paths:
+        - skills/moltbook/run.yaml
+      decomposition:
+        objective_summary: Add a Moltbook opportunity scan step.
+        orchestration_steps:
+          - id: scan
+            skill: ../moltbook
+            runner: scan
+        required_skills:
+          - name: moltbook
+            exists: true
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.prior-art

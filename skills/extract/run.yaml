@@ -1,5 +1,5 @@
 skill: extract
-version: "0.1.6"
+version: "0.1.7"
 
 catalog:
   kind: skill
@@ -14,6 +14,7 @@ catalog:
 harness:
   files:
     - fixtures/rfc9110-http-semantics.html
+    - fixtures/support/composed.graph
   cases: []
 
 runners:

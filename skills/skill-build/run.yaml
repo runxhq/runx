@@ -1,5 +1,5 @@
 skill: skill-build
-version: "0.9.12"
+version: "0.9.13"
 
 catalog:
   owner: runx
@@ -12,6 +12,7 @@ catalog:
   approval: none
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: skill-build-designs-bounded-package
       runner: design

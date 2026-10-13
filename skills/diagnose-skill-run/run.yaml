@@ -1,5 +1,5 @@
 skill: diagnose-skill-run
-version: "0.4.5"
+version: "0.4.6"
 
 catalog:
   owner: runx
@@ -13,6 +13,7 @@ catalog:
   category: authoring
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: diagnose-skill-run-finds-context-flattening
       operator_journeys:

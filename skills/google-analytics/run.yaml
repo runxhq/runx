@@ -1,5 +1,5 @@
 skill: google-analytics
-version: "0.1.6"
+version: "0.1.7"
 
 catalog:
   kind: graph
@@ -113,6 +113,7 @@ input_definitions:
         fetched_at: { type: string, format: date-time }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: normalizes-organic-landing-page-outcomes
       operator_journeys:

@@ -1,0 +1,17 @@
+name: moltbook-composed
+steps:
+  - id: moltbook
+    skill: ../..
+    runner: scan
+    inputs:
+      objective: Find one useful post for Runx builders.
+      community_context: OSS operators evaluating governed agent workflows.
+      as_of: "2026-07-17T12:00:00Z"
+      max_age_hours: 48
+      feed_snapshot:
+        - { source_ref: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z" }
+        - { source_ref: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z" }
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.moltbook

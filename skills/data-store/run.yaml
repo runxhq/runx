@@ -1,5 +1,5 @@
 skill: data-store
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: skill
@@ -241,3 +241,7 @@ runners:
         artifacts:
           wrap_as: data_operation_result
           packet: runx.data.operation_result.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

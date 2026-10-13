@@ -1,5 +1,5 @@
 skill: ops-desk
-version: "0.3.6"
+version: "0.3.7"
 catalog:
   kind: skill
   audience: operator
@@ -375,3 +375,7 @@ runners:
         artifacts:
           named_emits: { ops_desk_packet: ops_desk_packet }
           packets: { ops_desk_packet: runx.ops_desk.packet.v1 }
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

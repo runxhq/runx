@@ -1,0 +1,19 @@
+name: diagnose-skill-run-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    diagnose:
+      verdict: needs_update
+      failure_summary: Context edges are reading stdout instead of an artifact envelope, so structured data is flattened before the next step.
+      improvement_proposals:
+        - target: skills/skill-build/run.yaml
+          change: Emit a wrapped artifact from the upstream step and consume the named artifact data in downstream context.
+          rationale: Preserves structured objects across governed graph steps.
+          risk: Existing fixtures that parse stdout-shaped context will need updates.
+      next_harness_checks:
+        - skill-build passes structured authoring context into the bounded author step
+expect:
+  status: sealed
+  steps: [diagnose-skill-run, digest]
+  receipt: { schema: runx.receipt.v1 }

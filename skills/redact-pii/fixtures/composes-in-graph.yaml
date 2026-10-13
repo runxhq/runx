@@ -1,0 +1,19 @@
+name: redact-pii-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    detect:
+      redaction_draft:
+        decision: needs_review
+        detected:
+          - class: name
+            span: [0, 4]
+            confidence: 0.7
+        residual_risk:
+          level: medium
+          reason_code: ambiguous_semantics
+expect:
+  status: sealed
+  steps: [redact-pii, digest]
+  receipt: { schema: runx.receipt.v1 }

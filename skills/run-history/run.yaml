@@ -1,5 +1,5 @@
 skill: run-history
-version: "0.2.8"
+version: "0.2.9"
 
 catalog:
   owner: runx
@@ -13,6 +13,7 @@ catalog:
   category: data
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: reports-native-history-and-catalog-coverage
       operator_journeys:

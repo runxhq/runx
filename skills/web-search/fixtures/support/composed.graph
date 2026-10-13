@@ -1,0 +1,12 @@
+name: web-search-composed
+steps:
+  - id: web-search
+    skill: ../..
+    runner: search
+    inputs:
+      query: Example API documentation
+      limit: 3
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.web-search

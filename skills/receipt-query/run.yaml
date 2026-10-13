@@ -1,5 +1,5 @@
 skill: receipt-query
-version: "0.6.1"
+version: "0.6.2"
 
 catalog:
   owner: runx
@@ -247,3 +247,7 @@ runners:
         artifacts:
           wrap_as: ledger_answer_packet
           packet: runx.ledger_answer.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

@@ -1,0 +1,10 @@
+name: github-pr-review-composed
+steps:
+  - id: github-pr-review
+    skill: ../..
+    runner: review
+    inputs: { repository: example/project, number: 42, expected_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.github-pr-review

@@ -1,0 +1,42 @@
+name: vuln-disclosure-composed
+steps:
+  - id: vuln-disclosure
+    skill: ../..
+    runner: vuln-disclosure
+    inputs:
+      channel: github_security_advisory
+      target:
+        locator: github:runxhq/example:security-advisories
+      disclosure_context:
+        coordination_status: maintainer_notified
+        remediation_status: fix_available
+      advisory_packet:
+        schema: runx.security.vulnerability_advisory.v1
+        decision: ready_for_review
+        target: example/service
+        advisory_draft:
+          title: Example dependency advisory
+          summary: A verified dependency finding requires an upgrade.
+          body: example/service includes example-lib 1.2.3, affected by GHSA-example-1234.
+          affected_advisory_ids:
+            - GHSA-example-1234
+        disclosure_checklist:
+          - confirm fixed version
+        source_advisories:
+          - advisory_id: GHSA-example-1234
+            dependency: example-lib
+            exact_version: 1.2.3
+        remediation_plan:
+          immediate:
+            - upgrade example-lib
+        evidence_binding:
+          receipt_ref: runx:receipt:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          evidence_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        validation:
+          status: pass
+          findings: []
+        publication_status: not_published
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.vuln-disclosure

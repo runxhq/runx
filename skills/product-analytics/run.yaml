@@ -1,5 +1,5 @@
 skill: product-analytics
-version: "0.1.2"
+version: "0.1.3"
 catalog:
   kind: graph
   audience: public
@@ -381,3 +381,7 @@ runners:
         named_emits: {product_analytics_review: product_analytics_review}
       scopes:
       - runx:evidence:read
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

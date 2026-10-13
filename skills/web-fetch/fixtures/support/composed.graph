@@ -1,0 +1,14 @@
+name: web-fetch-composed
+steps:
+  - id: web-fetch
+    skill: ../..
+    runner: web-fetch
+    inputs:
+      url: https://fixture.runx.invalid/example
+      allowlist:
+        - fixture.runx.invalid
+      extract: metadata
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.web-fetch

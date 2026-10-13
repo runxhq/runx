@@ -1,0 +1,37 @@
+name: google-analytics-composed
+steps:
+  - id: google-analytics
+    skill: ../..
+    runner: normalize-report
+    inputs:
+      request:
+        property: properties/123456
+        report_type: standard
+        date_ranges:
+          - { start_date: "2026-06-01", end_date: "2026-06-30", name: june }
+        dimensions: [landingPagePlusQueryString, sessionDefaultChannelGroup]
+        metrics: [sessions, keyEvents, totalRevenue]
+      provider_result:
+        property: properties/123456
+        dimension_headers:
+          - { name: landingPagePlusQueryString }
+          - { name: sessionDefaultChannelGroup }
+        metric_headers:
+          - { name: sessions, type: TYPE_INTEGER }
+          - { name: keyEvents, type: TYPE_FLOAT }
+          - { name: totalRevenue, type: TYPE_CURRENCY }
+        rows:
+          - dimension_values: [/guides/runx, Organic Search]
+            metric_values: ["120", "9", "450.25"]
+        row_count: 1
+        pagination: { complete: true, returned_rows: 1 }
+        metadata:
+          time_zone: Australia/Sydney
+          currency_code: AUD
+          subject_to_thresholding: false
+          data_loss_from_other_row: false
+        fetched_at: "2026-07-01T03:00:00Z"
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.google-analytics

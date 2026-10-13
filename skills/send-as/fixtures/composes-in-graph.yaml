@@ -1,0 +1,44 @@
+name: send-as-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: send-as
+        principal:
+          type: account
+          ref: account:growth-demo
+        provider:
+          name: slack
+          account_ref: acct_demo
+          runtime_path: provider.send
+        send_class: campaign
+        channel: email
+        audience:
+          type: list
+          ref: newsletter-subscribers
+          requires_reconfirmation: false
+        content:
+          draft_ref: campaign:jun-newsletter
+          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          subject_or_title: June product update
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_ref: approval:pending
+        blockers: []
+        provider_actions:
+          - provider.review_delivery
+          - provider.send_test
+          - provider.schedule_or_send
+        evidence_refs:
+          - provider_context:slack
+        success_checkpoint:
+          milestone: send_ready_for_approval
+          description: A digest-bound campaign send is ready for preflight and explicit approval.
+expect:
+  status: sealed
+  steps: [send-as, digest]
+  receipt: { schema: runx.receipt.v1 }

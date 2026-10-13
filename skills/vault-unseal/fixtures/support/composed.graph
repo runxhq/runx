@@ -1,0 +1,15 @@
+name: vault-unseal-composed
+steps:
+  - id: vault-unseal
+    skill: ../..
+    runner: vault-unseal
+    inputs:
+      secret_ref: vault://drive/service-account
+      purpose: Sign one Drive export request for the monthly reports job
+      ttl: 10m
+      scope: {resource: drive.files, action: export, path: /reports/*}
+      principal: svc/report-exporter
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.vault-unseal

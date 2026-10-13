@@ -1,0 +1,22 @@
+name: moltbook-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    analyze:
+      scan_draft:
+        decision: ready
+        opportunity_report:
+          topic: package skill migration
+          rationale: Current product change and operator demand support a practical migration post.
+          source_refs: [changelog_1, feedback_1]
+        post_outline:
+          headline: How to move a Runx skill into a package root
+          beats: [What changed, How to migrate, How to verify]
+          source_refs: [changelog_1, feedback_1]
+        moderation_notes: { sensitivity: low, tone: direct and useful }
+        follow_up_plan: { monitor_for: [migration questions] }
+expect:
+  status: sealed
+  steps: [moltbook, digest]
+  receipt: { schema: runx.receipt.v1 }

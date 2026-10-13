@@ -1,0 +1,31 @@
+name: run-history-composed
+steps:
+  - id: run-history
+    skill: ../..
+    runner: report
+    inputs:
+      objective: Show how Runx behaved over the supplied window.
+      scope: workspace
+      period: 30d
+      runs:
+        - run_id: run_release_1
+          skill: release
+          state: sealed
+          disposition: closed
+        - run_id: run_release_2
+          skill: release
+          state: sealed
+          disposition: blocked
+      catalog_items:
+        - name: release
+          status: ok
+          fixtures: 2
+          harness_cases: 1
+        - name: untested
+          status: ok
+          fixtures: 0
+          harness_cases: 0
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.run-history

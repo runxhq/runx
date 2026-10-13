@@ -1,5 +1,5 @@
 skill: stripe-pay
-version: "0.4.2"
+version: "0.4.3"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: stripe-spt, execution: execute, completion: provider_readback, approval: required, category: payments }
 runners:
   stripe-spt:
@@ -17,3 +17,7 @@ runners:
         skill: ../spend
         runner: spend
         inputs: { payment_signal: $input.payment_signal, parent_payment_authority: $input.parent_payment_authority, rail: stripe-spt, rail_profile_ref: $input.rail_profile_ref, payment_admission: $input.payment_admission, realm: $input.realm, idempotency_seed: $input.idempotency_seed }
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

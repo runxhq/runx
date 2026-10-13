@@ -1,5 +1,5 @@
 skill: vuln-disclosure
-version: "0.4.7"
+version: "0.4.8"
 
 catalog:
   kind: graph
@@ -345,3 +345,7 @@ runners:
         result_fields: [advisory_ref, payload_digest, status]
         expected_result: $steps.publish.provider_operation.result
         input: $steps.publish.provider_operation.result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

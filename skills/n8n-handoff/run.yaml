@@ -1,5 +1,5 @@
 skill: n8n-handoff
-version: "0.2.5"
+version: "0.2.6"
 catalog:
   kind: graph
   audience: operator
@@ -46,6 +46,7 @@ input_definitions:
     description: The workspace's n8n Cloud host, such as acme.app.n8n.cloud, without scheme or path.
     schema: { pattern: '^[a-z0-9][a-z0-9-]{0,62}\.app\.n8n\.cloud$' }
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: n8n-handoff-preflight-ready
       operator_journeys:

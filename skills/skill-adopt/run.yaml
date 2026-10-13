@@ -1,5 +1,5 @@
 skill: skill-adopt
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   owner: runx
@@ -323,3 +323,7 @@ runners:
             binding_bundle: binding_bundle
           packets:
             binding_bundle: runx.skill_overlay.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

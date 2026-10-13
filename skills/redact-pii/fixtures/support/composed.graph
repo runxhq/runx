@@ -1,0 +1,14 @@
+name: redact-pii-composed
+steps:
+  - id: redact-pii
+    skill: ../..
+    runner: redact-pii
+    inputs:
+      content: "Dana from the north office approved the draft."
+      classes:
+        - name
+      mode: redact
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.redact-pii

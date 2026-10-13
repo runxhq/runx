@@ -1,0 +1,28 @@
+name: conversation-reply-composed
+steps:
+  - id: conversation-reply
+    skill: ../..
+    runner: operate
+    inputs:
+      source_context:
+        schema: runx.source_packet.v1
+        packet_id: slack://T123/C123/1.000001:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        source_ref: { type: event, uri: 'slack://T123/C123/1.000001' }
+        signal_type: conversation
+        title: Conversation evidence
+        observed_at: '2026-10-05T00:00:00Z'
+        redaction_status: unredacted
+        workflow_inputs:
+          source_ref: 'slack://T123/C123/1.000001'
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          thread_locator: 'slack://T123/C123/1.000001'
+          source_complete: false
+          thread: { thread_locator: 'slack://T123/C123/1.000001', coverage_incomplete: true }
+      turn_id: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      expected_provider: slack
+      thread_locator: 'slack://T123/C123/1.000001'
+      draft_message: I will check this.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.conversation-reply

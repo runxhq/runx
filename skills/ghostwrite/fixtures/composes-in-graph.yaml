@@ -1,0 +1,27 @@
+name: ghostwrite-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    author:
+      content_draft:
+        decision: ready
+        content_brief: { objective: Explain the strongest Runx architecture signal., audience: operators, channel: brief }
+        draft:
+          title: Governed action stays visible
+          body: Receipts bind actions to authority evidence.
+          claim_refs:
+            - claim: Receipts bind actions to authority evidence.
+              source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]
+        context_binding:
+          applied:
+            - packet_digest: sha256:d82b3f6e9731497a2aa6d91051f144a69fdcff6dd1225572ea30b245bf9ab5b5
+              applied_rules: [Lead with governed action and proof.]
+            - packet_digest: sha256:96c6705e4667be9eac94382c35fe1552eac2f243d60fbafce64b5263d79b068f
+              applied_rules: [Choose operational clarity.]
+        review_checklist: []
+        distribution_notes: { primary_channel: brief }
+expect:
+  status: sealed
+  steps: [ghostwrite, digest]
+  receipt: { schema: runx.receipt.v1 }

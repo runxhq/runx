@@ -1,0 +1,122 @@
+name: policy-draft-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    draft:
+      policy_proposal:
+        decision: ready
+        policy:
+          schema: runx.operational_policy.v1
+          schema_version: runx.operational_policy.v1
+          policy_id: acme-issue-flow
+          sources:
+            - source_id: github-issues
+              provider: github
+              allowed_locators:
+                - github://acme/acme/issues
+                - github://acme/api/issues
+                - github://acme/app/issues
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              source_thread:
+                required: true
+                publish_mode: comment
+                missing_behavior: fail_closed
+              minimum_confidence: 0.72
+            - source_id: sentry-alerts
+              provider: sentry
+              allowed_locators:
+                - sentry://acme/production
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              source_thread:
+                required: true
+                publish_mode: reply
+                missing_behavior: fail_closed
+              minimum_confidence: 0.82
+          runners:
+            - runner_id: local-review
+              kind: local
+              state: available
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              target_repos:
+                - acme/acme
+                - acme/api
+                - acme/app
+              scafld_required: true
+          owner_routes:
+            - route_id: platform-owner
+              owners:
+                - kam
+              target_repos:
+                - acme/acme
+                - acme/api
+            - route_id: product-owner
+              owners:
+                - chong
+              target_repos:
+                - acme/app
+          targets:
+            - repo: acme/acme
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: platform-owner
+              scafld_required: true
+              base_branch: main
+            - repo: acme/api
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: platform-owner
+              scafld_required: true
+              base_branch: main
+            - repo: acme/app
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+                - pr-review
+              default_owner_route: product-owner
+              scafld_required: true
+              base_branch: main
+          dedupe:
+            strategy: source_fingerprint
+            key_fields:
+              - source.provider
+              - source.locator
+              - signal.fingerprint
+            on_duplicate: reuse
+          outcomes:
+            observe_provider: true
+            verification_required: true
+            close_source_issue: when_verified
+            publish_final_source_thread_update: true
+          permissions:
+            auto_merge: false
+            mutate_target_repo: true
+            require_human_merge_gate: true
+        rationale: The policy binds every source, target, runner, and owner while keeping mutation behind human review.
+        blockers: []
+        needs_input: []
+        success_checkpoint:
+          milestone: policy_drafted
+          description: The draft is ready for native validation.
+expect:
+  status: sealed
+  steps: [policy-draft, digest]
+  receipt: { schema: runx.receipt.v1 }

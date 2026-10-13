@@ -1,5 +1,5 @@
 skill: policy-draft
-version: "0.2.3"
+version: "0.2.4"
 catalog:
   owner: runx
   kind: graph
@@ -191,3 +191,7 @@ runners:
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx.policy_proposal.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

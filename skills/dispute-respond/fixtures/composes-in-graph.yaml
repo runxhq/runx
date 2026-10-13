@@ -1,0 +1,16 @@
+name: dispute-respond-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    draft:
+      response_draft:
+        posture: contest
+        response_summary: Contest only when the original charge receipt verifies.
+        cited_receipt_ids: [sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39]
+        cited_evidence_refs: []
+        open_questions: []
+expect:
+  status: sealed
+  steps: [dispute-respond, digest]
+  receipt: { schema: runx.receipt.v1 }

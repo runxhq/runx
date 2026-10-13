@@ -1,0 +1,13 @@
+name: skill-review-composed
+steps:
+  - id: skill-review
+    skill: ../..
+    runner: review
+    inputs:
+      skill_ref: fixtures/subject
+      objective: Decide whether the subject has bounded evidence and stop behavior
+      test_constraints: Run only local read-only harnesses.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.skill-review

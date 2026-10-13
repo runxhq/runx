@@ -1,5 +1,5 @@
 skill: contract-drafter
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   kind: graph
@@ -11,6 +11,7 @@ catalog:
   approval: none
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: contract-drafter-complete-draft-seals
       operator_journeys:

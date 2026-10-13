@@ -1,0 +1,7 @@
+name: receipt-query-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [receipt-query, digest]
+  receipt: { schema: runx.receipt.v1 }

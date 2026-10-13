@@ -1,0 +1,13 @@
+name: open-meteo-weather-forecast-composed
+steps:
+  - id: open-meteo-weather-forecast
+    skill: ../..
+    runner: air_quality
+    inputs:
+      name: Shanghai
+      latitude: "31.2222"
+      longitude: "121.4581"
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.open-meteo-weather-forecast

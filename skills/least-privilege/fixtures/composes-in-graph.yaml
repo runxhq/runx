@@ -1,0 +1,7 @@
+name: least-privilege-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [least-privilege, digest]
+  receipt: { schema: runx.receipt.v1 }

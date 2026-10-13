@@ -1,0 +1,14 @@
+name: skill-adopt-composed
+steps:
+  - id: skill-adopt
+    skill: ../..
+    runner: generate
+    inputs:
+      upstream:
+        host: github.com
+      registry:
+        owner: example
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.skill-adopt

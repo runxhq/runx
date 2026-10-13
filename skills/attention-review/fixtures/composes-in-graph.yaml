@@ -1,0 +1,15 @@
+name: attention-review-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    judge:
+      draft:
+        decision: brief
+        items: [{ source_ref: mail-thread-1, priority: high }]
+        recommended_action_ids: [private_update]
+        next_check_minutes: 20
+expect:
+  status: sealed
+  steps: [attention-review, digest]
+  receipt: { schema: runx.receipt.v1 }

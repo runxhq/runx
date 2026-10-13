@@ -1,0 +1,35 @@
+name: prior-art-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    research:
+      prior_art_draft:
+        decision: ready
+        findings:
+          - claim: The existing Moltbook package owns the opportunity scan boundary.
+            source: skills/moltbook/run.yaml
+            relevance: Reuse avoids a duplicate public scanner.
+            confidence: verified
+        catalog_fit:
+          decision: reuse
+          adjacent_skills:
+            - moltbook
+          rationale: Compose the existing scan runner and add only pipeline glue.
+        quality_bar:
+          audience: Runx skill maintainers
+          artifact: A source-bound reuse decision.
+          evidence: Cite the inspected manifest.
+          stop_conditions:
+            - Stop if the runner cannot be verified.
+        recommended_flow:
+          - step: scan
+            rationale: Reuse the existing Moltbook scan runner.
+        sources:
+          - path: skills/moltbook/run.yaml
+            kind: skill-manifest
+        risks: []
+expect:
+  status: sealed
+  steps: [prior-art, digest]
+  receipt: { schema: runx.receipt.v1 }

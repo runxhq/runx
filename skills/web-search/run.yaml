@@ -1,5 +1,5 @@
 skill: web-search
-version: "0.1.1"
+version: "0.1.2"
 catalog:
   kind: graph
   audience: public
@@ -98,3 +98,7 @@ runners:
                 coverage: {const: one_query}
         artifacts:
           named_emits: {search_result: search_result}
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

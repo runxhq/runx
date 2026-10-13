@@ -1,0 +1,23 @@
+name: google-calendar-composed
+steps:
+  - id: google-calendar
+    skill: ../..
+    runner: normalize-supplied
+    inputs:
+      kind: events
+      calendar_id: primary
+      time_min: "2026-10-04T00:00:00Z"
+      time_max: "2026-10-05T00:00:00Z"
+      provider_result:
+        calendar_id: primary
+        time_min: "2026-10-04T00:00:00Z"
+        time_max: "2026-10-05T00:00:00Z"
+        fetched_at: "2026-10-04T01:00:00Z"
+        complete: true
+        events:
+          - { event_id: private-1, revision: v1, status: confirmed, visibility: private, summary: hidden, all_day: true, start: "2026-10-04", end: "2026-10-05" }
+          - { event_id: cancelled-1, status: cancelled, recurring_event_id: series-1 }
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.google-calendar

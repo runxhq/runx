@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.11"
+version: "0.1.12"
 
 catalog:
   kind: graph
@@ -111,6 +111,7 @@ input_definitions:
         plan_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: normalizes-bounded-page-performance
       operator_journeys:

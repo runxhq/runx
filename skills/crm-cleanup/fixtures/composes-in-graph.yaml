@@ -1,0 +1,20 @@
+name: crm-cleanup-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    reconcile:
+      update_draft:
+        updates:
+          - record_id: acct-globex
+            field: account_status
+            to: at_risk
+            evidence_quote: the rollout stalled and they want an executive review before renewing
+          - record_id: acct-globex
+            field: next_action
+            to: send the Q3 usage report by Friday
+            evidence_quote: "send the Q3 usage report by Friday"
+expect:
+  status: sealed
+  steps: [crm-cleanup, digest]
+  receipt: { schema: runx.receipt.v1 }

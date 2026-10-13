@@ -1,0 +1,37 @@
+name: marketplace-invoke-composed
+steps:
+  - id: marketplace-invoke
+    skill: ../..
+    runner: invoke
+    inputs:
+      marketplace_offer:
+        listing_ref: runx:listing:ausca/document-ocr@ocr-fixed-r2#invoke
+        endpoint_url: https://vendor.example/v1/invocations
+        vendor_offer_revision:
+          offer_id: document.ocr
+          revision: ocr-fixed-r2
+          revision_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          input_schema_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          output_schema_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        vendor_package_digest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        vendor_amount_minor: 25
+        platform_fee_minor: 5
+        currency: USD
+        settlement_family: x402
+        expected_receipt_class: executed
+        vendor_ref: { type: principal, uri: runx:principal:ausca }
+      resource_request:
+        body:
+          offer_id: document.ocr
+          offer_revision: ocr-fixed-r2
+          offer_revision_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          input_schema_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          output_schema_digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          canonicalizer_version: runx.receipt.c14n.v1
+          input: { artifact_ref: "runx:artifact:document-1" }
+        max_response_bytes: 26214400
+      idempotency_seed: marketplace-test-payment-001
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.marketplace-invoke

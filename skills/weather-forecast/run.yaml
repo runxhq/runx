@@ -1,5 +1,5 @@
 skill: weather-forecast
-version: "0.2.4"
+version: "0.2.5"
 catalog:
   kind: graph
   audience: public
@@ -103,3 +103,7 @@ runners:
         artifacts:
           wrap_as: weather_forecast_packet
           packet: runx.context.weather_forecast.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

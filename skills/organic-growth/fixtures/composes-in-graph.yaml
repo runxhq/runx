@@ -1,0 +1,68 @@
+name: organic-growth-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    analyze:
+      growth_candidate:
+        decision: ready
+        objective: Improve qualified organic acquisition for the Runx guides.
+        site_url: https://example.com/
+        executive_summary: The guide already has search visibility and measured organic outcomes; improve decision usefulness before expanding topic coverage.
+        observations:
+          - statement: The guide page received measurable search visibility and clicks in the period.
+            epistemic_status: observed
+            source_digests: [sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+          - statement: The organic landing-page slice recorded sessions and key events in the same date window.
+            epistemic_status: observed
+            source_digests: [sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]
+        hypotheses:
+          - statement: Decision-oriented evidence may improve usefulness for evaluators.
+            epistemic_status: hypothesized
+            source_digests:
+              - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        opportunities:
+          - title: Strengthen the existing guide before creating another page.
+            rationale: The page already attracts discovery and the supplied page evidence identifies a decision-support gap.
+            source_digests:
+              - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        recommended_actions:
+          - id: guide-decision-evidence
+            title: Add a concise comparison and implementation-evidence section.
+            rationale: Address the observed decision-support gap on a page with existing visibility.
+            priority: high
+            confidence: medium
+            effort: medium
+            owner_type: content_and_product
+            expected_signal: Better qualified engagement and key-event rate without loss of search visibility.
+            verification: Compare the same page, channel, and date-length windows after recrawl and sufficient traffic.
+            stop_condition: Stop if the section cannot be supported by first-party evidence.
+            source_digests:
+              - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              - sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              - sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        geo_review:
+          assessment: Evidence clarity and stable first-party support are the useful answer-engine improvements here; citation inclusion is not guaranteed.
+          source_digests: [sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc]
+        measurement_plan:
+          baseline: Preserve the supplied June search and analytics packet digests.
+          leading_signals: Search visibility, CTR, and qualified landing-page engagement on the same page.
+          business_outcomes: Key-event rate for qualified product evaluation.
+          comparison_window: Use equal-length complete periods after recrawl and enough traffic.
+          reconsideration_trigger: Reconsider if visibility or qualified outcomes fall outside normal variation.
+        claims:
+          - claim: The guide has existing search visibility and measured organic outcomes.
+            source_digests:
+              - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              - sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          - claim: The supplied page evidence identifies missing decision-support elements.
+            source_digests: [sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc]
+        risks: [Attribution will be weak if unrelated page changes ship in the same window.]
+        missing_evidence: [Query-level intent and technical crawl evidence would sharpen the next iteration.]
+        external_status: not_executed
+expect:
+  status: sealed
+  steps: [organic-growth, digest]
+  receipt: { schema: runx.receipt.v1 }

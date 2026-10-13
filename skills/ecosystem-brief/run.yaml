@@ -1,5 +1,5 @@
 skill: ecosystem-brief
-version: "0.2.8"
+version: "0.2.9"
 
 catalog:
   kind: graph
@@ -12,6 +12,7 @@ catalog:
   category: research
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: ecosystem-brief-produces-fresh-bound-brief
       operator_journeys:

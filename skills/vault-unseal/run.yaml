@@ -1,5 +1,5 @@
 skill: vault-unseal
-version: "0.4.6"
+version: "0.4.7"
 
 catalog:
   kind: skill
@@ -167,3 +167,7 @@ runners:
         result_fields: [handle_ref, expires_at, status]
         expected_result: $steps.issue-handle.provider_operation.result
         input: $steps.issue-handle.provider_operation.result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

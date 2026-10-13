@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.6"
+version: "0.5.7"
 catalog:
   kind: skill
   audience: public
@@ -16,6 +16,7 @@ harness:
     - fixtures/data/archive-follower.js
     - fixtures/data/archive-following.js
     - fixtures/data/archive-tweets.js
+    - fixtures/support/composed.graph
   cases: []
 
 connectors:

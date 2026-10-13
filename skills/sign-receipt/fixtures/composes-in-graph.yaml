@@ -1,0 +1,7 @@
+name: sign-receipt-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [sign-receipt, digest]
+  receipt: { schema: runx.receipt.v1 }

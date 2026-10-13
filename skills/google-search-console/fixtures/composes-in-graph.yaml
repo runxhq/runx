@@ -1,0 +1,7 @@
+name: google-search-console-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [google-search-console, digest]
+  receipt: { schema: runx.receipt.v1 }

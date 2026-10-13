@@ -1,5 +1,5 @@
 skill: postmortem-maker
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
@@ -11,6 +11,7 @@ catalog:
   approval: none
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: postmortem-maker-publishable-seals
       operator_journeys:

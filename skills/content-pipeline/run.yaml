@@ -1,5 +1,5 @@
 skill: content-pipeline
-version: "0.4.1"
+version: "0.4.2"
 catalog:
   kind: graph
   audience: public
@@ -11,6 +11,7 @@ catalog:
   category: content
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: content-pipeline-produces-bound-draft
       operator_journeys:

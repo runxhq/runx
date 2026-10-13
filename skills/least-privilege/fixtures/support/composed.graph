@@ -1,0 +1,17 @@
+name: least-privilege-composed
+steps:
+  - id: least-privilege
+    skill: ../..
+    runner: audit
+    inputs:
+      subject: research/deep-research
+      granted_scopes:
+        - web:read
+        - repo:read
+      receipt_ids: []
+      receipt_rows: []
+      objective: Audit a newly published skill with no runs.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.least-privilege

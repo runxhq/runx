@@ -1,5 +1,5 @@
 skill: deep-research
-version: "0.2.8"
+version: "0.2.9"
 
 catalog:
   kind: graph
@@ -45,6 +45,7 @@ input_definitions:
         - { type: object, maxProperties: 100 }
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: deep-research-packages-bound-brief-without-publishing
       operator_journeys:

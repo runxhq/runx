@@ -1,5 +1,5 @@
 skill: slack-notify
-version: "0.4.7"
+version: "0.4.8"
 catalog:
   kind: graph
   audience: public
@@ -343,3 +343,7 @@ runners:
           digest_result: $steps.digest.digest_result
         tool: { module: slack-notify.mjs, export: reconcileExactNotification }
         outputs: { reconciliation: object }
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

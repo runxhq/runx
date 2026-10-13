@@ -1,0 +1,14 @@
+name: slack-composed
+steps:
+  - id: slack
+    skill: ../..
+    runner: assistant_decide
+    inputs:
+      presentation_ref: slack://T123ABC/C123ABC/1791095930.000001
+      request_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      nonce: 0123456789abcdef
+      authorized_actor_ref: U123ABC
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.slack

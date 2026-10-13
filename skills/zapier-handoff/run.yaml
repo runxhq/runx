@@ -1,5 +1,5 @@
 skill: zapier-handoff
-version: "0.2.5"
+version: "0.2.6"
 catalog:
   kind: graph
   audience: operator
@@ -41,6 +41,7 @@ input_definitions:
     required: false
     description: Optional receiver metadata; a supplied url must be public HTTPS.
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: zapier-handoff-preflight-ready
       operator_journeys:

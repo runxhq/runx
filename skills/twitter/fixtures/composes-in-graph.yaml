@@ -1,0 +1,7 @@
+name: twitter-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [twitter, digest]
+  receipt: { schema: runx.receipt.v1 }

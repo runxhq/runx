@@ -1,0 +1,7 @@
+name: sbom-maker-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [sbom-maker, digest]
+  receipt: { schema: runx.receipt.v1 }

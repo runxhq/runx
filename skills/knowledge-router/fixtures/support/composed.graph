@@ -1,0 +1,29 @@
+name: knowledge-router-composed
+steps:
+  - id: knowledge-router
+    skill: ../..
+    runner: route
+    inputs:
+      question: Can API keys be scoped to read-only campaign analytics?
+      available_sources:
+        sources:
+          - id: auth-docs
+            kind: docs
+            summary: Authentication and API key scopes.
+          - id: campaigns-docs
+            kind: docs
+            summary: Campaign analytics fields and export limits.
+        owners:
+          - id: security-team
+            domains:
+              - authentication
+          - id: growth-team
+            domains:
+              - campaigns
+        skills:
+          - id: research
+            purpose: Resolve a bounded source-backed question.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.knowledge-router

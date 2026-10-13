@@ -1,0 +1,67 @@
+name: cold-outreach-composed
+steps:
+  - id: cold-outreach
+    skill: ../..
+    runner: prepare
+    inputs:
+      sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+      prospect: {email: operator@example.org, company: Example}
+      audience: documentation maintainers
+      purpose: Offer a useful documentation review
+      offer: A bounded review of public docs
+      required_footer: Example team. Reply to opt out.
+      contact_policy:
+        recipient: operator@example.org
+        status: eligible
+        suppressed: false
+        policy_ref: policy:outreach
+        evidence_refs: ['decision:recipient-1']
+      evidence_pack:
+        decision: ready
+        research_brief:
+          objective: Explain the strongest Runx architecture signal.
+          scope: agent infrastructure
+          summary: The recipient published a guide about receipts binding actions to authority evidence. The sender
+            offers a bounded public documentation review.
+          open_questions: []
+        evidence_log:
+        - claim: The recipient published a guide about receipts binding actions to authority evidence; the sender offers
+            a bounded public documentation review.
+          source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+          content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          confidence: verified
+          relevance: Supports the governance claim.
+        decision_support: []
+        risks: []
+        source_evidence:
+        - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+          content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          source_ref: https://example.com/evidence
+          source_kind: fetch
+          provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
+        index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+        validation: {status: pass, findings: []}
+      brand_context:
+        decision: ready
+        brand: Example team
+        applicability: {channels: [reddit], audience: platform engineers, boundaries: [Do not extend claims beyond admitted
+              evidence.]}
+        brand_voice:
+          voice_principles: [Lead with the reader's own work.]
+          vocabulary: {use: [review], avoid: [synergy]}
+          cadence: [Short plain sentences.]
+          claim_rules: {safe: [], requires_proof: [], forbidden: [Guaranteed outcomes.]}
+          channel_adjustments: []
+        evidence:
+          evidence_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+          sources: [{source_ref: 'source:1', kind: approved, label: Approved community post}]
+          bindings:
+          - {rule: Lead with the reader's own work., source_refs: ['source:1']}
+        redactions: []
+        stop_conditions: []
+        receipt_notes: {authority: context-only, mutation: false}
+        validation: {status: pass, findings: []}
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.cold-outreach

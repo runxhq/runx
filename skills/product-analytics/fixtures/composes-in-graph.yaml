@@ -1,0 +1,28 @@
+name: product-analytics-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    analyze:
+      analytics_candidate:
+        decision: ready
+        objective: Find activation gaps
+        summary: The ordered activation funnel converted 75 of 100 accounts.
+        findings:
+        - claim: 75 of 100 accounts activated.
+          kind: observed
+          source_digests:
+          - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        - claim: Investigate the unactivated account journey before changing onboarding.
+          kind: action
+          source_digests:
+          - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          measurement: Review the missing ordered step and instrumentation.
+          owner_role: product engineering
+          stop_condition: Stop if the event definition is not consistent.
+        limitations:
+        - This descriptive period does not establish causality.
+expect:
+  status: sealed
+  steps: [product-analytics, digest]
+  receipt: { schema: runx.receipt.v1 }

@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.5"
+version: "0.1.6"
 
 catalog:
   kind: graph
@@ -12,6 +12,7 @@ catalog:
   category: ops
 
 harness:
+  files: [fixtures/support/composed.graph]
   cases:
     - name: conversation-review-keeps-ordinary-reply-out-of-coding
       operator_journeys:

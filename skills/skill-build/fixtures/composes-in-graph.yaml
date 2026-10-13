@@ -1,0 +1,92 @@
+name: skill-build-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    architect:
+      architecture_decision:
+        schema: runx.skill.architecture_decision.v1
+        disposition: extend_existing
+        identity:
+          current_name: release
+          proposed_name: release
+          action: keep
+          visibility: public
+          rationale: Release is the canonical operation and already owns release-note preparation.
+        direct_use:
+          trigger_requests:
+            - Prepare reviewable release notes from this bounded change set.
+          non_trigger_requests:
+            - Publish this release now.
+          default_outcome: Produce reviewable release notes without claiming publication.
+          routine_host_work:
+            - Inspect the supplied release change set.
+          runx_boundary: Bind the source evidence and release-note result for reuse by the release lane.
+          terminal_result: A reviewable release-note artifact.
+          blocker_behavior: Stop once and name the missing release evidence.
+          native_escape: Return the bounded change evidence so the host can continue drafting directly.
+        chain_use:
+          accepted_inputs:
+            - A bounded release change set or prior change-evidence packet.
+          result: A reusable release-note artifact for the canonical release lane.
+          reused_evidence:
+            - The supplied release change set.
+          reused_effects: []
+          must_not_repeat:
+            - Do not rediscover or reclassify the supplied release changes.
+        objective: Add governed release-note preparation to the canonical release skill.
+        operator_value: Keep release preparation in one discoverable operator lane.
+        knowledge_contract:
+          purpose: Teach an operator how release notes are prepared without implying publication.
+          evidence_required:
+            - The bounded release change set.
+          decision_logic:
+            - Extend the existing release owner instead of adding a parallel public skill.
+          stop_conditions:
+            - Stop when the release change set is unavailable.
+          recovery:
+            - Resume after supplying the missing change evidence.
+        required_behaviors:
+          - id: prepare-release-notes
+            outcome: Produce a reviewable release-note artifact separate from publication.
+            lane: graph
+        native_reuse:
+          inspected_capabilities:
+            - runx.skill.inspect
+            - runx.skill.plan
+            - runx.skill.bind
+            - runx.skill.apply
+          selected_capabilities: []
+          missing_capabilities: []
+        effects:
+          - effect: draft
+            authority_scopes: []
+            approval: none
+            provider_boundary: false
+        skill_chain:
+          context_skills:
+            - release
+          routes:
+            - Hand the bounded release-note artifact and source change set to the canonical release skill; it owns release authority and execution, no connector is selected here, and publication remains unattempted until that lane completes its own approval and readback.
+        resource_budget:
+          max_files: 20
+          max_executable_lines: 0
+          max_process_spawns: 0
+          network_allowed: false
+        preservation_obligations:
+          - Preserve the release skill's distinction between preparation and execution.
+        deletions: []
+        proof_plan:
+          - name: release-notes-selection
+            kind: selection_trial
+            expected: Release-note preparation selects release while a publication-only request does not select this runner.
+          - name: release-notes-standalone
+            kind: standalone_operator_journey
+            expected: A direct change set produces reviewable notes without claiming publication.
+          - name: release-notes-composed
+            kind: composed_operator_journey
+            expected: Prior change evidence is reused by the release lane without rediscovery.
+expect:
+  status: sealed
+  steps: [skill-build, digest]
+  receipt: { schema: runx.receipt.v1 }

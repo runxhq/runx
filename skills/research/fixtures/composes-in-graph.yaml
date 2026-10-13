@@ -1,0 +1,28 @@
+name: research-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    synthesize:
+      research_candidate:
+        decision: ready
+        research_brief:
+          objective: Decide where generic evidence admission belongs.
+          scope: supplied architecture evidence
+          summary: Generic evidence admission belongs in the native runtime, while skills own domain judgment.
+          open_questions: []
+        evidence_log:
+          - claim: Generic evidence admission belongs in the native runtime.
+            source_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+            content_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+            confidence: verified
+            relevance: Establishes the reusable ownership boundary.
+        decision_support:
+          - option: Keep evidence admission native and domain interpretation in skills.
+            rationale: The admitted local evidence states that boundary directly.
+            source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
+        risks: []
+expect:
+  status: sealed
+  steps: [research, digest]
+  receipt: { schema: runx.receipt.v1 }

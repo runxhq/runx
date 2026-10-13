@@ -1,0 +1,7 @@
+name: google-calendar-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [google-calendar, digest]
+  receipt: { schema: runx.receipt.v1 }

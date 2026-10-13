@@ -1,0 +1,28 @@
+name: receipt-audit-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    audit:
+      receipt_audit:
+        decision: ready
+        run_ref: rcpt_issue_triage_4471
+        granted_scopes:
+          - repo:read
+        exercised_scopes:
+          - repo:read
+        refusals: []
+        findings:
+          - id: receipt.clean
+            severity: info
+            message: Exercised authority (repo:read) is within the grant; no declared approval is unresolved; no credential material is exposed.
+        verdict: clean
+        rationale: The only exercised scope, repo:read, is covered by the proof. No signed evidence declares an unresolved approval requirement, and no credential material is projected. The run honored its bound.
+        recommendations: []
+        success_checkpoint:
+          milestone: audit_clean
+          description: A sealed read-only run audited as within its granted authority.
+expect:
+  status: sealed
+  steps: [receipt-audit, digest]
+  receipt: { schema: runx.receipt.v1 }

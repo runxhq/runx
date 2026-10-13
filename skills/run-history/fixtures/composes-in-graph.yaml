@@ -1,0 +1,7 @@
+name: run-history-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [run-history, digest]
+  receipt: { schema: runx.receipt.v1 }

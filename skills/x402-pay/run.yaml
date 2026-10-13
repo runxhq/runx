@@ -1,5 +1,5 @@
 skill: x402-pay
-version: "0.9.4"
+version: "0.9.5"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   marketplace_offer:
@@ -170,3 +170,7 @@ runners:
         ephemeral_result_paths: [/resource_result/resource_access]
         input: $steps.prepare.readback_request
         expected_result: $steps.prepare.expected_result
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

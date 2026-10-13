@@ -1,5 +1,5 @@
 skill: least-privilege
-version: "0.3.5"
+version: "0.3.6"
 catalog:
   owner: runx
   kind: graph
@@ -108,3 +108,7 @@ runners:
         artifacts:
           wrap_as: least_privilege_packet
           packet: runx.security.least_privilege.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

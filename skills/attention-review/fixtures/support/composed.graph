@@ -1,0 +1,22 @@
+name: attention-review-composed
+steps:
+  - id: attention-review
+    skill: ../..
+    runner: review
+    inputs:
+      objective: Check new personal observations.
+      as_of: "2026-10-02T10:00:00.123456Z"
+      evidence:
+        - source_ref: mail-thread-1
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          source_kind: mail
+          observed_at: "2026-10-02T09:55:00Z"
+          summary: A colleague asks for a decision on the release note.
+      current_actions: []
+      allowed_action_ids: [private_update]
+      min_check_minutes: 15
+      max_check_minutes: 60
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.attention-review

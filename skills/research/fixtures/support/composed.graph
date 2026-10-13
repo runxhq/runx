@@ -1,0 +1,13 @@
+name: research-composed
+steps:
+  - id: research
+    skill: ../..
+    runner: local-files
+    inputs:
+      objective: Decide where generic evidence admission belongs.
+      paths: [fixtures/local-architecture-evidence.txt]
+      path_scope: skill
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.research

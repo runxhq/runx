@@ -1,5 +1,5 @@
 skill: receipt-audit
-version: "0.3.7"
+version: "0.3.8"
 catalog:
   owner: runx
   kind: graph
@@ -98,3 +98,7 @@ runners:
         artifacts:
           wrap_as: receipt_audit_packet
           packet: runx.receipt_audit.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

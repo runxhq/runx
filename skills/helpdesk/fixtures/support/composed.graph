@@ -1,0 +1,19 @@
+name: helpdesk-composed
+steps:
+  - id: helpdesk
+    skill: ../..
+    runner: triage
+    inputs:
+      support_request:
+        customer_name: Theo
+        customer_email: theo@example.test
+        subject: I cannot access my account
+        body: My login is blocked and I need someone to reset access for the team owner.
+        source: fixture:account-access
+      policy:
+        product_name: ExampleDesk
+        support_signature: ExampleDesk Support
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.helpdesk

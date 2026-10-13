@@ -1,5 +1,5 @@
 skill: skill-review
-version: "0.3.5"
+version: "0.3.6"
 
 catalog:
   owner: runx
@@ -16,6 +16,7 @@ harness:
   files:
     - fixtures/subject/SKILL.md
     - fixtures/subject/run.yaml
+    - fixtures/support/composed.graph
   cases:
     - name: skill-review-collects-native-evidence
       operator_journeys:

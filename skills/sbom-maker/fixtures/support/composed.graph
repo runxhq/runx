@@ -1,0 +1,27 @@
+name: sbom-maker-composed
+steps:
+  - id: sbom-maker
+    skill: ../..
+    runner: make
+    inputs:
+      lockfile:
+        name: demo-app
+        version: "1.2.0"
+        lockfileVersion: 3
+        packages:
+          "":
+            name: demo-app
+            version: "1.2.0"
+          node_modules/left-pad:
+            version: 1.3.0
+            license: WTFPL
+          node_modules/strong-copyleft-lib:
+            version: 2.0.0
+            license: AGPL-3.0-only
+          node_modules/mystery-lib:
+            version: 0.9.1
+      lockfile_type: package-lock
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.sbom-maker

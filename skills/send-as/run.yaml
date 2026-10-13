@@ -1,5 +1,5 @@
 skill: send-as
-version: "0.3.6"
+version: "0.3.7"
 
 catalog:
   kind: graph
@@ -238,3 +238,7 @@ runners:
             send_result: send_result
           packets:
             send_result: runx.send_as.result.v1
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

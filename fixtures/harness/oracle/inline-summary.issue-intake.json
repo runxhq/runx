@@ -3,21 +3,23 @@
   "skill": "issue-intake",
   "report": {
     "status": "passed",
-    "case_count": 4,
+    "case_count": 5,
     "assertion_error_count": 0,
     "assertion_errors": [],
     "case_names": [
       "bounded-docs-fix",
       "feature-needs-decomposition",
       "reply-only-question",
-      "request-review-before-mutation"
+      "request-review-before-mutation",
+      "issue-intake-composes-in-graph"
     ],
     "receipt_ids": [
       "<receipt:1>",
       "<receipt:2>",
       "<receipt:3>",
-      "<receipt:4>"
+      "<receipt:4>",
+      "<receipt:5>"
     ],
-    "graph_case_count": 0
+    "graph_case_count": 1
   }
 }
