@@ -44,6 +44,10 @@ for (const group of validGroups) {
     if (group !== "fixture_support" && typeof entry.command !== "string") {
       failures.push(`${itemPath} is ${group} but has no command`);
     }
+    const target = harnessTarget(entry.command);
+    if (target !== undefined && !pathExists(path.join(root, target))) {
+      failures.push(`${itemPath} command runs ${target}, which does not exist`);
+    }
   }
 }
 
@@ -97,6 +101,20 @@ function demoPathExists(itemPath) {
 function hasFile(filePath) {
   try {
     return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// The fixture or package a `runx harness` command replays.
+function harnessTarget(command) {
+  return typeof command === "string" ? /^runx harness (\S+)/.exec(command)?.[1] : undefined;
+}
+
+function pathExists(filePath) {
+  try {
+    statSync(filePath);
+    return true;
   } catch {
     return false;
   }

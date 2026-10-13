@@ -9,7 +9,7 @@
     {
       "path": "skills/data-store",
       "proof": "Provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope.",
-      "command": "runx harness skills/data-store/fixtures/append-read-sqlite-event.yaml"
+      "command": "runx harness skills/data-store/fixtures/append-read-default-sqlite-event.yaml"
     },
     {
       "path": "skills/nws-weather-forecast",
