@@ -224,10 +224,6 @@ pub enum ConfigError {
     NonObjectJson { path: PathBuf },
     #[error("{path} is not a runx config: {message}")]
     InvalidConfig { path: PathBuf, message: String },
-    #[error(
-        "{path} holds runx 0.9 credential profiles ({profiles}), which this runx does not read: a credential now belongs to a connector. Delete the `credentials` section from {path}, then bind each with `runx connector use <connector> --credential <name>`, the secret on stdin."
-    )]
-    PriorCredentialProfiles { path: PathBuf, profiles: String },
     #[error("unsupported runx config key {key}")]
     UnsupportedKey { key: String },
     #[error("invalid {key}: {message}")]
@@ -282,45 +278,14 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
             path: config_path.to_path_buf(),
             message: error.to_string(),
         })?;
-    let JsonValue::Object(object) = &value else {
+    if value.as_object().is_none() {
         return Err(ConfigError::NonObjectJson {
             path: config_path.to_path_buf(),
-        });
-    };
-    if let Some(profiles) = prior_credential_profiles(object) {
-        return Err(ConfigError::PriorCredentialProfiles {
-            path: config_path.to_path_buf(),
-            profiles,
         });
     }
     serde_json::from_str(&contents).map_err(|error| ConfigError::InvalidConfig {
         path: config_path.to_path_buf(),
         message: error.to_string(),
-    })
-}
-
-/// The names of the credential profiles a runx 0.9 config holds: profiles
-/// keyed by provider and auth mode, with per-provider defaults.
-fn prior_credential_profiles(config: &runx_contracts::JsonObject) -> Option<String> {
-    let credentials = config.get("credentials")?.as_object()?;
-    let profiles = credentials.get("profiles").and_then(JsonValue::as_object);
-    let prior = profiles
-        .into_iter()
-        .flatten()
-        .filter(|(_, profile)| {
-            profile.as_object().is_some_and(|fields| {
-                fields.contains_key("provider") || fields.contains_key("auth_mode")
-            })
-        })
-        .map(|(name, _)| name.as_str())
-        .collect::<Vec<_>>();
-    if prior.is_empty() && !credentials.contains_key("defaults") {
-        return None;
-    }
-    Some(if prior.is_empty() {
-        "credentials.defaults".to_owned()
-    } else {
-        prior.join(", ")
     })
 }
 
@@ -810,23 +775,6 @@ fn hex_prefix(bytes: &[u8], len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_prior_credentials_section_is_refused_by_name() -> Result<(), Box<dyn std::error::Error>> {
-        let home = tempfile::tempdir()?;
-        let path = home.path().join("config.json");
-        fs::write(
-            &path,
-            r#"{"credentials":{"profiles":{"twitter":{"provider":"twitter","auth_mode":"oauth1","secret_ref":"x"}},"defaults":{"twitter":"twitter"}}}"#,
-        )?;
-        let Err(ConfigError::PriorCredentialProfiles { profiles, .. }) =
-            load_runx_config_file(&path)
-        else {
-            return Err("a 0.9 credentials section must be refused".into());
-        };
-        assert_eq!(profiles, "twitter");
-        Ok(())
-    }
 
     #[test]
     fn a_config_of_the_wrong_shape_is_not_called_invalid_json()
