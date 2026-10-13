@@ -690,6 +690,7 @@ fn materialize_registry_step_skill(
         &candidate,
         &InstallLocalSkillOptions {
             destination_root,
+            connectors_root: crate::RunxPaths::resolve(options.env, graph_dir).connectors(),
             expected_digest: None,
             trusted_manifest_keys,
         },

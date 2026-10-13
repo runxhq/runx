@@ -126,10 +126,27 @@ struct RuntimePathFixtures {
     provider_transport: ProviderBenchmarkTransport,
 }
 
+/// Makes `root` a runx plugin holding a copy of the runx source slack
+/// connector, as a project that installs it would reach it.
+fn plugin_with_source_slack(root: &Path) -> Result<(), Box<dyn Error>> {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/slack");
+    let target = root.join("connectors/slack");
+    fs::create_dir_all(&target)?;
+    for entry in fs::read_dir(&source)? {
+        let entry = entry?;
+        if entry.path().is_file() {
+            fs::copy(entry.path(), target.join(entry.file_name()))?;
+        }
+    }
+    fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
+    Ok(())
+}
+
 impl RuntimePathFixtures {
     fn new() -> Result<Self, Box<dyn Error>> {
         let directory = TempDir::new()?;
         write_modules(directory.path())?;
+        plugin_with_source_slack(directory.path())?;
         let store = KernelStore::open(&directory.path().join(".runx"))?;
         let evaluation = |name: &str| {
             RunLog::evaluation(

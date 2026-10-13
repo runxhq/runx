@@ -339,6 +339,10 @@ impl Fixture {
 
     fn for_connector(connector: &str, scopes: &[&str]) -> Self {
         let root = tempfile::tempdir().unwrap();
+        crate::kernel::connectors::plugin_with_source_connectors(
+            root.path(),
+            &["slack", "aws", "osv", "github", "n8n"],
+        );
         let manifest = runx_parser::validate_runner_manifest(
             runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
         )
@@ -390,8 +394,7 @@ impl Fixture {
 
     /// List a grant runx Connect holds without confirming it yet.
     fn list_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
-        let connector = ConnectorScope::runx_maintained_only()
-            .unwrap()
+        let connector = crate::kernel::connectors::source_scope()
             .connector(connector)
             .unwrap();
         self.provider.grant(grant_id, &connector, scopes);
@@ -403,8 +406,7 @@ impl Fixture {
     }
 
     fn try_select_grant(&self, grant_id: &str, connector: &str) -> Result<(), String> {
-        let connector = ConnectorScope::runx_maintained_only()
-            .unwrap()
+        let connector = crate::kernel::connectors::source_scope()
             .connector(connector)
             .unwrap();
         let instances = Instances::new(
@@ -428,8 +430,7 @@ impl Fixture {
     /// Store `value` as `connector`'s `credential` and select it, as
     /// `runx credential set` would.
     fn set_credential(&self, connector: &str, credential: &str, value: &str) {
-        let connector = ConnectorScope::runx_maintained_only()
-            .unwrap()
+        let connector = crate::kernel::connectors::source_scope()
             .connector(connector)
             .unwrap();
         let instances = Instances::new(
@@ -774,8 +775,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
 #[test]
 fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     let fixture = Fixture::new(&["channel.post"]);
-    let slack = ConnectorScope::runx_maintained_only()
-        .unwrap()
+    let slack = crate::kernel::connectors::source_scope()
         .connector("runx/slack")
         .unwrap();
     let mut binding = slack.binding();

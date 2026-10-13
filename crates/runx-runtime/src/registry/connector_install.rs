@@ -112,16 +112,20 @@ pub enum ConnectorInstallError {
     Io { path: PathBuf, source: io::Error },
 }
 
-/// Writes the release's copy of runx-maintained connector `connector` into a
-/// project's `connectors_root` at `runx/<id>/<version>/`, once, packaged
-/// exactly as it publishes; returns that directory. Its bytes come from the
-/// running release, so they carry no registry signature to verify; the
-/// caller checks the copy it reads back against the release's digests.
-pub(crate) fn seed_runx_maintained_connector(
+/// Writes `connector` into a project's `connectors_root` at
+/// `<publisher>/<id>/<version>/`, once, packaged exactly as it publishes;
+/// returns that directory. Its bytes come from `source` (the running release
+/// when `None`): a runtime capability the release embeds, or a connector an
+/// installed skill package carries. Either way they carry no registry
+/// signature of their own; the release, or the skill package's verified
+/// digests, authenticated them, and a reader checks the copy against the
+/// digests it binds.
+pub(crate) fn write_connector_version(
     connectors_root: &Path,
     connector: &crate::kernel::connectors::LoadedConnector,
+    source: Option<&Path>,
 ) -> Result<PathBuf, String> {
-    let package = connector_package(connector, None).map_err(|error| error.to_string())?;
+    let package = connector_package(connector, source).map_err(|error| error.to_string())?;
     let reference = &package.connector_ref;
     let versions = connectors_root
         .join(reference.namespace())

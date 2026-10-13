@@ -235,6 +235,7 @@ fn resolve_registry_skill(
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: destination_root.to_path_buf(),
+            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
             expected_digest: plan.expected_digest,
             trusted_manifest_keys: registry::trusted_manifest_keys_from_env_for_source(
                 env,

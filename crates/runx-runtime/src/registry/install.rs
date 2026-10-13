@@ -46,6 +46,9 @@ pub struct InstallCandidate {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstallLocalSkillOptions {
     pub destination_root: PathBuf,
+    /// The project's connectors directory: every connector the installed
+    /// package carries is added there, so the project can bind its instances.
+    pub connectors_root: PathBuf,
     pub expected_digest: Option<String>,
     pub trusted_manifest_keys: Vec<TrustedRegistryManifestKey>,
 }
@@ -138,6 +141,8 @@ pub enum InstallError {
     ConflictingRunnerManifest(PathBuf),
     #[error("skill install package file already exists with different content: {0}")]
     ConflictingPackageFile(PathBuf),
+    #[error("a connector the skill package carries could not be added to the project: {0}")]
+    CarriedConnector(String),
     #[error("io error at {path}: {source}")]
     Io { path: PathBuf, source: io::Error },
 }
@@ -184,6 +189,7 @@ fn install_skill(
         candidate.profile_document.as_deref(),
         &candidate.package_files,
     )?;
+    add_carried_connectors(&paths.package_root, &options.connectors_root)?;
 
     Ok(InstallLocalSkillResult {
         status: if write_plan.writes_skill
@@ -205,6 +211,27 @@ fn install_skill(
         runner_names: validated.runner_names,
         trust_tier: candidate.trust_tier.clone(),
     })
+}
+
+/// Adds every connector the installed package at `package_root` carries to
+/// the project's `connectors_root`, as the version it publishes: the package's
+/// own copy, checked against the digests its bundle binds when it is loaded.
+fn add_carried_connectors(package_root: &Path, connectors_root: &Path) -> Result<(), InstallError> {
+    let invalid = |message: String| InstallError::CarriedConnector(message);
+    let scope = crate::kernel::connectors::ConnectorScope::at(package_root)
+        .map_err(|error| invalid(error.to_string()))?;
+    if !scope.is_bundle() {
+        return Ok(());
+    }
+    for connector in scope
+        .connectors()
+        .map_err(|error| invalid(error.to_string()))?
+    {
+        let source = scope.connector_directory(&connector);
+        crate::registry::write_connector_version(connectors_root, &connector, source.as_deref())
+            .map_err(invalid)?;
+    }
+    Ok(())
 }
 
 struct ValidatedLocalInstall {

@@ -107,7 +107,14 @@ pub(crate) fn apply_skill_change(
 ) -> Result<SkillApplyResult, RuntimeError> {
     let target = ApplyTarget::resolve(repo_root, target_dir, env)?;
     validate_change_contract(change, mode, &target.before.digest)?;
-    let admitted = admit_skill_change(&target.relative, &target.path, mode, change)?;
+    let secret_prefixes = super::path::declared_secret_prefixes(repo_root, env)?;
+    let admitted = admit_skill_change(
+        &target.relative,
+        &target.path,
+        mode,
+        change,
+        &secret_prefixes,
+    )?;
     if change.decision != SkillChangeDecision::Write {
         return Ok(no_change_result(
             &target.relative,

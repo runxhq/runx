@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonValue;
 
 use super::path::{
-    display_relative, invalid_skill_change, normalize_package_file, reject_secret_material,
-    required_string, unique_stage_root,
+    declared_secret_prefixes, display_relative, invalid_skill_change, normalize_package_file,
+    reject_secret_material, required_string, unique_stage_root,
 };
 use super::snapshot::{PackageSnapshot, package_snapshot};
 use super::{MAX_PACKAGE_BYTES, MAX_PACKAGE_FILES};
@@ -19,7 +19,11 @@ pub(super) struct InlineCandidateStage {
 }
 
 impl InlineCandidateStage {
-    pub(super) fn prepare(repo_root: &Path, files: &[JsonValue]) -> Result<Self, RuntimeError> {
+    pub(super) fn prepare(
+        repo_root: &Path,
+        files: &[JsonValue],
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, RuntimeError> {
         let root = unique_stage_root(repo_root, &repo_root.join(".runx-inline-skill"));
         let stage = Self {
             root: root.clone(),
@@ -31,7 +35,8 @@ impl InlineCandidateStage {
                 source,
             )
         })?;
-        let writes = admit_inline_candidate_files(files)?;
+        let writes =
+            admit_inline_candidate_files(files, &declared_secret_prefixes(repo_root, env)?)?;
         apply_text_bundle(
             "runx.skill.validate",
             &stage.skill_dir,
@@ -44,7 +49,10 @@ impl InlineCandidateStage {
     }
 }
 
-fn admit_inline_candidate_files(files: &[JsonValue]) -> Result<Vec<TextFileWrite>, RuntimeError> {
+fn admit_inline_candidate_files(
+    files: &[JsonValue],
+    secret_prefixes: &BTreeSet<String>,
+) -> Result<Vec<TextFileWrite>, RuntimeError> {
     if files.is_empty() || files.len() > MAX_PACKAGE_FILES {
         return Err(invalid_skill_change(format!(
             "candidate files must contain 1-{MAX_PACKAGE_FILES} entries"
@@ -79,7 +87,7 @@ fn admit_inline_candidate_files(files: &[JsonValue]) -> Result<Vec<TextFileWrite
                 "candidate exceeds {MAX_PACKAGE_BYTES} bytes"
             )));
         }
-        reject_secret_material(&path, contents)?;
+        reject_secret_material(&path, contents, secret_prefixes)?;
         writes.push(TextFileWrite {
             path,
             contents: contents.to_owned(),

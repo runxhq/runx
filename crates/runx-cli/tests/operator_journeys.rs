@@ -243,7 +243,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let root = crate::support::temp_root("runx-operator-provider-readiness-journey");
     let skill_dir = crate::support::repo_root()?.join("skills/google-analytics");
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
+    crate::support::plugin_with_source_connectors(&root, &["google-analytics"])?;
     let connect = crate::support::MockConnect::serve(
         "operator-1",
         &[
@@ -351,7 +351,10 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     let root = crate::support::temp_root("runx-reference-skill-journeys");
     let repo_root = crate::support::repo_root()?;
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
+    crate::support::plugin_with_source_connectors(
+        &root,
+        &["slack", "github", "mpp", "stripe-spt"],
+    )?;
 
     for (skill, expected_runner) in [
         ("send-as", "send"),

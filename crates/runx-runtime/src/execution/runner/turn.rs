@@ -802,7 +802,14 @@ where
             let connectors = crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
                 .map_err(|error| {
                     RuntimeError::effect_state("reading the skill's connectors", error.to_string())
-                })?;
+                })?
+                .in_project(
+                    crate::paths::RunxPaths::resolve(
+                        &self.scope.runtime.options.env,
+                        self.scope.graph_dir,
+                    )
+                    .connectors(),
+                );
             for allowed in &allowance.operations {
                 tools.push(self.operation_tool(&connectors, allowed)?);
             }

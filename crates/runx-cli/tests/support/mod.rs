@@ -341,7 +341,10 @@ impl MockConnect {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         use std::io::Write;
 
-        let scope = runx_runtime::ConnectorScope::runx_maintained_only()?;
+        // The runx source tree, where every runx-maintained connector is in reach.
+        let scope = runx_runtime::ConnectorScope::at(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        )?;
         let grants = grants
             .iter()
             .map(|(grant_id, connector, scopes)| {
@@ -492,4 +495,32 @@ fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(Strin
         .to_owned();
     let body = bytes.get(end + 4..).unwrap_or_default().to_vec();
     Ok((request_line, body))
+}
+
+/// Makes `root` a runx plugin holding copies of the runx source connectors
+/// `ids`: how a project reaches published connectors without a registry.
+pub fn plugin_with_source_connectors(
+    root: &std::path::Path,
+    ids: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
+    fn copy(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(to)?;
+        for entry in std::fs::read_dir(from)? {
+            let entry = entry?;
+            let target = to.join(entry.file_name());
+            if entry.path().is_dir() {
+                copy(&entry.path(), &target)?;
+            } else {
+                std::fs::copy(entry.path(), target)?;
+            }
+        }
+        Ok(())
+    }
+    std::fs::create_dir_all(root)?;
+    std::fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    for id in ids {
+        copy(&source.join(id), &root.join("connectors").join(id))?;
+    }
+    Ok(())
 }

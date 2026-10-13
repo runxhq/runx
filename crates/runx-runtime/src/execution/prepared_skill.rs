@@ -1282,6 +1282,7 @@ runners:
     #[test]
     fn prepared_governance_includes_terminal_runner_scopes() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
+        crate::kernel::connectors::plugin_with_source_connectors(temp.path(), &["github"]);
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),

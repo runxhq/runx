@@ -270,6 +270,7 @@ fn run_install(
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: destination_root(&plan, env, cwd),
+            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
             expected_digest: plan.expected_digest,
             trusted_manifest_keys: trusted_manifest_keys_from_env_for_source(
                 env,

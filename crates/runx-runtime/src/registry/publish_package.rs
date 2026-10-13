@@ -992,15 +992,15 @@ operations:
     }
 
     #[test]
-    fn an_runx_maintained_connector_source_tree_packages_as_the_runx_maintained_connector()
+    fn a_runx_maintained_connector_source_tree_packages_as_the_connector_it_resolves_to()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
         let connector = super::prepare_registry_connector_package(&directory)?;
-        let official = crate::ConnectorScope::runx_maintained_only()?.connector("github")?;
-        assert_eq!(connector.manifest_digest, official.manifest_digest);
-        // The tools shipped are the bytes in the source tree, which are the
-        // bytes the runtime embeds.
+        let resolved = crate::kernel::connectors::source_scope().connector("github")?;
+        assert_eq!(connector.manifest_digest, resolved.manifest_digest);
+        assert_eq!(connector.connector_digest, resolved.connector_digest);
+        // The tools shipped are the bytes in the source tree.
         for file in connector
             .files
             .iter()

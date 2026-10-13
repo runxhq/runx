@@ -1,12 +1,15 @@
 //! The connector registry: where a requirement's connector comes from.
 //!
-//! Runx-maintained connectors are embedded in the binary and validated once per
-//! process. A skill also sees the connectors of the plugin that holds it,
-//! `<plugin root>/connectors/<id>/connector.yaml`. A bundled package, one under
-//! a registry package bundle descriptor, is its own plugin root; in a source
-//! tree the plugin root is the nearest directory at or above the skill holding
-//! `connectors/`. Within one resolution an id names exactly one manifest, in
-//! the directory named by its id: a plugin connector with a runx-maintained id is
+//! The runtime capability connectors, part of runx itself, are embedded in the
+//! binary and validated once per process. A skill also sees the connectors of
+//! the plugin that holds it, `<plugin root>/connectors/<id>/connector.yaml`. A
+//! bundled package, one under a registry package bundle descriptor, is its own
+//! plugin root and carries every connector it binds; in a source tree the
+//! plugin root is the nearest directory at or above the skill holding
+//! `connectors/`. Any other published connector, runx-maintained ones included,
+//! is reached by its qualified reference once installed into the project.
+//! Within one resolution an id names exactly one manifest, in the directory
+//! named by its id: a plugin connector with a runtime capability's id is
 //! refused unless it is the same manifest, and a bundled skill never sees its
 //! composer's plugin connectors.
 
@@ -22,7 +25,7 @@ use runx_parser::{ValidatedConnector, parse_connector_manifest, validate_connect
 use thiserror::Error;
 
 pub mod references;
-mod runx_maintained;
+mod runtime_capabilities;
 mod tools;
 
 pub use tools::ConnectorTool;
@@ -63,7 +66,8 @@ impl LoadedConnector {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConnectorOrigin {
-    RunxMaintained,
+    /// Embedded in the runtime: a runtime capability connector.
+    RuntimeCapability,
     Plugin {
         root: PathBuf,
     },
@@ -76,25 +80,29 @@ pub enum ConnectorOrigin {
 
 #[derive(Debug, Error)]
 pub enum ConnectorRegistryError {
-    #[error("runx-maintained connector {id} is invalid: {message}")]
-    InvalidRunxMaintained { id: String, message: String },
+    #[error("runtime capability connector {id} is invalid: {message}")]
+    InvalidRuntimeCapability { id: String, message: String },
     #[error("connector manifest {path} is invalid: {message}")]
     InvalidManifest { path: PathBuf, message: String },
-    #[error("connector {id} at {path} conflicts with the runx-maintained connector of the same id")]
+    #[error("connector {id} at {path} conflicts with the runtime capability of the same id")]
     Shadowed { id: ConnectorId, path: PathBuf },
-    #[error("connector {id} is not a runx-maintained connector")]
-    NotRunxMaintained { id: String },
+    #[error("connector {id} is not a runtime capability")]
+    NotRuntimeCapability { id: String },
     #[error("connector {id} is not available in this scope")]
     Unavailable { id: String },
+    #[error(
+        "connector {connector} is not installed; install it with `runx registry connector install {connector}`"
+    )]
+    NotInstalledConnector { connector: ConnectorRef },
     #[error("connector {id} names more than one publisher; use its qualified reference")]
     Ambiguous { id: String },
     #[error(
-        "connector {id} is neither a runx-maintained connector nor one of the plugin at {}",
+        "connector {id} is neither a runtime capability nor one of the plugin at {}; a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry connector install`",
         root.display()
     )]
     NotInPlugin { id: String, root: PathBuf },
     #[error(
-        "connector {id} is not a runx-maintained connector, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/",
+        "connector {id} is not a runtime capability, and {} is in no plugin; a plugin's connectors are reached from inside the plugin, at or below the directory holding its connectors/, and a published connector is named by its publisher, as <publisher>/{id}, once installed with `runx registry connector install`",
         dir.display()
     )]
     NoPlugin { id: String, dir: PathBuf },
@@ -124,64 +132,66 @@ pub enum ConnectorRegistryError {
     },
 }
 
-struct RunxMaintained {
+struct RuntimeCapabilities {
     connectors: BTreeMap<ConnectorId, Arc<LoadedConnector>>,
 }
 
-fn runx_maintained() -> Result<&'static RunxMaintained, ConnectorRegistryError> {
-    static RUNX_MAINTAINED: OnceLock<Result<RunxMaintained, ConnectorRegistryError>> =
+fn runtime_capabilities() -> Result<&'static RuntimeCapabilities, ConnectorRegistryError> {
+    static RUNTIME_CAPABILITIES: OnceLock<Result<RuntimeCapabilities, ConnectorRegistryError>> =
         OnceLock::new();
-    RUNX_MAINTAINED
-        .get_or_init(load_runx_maintained)
+    RUNTIME_CAPABILITIES
+        .get_or_init(load_runtime_capabilities)
         .as_ref()
-        .map_err(|error| ConnectorRegistryError::InvalidRunxMaintained {
+        .map_err(|error| ConnectorRegistryError::InvalidRuntimeCapability {
             id: match error {
-                ConnectorRegistryError::InvalidRunxMaintained { id, .. } => id.clone(),
+                ConnectorRegistryError::InvalidRuntimeCapability { id, .. } => id.clone(),
                 _ => String::new(),
             },
             message: error.to_string(),
         })
 }
 
-fn load_runx_maintained() -> Result<RunxMaintained, ConnectorRegistryError> {
-    let invalid = |id: &str, message: String| ConnectorRegistryError::InvalidRunxMaintained {
+fn load_runtime_capabilities() -> Result<RuntimeCapabilities, ConnectorRegistryError> {
+    let invalid = |id: &str, message: String| ConnectorRegistryError::InvalidRuntimeCapability {
         id: id.to_owned(),
         message,
     };
     let mut connectors = BTreeMap::new();
     let namespace = PublisherNamespace::new("runx")
         .ok_or_else(|| invalid("runx", "invalid embedded namespace".to_owned()))?;
-    for (id, source) in runx_maintained::CONNECTORS {
+    for (id, source) in runtime_capabilities::CONNECTORS {
         let manifest =
             parse_connector_manifest(source).map_err(|error| invalid(id, error.to_string()))?;
         let validated = validate_connector_manifest(manifest)
             .map_err(|errors| invalid(id, format!("{errors:?}")))?;
-        let embedded = runx_maintained::TOOLS
-            .iter()
-            .filter(|(connector, _, _)| connector == id)
-            .map(|(_, path, contents)| (*path, *contents))
-            .collect::<Vec<_>>();
-        let tools = process_tools(&validated.manifest)
-            .map(|tool| {
-                ConnectorTool::runx_maintained(&embedded, tool)
-                    .map(|loaded| (tool.to_owned(), loaded))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(|message| invalid(id, message))?;
+        if !validated.manifest.runtime_capability {
+            return Err(invalid(
+                id,
+                "an embedded connector must declare runtime_capability: true".to_owned(),
+            ));
+        }
+        // A runtime capability is implemented by the runtime: it ships no tool
+        // package for a process operation to run.
+        if let Some(tool) = process_tools(&validated.manifest).next() {
+            return Err(invalid(
+                id,
+                format!("a runtime capability ships no tool package, yet names {tool}"),
+            ));
+        }
         connectors.insert(
             validated.manifest.id.clone(),
             Arc::new(
                 loaded(
                     &namespace,
                     validated,
-                    ConnectorOrigin::RunxMaintained,
-                    tools,
+                    ConnectorOrigin::RuntimeCapability,
+                    BTreeMap::new(),
                 )
                 .map_err(|message| invalid(id, message))?,
             ),
         );
     }
-    Ok(RunxMaintained { connectors })
+    Ok(RuntimeCapabilities { connectors })
 }
 
 fn loaded(
@@ -278,7 +288,7 @@ pub(crate) fn operation_digest_entries<'a>(
         .collect()
 }
 
-/// The runx-maintained connectors as runx Connect reads them: each manifest under
+/// Every runx-maintained connector as runx Connect reads them: each manifest under
 /// `connectors_dir`, validated, beside its manifest digest and each
 /// operation's operation and implementation digests, the tool packages its
 /// process operations run read the way the runtime reads a plugin's.
@@ -334,21 +344,23 @@ pub fn runx_maintained_connectors_contract(
     Ok(serde_json::Value::Array(connectors))
 }
 
-/// The connectors one skill may use: runx-maintained, plus its plugin's.
+/// The connectors one skill may use: the runtime capabilities, its plugin's,
+/// and the project's installed versions it names by qualified reference.
 #[derive(Clone)]
 pub struct ConnectorScope {
     plugin: Option<Arc<PluginConnectors>>,
     /// The directory the plugin was looked for from, so a miss says where.
-    /// None for the runx-maintained connectors alone.
+    /// None for the runtime capabilities alone.
     searched: Option<PathBuf>,
     /// The project's connectors directory, whose added versions
     /// (`<publisher>/<id>/<version>/`) are read only for a qualified connector
-    /// named exactly: by a requirement's manifest pin or an operator's
-    /// `ref@version`. Never an ambient search root.
+    /// named exactly: by a requirement's manifest pin, an operator's
+    /// `ref@version`, or a qualified reference of which one version is
+    /// installed. Never an ambient search root for a bare id.
     installed: Option<PathBuf>,
-    /// The project's connectors directory a runx-maintained connector is
-    /// seeded into and read back from (core-shape §6.5). None for the
-    /// runx-maintained source plugin itself and for a bundle.
+    /// The project's connectors directory a runtime capability is seeded into
+    /// and read back from (core-shape §6.5). None for the runx-maintained
+    /// source plugin itself and for a bundle.
     seeds: Option<PathBuf>,
 }
 
@@ -360,9 +372,9 @@ struct PluginConnectors {
 
 impl ConnectorScope {
     /// The connectors usable from `dir`, a skill's directory or an operator's
-    /// workspace: runx-maintained, plus those of the plugin `dir` is in.
+    /// workspace: the runtime capabilities, plus those of the plugin `dir` is in.
     pub fn at(dir: &Path) -> Result<Self, ConnectorRegistryError> {
-        runx_maintained()?;
+        runtime_capabilities()?;
         let dir = inspected(dir)?;
         if let Some(bindings) =
             crate::registry::package_bundle::bundled_connectors(&dir).map_err(|message| {
@@ -427,23 +439,24 @@ impl ConnectorScope {
         })
     }
 
-    /// `connector`, a runx-maintained connector, as this project holds it:
-    /// the release's copy, written once into the project's connectors
-    /// directory and read back from there. A copy whose bytes are not the
-    /// release's is refused.
-    fn maintained(
+    /// `connector`, a runtime capability, as this project holds it: the
+    /// release's copy, written once into the project's connectors directory
+    /// and read back from there. A copy whose bytes are not the release's is
+    /// refused.
+    fn seeded(
         &self,
         connector: &Arc<LoadedConnector>,
     ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
         let Some(root) = &self.seeds else {
             return Ok(Arc::clone(connector));
         };
-        let directory = crate::registry::seed_runx_maintained_connector(root, connector).map_err(
-            |message| ConnectorRegistryError::Uninspectable {
-                dir: root.clone(),
-                message,
-            },
-        )?;
+        let directory =
+            crate::registry::write_connector_version(root, connector, None).map_err(|message| {
+                ConnectorRegistryError::Uninspectable {
+                    dir: root.clone(),
+                    message,
+                }
+            })?;
         let held = load_installed(&directory)?;
         if held.connector_digest != connector.connector_digest {
             return Err(ConnectorRegistryError::InvalidManifest {
@@ -460,10 +473,10 @@ impl ConnectorScope {
 
     /// This scope within the project whose connectors directory is `root`
     /// (`RunxPaths::connectors`, core-shape §6.5): it reads the versions added
-    /// there, and seeds the runx-maintained connectors it resolves into it.
-    /// The runx-maintained source project is those connectors' source, so
-    /// nothing is seeded into it. A bundled package stays isolated: it
-    /// carries every connector it binds.
+    /// there, and seeds the runtime capabilities it resolves into it. The
+    /// runx-maintained source project is those connectors' source, so nothing
+    /// is seeded into it. A bundled package stays isolated: it carries every
+    /// connector it binds.
     #[must_use]
     pub fn in_project(mut self, root: PathBuf) -> Self {
         if self.isolated() {
@@ -480,6 +493,13 @@ impl ConnectorScope {
         self.plugin.as_ref().is_some_and(|plugin| plugin.isolated)
     }
 
+    /// Whether this scope is a bundled package's: it carries every connector
+    /// it binds, and sees no other.
+    #[must_use]
+    pub fn is_bundle(&self) -> bool {
+        self.isolated()
+    }
+
     /// The connector a skill's requirement keyed `key` binds. A qualified key
     /// pinned to a manifest digest that no connector in reach carries
     /// resolves to the installed version publishing that exact manifest.
@@ -492,7 +512,7 @@ impl ConnectorScope {
             return self.connector(key);
         };
         let reference = ConnectorRef::new(key);
-        match (self.connector(key), reference) {
+        match (self.in_reach(key), reference) {
             (Ok(connector), _) if &connector.manifest_digest == pin => Ok(connector),
             (Ok(connector), _) if self.installed.is_none() => {
                 Err(ConnectorRegistryError::RequiredManifest {
@@ -536,9 +556,8 @@ impl ConnectorScope {
         })
     }
 
-    /// The connector an operator names on the command line: an id or
-    /// qualified ref in reach, `ref@version` for an installed version, or a
-    /// bare qualified ref of which exactly one version is installed.
+    /// The connector an operator names on the command line: anything
+    /// [`Self::connector`] resolves, or `ref@version` for an installed version.
     pub fn named(&self, name: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
         if let Some((reference, version)) = name.split_once('@') {
             let connector = ConnectorRef::new(reference).ok_or_else(|| {
@@ -548,17 +567,11 @@ impl ConnectorScope {
             })?;
             return self.installed(&connector, Some(version));
         }
-        match (self.connector(name), ConnectorRef::new(name)) {
-            (Err(ConnectorRegistryError::Unavailable { .. }), Some(reference)) => {
-                self.installed(&reference, None)
-            }
-            (result, _) => result,
-        }
+        self.connector(name)
     }
 
-    /// The installed version an operator names: `ref@version`, or a bare
-    /// qualified ref no connector in reach answers when exactly one version
-    /// of it is installed.
+    /// The installed version named: `ref@version`, or a qualified ref no
+    /// connector in reach answers when exactly one version of it is installed.
     pub fn installed(
         &self,
         connector: &ConnectorRef,
@@ -576,6 +589,11 @@ impl ConnectorScope {
                 }),
             None => match <[_; 1]>::try_from(versions) {
                 Ok([(_, loaded)]) => Ok(loaded),
+                Err(versions) if versions.is_empty() && self.installed.is_some() => {
+                    Err(ConnectorRegistryError::NotInstalledConnector {
+                        connector: connector.clone(),
+                    })
+                }
                 Err(versions) if versions.is_empty() => Err(ConnectorRegistryError::Unavailable {
                     id: connector.to_string(),
                 }),
@@ -631,7 +649,8 @@ impl ConnectorScope {
         Ok(versions)
     }
 
-    /// Every connector in the scope, runx-maintained first.
+    /// Every connector in the scope's reach without naming a version, the
+    /// runtime capabilities first.
     pub fn connectors(&self) -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
         if let Some(plugin) = self.plugin.as_ref().filter(|plugin| plugin.isolated) {
             return Ok(plugin.connectors.values().map(Arc::clone).collect());
@@ -640,7 +659,7 @@ impl ConnectorScope {
             .plugin
             .iter()
             .flat_map(|plugin| plugin.connectors.values());
-        Ok(runx_maintained()?
+        Ok(runtime_capabilities()?
             .connectors
             .values()
             .chain(plugin)
@@ -648,9 +667,81 @@ impl ConnectorScope {
             .collect())
     }
 
-    /// Only the runx-maintained connectors.
-    pub fn runx_maintained_only() -> Result<Self, ConnectorRegistryError> {
-        runx_maintained()?;
+    /// Every connector the scope can resolve: [`Self::connectors`], then each
+    /// version installed into the project, once per content. What a run could
+    /// bind, so credentials, secret shapes and locators are known for all of it.
+    pub fn reachable(&self) -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
+        let mut connectors = self.connectors()?;
+        if self.isolated() {
+            return Ok(connectors);
+        }
+        for reference in self.installed_refs()? {
+            for (_, installed) in self.installed_versions(&reference)? {
+                if !connectors.iter().any(|known| {
+                    known.connector_ref == installed.connector_ref
+                        && known.connector_digest == installed.connector_digest
+                }) {
+                    connectors.push(installed);
+                }
+            }
+        }
+        Ok(connectors)
+    }
+
+    /// Every `<publisher>/<id>` with a directory under the project's
+    /// connectors directory. The same directory holds the project's own
+    /// connectors at `<id>/`, which are not publishers, and a dot-entry is
+    /// neither.
+    fn installed_refs(&self) -> Result<Vec<ConnectorRef>, ConnectorRegistryError> {
+        let Some(root) = &self.installed else {
+            return Ok(Vec::new());
+        };
+        let entries = |directory: &Path| -> Result<Vec<String>, ConnectorRegistryError> {
+            let listing = match std::fs::read_dir(directory) {
+                Ok(listing) => listing,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(Vec::new());
+                }
+                Err(error) => {
+                    return Err(ConnectorRegistryError::Uninspectable {
+                        dir: directory.to_path_buf(),
+                        message: error.to_string(),
+                    });
+                }
+            };
+            let mut names = Vec::new();
+            for entry in listing {
+                let entry = entry.map_err(|error| ConnectorRegistryError::Uninspectable {
+                    dir: directory.to_path_buf(),
+                    message: error.to_string(),
+                })?;
+                if let Some(name) = entry.file_name().to_str()
+                    && !name.starts_with('.')
+                    && entry.path().is_dir()
+                {
+                    names.push(name.to_owned());
+                }
+            }
+            names.sort();
+            Ok(names)
+        };
+        let mut references = Vec::new();
+        for publisher in entries(root)? {
+            if root.join(&publisher).join(MANIFEST_FILE).exists() {
+                continue;
+            }
+            for id in entries(&root.join(&publisher))? {
+                if let Some(reference) = ConnectorRef::new(format!("{publisher}/{id}")) {
+                    references.push(reference);
+                }
+            }
+        }
+        Ok(references)
+    }
+
+    /// Only the runtime capabilities.
+    pub fn runtime_capabilities_only() -> Result<Self, ConnectorRegistryError> {
+        runtime_capabilities()?;
         Ok(Self {
             plugin: None,
             searched: None,
@@ -659,7 +750,22 @@ impl ConnectorScope {
         })
     }
 
+    /// The connector `id` names: one in reach ([`Self::connectors`]), or for a
+    /// qualified reference no connector in reach answers, its one installed
+    /// version.
     pub fn connector(&self, id: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
+        match (self.in_reach(id), ConnectorRef::new(id)) {
+            (Err(ConnectorRegistryError::Unavailable { .. }), Some(reference))
+                if !self.isolated() =>
+            {
+                self.installed(&reference, None)
+            }
+            (result, _) => result,
+        }
+    }
+
+    /// The connector `id` names among those in reach, never an installed one.
+    fn in_reach(&self, id: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
         if let Some(reference) = ConnectorRef::new(id) {
             // A bundle's exact snapshot takes precedence over the runtime's
             // current copy of the same qualified connector.
@@ -681,12 +787,12 @@ impl ConnectorScope {
             {
                 return Ok(Arc::clone(connector));
             }
-            return match runx_maintained()?
+            return match runtime_capabilities()?
                 .connectors
                 .values()
                 .find(|connector| connector.connector_ref == reference)
             {
-                Some(connector) => self.maintained(connector),
+                Some(connector) => self.seeded(connector),
                 None => Err(ConnectorRegistryError::Unavailable { id: id.to_owned() }),
             };
         }
@@ -698,10 +804,10 @@ impl ConnectorScope {
             .collect::<Vec<_>>();
         if plugin.len() > 1
             || (plugin.first().is_some_and(|connector| {
-                runx_maintained()
+                runtime_capabilities()
                     .ok()
-                    .and_then(|maintained| maintained.connectors.get(id))
-                    .is_some_and(|maintained| maintained.connector_ref != connector.connector_ref)
+                    .and_then(|capabilities| capabilities.connectors.get(id))
+                    .is_some_and(|capability| capability.connector_ref != connector.connector_ref)
             }))
         {
             return Err(ConnectorRegistryError::Ambiguous { id: id.to_owned() });
@@ -712,8 +818,8 @@ impl ConnectorScope {
         if self.plugin.as_ref().is_some_and(|plugin| plugin.isolated) {
             return Err(ConnectorRegistryError::Unavailable { id: id.to_owned() });
         }
-        if let Some(connector) = runx_maintained()?.connectors.get(id) {
-            return self.maintained(connector);
+        if let Some(connector) = runtime_capabilities()?.connectors.get(id) {
+            return self.seeded(connector);
         }
         let id = id.to_owned();
         match (&self.plugin, &self.searched) {
@@ -725,32 +831,38 @@ impl ConnectorScope {
                 id,
                 dir: dir.clone(),
             }),
-            (None, None) => Err(ConnectorRegistryError::NotRunxMaintained { id }),
+            (None, None) => Err(ConnectorRegistryError::NotRuntimeCapability { id }),
         }
     }
 
-    /// Every runx-maintained connector, for catalogs and inspection.
-    pub fn runx_maintained_connectors() -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError>
-    {
-        Ok(runx_maintained()?
+    /// Every runtime capability, for inspection.
+    pub fn runtime_capabilities() -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
+        Ok(runtime_capabilities()?
             .connectors
             .values()
             .map(Arc::clone)
             .collect())
     }
 
-    /// The variable every connector in reach delivers a credential in.
+    /// The variable every reachable connector delivers a credential in.
     pub fn credential_variables(&self) -> Result<BTreeSet<String>, ConnectorRegistryError> {
-        let plugin = self
-            .plugin
+        Ok(self
+            .reachable()?
             .iter()
-            .flat_map(|plugin| plugin.connectors.values());
-        Ok(runx_maintained()?
-            .connectors
-            .values()
-            .chain(plugin)
             .flat_map(|connector| connector.manifest.auth.credentials.values())
             .map(|declaration| declaration.delivery.env.as_str().to_owned())
+            .collect())
+    }
+
+    /// Every secret prefix a reachable connector declares for its credentials.
+    pub fn credential_prefixes(&self) -> Result<BTreeSet<String>, ConnectorRegistryError> {
+        Ok(self
+            .reachable()?
+            .iter()
+            .flat_map(|connector| connector.manifest.auth.credentials.values())
+            .flat_map(|declaration| declaration.fields.iter())
+            .flat_map(|field| &field.prefixes)
+            .map(|prefix| prefix.as_str().to_owned())
             .collect())
     }
 
@@ -860,8 +972,8 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
                 ),
             });
         }
-        // The runx-maintained plugin's own source tree is the runx-maintained connector.
-        if connector.origin == ConnectorOrigin::RunxMaintained {
+        // A runtime capability's own source tree is the embedded connector.
+        if connector.origin == ConnectorOrigin::RuntimeCapability {
             continue;
         }
         connectors.insert(connector.connector_ref.clone(), connector);
@@ -874,9 +986,8 @@ fn load_plugin(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError> 
 }
 
 /// The connector whose manifest is `directory/connector.yaml`, loaded as a
-/// plugin's with its plugin at `root`. A runx-maintained connector's own source
-/// tree resolves to the runx-maintained connector; any other connector may not take
-/// a runx-maintained id or declare references.
+/// plugin's with its plugin at `root`. A runtime capability's own source tree
+/// resolves to the embedded connector; any other source copy of it is refused.
 pub(crate) fn load_connector_directory(
     directory: &Path,
     root: &Path,
@@ -898,7 +1009,7 @@ pub(crate) fn load_connector_directory(
 
 /// The connector version installed at `directory`, its own plugin root: the
 /// exact package a registry published, named by the namespace it carries.
-/// It may be another version of a runx-maintained connector.
+/// It may be another version of a runtime capability.
 pub(crate) fn load_installed(
     directory: &Path,
 ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
@@ -940,11 +1051,13 @@ fn load_directory(
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map_err(&invalid)?;
     let connector = loaded(namespace, validated, origin, tools).map_err(&invalid)?;
-    if let Some(maintained) = runx_maintained()?.connectors.get(&connector.manifest.id)
-        && maintained.connector_ref == connector.connector_ref
+    if let Some(capability) = runtime_capabilities()?
+        .connectors
+        .get(&connector.manifest.id)
+        && capability.connector_ref == connector.connector_ref
     {
-        if maintained.connector_digest == connector.connector_digest {
-            return Ok(Arc::clone(maintained));
+        if capability.connector_digest == connector.connector_digest {
+            return Ok(Arc::clone(capability));
         }
         if source {
             return Err(ConnectorRegistryError::Shadowed {
@@ -957,14 +1070,14 @@ fn load_directory(
 }
 
 pub(crate) fn embedded_manifest(connector: &LoadedConnector) -> Option<&'static str> {
-    runx_maintained::CONNECTORS
+    runtime_capabilities::CONNECTORS
         .iter()
         .find(|(id, _)| *id == connector.manifest.id.as_str())
         .map(|(_, document)| *document)
 }
 
 pub(crate) fn embedded_asset(connector: &LoadedConnector, path: &str) -> Option<&'static [u8]> {
-    runx_maintained::ASSETS
+    runtime_capabilities::ASSETS
         .iter()
         .find(|(id, file, _)| *id == connector.manifest.id.as_str() && *file == path)
         .map(|(_, _, document)| document.as_bytes())
@@ -1008,6 +1121,40 @@ pub(crate) fn read_bounded(path: &Path) -> Result<String, String> {
         return Err("manifest exceeds 256 KiB".to_owned());
     }
     std::fs::read_to_string(path).map_err(|error| error.to_string())
+}
+
+/// The runx source tree's scope, where every runx-maintained connector is in
+/// reach as a plugin connector.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn source_scope() -> ConnectorScope {
+    ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .expect("the runx source scope")
+}
+
+/// Makes `root` a runx plugin holding copies of the runx source connectors
+/// `ids`: how a project reaches published connectors without a registry.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) {
+    fn copy(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).expect("connector directory");
+        for entry in std::fs::read_dir(from).expect("source connector") {
+            let entry = entry.expect("entry");
+            let target = to.join(entry.file_name());
+            if entry.path().is_dir() {
+                copy(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), target).expect("connector file");
+            }
+        }
+    }
+    std::fs::write(root.join(PLUGIN_METADATA_FILE), r#"{"namespace":"runx"}"#)
+        .expect("plugin metadata");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    for id in ids {
+        copy(&source.join(id), &root.join("connectors").join(id));
+    }
 }
 
 #[cfg(test)]

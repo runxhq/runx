@@ -186,8 +186,8 @@ impl RunxPaths {
     }
 
     /// The project's one connectors directory: the user's own connectors,
-    /// every connector added from a registry and the runx-maintained
-    /// connectors the release carries, the latter two at
+    /// every connector added from a registry and the runtime capabilities the
+    /// release carries, the latter two at
     /// `<publisher>/<id>/<version>/`, each version written once.
     #[must_use]
     pub fn connectors(&self) -> PathBuf {

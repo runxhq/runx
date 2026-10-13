@@ -494,13 +494,16 @@ Connectors are published only to a hosted registry, so `publish`, `read` and
 A project keeps every package it runs in two directories beside its source.
 `skills/` holds the skills you write (`skills/<name>/`), every skill added
 from a registry by `runx add`, by running a registry ref or as a registry
-step's child (`skills/<owner>/<name>/<version>/`), and the runx-maintained
-skills this release carries, added as `skills/runx/<name>/<version>/` when
-first used. `connectors/` holds your own connectors (`connectors/<id>/`),
-installed ones (`connectors/<publisher>/<id>/<version>/`) and the
-runx-maintained connectors a skill uses, added as
+step's child (`skills/<owner>/<name>/<version>/`), and the core skills this
+release carries, added as `skills/runx/<name>/<version>/` when first used.
+`connectors/` holds your own connectors (`connectors/<id>/`), installed ones
+(`connectors/<publisher>/<id>/<version>/`) and the runtime capability
+connectors (`store`, `web`, `vault`, `artifact`) a skill uses, added as
 `connectors/runx/<id>/<version>/` from the release and checked against it on
-every read. A version directory is written once; other bytes under it are
+every read. Every other connector, runx-maintained ones included, is a
+published package: a published skill carries the connectors it binds, and a
+local skill names one by its publisher (`runx/github`) once
+`runx registry connector install` has added it. A version directory is written once; other bytes under it are
 refused. The runx home keeps keys, configuration and state, not packages.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,

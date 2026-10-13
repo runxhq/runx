@@ -64,10 +64,8 @@ pub(crate) fn run_package_harness_with_effects(
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let workspace = crate::WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let mut base_env = workspace.env().clone();
-    super::isolate_harness_environment(
-        &mut base_env,
-        &super::credential_variables(&loaded.directory)?,
-    );
+    let credentials = super::credential_variables(&loaded.directory, &base_env)?;
+    super::isolate_harness_environment(&mut base_env, &credentials);
     let harness = PackageHarnessEnvironment::prepare(
         base_env,
         workspace.paths(),

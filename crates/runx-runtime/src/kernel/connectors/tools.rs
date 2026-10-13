@@ -2,8 +2,7 @@
 //!
 //! A tool ships beside its connector, at `tools/<segment>/.../`, one
 //! directory per segment of its dotted name (`git.push` is `tools/git/push/`).
-//! A runx-maintained connector's tools are embedded in the binary with its
-//! manifest. A tool is never looked up from the skill that calls the
+//! A tool is never looked up from the skill that calls the
 //! operation: the program that receives a connector's credential is the one
 //! its connector ships.
 //!
@@ -21,19 +20,12 @@ use crate::paths::RunxPaths;
 const MANIFEST: &str = "manifest.json";
 const TOOLS_DIR: &str = "tools";
 
-/// One tool package a connector ships, and its digest.
+/// One tool package a connector ships, and its digest. Its files are read
+/// from the connector's directory again when it runs.
 #[derive(Debug, PartialEq)]
 pub struct ConnectorTool {
     pub digest: Digest,
-    files: ToolFiles,
-}
-
-#[derive(Debug, PartialEq)]
-enum ToolFiles {
-    /// A plugin connector's, read from its directory again when it runs.
-    Directory(PathBuf),
-    /// A runx-maintained connector's, embedded in the binary.
-    Embedded(BTreeMap<String, &'static str>),
+    directory: PathBuf,
 }
 
 impl ConnectorTool {
@@ -49,50 +41,14 @@ impl ConnectorTool {
         let files = read(&directory, tool)?;
         Ok(Self {
             digest: digest(&files)?,
-            files: ToolFiles::Directory(directory),
-        })
-    }
-
-    /// The tool `tool` among a runx-maintained connector's `embedded` files, keyed
-    /// by their path below its `tools/`.
-    pub(crate) fn runx_maintained(
-        embedded: &[(&'static str, &'static str)],
-        tool: &str,
-    ) -> Result<Self, String> {
-        let prefix = format!("{}/", tool.replace('.', "/"));
-        let files = embedded
-            .iter()
-            .filter_map(|(path, contents)| {
-                path.strip_prefix(&prefix)
-                    .map(|path| (path.to_owned(), *contents))
-            })
-            .collect::<BTreeMap<_, _>>();
-        named(
-            files.get(MANIFEST).map(|contents| contents.as_bytes()),
-            tool,
-        )?;
-        let digest = tool_package_digest(
-            files
-                .iter()
-                .map(|(path, contents)| (path.as_str(), contents.as_bytes())),
-        )
-        .map_err(|error| error.to_string())?;
-        Ok(Self {
-            digest,
-            files: ToolFiles::Embedded(files),
+            directory,
         })
     }
 
     /// Every file of this tool package, by its path below the package, from
     /// bytes that still match its digest.
     pub(crate) fn files(&self, tool: &str) -> Result<BTreeMap<String, Vec<u8>>, String> {
-        let files = match &self.files {
-            ToolFiles::Directory(directory) => read(directory, tool)?,
-            ToolFiles::Embedded(files) => files
-                .iter()
-                .map(|(path, contents)| (path.clone(), contents.as_bytes().to_vec()))
-                .collect(),
-        };
+        let files = read(&self.directory, tool)?;
         if digest(&files)? != self.digest {
             return Err(format!(
                 "tool {tool} changed after its connector was loaded; run again to load it"
@@ -275,24 +231,27 @@ mod tests {
         Ok(())
     }
 
-    /// Every runx-maintained process tool is embedded and named as its connector
-    /// declares it.
+    /// A runx-maintained connector's tools are read from its directory: in
+    /// the runx source tree, github's git.push from connectors/github/tools.
     #[test]
-    fn runx_maintained_tools_are_embedded() -> Result<(), String> {
-        for connector in super::super::ConnectorScope::runx_maintained_connectors()
-            .map_err(|error| error.to_string())?
-        {
-            for (name, tool) in &connector.tools {
-                assert!(
-                    matches!(&tool.files, ToolFiles::Embedded(files) if files.contains_key(MANIFEST)),
-                    "{name}"
-                );
-            }
-        }
-        let github = super::super::ConnectorScope::runx_maintained_only()
+    fn a_source_connector_reads_its_tools_from_its_directory() -> Result<(), String> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let github = super::super::ConnectorScope::at(&root)
             .and_then(|scope| scope.connector("github"))
             .map_err(|error| error.to_string())?;
-        assert!(github.tools.contains_key("git.push"));
+        let push = github
+            .tools
+            .get("git.push")
+            .ok_or("github ships git.push")?;
+        assert_eq!(
+            push.directory
+                .canonicalize()
+                .map_err(|error| error.to_string())?,
+            root.join("connectors/github/tools/git/push")
+                .canonicalize()
+                .map_err(|error| error.to_string())?
+        );
+        assert!(push.files("git.push")?.contains_key(MANIFEST));
         Ok(())
     }
 }

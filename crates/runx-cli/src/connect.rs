@@ -217,12 +217,17 @@ fn render_start(provider: &str, response: &Value) -> String {
     if let Some(url) = string_field(response, "authorization_url") {
         output.push_str(&format!("authorize: {url}\n"));
     }
-    if let Some(grant_id) = response
-        .get("grant")
-        .and_then(|grant| string_field(grant, "grant_id"))
+    if let Some(grant) = response.get("grant")
+        && let Some(grant_id) = string_field(grant, "grant_id")
     {
+        // The grant names the exact connector it binds; that reference
+        // resolves wherever the connector is installed.
+        let connector = grant
+            .get("connector_binding")
+            .and_then(|binding| string_field(binding, "connector"))
+            .unwrap_or(provider);
         output.push_str(&format!(
-            "grant: {grant_id}\nuse it: runx connector use {provider} --grant {grant_id}\n"
+            "grant: {grant_id}\nuse it: runx connector use {connector} --grant {grant_id}\n"
         ));
     }
     output

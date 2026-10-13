@@ -259,6 +259,9 @@ pub(crate) struct OperationAdmission {
     admitted: Admitted,
     call: OperationCall,
     shape: ResultShape,
+    /// The resource the caller's act targets, classified at admission by the
+    /// connectors the run can reach.
+    target_ref: Option<Reference>,
     duplicates: Option<DuplicatePolicy>,
     /// What the host supplied for approval lanes, bound at admission.
     lanes: LaneInputs,
@@ -326,27 +329,13 @@ impl OperationAdmission {
             .execution_term
             .as_ref()
             .ok_or_else(|| engine("the operation has no execution term"))?;
-        let target_ref = self
-            .call
-            .act
-            .as_ref()
-            .and_then(|act| act.target.as_ref())
-            .map(|target| {
-                Reference::with_uri(
-                    super::connectors::references::bound_reference_kind(
-                        &self.admitted.connector.manifest,
-                        target.as_str(),
-                    ),
-                    target.as_str().to_owned(),
-                )
-            });
         Ok(crate::receipts::SealedCall {
             operation_intent: Some(self.admitted.intent().clone()),
             act: self.call.act.clone(),
             description: self.admitted.operation().description.clone(),
             legitimacy: runx_contracts::TermLegitimacy::for_term(term.term_id.as_str())
                 .ok_or_else(|| engine("the execution term id cannot name a legitimacy"))?,
-            target_ref,
+            target_ref: self.target_ref.clone(),
             effects,
             context_ref,
         })
@@ -489,12 +478,29 @@ impl RuntimeEffect for OperationEffect {
                 // A requirement that names no operation has no verb of its
                 // own; it is refused as the write it might have been.
                 verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+        let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {
+            Some(target) => {
+                let reachable = scope
+                    .reachable()
+                    .map_err(|error| invalid(error.to_string()))?;
+                Some(Reference::with_uri(
+                    super::connectors::references::bound_reference_kind(
+                        &admitted.connector.manifest,
+                        &reachable,
+                        target.as_str(),
+                    ),
+                    target.as_str().to_owned(),
+                ))
+            }
+            None => None,
+        };
             },
             AdmitError::State(message) => state(message),
         })?;
         let verb = admitted.operation().verb.authority_verb();
         let context = OperationAdmission {
             placements: Arc::clone(&self.placements),
+            target_ref,
             admitted,
             call,
             shape,
@@ -1067,7 +1073,7 @@ fn signed_in(
             manifest.id,
             login.as_deref().unwrap_or("another account"),
             instance.instance_id,
-            manifest.id
+            context.admitted.connector.connector_ref
         ));
     }
     let field = manifest

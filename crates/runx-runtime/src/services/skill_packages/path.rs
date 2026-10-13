@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -97,9 +98,13 @@ fn assert_harness_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-pub(super) fn reject_secret_material(relative: &str, contents: &str) -> Result<(), RuntimeError> {
+pub(super) fn reject_secret_material(
+    relative: &str,
+    contents: &str,
+    secret_prefixes: &BTreeSet<String>,
+) -> Result<(), RuntimeError> {
     let contains_private_key = contents.lines().any(is_private_key_header);
-    let contains_declared_secret = declared_secret_prefixes()?
+    let contains_declared_secret = secret_prefixes
         .iter()
         .any(|prefix| contents.contains(prefix.as_str()));
     if contains_private_key || contains_declared_secret {
@@ -110,22 +115,18 @@ pub(super) fn reject_secret_material(relative: &str, contents: &str) -> Result<(
     Ok(())
 }
 
-/// The prefixes runx-maintained connectors declare for their secrets.
-fn declared_secret_prefixes() -> Result<&'static [String], RuntimeError> {
-    static PREFIXES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    if let Some(prefixes) = PREFIXES.get() {
-        return Ok(prefixes);
-    }
-    let connectors = crate::kernel::connectors::ConnectorScope::runx_maintained_connectors()
-        .map_err(|error| invalid_skill_change(error.to_string()))?;
-    let prefixes = connectors
-        .iter()
-        .flat_map(|connector| connector.manifest.auth.credentials.values())
-        .flat_map(|declaration| declaration.fields.iter())
-        .flat_map(|field| &field.prefixes)
-        .map(|prefix| prefix.as_str().to_owned())
-        .collect();
-    Ok(PREFIXES.get_or_init(|| prefixes))
+/// The prefixes every connector the workspace at `repo_root` can reach
+/// declares for its secrets: what a skill there could be handed.
+pub(super) fn declared_secret_prefixes(
+    repo_root: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<BTreeSet<String>, RuntimeError> {
+    crate::kernel::connectors::ConnectorScope::at(repo_root)
+        .map(|scope| {
+            scope.in_project(crate::paths::RunxPaths::resolve(env, repo_root).connectors())
+        })
+        .and_then(|scope| scope.credential_prefixes())
+        .map_err(|error| invalid_skill_change(error.to_string()))
 }
 
 fn is_private_key_header(line: &str) -> bool {
@@ -214,19 +215,28 @@ pub(super) fn invalid_skill_change(message: impl Into<String>) -> RuntimeError {
 
 #[cfg(test)]
 mod tests {
-    use super::reject_secret_material;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use super::{declared_secret_prefixes, reject_secret_material};
 
     #[test]
     fn secret_material_rejection_detects_private_key_headers_without_static_secrets() {
         let private_key = format!("-----BEGIN {}-----\nfixture", "PRIVATE KEY");
-        assert!(reject_secret_material("tools/key.pem", &private_key).is_err());
-        assert!(reject_secret_material("tools/readme.txt", "PRIVATE KEY").is_ok());
+        let none = BTreeSet::new();
+        assert!(reject_secret_material("tools/key.pem", &private_key, &none).is_err());
+        assert!(reject_secret_material("tools/readme.txt", "PRIVATE KEY", &none).is_ok());
     }
 
+    /// In the runx source tree every runx-maintained connector is in reach,
+    /// so posthog's declared key prefix is refused.
     #[test]
-    fn secret_material_rejection_detects_declared_key_prefixes() {
+    fn secret_material_rejection_detects_the_reachable_connectors_key_prefixes()
+    -> Result<(), crate::RuntimeError> {
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let prefixes = declared_secret_prefixes(&source, &BTreeMap::new())?;
         let key = ["phx", "fixture"].join("_");
-        assert!(reject_secret_material("tools/provider.mjs", &key).is_err());
-        assert!(reject_secret_material("tools/provider.mjs", "phx-fixture").is_ok());
+        assert!(reject_secret_material("tools/provider.mjs", &key, &prefixes).is_err());
+        assert!(reject_secret_material("tools/provider.mjs", "phx-fixture", &prefixes).is_ok());
+        Ok(())
     }
 }

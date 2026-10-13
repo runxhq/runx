@@ -173,3 +173,27 @@ pub(crate) fn read_test_first_step_receipt(
         .ok_or("step receipt reference is not a receipt uri")?;
     read_test_signed_receipt(receipt_dir, id)
 }
+
+/// Makes `root` a runx plugin holding copies of the runx source connectors
+/// `ids`: how a project reaches published connectors without a registry.
+pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) -> std::io::Result<()> {
+    fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let target = to.join(entry.file_name());
+            if entry.path().is_dir() {
+                copy(&entry.path(), &target)?;
+            } else {
+                fs::copy(entry.path(), target)?;
+            }
+        }
+        Ok(())
+    }
+    fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    for id in ids {
+        copy(&source.join(id), &root.join("connectors").join(id))?;
+    }
+    Ok(())
+}

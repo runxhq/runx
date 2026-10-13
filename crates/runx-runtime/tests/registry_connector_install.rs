@@ -234,12 +234,12 @@ fn a_signer_scoped_to_another_publisher_is_refused() -> Result<(), Box<dyn std::
 }
 
 #[test]
-fn a_newer_runx_maintained_connector_version_installs_beside_the_embedded_one()
+fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
     let mut files = prepare_registry_connector_package(&source)?.files;
-    // A later runx/github: its manifest, so its digest, differs from the binary's.
+    // A later runx/github: its manifest, so its digest, differs from the source's.
     let manifest = files
         .iter_mut()
         .find(|file| file.path == "connector.yaml")
@@ -272,8 +272,10 @@ fn a_newer_runx_maintained_connector_version_installs_beside_the_embedded_one()
     let installed = install_registry_connector(&published, &options)?;
 
     assert_eq!(installed.status, InstallStatus::Installed);
-    let embedded = runx_runtime::ConnectorScope::runx_maintained_only()?.connector("github")?;
-    assert_ne!(installed.manifest_digest, embedded.manifest_digest);
+    let current =
+        runx_runtime::ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))?
+            .connector("github")?;
+    assert_ne!(installed.manifest_digest, current.manifest_digest);
     Ok(())
 }
 

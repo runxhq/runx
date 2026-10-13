@@ -267,10 +267,96 @@ runners:
     );
 
     Ok(())
+/// Adding a skill adds the connectors its package carries to the project, so
+/// the project can bind their instances by qualified reference.
+#[test]
+fn adding_a_skill_adds_the_connectors_it_carries() -> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-carried-connectors");
+    let source = root.join("source");
+    let skill_dir = source.join("carrier");
+    let registry_dir = root.join("registry");
+    let workspace = root.join("workspace");
+    crate::support::plugin_with_source_connectors(&source, &["github"])?;
+    fs::create_dir_all(&skill_dir)?;
+    fs::create_dir_all(&workspace)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: carrier\ndescription: Carries the github connector.\n---\n# Carrier\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"skill: carrier
+connectors:
+  github:
+    operations: [issue.read]
+harness:
+  cases:
+    - name: digest
+      runner: default
+      expect:
+        status: sealed
+runners:
+  default:
+    default: true
+    result_from: [digest]
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: carried
+"#,
+    )?;
+
+    let publish = runx_command()?
+        .args([
+            "registry",
+            "publish",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry-dir",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--publisher",
+            "acme",
+            "--version",
+            "1.0.0",
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
+
+    let add = runx_command()?
+        .current_dir(&workspace)
+        .args([
+            "add",
+            "acme/carrier@1.0.0",
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&add, &["\"status\": \"installed\""])?;
+
+    let versions = fs::read_dir(workspace.join("connectors/runx/github"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    assert_eq!(versions.len(), 1, "{versions:?}");
+    assert!(versions[0].join("connector.yaml").is_file());
+
+    // The workspace is in no plugin; the carried copy is reached by its ref.
+    let inspect = runx_command()?
+        .current_dir(&workspace)
+        .args(["connector", "inspect", "runx/github", "--json"])
+        .output()?;
+    assert_success_contains(&inspect, &["\"connector\": \"runx/github\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
 }
 
 #[test]
 fn registry_package_metadata_names_the_declared_connectors()
+    crate::support::plugin_with_source_connectors(&root, &["github", "stripe-spt", "mpp"])?;
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-package-connectors");
     let skill_dir = root.join("connected");

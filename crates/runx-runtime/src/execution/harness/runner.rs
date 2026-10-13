@@ -349,8 +349,10 @@ fn wire_operations(
     target_path: &Path,
     options: &mut HarnessOptions,
 ) -> Result<Arc<HarnessExchanges>, HarnessReplayError> {
-    let scope = crate::ConnectorScope::at(target_path.parent().unwrap_or(target_path))
-        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
+    let skill_dir = target_path.parent().unwrap_or(target_path);
+    let scope = crate::ConnectorScope::at(skill_dir)
+        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?
+        .in_project(crate::paths::RunxPaths::resolve(&options.env, skill_dir).connectors());
     let invalid_provider = |message: String| {
         HarnessFixtureError::Parser(runx_parser::harness_fixture::HarnessFixtureError::Invalid {
             field: "caller.provider_responses.grant".to_owned(),
@@ -395,7 +397,9 @@ fn seed_harness_sessions(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
-    let scope = crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
+    let scope = crate::ConnectorScope::at(target_path)
+        .map_err(|error| setup(error.to_string()))?
+        .in_project(crate::paths::RunxPaths::resolve(&env, target_path).connectors());
     for connector in &fixture.setup.sessions {
         let connector = scope
             .connector(connector.as_str())
@@ -433,7 +437,9 @@ fn seed_harness_credentials(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
             .map_err(|error| setup(error.to_string()))?,
     );
-    let scope = crate::ConnectorScope::at(target_path).map_err(|error| setup(error.to_string()))?;
+    let scope = crate::ConnectorScope::at(target_path)
+        .map_err(|error| setup(error.to_string()))?
+        .in_project(crate::paths::RunxPaths::resolve(&env, target_path).connectors());
     for connector in &fixture.setup.credentials {
         let connector = scope
             .connector(connector.as_str())
@@ -659,7 +665,8 @@ fn skill_fixture_target(
         })?;
     let runner = select_harness_runner(manifest, fixture.runner.as_deref())?.clone();
     let mut env = options.env.clone();
-    super::isolate_harness_environment(&mut env, &super::credential_variables(&skill_dir)?);
+    let credentials = super::credential_variables(&skill_dir, &env)?;
+    super::isolate_harness_environment(&mut env, &credentials);
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, &skill_dir)?;
     crate::services::merge_inferred_tool_roots(&mut env, &skill_dir);
@@ -716,7 +723,8 @@ where
     A: SkillAdapter,
 {
     let skill_dir = graph_path.parent().unwrap_or(graph_path);
-    super::isolate_harness_environment(&mut options.env, &super::credential_variables(skill_dir)?);
+    let credentials = super::credential_variables(skill_dir, &options.env)?;
+    super::isolate_harness_environment(&mut options.env, &credentials);
     overlay_harness_env(&mut options, &fixture.env);
     // Harness graph replays need a deterministic run_id so per-run governance
     // can resolve one, mirroring the production graph runner. Derived from the

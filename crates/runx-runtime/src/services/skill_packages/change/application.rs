@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
 
@@ -100,11 +100,12 @@ pub(super) fn admit_skill_change(
     target: &Path,
     mode: &str,
     change: &SkillChangeBundle,
+    secret_prefixes: &BTreeSet<String>,
 ) -> Result<AdmittedSkillChange, RuntimeError> {
     let writes = change
         .writes
         .iter()
-        .map(|write| admit_write(target_dir, target, mode, write))
+        .map(|write| admit_write(target_dir, target, mode, write, secret_prefixes))
         .collect::<Result<Vec<_>, RuntimeError>>()?;
     let deletes = change
         .deletes
@@ -121,10 +122,11 @@ fn admit_write(
     target: &Path,
     mode: &str,
     write: &runx_contracts::SkillFileWrite,
+    secret_prefixes: &BTreeSet<String>,
 ) -> Result<TextFileWrite, RuntimeError> {
     let relative = normalize_package_file(write.path.as_str().to_owned())?;
     assert_allowed_package_write_path(&relative, target, mode)?;
-    reject_secret_material(&relative, &write.contents)?;
+    reject_secret_material(&relative, &write.contents, secret_prefixes)?;
     Ok(TextFileWrite {
         path: format!("{target_dir}/{relative}"),
         contents: write.contents.clone(),

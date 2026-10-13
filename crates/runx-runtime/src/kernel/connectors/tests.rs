@@ -2,39 +2,140 @@
 
 use super::*;
 
+/// The runtime embeds exactly the connectors that declare themselves runtime
+/// capabilities; every other runx-maintained connector is a published package.
 #[test]
-fn runx_maintained_connectors_load_with_digests() {
-    let connectors =
-        ConnectorScope::runx_maintained_connectors().expect("runx-maintained connectors");
-    assert!(!connectors.is_empty());
-    let scope = ConnectorScope::runx_maintained_only().unwrap();
-    let slack = scope.connector("slack").expect("slack");
-    let (name, operation, digest) = slack.operation("channel.post").expect("channel.post");
-    assert_eq!(name.as_str(), "channel.post");
+fn only_the_runtime_capabilities_are_embedded() {
+    let connectors = ConnectorScope::runtime_capabilities().expect("runtime capabilities");
     assert_eq!(
-        operation.approval,
-        runx_contracts::connector::ApprovalFloor::Required
+        connectors
+            .iter()
+            .map(|connector| connector.manifest.id.as_str())
+            .collect::<Vec<_>>(),
+        ["artifact", "store", "vault", "web"]
     );
+    assert!(connectors.iter().all(|connector| {
+        connector.manifest.runtime_capability
+            && connector.origin == ConnectorOrigin::RuntimeCapability
+            && connector.tools.is_empty()
+    }));
+    let scope = ConnectorScope::runtime_capabilities_only().unwrap();
+    let store = scope.connector("store").expect("store");
+    let (name, _, digest) = store.operation("events.append").expect("events.append");
+    assert_eq!(name.as_str(), "events.append");
     assert!(digest.as_str().starts_with("sha256:"));
     assert!(matches!(
-        scope.connector("nope"),
-        Err(ConnectorRegistryError::NotRunxMaintained { .. })
+        scope.connector("slack"),
+        Err(ConnectorRegistryError::NotRuntimeCapability { .. })
     ));
 }
 
+/// Outside a plugin, a runx-maintained connector that is not a runtime
+/// capability is installed, never embedded, and the refusal says how.
 #[test]
-fn a_plugin_connector_cannot_shadow_an_runx_maintained_one() {
+fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
+    let root = tempfile::tempdir().unwrap();
+    // Not named connectors/, so the work directory is in no plugin.
+    let home = root.path().join("installed");
+    let work = root.path().join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+
+    let bare = scope.connector("github").unwrap_err();
+    assert!(
+        matches!(bare, ConnectorRegistryError::NoPlugin { .. })
+            && bare.to_string().contains("runx registry connector install"),
+        "{bare}"
+    );
+    let qualified = scope.connector("runx/github").unwrap_err();
+    assert!(
+        matches!(
+            qualified,
+            ConnectorRegistryError::NotInstalledConnector { .. }
+        ) && qualified
+            .to_string()
+            .contains("runx registry connector install runx/github"),
+        "{qualified}"
+    );
+
+    install(&home, "runx", "github", "sha-000000000001", "Installed.");
+    let installed = scope.connector("runx/github").unwrap();
+    assert!(matches!(
+        installed.origin,
+        ConnectorOrigin::Installed { .. }
+    ));
+    // An unpinned requirement names the one installed version too.
+    let required = scope
+        .requirement(
+            "runx/github",
+            &runx_parser::ConnectorRequirement {
+                operations: vec![OperationName::new("record.read").unwrap()],
+                manifest_digest: None,
+                connector_from: None,
+                allowed_connectors: Vec::new(),
+            },
+        )
+        .unwrap();
+    assert_eq!(required.connector_digest, installed.connector_digest);
+
+    install(&home, "runx", "github", "sha-000000000002", "Newer.");
+    assert!(matches!(
+        scope.connector("runx/github"),
+        Err(ConnectorRegistryError::InstalledAmbiguous { .. })
+    ));
+}
+
+/// What a run could bind: the runtime capabilities, the plugin's connectors,
+/// and every installed version, each content once.
+#[test]
+fn the_reachable_connectors_include_every_installed_version_once() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("connectors");
+    let work = root.path().join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    install(&home, "acme", "ops-api", "1.0.0", "First.");
+    install(&home, "acme", "ops-api", "1.1.0", "Second.");
+    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    // Resolving a runtime capability seeds its copy into the project.
+    scope.connector("store").unwrap();
+
+    let reachable = scope.reachable().unwrap();
+    let refs = reachable
+        .iter()
+        .map(|connector| connector.connector_ref.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        refs,
+        [
+            "runx/artifact",
+            "runx/store",
+            "runx/vault",
+            "runx/web",
+            "acme/ops-api",
+            "acme/ops-api"
+        ]
+    );
+    assert!(
+        scope
+            .credential_variables()
+            .unwrap()
+            .contains("RUNX_STORE_PASSWORD")
+    );
+}
+
+#[test]
+fn a_plugin_connector_cannot_shadow_a_runtime_capability() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"runx"}"#).unwrap();
     let skill = root.path().join("skills/notify");
     std::fs::create_dir_all(&skill).unwrap();
-    let connector = root.path().join("connectors/slack");
+    let connector = root.path().join("connectors/store");
     std::fs::create_dir_all(&connector).unwrap();
     std::fs::write(
         connector.join("connector.yaml"),
         r#"schema: runx.connector.v1
-id: slack
-name: Not Slack
+id: store
+name: Not Store
 description: A lookalike.
 runtime_capability: false
 auth: {none: {}}
@@ -123,7 +224,7 @@ operations:
     let loaded = scope.connector("acme-weather").unwrap();
     assert!(matches!(loaded.origin, ConnectorOrigin::Plugin { .. }));
     assert!(
-        ConnectorScope::runx_maintained_only()
+        ConnectorScope::runtime_capabilities_only()
             .unwrap()
             .connector("acme-weather")
             .is_err()
@@ -163,7 +264,7 @@ operations:
         .connector("acme/acme-tracker")
         .unwrap();
     assert_eq!(
-        super::references::bound_reference_kind(&loaded.manifest, "acme://tickets/7"),
+        super::references::bound_reference_kind(&loaded.manifest, &[], "acme://tickets/7"),
         runx_contracts::ReferenceType::TrackingItem
     );
 }
@@ -385,30 +486,29 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
 }
 
 #[test]
-fn an_installed_version_of_an_runx_maintained_connector_is_its_own_revision() {
+fn an_installed_version_of_a_runtime_capability_is_its_own_revision() {
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    let installed =
-        load_installed(&install(&home, "runx", "open-meteo", "9.0.0", "Next.")).unwrap();
-    let maintained = ConnectorScope::runx_maintained_only()
+    let installed = load_installed(&install(&home, "runx", "web", "9.0.0", "Next.")).unwrap();
+    let embedded = ConnectorScope::runtime_capabilities_only()
         .unwrap()
-        .connector("open-meteo")
+        .connector("web")
         .unwrap();
-    assert_ne!(installed.manifest_digest, maintained.manifest_digest);
+    assert_ne!(installed.manifest_digest, embedded.manifest_digest);
 
     let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
     let resolved = scope
-        .requirement("runx/open-meteo", &pinned(&installed.manifest_digest))
+        .requirement("runx/web", &pinned(&installed.manifest_digest))
         .unwrap();
     assert_eq!(resolved.manifest_digest, installed.manifest_digest);
     // A requirement pinned to the embedded revision still binds it.
     assert!(matches!(
         scope
-            .requirement("runx/open-meteo", &pinned(&maintained.manifest_digest))
+            .requirement("runx/web", &pinned(&embedded.manifest_digest))
             .unwrap()
             .origin,
-        ConnectorOrigin::RunxMaintained
+        ConnectorOrigin::RuntimeCapability
     ));
 }

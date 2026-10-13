@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Stdio;
 
-use crate::support::{temp_root, unsigned_runx_command_at};
+use crate::support::{plugin_with_source_connectors, temp_root, unsigned_runx_command_at};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -85,6 +85,7 @@ fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
 #[test]
 fn an_instance_selects_only_for_its_own_connector() -> TestResult {
     let root = temp_root("runx-connector-select");
+    plugin_with_source_connectors(&root, &["github", "slack"])?;
     let result = (|| -> TestResult {
         let instance = stored_token(&root)?;
         let (ok, used) = connector(&root, &["use", "github", &instance])?;
@@ -123,7 +124,7 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
 #[test]
 fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
     let root = temp_root("runx-connector-inspect");
-    fs::create_dir_all(&root)?;
+    plugin_with_source_connectors(&root, &["github"])?;
     let result = (|| -> TestResult {
         let (ok, before) = connector(&root, &["inspect", "github"])?;
         assert!(ok, "{before}");
@@ -152,6 +153,7 @@ fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
 #[test]
 fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult {
     let root = temp_root("runx-connector-session");
+    plugin_with_source_connectors(&root, &["github"])?;
     signed_out_gh(&root.join("bin"))?;
     let result = (|| -> TestResult {
         let (ok, refused) = connector(&root, &["use", "github", "--session"])?;
@@ -315,7 +317,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
         assert!(!ok, "{missing}");
         assert!(
             missing.to_string().contains(&format!(
-                "connector acme-two is neither a runx-maintained connector nor one of the plugin at {}",
+                "connector acme-two is neither a runtime capability nor one of the plugin at {}",
                 canonical(&plugin)?
             )),
             "{missing}"

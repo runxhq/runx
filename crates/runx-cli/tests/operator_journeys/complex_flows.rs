@@ -213,7 +213,7 @@ fn approve(
 fn slack_reply_journey_gates_once_and_closes_on_provider_readback() -> TestResult {
     let root = crate::support::temp_root("runx-slack-reply-journey");
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
+    crate::support::plugin_with_source_connectors(&root, &["slack"])?;
     fs::write(
         root.join("reply.json"),
         reply_inputs(THREAD, "00000000-0000-4000-8000-000000000001").to_string(),
@@ -260,7 +260,7 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
 {
     let root = crate::support::temp_root("runx-slack-reply-recovery-journey");
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&root)?;
+    crate::support::plugin_with_source_connectors(&root, &["slack"])?;
     let key = "00000000-0000-4000-8000-000000000003";
     fs::write(
         root.join("reply.json"),

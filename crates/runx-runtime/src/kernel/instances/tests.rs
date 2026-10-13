@@ -8,7 +8,6 @@ use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{ConnectorInstance, InstanceAuthority};
 
 use super::*;
-use crate::kernel::connectors::ConnectorScope;
 use crate::kernel::store::KernelStore;
 
 fn instances() -> (tempfile::TempDir, Instances) {
@@ -18,8 +17,7 @@ fn instances() -> (tempfile::TempDir, Instances) {
 }
 
 fn slack() -> std::sync::Arc<LoadedConnector> {
-    ConnectorScope::runx_maintained_only()
-        .expect("scope")
+    crate::kernel::connectors::source_scope()
         .connector("slack")
         .expect("slack")
 }
@@ -93,8 +91,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
     instances
         .confirm(hosted("shared-id", &slack), false)
         .expect("confirm");
-    let github = ConnectorScope::runx_maintained_only()
-        .unwrap()
+    let github = crate::kernel::connectors::source_scope()
         .connector("github")
         .unwrap();
     let mut moved = hosted("shared-id", &github);
@@ -108,8 +105,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
 #[test]
 fn a_public_connector_needs_no_setup() {
     let (_root, instances) = instances();
-    let public = ConnectorScope::runx_maintained_only()
-        .unwrap()
+    let public = crate::kernel::connectors::source_scope()
         .connector("open-meteo")
         .unwrap();
     let resolved = instances.resolve(&public).expect("public");

@@ -91,7 +91,7 @@ pub(crate) fn validate_skill_package(
 ) -> Result<JsonObject, RuntimeError> {
     let repo_root = canonical_directory(repo_root, "skill workspace")?;
     let stage = candidate_files
-        .map(|files| InlineCandidateStage::prepare(&repo_root, files))
+        .map(|files| InlineCandidateStage::prepare(&repo_root, files, env))
         .transpose()?;
     let candidate_path = resolve_candidate_path(&repo_root, requested_ref, stage.as_ref())?;
     let inspected = crate::inspect_skill_package(&candidate_path, None, None);

@@ -299,7 +299,7 @@ fn inline_graph_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn st
 #[test]
 fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-local-credential-empty");
-    fs::create_dir_all(&temp)?;
+    crate::support::plugin_with_source_connectors(&temp, &["github"])?;
     let mut command = native_command()?;
     command.current_dir(&temp).args([
         "credential",

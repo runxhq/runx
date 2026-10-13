@@ -66,6 +66,7 @@ struct Case<'a> {
 }
 
 fn run(root: &Path, case: &Case<'_>) -> Result<HarnessReplayOutput, HarnessReplayError> {
+    crate::support::plugin_with_source_connectors(root, &["slack", "github"]).unwrap();
     let skill = root.join("call-acts");
     std::fs::create_dir_all(skill.join("fixtures")).unwrap();
     std::fs::write(
@@ -176,10 +177,11 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     // The act names the connector operation it ran, exactly as admission
     // bound it, inside the signed body.
     let operation = act.operation.as_ref().expect("the admitted operation");
-    let slack = runx_runtime::ConnectorScope::runx_maintained_only()
-        .unwrap()
-        .connector("runx/slack")
-        .unwrap();
+    let slack =
+        runx_runtime::ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .unwrap()
+            .connector("runx/slack")
+            .unwrap();
     assert_eq!(operation.connector, slack.connector_ref);
     assert_eq!(operation.manifest_digest, slack.manifest_digest);
     assert_eq!(operation.connector_digest, slack.connector_digest);
@@ -315,6 +317,7 @@ fn an_act_outside_its_shape_refuses_the_call_before_admission() {
 #[test]
 fn a_turns_operation_call_seals_the_act_it_carries() {
     let root = tempfile::tempdir().unwrap();
+    crate::support::plugin_with_source_connectors(root.path(), &["slack", "github"]).unwrap();
     let skill = root.path().join("call-acts");
     std::fs::create_dir_all(skill.join("fixtures")).unwrap();
     std::fs::write(
@@ -396,6 +399,7 @@ expect:
 /// A parent whose skill step hands its child run a post, decided by
 /// `approvals`.
 fn delegate(root: &Path, approvals: &str) -> Result<HarnessReplayOutput, HarnessReplayError> {
+    crate::support::plugin_with_source_connectors(root, &["slack"]).unwrap();
     let parent = root.join("delegating");
     let child = parent.join("child");
     std::fs::create_dir_all(parent.join("fixtures")).unwrap();

@@ -26,6 +26,7 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: trusted_manifest_keys()?,
         },
@@ -49,6 +50,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: trusted_manifest_keys()?,
         },
@@ -143,6 +145,7 @@ fn unsigned_local_registry_candidate_installs() -> Result<(), Box<dyn std::error
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: Vec::new(),
         },
@@ -193,7 +196,10 @@ fn a_connector_envelope_never_installs_as_a_skill() -> Result<(), Box<dyn std::e
 
     let error = install_error(&candidate, temp.path())?;
 
-    let InstallError::ManifestIdentityMismatch { expected, actual, .. } = error else {
+    let InstallError::ManifestIdentityMismatch {
+        expected, actual, ..
+    } = error
+    else {
         return Err(format!("expected an identity mismatch, got {error}").into());
     };
     assert_eq!(expected, format!("skill {skill_id}@1.0.0"));
@@ -290,6 +296,7 @@ fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn st
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
                 TEST_MANIFEST_KEY_ID.to_owned(),
@@ -323,6 +330,7 @@ fn registry_install_rejects_official_key_from_non_official_source()
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
                 TEST_MANIFEST_KEY_ID.to_owned(),
@@ -356,6 +364,7 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
                 TEST_MANIFEST_KEY_ID.to_owned(),
@@ -379,6 +388,7 @@ fn registry_install_rejects_third_party_key_outside_owner_namespace()
         &candidate,
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
+            connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
                 TEST_MANIFEST_KEY_ID.to_owned(),
@@ -462,6 +472,7 @@ fn install_error(
         candidate,
         &InstallLocalSkillOptions {
             destination_root: temp_path.join("skills"),
+            connectors_root: temp_path.join("connectors"),
             expected_digest: None,
             trusted_manifest_keys: trusted_manifest_keys()?,
         },

@@ -71,7 +71,13 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
         VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
     )?;
     validate_change_contract(&change, "improve", &target.before.digest)?;
-    let admitted = admit_skill_change(&target.relative, &target.path, "improve", &change)?;
+    let admitted = admit_skill_change(
+        &target.relative,
+        &target.path,
+        "improve",
+        &change,
+        &std::collections::BTreeSet::new(),
+    )?;
     let candidate = validate_candidate_stage(
         &target,
         &change,

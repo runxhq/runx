@@ -263,7 +263,8 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     match &plan.action {
         ConnectorAction::List => {
             let connectors = ConnectorScope::at(workspace.paths().cwd())
-                .and_then(|scope| scope.connectors())
+                .map(|scope| scope.in_project(workspace.paths().connectors()))
+                .and_then(|scope| scope.reachable())
                 .map_err(|error| error.to_string())?;
             let records = records(&instances)?;
             let selected = |id: &str| {
@@ -523,7 +524,7 @@ fn inspect_text(
     }
     if records.is_empty() {
         out.push_str("instances: none\n");
-        for command in setup_commands(manifest) {
+        for command in setup_commands(connector) {
             out.push_str(&format!("  set up: {command}\n"));
         }
     } else {
@@ -539,21 +540,23 @@ fn inspect_text(
 }
 
 /// The commands that confirm an instance under each authority the
-/// connector accepts.
-fn setup_commands(manifest: &ConnectorManifest) -> Vec<String> {
-    let id = &manifest.id;
+/// connector accepts, naming it by its qualified reference, which resolves
+/// wherever the connector is installed. Connect starts by provider id.
+fn setup_commands(connector: &LoadedConnector) -> Vec<String> {
+    let manifest = &connector.manifest;
+    let (id, reference) = (&manifest.id, &connector.connector_ref);
     let mut commands = Vec::new();
     if manifest.auth.session.is_some() {
-        commands.push(format!("runx connector use {id} --session"));
+        commands.push(format!("runx connector use {reference} --session"));
     }
     for name in manifest.auth.credentials.keys() {
         commands.push(format!(
-            "runx credential set {id} --credential {name} --from-stdin"
+            "runx credential set {reference} --credential {name} --from-stdin"
         ));
     }
     if manifest.placements.hosted.is_some() {
         commands.push(format!(
-            "runx connect start {id} --scope <scope>, then runx connector use {id} --grant <grant-id>"
+            "runx connect start {id} --scope <scope>, then runx connector use {reference} --grant <grant-id>"
         ));
     }
     commands

@@ -10,6 +10,7 @@ fn credential_command_sets_lists_and_removes_without_exposing_material()
     let root = crate::support::temp_root("runx-credential-command");
     let home = root.join("home");
     fs::create_dir_all(root.join(".runx"))?;
+    crate::support::plugin_with_source_connectors(&root, &["exa", "github"])?;
 
     let mut set = command(&root, &home)?;
     set.args([
