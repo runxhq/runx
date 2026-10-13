@@ -281,6 +281,11 @@ export interface TemplateInputs {
   /** The call's decoded result, which only an operation's effect reads. */
   readonly result?: JsonValue;
   readonly idempotencyKey?: string;
+  /**
+   * The paid invocation the call runs under. runx Connect supplies it only
+   * from the run its gateway session authenticates; the kernel never does.
+   */
+  readonly invocationId?: string;
 }
 
 const MAX_DEPTH = 32;
@@ -338,7 +343,9 @@ function renderBinding(key: string, argument: JsonValue, inputs: TemplateInputs,
     case "$result":
       return found(inputs.result === undefined ? undefined : pointer(inputs.result, reference));
     case "$runx":
-      return found(inputs.idempotencyKey);
+      if (reference === "idempotency_key") return found(inputs.idempotencyKey);
+      if (reference === "invocation") return found(inputs.invocationId);
+      throw new TemplateError(`template binding $runx ${JSON.stringify(reference)} is not a runtime value`);
     default: {
       let joined = "";
       for (const part of Array.isArray(argument) ? argument : []) {
@@ -403,6 +410,8 @@ export interface DeclaredRequestCall {
   readonly arguments: JsonObject;
   readonly parameters?: JsonObject;
   readonly idempotencyKey?: string;
+  /** The paid invocation the call runs under, which only runx Connect supplies. */
+  readonly invocationId?: string;
   /** The declared request's id, among requests, preconditions and readbacks. */
   readonly request: string;
   /** The position of the element a repeated request is sent for. */
@@ -428,6 +437,7 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
     arguments: call.arguments,
     parameters: call.parameters ?? {},
     ...(call.idempotencyKey === undefined ? {} : { idempotencyKey: call.idempotencyKey }),
+    ...(call.invocationId === undefined ? {} : { invocationId: call.invocationId }),
   };
   let item: JsonValue | undefined;
   if (call.item !== undefined) {

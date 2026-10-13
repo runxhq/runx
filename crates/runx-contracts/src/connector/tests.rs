@@ -199,6 +199,41 @@ fn an_item_binding_renders_only_for_a_repeated_request() {
 
 /// The TS renderer answers the same (packages/contracts/src/connector.test.ts).
 #[test]
+fn the_paid_invocation_renders_only_where_it_is_supplied() {
+    let template: Template = serde_json::from_str(
+        r#"{"invocation": {"$runx": "invocation"}, "key": {"$runx": "idempotency_key"}}"#,
+    )
+    .expect("template");
+    assert!(template.binds_invocation());
+    assert!(template.binds_idempotency_key());
+    let invocation: Template =
+        serde_json::from_str(r#"{"$runx": "invocation"}"#).expect("template");
+    assert!(!invocation.binds_idempotency_key());
+    let expected: JsonValue =
+        serde_json::from_str(r#"{"invocation": "pinv_1", "key": "runx:sha256:abc"}"#)
+            .expect("expected");
+    assert_eq!(
+        template
+            .render(&TemplateInputs {
+                idempotency_key: Some("runx:sha256:abc"),
+                invocation_id: Some("pinv_1"),
+                ..TemplateInputs::default()
+            })
+            .expect("renders"),
+        expected
+    );
+    // The kernel holds the call's key but never the paid invocation.
+    assert!(matches!(
+        template.render(&TemplateInputs {
+            idempotency_key: Some("runx:sha256:abc"),
+            ..TemplateInputs::default()
+        }),
+        Err(TemplateError::Unavailable { binding: "$runx", reference }) if reference == "invocation"
+    ));
+}
+
+/// The TS renderer answers the same (packages/contracts/src/connector.test.ts).
+#[test]
 fn an_effect_reads_the_call_result_and_a_repeated_element() {
     let locator: Template = serde_json::from_str(
         r#"{"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}"#,

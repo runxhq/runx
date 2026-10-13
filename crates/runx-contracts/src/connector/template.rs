@@ -12,6 +12,10 @@
 //! - `{"$result": "/pointer"}`: a value from the call's decoded result, which
 //!   only an operation's effect reads.
 //! - `{"$runx": "idempotency_key"}`: the key the kernel derived for the call.
+//! - `{"$runx": "invocation"}`: the paid invocation a hosted call runs under.
+//!   Only runx Connect supplies it, from the run its gateway session
+//!   authenticates; the kernel never does, so anywhere else it is unavailable
+//!   and the call fails closed.
 //! - `{"$concat": [part, ...]}`: one to eight scalar parts joined into a string.
 //!
 //! Everything else is literal. Structure is validated on deserialization, so a
@@ -37,6 +41,8 @@ const RESPONSE: &str = "$response";
 const ITEM: &str = "$item";
 const RESULT: &str = "$result";
 const RUNX: &str = "$runx";
+const IDEMPOTENCY_KEY: &str = "idempotency_key";
+const INVOCATION: &str = "invocation";
 const CONCAT: &str = "$concat";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -55,6 +61,9 @@ pub struct TemplateInputs<'a> {
     /// The call's decoded result, once it has one.
     pub result: Option<&'a JsonValue>,
     pub idempotency_key: Option<&'a str>,
+    /// The paid invocation the call runs under, which only runx Connect
+    /// supplies.
+    pub invocation_id: Option<&'a str>,
 }
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
@@ -141,8 +150,14 @@ impl Template {
 
     /// Whether the template sends the key the kernel derived for the call.
     #[must_use]
-    pub fn binds_runx(&self) -> bool {
-        binds(&self.0, RUNX)
+    pub fn binds_idempotency_key(&self) -> bool {
+        binds_runx_value(&self.0, IDEMPOTENCY_KEY)
+    }
+
+    /// Whether the template sends the paid invocation the call runs under.
+    #[must_use]
+    pub fn binds_invocation(&self) -> bool {
+        binds_runx_value(&self.0, INVOCATION)
     }
 
     /// Whether the template binds `$result`, which only an effect reads.
@@ -186,8 +201,8 @@ impl Template {
         !contains_binding(&self.0)
     }
 
-    /// Top-level object fields runx itself fills with the call's provider
-    /// key, which no input reaches.
+    /// Top-level object fields runx itself fills, with the call's provider
+    /// key or its paid invocation, which no input reaches.
     #[must_use]
     pub fn runx_fields(&self) -> BTreeSet<&str> {
         match &self.0 {
@@ -295,10 +310,10 @@ fn validate_binding(key: &str, argument: &JsonValue, depth: usize) -> Result<(),
             }),
         },
         RUNX => match argument.as_str() {
-            Some("idempotency_key") => Ok(()),
+            Some(IDEMPOTENCY_KEY | INVOCATION) => Ok(()),
             _ => Err(TemplateError::Malformed {
                 binding: RUNX,
-                reason: "the only runtime value is idempotency_key",
+                reason: "the runtime values are idempotency_key and invocation",
             }),
         },
         _ => match argument.as_array() {
@@ -393,10 +408,12 @@ fn render_binding(
             .and_then(|result| pointer(result, reference))
             .cloned()
             .ok_or_else(unavailable),
-        RUNX => inputs
-            .idempotency_key
-            .map(|key| JsonValue::String(key.to_owned()))
-            .ok_or_else(unavailable),
+        RUNX => match reference {
+            INVOCATION => inputs.invocation_id,
+            _ => inputs.idempotency_key,
+        }
+        .map(|value| JsonValue::String(value.to_owned()))
+        .ok_or_else(unavailable),
         _ => {
             let mut joined = String::new();
             for part in argument.as_array().into_iter().flatten() {
@@ -461,18 +478,28 @@ fn response<'a>(
 }
 
 fn binds(value: &JsonValue, key: &str) -> bool {
+    binds_matching(value, &|found, _| found == key)
+}
+
+fn binds_runx_value(value: &JsonValue, name: &str) -> bool {
+    binds_matching(value, &|found, argument| {
+        found == RUNX && argument.as_str() == Some(name)
+    })
+}
+
+fn binds_matching(value: &JsonValue, matches: &dyn Fn(&str, &JsonValue) -> bool) -> bool {
     match value {
         JsonValue::Object(object) => match binding(object) {
-            Some((found, _)) if found == key => true,
+            Some((found, argument)) if matches(found, argument) => true,
             Some((CONCAT, parts)) => parts
                 .as_array()
                 .into_iter()
                 .flatten()
-                .any(|part| binds(part, key)),
+                .any(|part| binds_matching(part, matches)),
             Some(_) => false,
-            None => object.values().any(|value| binds(value, key)),
+            None => object.values().any(|value| binds_matching(value, matches)),
         },
-        JsonValue::Array(values) => values.iter().any(|value| binds(value, key)),
+        JsonValue::Array(values) => values.iter().any(|value| binds_matching(value, matches)),
         _ => false,
     }
 }

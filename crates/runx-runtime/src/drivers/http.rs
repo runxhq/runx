@@ -1152,6 +1152,15 @@ mod tests {
                 assert!(rendered.is_err(), "{name}: expected a refusal");
                 continue;
             }
+            // Only runx Connect supplies the paid invocation; the kernel never
+            // holds it, so a request that sends it never renders here.
+            if case.get("invocation_id").is_some() {
+                assert!(
+                    rendered.is_err(),
+                    "{name}: the kernel holds no paid invocation"
+                );
+                continue;
+            }
             let rendered = rendered.map_err(|error| format!("{name}: {error}"))?;
             let headers = rendered
                 .headers

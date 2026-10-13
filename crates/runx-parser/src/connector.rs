@@ -60,6 +60,7 @@ pub fn validate_connector_manifest(
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
     validate_enforced(&manifest, &mut errors);
+    validate_invocation(&manifest, &mut errors);
     errors.finish()?;
 
     let digest_error = |error: runx_contracts::connector::ConnectorDigestError| {
@@ -906,7 +907,7 @@ fn validate_enforced(manifest: &ConnectorManifest, errors: &mut Errors) {
                     "a read changes nothing for its provider to deduplicate",
                 );
             }
-            if call_templates(manifest, operation).any(Template::binds_runx) {
+            if call_templates(manifest, operation).any(Template::binds_idempotency_key) {
                 errors.push(
                     &format!("operations.{name}"),
                     "a read has no idempotency key: it binds no {\"$runx\": \"idempotency_key\"}",
@@ -928,9 +929,9 @@ fn validate_enforced(manifest: &ConnectorManifest, errors: &mut Errors) {
                 http.requests
                     .iter()
                     .flat_map(HttpRequest::templates)
-                    .any(Template::binds_runx)
+                    .any(Template::binds_idempotency_key)
             }
-            Some(Implementation::Mcp(mcp)) => mcp.arguments.binds_runx(),
+            Some(Implementation::Mcp(mcp)) => mcp.arguments.binds_idempotency_key(),
             _ => true,
         };
         if !sends_key {
@@ -952,7 +953,16 @@ fn call_templates<'a>(
     manifest: &'a ConnectorManifest,
     operation: &'a ConnectorOperation,
 ) -> impl Iterator<Item = &'a Template> {
-    let mut templates = vec![&operation.target.template];
+    std::iter::once(&operation.target.template).chain(implementation_templates(manifest, operation))
+}
+
+/// The implementation's requests, readbacks, tool arguments and session
+/// headers.
+fn implementation_templates<'a>(
+    manifest: &'a ConnectorManifest,
+    operation: &'a ConnectorOperation,
+) -> impl Iterator<Item = &'a Template> {
+    let mut templates = Vec::new();
     match &operation.implementation {
         Some(Implementation::Http(http)) => {
             templates.extend(http.requests.iter().flat_map(HttpRequest::templates));
@@ -978,6 +988,31 @@ fn call_templates<'a>(
         _ => {}
     }
     templates.into_iter()
+}
+
+/// The paid invocation a call runs under is known only to runx Connect,
+/// which renders a hosted operation's declared requests. The kernel renders
+/// everything else and never holds it, so a binding there could never render.
+fn validate_invocation(manifest: &ConnectorManifest, errors: &mut Errors) {
+    const CONNECT_ONLY: &str = "only runx Connect supplies the paid invocation: bind {\"$runx\": \"invocation\"} only in a hosted operation's declared requests";
+    for (name, operation) in &manifest.operations {
+        let field = format!("operations.{name}");
+        if operation.target.template.binds_invocation() {
+            errors.push(&format!("{field}.target"), CONNECT_ONLY);
+        }
+        if let Some(effect) = &operation.effect
+            && std::iter::once(&effect.locator)
+                .chain(&effect.each)
+                .any(Template::binds_invocation)
+        {
+            errors.push(&format!("{field}.effect"), CONNECT_ONLY);
+        }
+        if operation.hosted_http().is_none()
+            && implementation_templates(manifest, operation).any(Template::binds_invocation)
+        {
+            errors.push(&format!("{field}.implementation"), CONNECT_ONLY);
+        }
+    }
 }
 
 fn binds_item(request: &HttpRequest) -> bool {

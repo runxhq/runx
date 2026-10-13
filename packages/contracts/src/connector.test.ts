@@ -18,6 +18,7 @@ interface Case {
   readonly parameters?: JsonObject;
   readonly item?: number;
   readonly responses?: { readonly [request: string]: JsonObject };
+  readonly invocation_id?: string;
   readonly expected?: unknown;
   readonly error?: boolean;
 }
@@ -36,6 +37,7 @@ describe("declared connector requests", () => {
           arguments: testCase.arguments,
           ...(testCase.parameters ? { parameters: testCase.parameters } : {}),
           idempotencyKey: corpus.idempotency_key,
+          ...(testCase.invocation_id === undefined ? {} : { invocationId: testCase.invocation_id }),
           request: testCase.request,
           ...(testCase.item === undefined ? {} : { item: testCase.item }),
           ...(testCase.responses ? { responses: testCase.responses } : {}),
@@ -73,5 +75,17 @@ describe("effect locators", () => {
       .toBe("github://acme/app/issues/7");
     expect(renderTemplate({ $result: "/post/id" }, { result: { post: { id: "19" } } })).toBe("19");
     expect(() => renderTemplate({ $result: "/post/id" }, {})).toThrow();
+  });
+});
+
+// The kernel binds the same runtime values
+// (crates/runx-contracts/src/connector/tests.rs).
+describe("runtime values", () => {
+  it("render the paid invocation only where it is supplied, never in place of the key", () => {
+    const template: JsonValue = { invocation: { $runx: "invocation" }, key: { $runx: "idempotency_key" } };
+    expect(renderTemplate(template, { idempotencyKey: "runx:sha256:abc", invocationId: "pinv_1" }))
+      .toEqual({ invocation: "pinv_1", key: "runx:sha256:abc" });
+    expect(() => renderTemplate(template, { idempotencyKey: "runx:sha256:abc" })).toThrow(/invocation/);
+    expect(() => renderTemplate({ $runx: "secret" }, { idempotencyKey: "runx:sha256:abc" })).toThrow();
   });
 });

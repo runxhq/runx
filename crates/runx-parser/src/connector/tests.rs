@@ -661,6 +661,45 @@ fn hosted_declared_requests_bind_no_instance_parameter() {
 }
 
 #[test]
+fn only_a_hosted_declared_request_binds_the_paid_invocation() {
+    const CONNECT_ONLY: &str = "only runx Connect supplies the paid invocation";
+    let invocation_query = "            url: \"https://api.example.com/item\"\n            query: {invocation: {\"$runx\": \"invocation\"}}";
+    validate(&HOSTED_WRITE.replace(
+        r#"body: {"$argument": "/patch"}"#,
+        r#"body: {patch: {"$argument": "/patch"}, invocation: {"$runx": "invocation"}}"#,
+    ))
+    .expect("runx Connect renders a hosted operation's declared requests");
+    // The paid invocation is not a key, so a read may send it.
+    validate(&header_read().replace(
+        "            url: \"https://api.example.com/item\"",
+        invocation_query,
+    ))
+    .expect("a hosted read may send the paid invocation");
+    // The kernel renders everything else and never holds the invocation.
+    assert_rejects(
+        &PLAIN_READ.replace(
+            "            url: \"https://api.example.com/item\"",
+            invocation_query,
+        ),
+        CONNECT_ONLY,
+    );
+    assert_rejects(
+        &HOSTED_WRITE.replace(
+            r#"target: {template: {"$argument": "/id"}}"#,
+            r#"target: {template: {"$runx": "invocation"}}"#,
+        ),
+        CONNECT_ONLY,
+    );
+    assert_rejects(
+        &HOSTED_WRITE.replace(
+            "    hosted: {provider_scopes: [items]}\n",
+            "    hosted: {provider_scopes: [items]}\n    effect: {kind: thread, locator: {\"$concat\": [\"example://items/\", {\"$runx\": \"invocation\"}]}}\n",
+        ),
+        CONNECT_ONLY,
+    );
+}
+
+#[test]
 fn a_checking_read_must_assert_something() {
     assert_rejects(
         &HOSTED_WRITE.replace(
