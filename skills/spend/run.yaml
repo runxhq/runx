@@ -1,5 +1,5 @@
 skill: spend
-version: "0.5.4"
+version: "0.5.5"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 connectors:
   payment:

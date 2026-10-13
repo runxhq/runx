@@ -1,5 +1,5 @@
 skill: stripe-pay
-version: "0.4.1"
+version: "0.4.2"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: stripe-spt, execution: execute, completion: provider_readback, approval: required, category: payments }
 runners:
   stripe-spt:

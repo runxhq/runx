@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.4"
+version: "0.5.5"
 catalog:
   kind: skill
   audience: public

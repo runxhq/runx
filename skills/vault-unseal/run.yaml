@@ -1,5 +1,5 @@
 skill: vault-unseal
-version: "0.4.5"
+version: "0.4.6"
 
 catalog:
   kind: skill

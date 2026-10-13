@@ -1,5 +1,5 @@
 skill: x402-pay
-version: "0.9.3"
+version: "0.9.4"
 catalog: { kind: graph, audience: operator, visibility: public, role: branded, canonical_skill: runx/spend, provider: x402, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   marketplace_offer:

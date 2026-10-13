@@ -1,5 +1,5 @@
 skill: ops-desk
-version: "0.3.5"
+version: "0.3.6"
 catalog:
   kind: skill
   audience: operator
