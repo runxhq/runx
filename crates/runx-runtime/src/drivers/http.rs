@@ -35,6 +35,12 @@ const MAX_PAGED_ITEMS: usize = 10_000;
 const MAX_PAGED_BYTES: usize = 32 * 1024 * 1024;
 const MAX_PAGED_DURATION: std::time::Duration = std::time::Duration::from_secs(120);
 
+/// What the kernel renders a request's paid invocation as when the request
+/// goes through runx Connect. There the kernel renders only to check the
+/// request before anything leaves; Connect renders it again with the
+/// invocation it alone holds, so this stand-in never reaches a provider.
+const CONNECT_INVOCATION: &str = "runx-connect-invocation";
+
 /// Where a rendered request goes.
 pub(crate) enum Egress<'a> {
     /// Straight to the provider, with the instance's credential.
@@ -265,6 +271,12 @@ impl Http<'_> {
             responses,
             item,
             idempotency_key: self.call.idempotency_key,
+            // Sent directly there is no paid invocation, so a request that
+            // sends one fails closed.
+            invocation_id: match self.egress {
+                Egress::Connect(_) => Some(CONNECT_INVOCATION),
+                Egress::Direct(_) => None,
+            },
             ..TemplateInputs::default()
         }
     }
@@ -722,6 +734,27 @@ mod tests {
         );
     }
 
+    const CONNECT_BASE_URL: &str = "https://connect.example.test";
+
+    /// runx Connect, as far as opening a session asks of it.
+    struct ConnectSession;
+
+    impl RuntimeHttpTransport for ConnectSession {
+        fn send(
+            &self,
+            request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, crate::http::RuntimeHttpError> {
+            Ok(if request.url == format!("{CONNECT_BASE_URL}/v1/me") {
+                response(
+                    200,
+                    r#"{"status":"success","principal":{"principal_id":"operator-1"}}"#,
+                )
+            } else {
+                response(404, r#"{"message":"Not Found"}"#)
+            })
+        }
+    }
+
     struct Items;
 
     impl RuntimeHttpTransport for Items {
@@ -1098,6 +1131,24 @@ mod tests {
         let spec: HttpImplementation =
             serde_json::from_value(corpus["http"].clone()).map_err(|error| error.to_string())?;
         let env = BTreeMap::new();
+        let connect_env = BTreeMap::from([
+            (
+                crate::HOSTED_API_BASE_URL_ENV.to_owned(),
+                CONNECT_BASE_URL.to_owned(),
+            ),
+            (
+                crate::HOSTED_API_TOKEN_ENV.to_owned(),
+                "rxk_test".to_owned(),
+            ),
+        ]);
+        let session = crate::kernel::operation::hosted::HostedClient::with_transport(
+            std::sync::Arc::new(ConnectSession),
+        )
+        .session(&connect_env, std::path::Path::new("/"))?;
+        let binding = crate::kernel::connectors::source_scope()
+            .connector("runx/slack")
+            .map_err(|error| error.to_string())?
+            .binding();
         for case in corpus["cases"].as_array().ok_or("cases")? {
             let name = case["name"].as_str().ok_or("name")?;
             let decode = |field: &str, default: serde_json::Value| {
@@ -1153,11 +1204,43 @@ mod tests {
                 continue;
             }
             // Only runx Connect supplies the paid invocation; the kernel never
-            // holds it, so a request that sends it never renders here.
+            // holds it, so a request that sends it never renders to send
+            // directly. Through Connect the kernel's rendering checks it, with
+            // a stand-in Connect replaces.
             if case.get("invocation_id").is_some() {
                 assert!(
                     rendered.is_err(),
                     "{name}: the kernel holds no paid invocation"
+                );
+                let gateway = Gateway {
+                    connector_binding: &binding,
+                    session: &session,
+                    grant_id: "grant_sales",
+                    operation: "sale.create",
+                    operation_digest: "sha256:operation",
+                    implementation_digest: "sha256:implementation",
+                    input: &JsonObject::new(),
+                    idempotency_key: None,
+                };
+                let checked = Http::new(Egress::Connect(&gateway), &call, &spec)
+                    .render(request, None, responses.as_ref(), None)
+                    .map_err(|error| format!("{name}: through Connect: {error}"))?;
+                let body = checked
+                    .body
+                    .as_deref()
+                    .map(serde_json::from_str::<serde_json::Value>)
+                    .transpose()
+                    .map_err(|error| error.to_string())?;
+                let expected = serde_json::to_string(&case["expected"]["body"])
+                    .map_err(|error| error.to_string())?
+                    .replace(
+                        &case["invocation_id"].to_string(),
+                        &serde_json::Value::from(CONNECT_INVOCATION).to_string(),
+                    );
+                assert_eq!(
+                    body,
+                    Some(serde_json::from_str(&expected).map_err(|error| error.to_string())?),
+                    "{name}"
                 );
                 continue;
             }
