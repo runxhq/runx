@@ -189,7 +189,12 @@ impl BoundRun {
             }
         }
         let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
-        let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs, run_act.as_ref())?;
+        let graph = bind_run_inputs(
+            self.runner.graph.clone(),
+            &graph_inputs,
+            run_act.as_ref(),
+            log.run_id(),
+        )?;
         let run = Driven {
             bound: self,
             log: &log,
@@ -348,6 +353,7 @@ impl BoundRun {
             self.runner.graph.clone(),
             &record.inputs,
             record.act.as_ref(),
+            log.run_id(),
         )?;
         let run = sealed_graph_run(graph, record)?;
         write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;

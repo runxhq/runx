@@ -337,8 +337,8 @@ where
 {
     let inherited =
         crate::execution::graph::inherited_step_provenance(&nested.graph, nested.provenance);
-    let graph = bind_run_inputs(nested.graph, nested.inputs, nested.act)?;
     let log = runtime.options.run.child(nested.step_id)?;
+    let graph = bind_run_inputs(nested.graph, nested.inputs, nested.act, log.run_id())?;
     if log.load()?.is_none()
         && let Some(reason) = super::child_depth_refusal(&runtime.options)
     {

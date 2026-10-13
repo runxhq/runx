@@ -20,7 +20,7 @@ fn at(path: &[&str]) -> Vec<String> {
 
 #[test]
 fn references_bind_at_any_depth_and_literals_stay() {
-    let (template, bindings) = parse_values(
+    let (template, bindings) = parse_call(
         &object(serde_json::json!({
             "claim_id": "$input.selection.claim_id",
             "request": {"artifacts": "$steps.packet.data.artifacts", "audience": "human"},
@@ -100,7 +100,7 @@ fn a_whole_value_may_be_one_reference() {
 #[test]
 fn a_reference_names_an_earlier_step_and_a_known_form() {
     let refuse = |text: &str, expected: &str| {
-        let error = parse_values(
+        let error = parse_call(
             &object(serde_json::json!({"value": text})),
             &steps(&["plan"]),
             "inputs",
@@ -117,6 +117,77 @@ fn a_reference_names_an_earlier_step_and_a_known_form() {
     refuse("$input..x", "empty path segment");
     refuse("$env.HOME", "is not a reference");
     refuse("$5 off", "is not a reference");
+}
+
+#[test]
+fn only_an_operation_idempotency_key_reads_the_run_id() {
+    let (template, bindings) = parse_call(
+        &object(serde_json::json!({
+            "input": {"seconds": "$input.seconds"},
+            "idempotency_key": "$run.id",
+        })),
+        &steps(&[]),
+        "steps.0",
+    )
+    .expect("the key reads the run's id");
+    assert_eq!(
+        bindings,
+        [
+            Binding {
+                at: at(&["idempotency_key"]),
+                source: Source::RunId,
+            },
+            Binding {
+                at: at(&["input", "seconds"]),
+                source: Source::Input {
+                    path: at(&["seconds"])
+                },
+            },
+        ]
+    );
+    assert_eq!(bindings[0].source.reference(), "$run.id");
+    assert_eq!(
+        template["idempotency_key"],
+        JsonValue::String("$run.id".to_owned())
+    );
+
+    let refused =
+        "reads $run.id, the run's own id, which only an operation's idempotency_key may read";
+    let in_input = parse_call(
+        &object(serde_json::json!({"input": {"key": "$run.id"}})),
+        &steps(&[]),
+        "steps.0",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        in_input.contains(&format!("steps.0.input.key {refused}")),
+        "{in_input}"
+    );
+    let whole = JsonValue::String("$run.id".to_owned());
+    for error in [
+        parse_whole(&whole, &steps(&[]), "inputs").map(|_| ()),
+        parse_act(
+            &JsonValue::Object(object(serde_json::json!({"target": "$run.id"}))),
+            &steps(&[]),
+            "act",
+        )
+        .map(|_| ()),
+        parse_operand(&whole, &steps(&[]), "when.value").map(|_| ()),
+    ] {
+        let error = error.unwrap_err().to_string();
+        assert!(error.contains(refused), "{error}");
+    }
+    for text in ["$run", "$run.attempt", "$run.id.0"] {
+        let error = parse_call(
+            &object(serde_json::json!({"idempotency_key": text})),
+            &steps(&[]),
+            "steps.0",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("write $run.id"), "{text}: {error}");
+    }
 }
 
 #[test]

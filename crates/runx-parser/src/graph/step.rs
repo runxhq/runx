@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{CallAct, JsonObject, JsonValue, TurnAllowance};
 
-use super::binding::{parse_act, parse_literal, parse_operand, parse_values, parse_whole};
+use super::binding::{parse_act, parse_call, parse_literal, parse_operand, parse_whole};
 use super::helpers::{
     gate_id, optional_non_empty_string, optional_object, optional_string, optional_string_array,
     required_object, required_string, step_id, validation_error,
@@ -83,7 +83,7 @@ pub fn validate_step(
     // input and earlier steps' results it references.
     let (inputs, bindings) = match &kind {
         StepKind::Operation(target) => {
-            let parsed = parse_values(&operation_call(raw_step), previous_step_ids, field)?;
+            let parsed = parse_call(&operation_call(raw_step), previous_step_ids, field)?;
             validate_operation_binding(field, target, &parsed.0)?;
             parsed
         }

@@ -82,7 +82,8 @@ A reusable provider operation keeps governance, transport, and proof separate:
    action warrants a separate human decision, request it once at the native
    effect boundary, not during harmless planning or inspection. Pass one stable
    retry identity through the operation step's `idempotency_key`; Runx binds
-   it to the attempt outside provider-specific payload JSON.
+   it to the attempt outside provider-specific payload JSON. A write made once
+   per run keys on `$run.id`.
 3. Execute through an `operation` step on a connector the skill lists: its
    declared HTTP requests, MCP tool, or process tool. On the hosted placement
    Runx resolves the unique active grant and Connect renders only the

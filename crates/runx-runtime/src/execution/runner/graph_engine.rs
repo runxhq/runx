@@ -954,8 +954,8 @@ pub(super) fn operand_value<'a>(
         }
         // The run's input is bound before the graph runs, so an input field
         // still unbound is absent; no condition or guard reads the invoker's
-        // act.
-        Operand::Reference(Source::Input { .. } | Source::Act { .. }) => None,
+        // act or the run's id.
+        Operand::Reference(Source::Input { .. } | Source::Act { .. } | Source::RunId) => None,
     }
 }
 
@@ -1170,7 +1170,7 @@ steps:
             "mode".to_owned(),
             runx_contracts::JsonValue::String("preview".to_owned()),
         )]);
-        let graph = crate::execution::graph::bind_run_inputs(graph, &inputs, None)
+        let graph = crate::execution::graph::bind_run_inputs(graph, &inputs, None, "run")
             .expect("the run input binds");
         let skipped = when_skipped_steps(&graph, &[], &BTreeSet::new());
 
@@ -1201,6 +1201,7 @@ policy:
             graph,
             &runx_contracts::JsonObject::new(),
             None,
+            "run",
         )
         .expect("the run input binds");
 

@@ -274,7 +274,9 @@ literals and references:
 
 - `$input` or `$input.<path>`: the run's input, or a field of it;
 - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a field
-  of it.
+  of it;
+- `$run.id`: the run's own id, which only an operation step's
+  `idempotency_key` reads.
 
 Paths are dotted, and a numeric segment indexes a list. A step's result is
 the values it declares: a reference reads an output's value, never the
@@ -298,6 +300,12 @@ does not bind. An absent optional run input leaves itself out of the object
 or list that holds it; a step reference must resolve, and one that does not
 fails the step with the keys that were available. A literal string that
 begins with `$` is written `$$`. A bare `select.result` is an ordinary string.
+
+A write keyed on `$run.id` happens once per run. A retry or resume of the run
+reuses its key, and another run makes its own call. A child run's id is its
+place under its parent, so a write in a nested skill happens once per parent
+run. A host that pins the run's id (`runx skill --run-id`) makes that id the
+submission's identity. No other value reads the run's id.
 
 A condition runs its step only when one field it reads, of the run's input or
 an earlier step's result, equals or does not equal a literal:

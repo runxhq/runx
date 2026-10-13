@@ -611,17 +611,18 @@ fn run_graph_skill_fixture<A>(
 where
     A: SkillAdapter,
 {
-    let graph = bind_run_inputs(
-        target.runner.graph.clone(),
-        &inputs,
-        fixture.caller.act.as_ref(),
-    )?;
     overlay_harness_env(&mut options, &target.env);
     let run_id = options
         .env
         .entry(crate::execution::runner::RUNX_RUN_ID_ENV.to_owned())
         .or_insert_with(|| harness_run_id(&fixture.name))
         .clone();
+    let graph = bind_run_inputs(
+        target.runner.graph.clone(),
+        &inputs,
+        fixture.caller.act.as_ref(),
+        &run_id,
+    )?;
     let runtime = Runtime::new(
         adapter,
         options.runtime(&run_id, fixture, &target.skill_dir)?,

@@ -8,6 +8,9 @@
 //!   field of it;
 //! - `$act` or `$act.<field>`: the act the run's invoker states, read only
 //!   inside an `act:`. Domain values never read accountability metadata.
+//! - `$run.id`: the run's own id, read only by an operation step's
+//!   `idempotency_key`, so a write keyed on it happens once per run. Domain
+//!   values never read the run's identity.
 //!
 //! Paths are dotted; a numeric segment indexes a list. A literal string that
 //! begins with `$` is written `$$`, everywhere a value is written, including
@@ -33,6 +36,8 @@ pub enum Source {
     Step { step: String, path: Vec<String> },
     /// The invoker's act, or the field at `path`.
     Act { path: Vec<String> },
+    /// The run's own id.
+    RunId,
 }
 
 impl Source {
@@ -41,7 +46,7 @@ impl Source {
     pub fn step(&self) -> Option<&str> {
         match self {
             Self::Step { step, .. } => Some(step),
-            Self::Input { .. } | Self::Act { .. } => None,
+            Self::Input { .. } | Self::Act { .. } | Self::RunId => None,
         }
     }
 
@@ -52,6 +57,7 @@ impl Source {
             Self::Input { path } => ("$input".to_owned(), path),
             Self::Step { step, path } => (format!("$steps.{step}"), path),
             Self::Act { path } => ("$act".to_owned(), path),
+            Self::RunId => return "$run.id".to_owned(),
         };
         std::iter::once(head)
             .chain(path.iter().cloned())
@@ -88,14 +94,21 @@ impl Operand {
     }
 }
 
-/// Parse an object of values: the literal template, with each reference
-/// left as written, and the bindings that fill it.
-pub(crate) fn parse_values(
-    values: &JsonObject,
+/// Parse an operation step's call fields: the literal template, with each
+/// reference left as written, and the bindings that fill it. Only its
+/// `idempotency_key` may read `$run.id`.
+pub(crate) fn parse_call(
+    call: &JsonObject,
     previous_steps: &BTreeSet<String>,
     field: &str,
 ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
-    Reading::Values.object(values, previous_steps, field)
+    object(call, previous_steps, field, |key| {
+        if key == "idempotency_key" {
+            Reading::Key
+        } else {
+            Reading::Values
+        }
+    })
 }
 
 /// Parse a whole value that may itself be one reference, such as
@@ -133,6 +146,7 @@ pub(crate) fn parse_operand(
         Source::Input { path } | Source::Act { path } | Source::Step { path, .. } => {
             !path.is_empty()
         }
+        Source::RunId => false,
     };
     source
         .filter(field_of)
@@ -176,12 +190,38 @@ pub(crate) fn parse_literal(value: &JsonValue, field: &str) -> Result<JsonValue,
     })
 }
 
-/// What a value may read: the run's input and earlier steps everywhere, and
-/// the invoker's act only inside an `act:`.
+/// What a value may read: the run's input and earlier steps everywhere, the
+/// invoker's act only inside an `act:`, and the run's id only in an
+/// operation's `idempotency_key`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Reading {
     Values,
     Act,
+    Key,
+}
+
+/// Parse an object whose members each read what `reading` allows for their
+/// key.
+fn object(
+    values: &JsonObject,
+    previous_steps: &BTreeSet<String>,
+    field: &str,
+    reading: impl Fn(&str) -> Reading,
+) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
+    let mut bindings = Vec::new();
+    let mut template = JsonObject::new();
+    for (key, value) in values {
+        let mut at = vec![key.clone()];
+        let literal = reading(key).value(
+            value,
+            &mut at,
+            previous_steps,
+            &format!("{field}.{key}"),
+            &mut bindings,
+        )?;
+        template.insert(key.clone(), literal);
+    }
+    Ok((template, bindings))
 }
 
 impl Reading {
@@ -191,20 +231,7 @@ impl Reading {
         previous_steps: &BTreeSet<String>,
         field: &str,
     ) -> Result<(JsonObject, Vec<Binding>), ValidationError> {
-        let mut bindings = Vec::new();
-        let mut template = JsonObject::new();
-        for (key, value) in values {
-            let mut at = vec![key.clone()];
-            let literal = self.value(
-                value,
-                &mut at,
-                previous_steps,
-                &format!("{field}.{key}"),
-                &mut bindings,
-            )?;
-            template.insert(key.clone(), literal);
-        }
-        Ok((template, bindings))
+        object(values, previous_steps, field, |_| self)
     }
 
     fn whole(
@@ -301,6 +328,9 @@ impl Reading {
             Some(Source::Act { .. }) if self != Self::Act => Err(validation_error(format!(
                 "{field} reads $act, the invoker's act, which only an act: may read."
             ))),
+            Some(Source::RunId) if self != Self::Key => Err(validation_error(format!(
+                "{field} reads $run.id, the run's own id, which only an operation's idempotency_key may read."
+            ))),
             source => Ok(source),
         }
     }
@@ -326,6 +356,12 @@ fn reference(
     match head {
         "$input" => Ok(Some(Source::Input { path: rest })),
         "$act" => Ok(Some(Source::Act { path: rest })),
+        "$run" => match rest.as_slice() {
+            [id] if id == "id" => Ok(Some(Source::RunId)),
+            _ => Err(validation_error(format!(
+                "{field} reference {text:?} reads the run's id: write $run.id."
+            ))),
+        },
         "$steps" => {
             let Some((step, path)) = rest.split_first() else {
                 return Err(validation_error(format!(
@@ -343,7 +379,7 @@ fn reference(
             }))
         }
         _ => Err(validation_error(format!(
-            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path> or, in an act:, $act.<field>, and a literal that begins with $ as $$."
+            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path>, $act.<field> in an act:, or $run.id in an idempotency_key, and a literal that begins with $ as $$."
         ))),
     }
 }

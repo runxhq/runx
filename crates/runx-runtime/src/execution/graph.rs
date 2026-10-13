@@ -146,15 +146,17 @@ fn inherit_provenance(
     );
 }
 
-/// Bind what the run was invoked with into every step: each reference to the
-/// run's input, and each `$act` inside an `act:`, takes its value, and an
-/// absent one leaves itself out of the object or list that holds it; an act
-/// that is wholly absent leaves the step without one. References to earlier
-/// steps stay for the step to bind when it runs.
+/// Bind what the run was invoked as into every step: each reference to the
+/// run's input, each `$act` inside an `act:`, and each `$run.id` in an
+/// operation's key takes its value, and an absent one leaves itself out of
+/// the object or list that holds it; an act that is wholly absent leaves the
+/// step without one. References to earlier steps stay for the step to bind
+/// when it runs.
 pub(crate) fn bind_run_inputs(
     mut graph: ExecutionGraph,
     graph_inputs: &JsonObject,
     act: Option<&CallAct>,
+    run_id: &str,
 ) -> Result<ExecutionGraph, RuntimeError> {
     let run_input = JsonValue::Object(graph_inputs.clone());
     let run_act = act
@@ -172,6 +174,7 @@ pub(crate) fn bind_run_inputs(
                 .and_then(|act| value_at(act, path))
                 .cloned(),
         ),
+        Source::RunId => Some(Some(JsonValue::String(run_id.to_owned()))),
         Source::Step { .. } => None,
     };
     for step in &mut graph.steps {
@@ -830,7 +833,7 @@ pub(crate) fn materialize_step_invocation_provenance_with_index(
             Source::Step { step: from, path } => {
                 Some(prior_run_index.provenance(&step.id, &binding_label(binding), from, path))
             }
-            Source::Input { .. } | Source::Act { .. } => None,
+            Source::Input { .. } | Source::Act { .. } | Source::RunId => None,
         })
         .collect()
 }
@@ -925,6 +928,7 @@ steps:
                 "unrelated": "never reaches a step",
             })),
             None,
+            "run",
         )
         .map_err(|error| error.to_string())?;
         let consume = &bound.steps[1];
@@ -956,9 +960,14 @@ steps:
         let whole = graph(
             "name: whole\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: $input.payload\n",
         )?;
-        let error = bind_run_inputs(whole, &object(serde_json::json!({"payload": "text"})), None)
-            .err()
-            .ok_or("a whole input that is not an object binds nothing")?;
+        let error = bind_run_inputs(
+            whole,
+            &object(serde_json::json!({"payload": "text"})),
+            None,
+            "run",
+        )
+        .err()
+        .ok_or("a whole input that is not an object binds nothing")?;
         assert!(error.to_string().contains("must be an object"), "{error}");
 
         let list = graph(
@@ -968,6 +977,7 @@ steps:
             list,
             &object(serde_json::json!({"first": 1, "third": 3})),
             None,
+            "run",
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(
@@ -982,8 +992,8 @@ steps:
         let mixed = graph(
             "name: mixed\nsteps:\n  - id: discover\n    tool: { module: discover.mjs }\n    outputs: { id: string }\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
         )?;
-        let bound =
-            bind_run_inputs(mixed, &JsonObject::new(), None).map_err(|error| error.to_string())?;
+        let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run")
+            .map_err(|error| error.to_string())?;
         let take = &bound.steps[1];
         assert_eq!(
             take.inputs.get("ids"),
@@ -1005,11 +1015,44 @@ steps:
     }
 
     #[test]
+    fn an_operation_key_on_the_run_id_is_the_run_that_binds_it() -> Result<(), String> {
+        let source = r#"
+name: provision
+steps:
+  - id: provision
+    operation: vendor/inbox.provision
+    input: { seconds: $input.seconds }
+    idempotency_key: $run.id
+"#;
+        let inputs = object(serde_json::json!({"seconds": 3600}));
+        let key = |run_id: &str| -> Result<Option<JsonValue>, String> {
+            let bound = bind_run_inputs(graph(source)?, &inputs, None, run_id)
+                .map_err(|error| error.to_string())?;
+            assert!(
+                bound.steps[0].bindings.is_empty(),
+                "the run's id binds before the step runs"
+            );
+            Ok(bound.steps[0].inputs.get("idempotency_key").cloned())
+        };
+        assert_eq!(
+            key("hosted_purchase-1")?,
+            Some(JsonValue::String("hosted_purchase-1".to_owned()))
+        );
+        assert_eq!(
+            key("hosted_purchase-2")?,
+            Some(JsonValue::String("hosted_purchase-2".to_owned())),
+            "another run keys another write"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn a_bound_value_is_never_read_again_as_a_reference() -> Result<(), String> {
         let bound = bind_run_inputs(
             graph(BINDINGS)?,
             &object(serde_json::json!({"mode": "apply", "label": "$steps.produce.value"})),
             None,
+            "run",
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(
