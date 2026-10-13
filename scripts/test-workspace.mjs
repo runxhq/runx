@@ -62,9 +62,13 @@ function ensureRustKernelBin() {
       "runx-js-worker",
       "-p",
       "runx-core",
+      "-p",
+      "runx-parser",
       "--bins",
       "--example",
       "kernel_eval_batch",
+      "--example",
+      "parser_eval",
     ],
     {
       cwd: workspaceRoot,

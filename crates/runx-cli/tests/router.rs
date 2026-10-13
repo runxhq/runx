@@ -2,10 +2,8 @@ use runx_cli::command_spec::COMMAND_SPECS;
 use runx_cli::config::{ConfigAction, ConfigPlan};
 use runx_cli::connect::{ConnectAction, ConnectPlan};
 use runx_cli::export::{ExportPlan, Target};
-use runx_cli::kernel::{KernelInputSource, KernelPlan};
 use runx_cli::login::LoginPlan;
 use runx_cli::mcp::McpPlan;
-use runx_cli::parser::{ParserInputSource, ParserPlan};
 use runx_cli::policy::{PolicyAction, PolicyPlan};
 use runx_cli::registry::{ConnectorAction, RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
@@ -13,7 +11,7 @@ use runx_cli::router::{
     DevPlan, DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, InitPlan, ListKind,
     ListPlan, NewPlan, RouterAction, ToolAction, ToolPlan, add_help_text, command_help_text,
     connect_help_text, harness_help_text, help_text, history_help_text, list_help_text,
-    login_help_text, publish_help_text, registry_help_text, route_args, skill_help_text,
+    login_help_text, notarize_help_text, registry_help_text, route_args, skill_help_text,
     verify_help_text,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
@@ -62,7 +60,6 @@ fn top_level_help_and_version_are_native() {
         &help,
         "runx add <skill-ref> [--registry url|path] [--version version] [--digest sha256] [--to dir] [-j|--json]",
     );
-    assert_help_line(&help, "runx parser eval --input <file|-> --json");
     assert_help_line(
         &help,
         "runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]",
@@ -133,12 +130,12 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
         RouterAction::PrintCommandHelp("verify")
     );
     assert_eq!(
-        plan(&["publish", "--help"]),
-        RouterAction::PrintCommandHelp("publish")
+        plan(&["notarize", "--help"]),
+        RouterAction::PrintCommandHelp("notarize")
     );
     assert_eq!(
-        plan(&["publish", "-h"]),
-        RouterAction::PrintCommandHelp("publish")
+        plan(&["notarize", "-h"]),
+        RouterAction::PrintCommandHelp("notarize")
     );
     assert_eq!(
         plan(&["harness", "--help"]),
@@ -176,9 +173,10 @@ fn nested_skill_history_verify_and_publish_help_are_native() {
     assert!(verify_help_text().contains("--trust home|configured"));
     assert!(history_help_text().contains("--limit n"));
     assert_help_line(
-        &publish_help_text(),
-        "runx publish <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
+        &notarize_help_text(),
+        "runx notarize <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
+    assert!(notarize_help_text().contains("anyone can read it"));
     assert_help_line(
         &harness_help_text(),
         "runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]",
@@ -672,34 +670,16 @@ fn routes_policy_to_native_plan_and_rejects_unknown_subcommands() {
     );
 }
 
+/// Development evaluators and the receipt notary have no command of the
+/// old names: the evaluators are build tools, and a receipt is notarized.
 #[test]
-fn routes_kernel_to_native_plan_and_rejects_unknown_subcommands() {
-    assert_eq!(
-        plan(&["kernel", "eval", "--input=-", "--json"]),
-        RouterAction::RunKernel(KernelPlan {
-            input: KernelInputSource::Stdin,
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["kernel", "trace"]),
-        RouterAction::Error("unknown kernel subcommand trace".to_owned())
-    );
-}
-
-#[test]
-fn routes_parser_to_native_plan_and_rejects_unknown_subcommands() {
-    assert_eq!(
-        plan(&["parser", "eval", "--input=-", "--json"]),
-        RouterAction::RunParser(ParserPlan {
-            input: ParserInputSource::Stdin,
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["parser", "trace"]),
-        RouterAction::Error("unknown parser subcommand trace".to_owned())
-    );
+fn the_shipped_cli_has_no_eval_or_receipt_publish_command() {
+    for command in ["kernel", "parser", "publish"] {
+        assert_eq!(
+            plan(&[command, "eval"]),
+            RouterAction::Error(format!("unknown command {command}"))
+        );
+    }
 }
 
 #[test]

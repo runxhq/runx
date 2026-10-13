@@ -6,7 +6,7 @@ use super::request::send_json;
 use crate::http::{HttpMethod, RuntimeHttpTransport};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ReceiptPublishResponse {
+pub struct ReceiptNotarization {
     pub status: String,
     #[serde(default)]
     pub replay_status: Option<String>,
@@ -22,12 +22,12 @@ pub struct ReceiptPublishResponse {
     pub verdict: Option<JsonValue>,
 }
 
-pub fn publish_hosted_receipt(
+pub fn notarize_hosted_receipt(
     transport: &impl RuntimeHttpTransport,
     base_url: &str,
     token: &str,
     receipt: &JsonValue,
-) -> Result<ReceiptPublishResponse, HostedApiOperationError> {
+) -> Result<ReceiptNotarization, HostedApiOperationError> {
     let body = serde_json::json!({
         "publish": true,
         "receipt": receipt,
@@ -36,7 +36,7 @@ pub fn publish_hosted_receipt(
     send_json(
         transport,
         base_url,
-        "receipt publish",
+        "receipt notarize",
         HttpMethod::Post,
         "/v1/receipts/notarize",
         Some(token),

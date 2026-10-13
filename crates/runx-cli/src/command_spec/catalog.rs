@@ -229,31 +229,20 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &["-j, --json"],
     },
     CommandSpec {
-        name: "publish",
+        name: "notarize",
         top_level_usage: &[],
         usage: &[
-            "runx publish <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
+            "runx notarize <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
         ],
-        notes: &[],
+        notes: &[
+            "The hosted notary counter-seals the receipt and publishes the notarized record: anyone can read it at its public URL.",
+            "Check the counter-seal with runx verify --notary <document> --notary-key <key.pem>.",
+        ],
         options: &[
             "--api-base-url url  Public API base URL (default: RUNX_PUBLIC_API_BASE_URL or https://api.runx.ai)",
             "--allow-local-api   Allow loopback/private public API URLs for local dogfood only",
             "-j, --json          Print the raw notary response as JSON",
         ],
-    },
-    CommandSpec {
-        name: "kernel",
-        top_level_usage: &[],
-        usage: &["runx kernel eval --input <file|-> --json"],
-        notes: &["Reads a deterministic kernel request from a file or stdin."],
-        options: &["--input <file|->", "--json  Required"],
-    },
-    CommandSpec {
-        name: "parser",
-        top_level_usage: &[],
-        usage: &["runx parser eval --input <file|-> --json"],
-        notes: &["Reads a parser evaluation request from a file or stdin."],
-        options: &["--input <file|->", "--json  Required"],
     },
     CommandSpec {
         name: "doctor",

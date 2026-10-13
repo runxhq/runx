@@ -118,8 +118,8 @@ overhead rather than first-touch page-cache noise.
 `cli_file_input` creates a valid temporary skill, invokes the release binary
 through the canonical `runx skill ... --inputs input.json` surface, executes a
 native digest, and seals the ordinary local receipt. It therefore measures the
-real contained document reader and selected-runner path; it is not the separate
-`kernel eval --input` command dressed up as skill-input evidence.
+real contained document reader and selected-runner path; it is not the
+development kernel evaluator dressed up as skill-input evidence.
 
 ## Runtime Boundaries
 

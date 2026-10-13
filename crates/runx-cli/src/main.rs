@@ -100,8 +100,6 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
             runx_cli::turn::run_native_turn_with_workspace(plan, workspace)
         }
         RouterAction::RunHarness(plan) => run_native_harness(plan, workspace),
-        RouterAction::RunKernel(plan) => runx_cli::kernel::run_native_kernel(plan, workspace),
-        RouterAction::RunParser(plan) => runx_cli::parser::run_native_parser(plan, workspace),
         RouterAction::RunConfig(plan) => run_native_config(plan, workspace),
         RouterAction::RunConnect(plan) => {
             runx_cli::connect::run_native_connect_with_stdin(plan, workspace, io::stdin())
@@ -113,7 +111,7 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
             runx_cli::credential::run_native_credential_with_workspace(plan, workspace)
         }
         RouterAction::RunPolicy(plan) => runx_cli::policy::run_native_policy(plan, workspace),
-        RouterAction::RunPublish(plan) => runx_cli::publish::run_native_publish(plan, workspace),
+        RouterAction::RunNotarize(plan) => runx_cli::notarize::run_native_notarize(plan, workspace),
         RouterAction::RunRegistry(plan) => runx_cli::registry::run_native_registry(plan, workspace),
         RouterAction::RunResume(plan) => {
             runx_cli::resume::run_native_resume_with_workspace(plan, workspace)

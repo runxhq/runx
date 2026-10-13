@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { rustExampleBinary } from "./rust-example.mjs";
+
 const workspaceRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const defaultBinary = path.join(
   workspaceRoot,
@@ -59,7 +61,7 @@ function invokeNativeParser(document, expectedLength, env) {
   const cached = cache.get(request);
   if (cached) return cached;
 
-  const envelope = invokeNativeJson(["parser", "eval", "--input", "-", "--json"], request, env);
+  const envelope = invokeJson(rustExampleBinary("runx-parser", "parser_eval", env), [], request, env);
   const values = envelope?.result?.value;
   if (envelope?.status !== "success" || !Array.isArray(values) || values.length !== expectedLength) {
     throw new Error("native Runx parser returned an invalid batch response");
@@ -74,7 +76,11 @@ function invokeNativeParser(document, expectedLength, env) {
 }
 
 function invokeNativeJson(args, input, env) {
-  const result = spawnSync(resolveNativeRunxBinary(env), args, {
+  return invokeJson(resolveNativeRunxBinary(env), args, input, env);
+}
+
+function invokeJson(command, args, input, env) {
+  const result = spawnSync(command, args, {
     cwd: workspaceRoot,
     encoding: "utf8",
     env,

@@ -34,19 +34,19 @@ impl Transport for StubTransport {
 }
 
 #[test]
-fn parses_publish_plan() -> Result<(), String> {
+fn parses_notarize_plan() -> Result<(), String> {
     let args = vec![
-        OsString::from("publish"),
+        OsString::from("notarize"),
         OsString::from("receipt.json"),
         OsString::from("--api-base-url"),
         OsString::from("https://runx.test/"),
         OsString::from("--allow-local-api"),
         OsString::from("-j"),
     ];
-    let plan = parse_publish_plan(&args)?;
+    let plan = parse_notarize_plan(&args)?;
     assert_eq!(
         plan,
-        PublishPlan {
+        NotarizePlan {
             receipt_path: PathBuf::from("receipt.json"),
             api_base_url: Some("https://runx.test/".to_owned()),
             allow_local_api: true,
@@ -69,7 +69,7 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
         "RUNX_PUBLIC_API_TOKEN".to_owned(),
         "public-token".to_owned(),
     );
-    let plan = PublishPlan {
+    let plan = NotarizePlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: Some("https://plan.runx.test/".to_owned()),
         allow_local_api: false,
@@ -92,7 +92,7 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
     let blank = runx_runtime::HostedApiEnvironment::resolve_publish(None, &env, &temp)?;
     assert!(blank.require_token().is_err());
 
-    let empty_url_plan = PublishPlan {
+    let empty_url_plan = NotarizePlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: Some("   ".to_owned()),
         allow_local_api: false,
@@ -179,15 +179,15 @@ fn unauthenticated_environment_does_not_load_stored_credentials()
 #[test]
 fn parses_and_resolves_local_api_override() -> Result<(), String> {
     let args = vec![
-        OsString::from("publish"),
+        OsString::from("notarize"),
         OsString::from("receipt.json"),
         OsString::from("--allow-local-api"),
     ];
-    let plan = parse_publish_plan(&args)?;
+    let plan = parse_notarize_plan(&args)?;
     assert!(plan.allow_local_api);
     assert!(allow_local_api(&plan, &BTreeMap::new()));
 
-    let plan = PublishPlan {
+    let plan = NotarizePlan {
         receipt_path: PathBuf::from("receipt.json"),
         api_base_url: None,
         allow_local_api: false,
@@ -203,11 +203,11 @@ fn parses_and_resolves_local_api_override() -> Result<(), String> {
 }
 
 #[test]
-fn posts_full_receipt_publish_request() -> Result<(), String> {
+fn posts_full_receipt_notarize_request() -> Result<(), String> {
     let transport = StubTransport::default();
     let receipt: JsonValue =
         serde_json::from_value(serde_json::json!({"id": "receipt_1"})).map_err(stringify)?;
-    let response = runx_runtime::publish_hosted_receipt(
+    let response = runx_runtime::notarize_hosted_receipt(
         &transport,
         "https://runx.test/",
         "rxk_test",
@@ -239,10 +239,10 @@ fn posts_full_receipt_publish_request() -> Result<(), String> {
 }
 
 #[test]
-fn human_output_reflects_notary_status() -> Result<(), PublishCliError> {
-    let output = render_publish_result(
+fn human_output_reflects_notary_status() -> Result<(), NotarizeCliError> {
+    let output = render_notarize_result(
         false,
-        &ReceiptPublishResponse {
+        &ReceiptNotarization {
             status: "notarized".to_owned(),
             replay_status: Some("fresh".to_owned()),
             digest: "sha256:abc".to_owned(),
@@ -253,7 +253,7 @@ fn human_output_reflects_notary_status() -> Result<(), PublishCliError> {
             receipt_id: Some("receipt_1".to_owned()),
             verdict: Some(
                 serde_json::from_value(serde_json::json!({"valid": true}))
-                    .map_err(|error| PublishCliError::Serialize(error.to_string()))?,
+                    .map_err(|error| NotarizeCliError::Serialize(error.to_string()))?,
             ),
         },
     )?;
@@ -268,9 +268,9 @@ fn human_output_reflects_notary_status() -> Result<(), PublishCliError> {
 }
 
 #[test]
-fn publish_error_explains_receipt_scope_mismatch() {
-    let message = PublishCliError::Publish(HostedApiOperationError::Api {
-        operation: "receipt publish",
+fn notarize_error_explains_receipt_scope_mismatch() {
+    let message = NotarizeCliError::Publish(HostedApiOperationError::Api {
+        operation: "receipt notarize",
         status: 403,
         code: "missing_scope".to_owned(),
         detail: "Missing required scope: receipts:write.".to_owned(),
@@ -298,7 +298,7 @@ fn stringify(error: impl std::fmt::Display) -> String {
 
 fn tempfile_dir() -> Result<std::path::PathBuf, std::io::Error> {
     let path = std::env::temp_dir().join(format!(
-        "runx-cli-publish-{}-{}",
+        "runx-cli-notarize-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

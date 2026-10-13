@@ -7,15 +7,12 @@ use crate::config::ConfigPlan;
 use crate::connect::ConnectPlan;
 use crate::connector::ConnectorPlan;
 use crate::credential::CredentialPlan;
-use crate::document_input::DocumentInputSource;
 use crate::export::ExportPlan;
-use crate::kernel::KernelPlan;
 use crate::login::LoginPlan;
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 use crate::mcp::McpPlan;
-use crate::parser::ParserPlan;
+use crate::notarize::NotarizePlan;
 use crate::policy::{PolicyAction, PolicyPlan};
-use crate::publish::PublishPlan;
 use crate::registry::{ConnectorAction, RegistryAction, RegistryPlan, parse_connector_subject};
 use crate::resume::ResumePlan;
 use crate::skill::SkillPlan;
@@ -35,18 +32,16 @@ pub enum RouterAction {
     RunLogin(LoginPlan),
     RunMcp(McpPlan),
     RunTurn(crate::turn::TurnPlan),
-    RunParser(ParserPlan),
     RunNew(NewPlan),
     RunHistory(HistoryPlan),
     RunVerify(VerifyPlan),
     RunHarness(HarnessPlan),
-    RunKernel(KernelPlan),
     RunConfig(ConfigPlan),
     RunConnect(ConnectPlan),
     RunConnector(ConnectorPlan),
     RunCredential(CredentialPlan),
     RunPolicy(PolicyPlan),
-    RunPublish(PublishPlan),
+    RunNotarize(NotarizePlan),
     RunRegistry(RegistryPlan),
     RunResume(ResumePlan),
     RunSkill(SkillPlan),
@@ -246,20 +241,12 @@ fn route_args_with_optional_workspace(
         return route_parse(&args, parse_policy_plan(&args), RouterAction::RunPolicy);
     }
 
-    if first_arg_is(&args, "publish") {
+    if first_arg_is(&args, "notarize") {
         return route_parse(
             &args,
-            crate::publish::parse_publish_plan(&args),
-            RouterAction::RunPublish,
+            crate::notarize::parse_notarize_plan(&args),
+            RouterAction::RunNotarize,
         );
-    }
-
-    if first_arg_is(&args, "kernel") {
-        return route_parse(&args, parse_kernel_plan(&args), RouterAction::RunKernel);
-    }
-
-    if first_arg_is(&args, "parser") {
-        return route_parse(&args, parse_parser_plan(&args), RouterAction::RunParser);
     }
 
     if first_arg_is(&args, "doctor") {
@@ -400,8 +387,8 @@ pub fn connect_help_text() -> String {
     command_help("connect")
 }
 
-pub fn publish_help_text() -> String {
-    command_help("publish")
+pub fn notarize_help_text() -> String {
+    command_help("notarize")
 }
 
 pub fn add_help_text() -> String {
@@ -989,107 +976,6 @@ fn parse_list_kind(value: &str) -> Option<ListKind> {
         "overlays" => Some(ListKind::Overlays),
         _ => None,
     }
-}
-
-fn parse_kernel_plan(args: &[OsString]) -> Result<KernelPlan, String> {
-    let subcommand = os_arg(args, 1, "kernel")?;
-    if subcommand != "eval" {
-        return Err(format!("unknown kernel subcommand {subcommand}"));
-    }
-    let parsed = parse_json_eval_input(
-        args,
-        2,
-        JsonEvalCommand {
-            command: "kernel",
-            subject: "kernel eval",
-            duplicate_input: "runx kernel eval accepts exactly one --input",
-            requires_json: "runx kernel eval requires --json",
-            requires_input: "runx kernel eval requires --input <file|->",
-        },
-    )?;
-    Ok(KernelPlan {
-        input: parsed.input,
-        json: true,
-    })
-}
-
-fn parse_parser_plan(args: &[OsString]) -> Result<ParserPlan, String> {
-    let subcommand = os_arg(args, 1, "parser")?;
-    if subcommand != "eval" {
-        return Err(format!("unknown parser subcommand {subcommand}"));
-    }
-    let parsed = parse_json_eval_input(
-        args,
-        2,
-        JsonEvalCommand {
-            command: "parser",
-            subject: "parser eval",
-            duplicate_input: "runx parser eval accepts exactly one --input",
-            requires_json: "runx parser eval requires --json",
-            requires_input: "runx parser eval requires --input <file|->",
-        },
-    )?;
-    Ok(ParserPlan {
-        input: parsed.input,
-        json: true,
-    })
-}
-
-struct JsonEvalCommand {
-    command: &'static str,
-    subject: &'static str,
-    duplicate_input: &'static str,
-    requires_json: &'static str,
-    requires_input: &'static str,
-}
-
-struct JsonEvalPlan {
-    input: DocumentInputSource,
-}
-
-fn parse_json_eval_input(
-    args: &[OsString],
-    mut index: usize,
-    command: JsonEvalCommand,
-) -> Result<JsonEvalPlan, String> {
-    let mut input = None;
-    let mut json = false;
-    while index < args.len() {
-        let token = os_arg(args, index, command.command)?;
-        if !crate::cli_args::is_flag(token) {
-            return Err(format!("unexpected {} argument {token}", command.subject));
-        }
-
-        let (flag, inline_value) = split_flag(token);
-        match flag {
-            "--json" | "-j" => {
-                if inline_value.is_some() {
-                    return Err("--json does not take a value".to_owned());
-                }
-                json = true;
-                index += 1;
-            }
-            "--input" => {
-                if input.is_some() {
-                    return Err(command.duplicate_input.to_owned());
-                }
-                let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
-                input = Some(if value == OsStr::new("-") {
-                    DocumentInputSource::Stdin
-                } else {
-                    DocumentInputSource::Path(PathBuf::from(value))
-                });
-                index = next_index;
-            }
-            _ => return Err(format!("unknown {} flag {flag}", command.subject)),
-        }
-    }
-    if !json {
-        return Err(command.requires_json.to_owned());
-    }
-    Ok(JsonEvalPlan {
-        input: input.ok_or_else(|| command.requires_input.to_owned())?,
-    })
 }
 
 fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {

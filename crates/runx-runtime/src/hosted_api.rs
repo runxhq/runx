@@ -25,7 +25,7 @@ pub use login::{
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,
     complete_hosted_login, exchange_hosted_provider_token, start_hosted_login,
 };
-pub use receipts::{ReceiptPublishResponse, publish_hosted_receipt};
+pub use receipts::{ReceiptNotarization, notarize_hosted_receipt};
 pub use skill_endpoint::{
     HostedSkillChallenge, HostedSkillEndpointError, request_hosted_skill_challenge,
 };

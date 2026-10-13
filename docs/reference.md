@@ -745,15 +745,16 @@ a tree: each receipt is committed once by its parent, and a tree holds at most
 refused, and two different signed bodies under the same receipt ID are
 ambiguous and fail verification.
 
-Publish a local receipt to the hosted notary with:
+Notarize a local receipt with:
 
 ```bash
-runx publish ./.runx/receipts/<receipt-id>.json
+runx notarize ./.runx/receipts/<receipt-id>.json
 ```
 
-`runx publish` posts the full sealed receipt to `POST /v1/receipts/notarize`
-with `publish: true`, then prints the public `/r` link and content hash returned
-by the notary. Configure the hosted API with `RUNX_PUBLIC_API_BASE_URL` (default
+`runx notarize` posts the full sealed receipt to `POST /v1/receipts/notarize`.
+The notary counter-seals it and publishes the record, so anyone can read it;
+the command prints the public `/r` link and content hash the notary returns.
+`runx verify --notary <document> --notary-key <key.pem>` checks the counter-seal. Configure the hosted API with `RUNX_PUBLIC_API_BASE_URL` (default
 `https://api.runx.ai`) and authenticate with `RUNX_PUBLIC_API_TOKEN` (or run
 `runx login --for publish`). The stored publish credential is separate
 from the default operator credential used by Connect and provider effects. Runx
@@ -764,7 +765,7 @@ For local hosted dogfood only, point at a loopback API and opt into the private
 network escape explicitly:
 
 ```bash
-RUNX_PUBLIC_API_TOKEN=dev-token runx publish ./.runx/receipts/<receipt-id>.json \
+RUNX_PUBLIC_API_TOKEN=dev-token runx notarize ./.runx/receipts/<receipt-id>.json \
   --api-base-url http://127.0.0.1:47882 \
   --allow-local-api
 ```

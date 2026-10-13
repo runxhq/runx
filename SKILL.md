@@ -154,11 +154,12 @@ runx history <receipt-id> --json
 runx verify <receipt-id> --json
 ```
 
-Publish a receipt to the hosted notary when you need a shareable verification link:
+Notarize a receipt when you need a shareable verification link. The notary
+counter-seals it and publishes the record, so anyone can read it:
 
 ```bash
 runx login
-runx publish ./.runx/receipts/<receipt-id>.json --json
+runx notarize ./.runx/receipts/<receipt-id>.json --json
 ```
 
 Use `runx --help` for the exact installed CLI syntax. If a command in this file

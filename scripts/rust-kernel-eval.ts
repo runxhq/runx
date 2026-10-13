@@ -1,16 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { rustExampleBinary } from "./lib/rust-example.mjs";
+
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const defaultRunxBinary = path.join(
-  workspaceRoot,
-  "crates",
-  "target",
-  "debug",
-  process.platform === "win32" ? "runx.exe" : "runx",
-);
 
 export type GraphStatus = "pending" | "running" | "succeeded" | "failed";
 export type GraphStepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
@@ -58,8 +52,6 @@ export type SequentialGraphEvent =
   | { readonly type: "fail_graph"; readonly error: string };
 
 export interface RustKernelEvalOptions {
-  readonly command?: string;
-  readonly argsPrefix?: readonly string[];
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly timeoutMs?: number;
@@ -93,18 +85,13 @@ export function evaluateRustKernelInputSync(
   input: unknown,
   options: RustKernelEvalOptions = {},
 ): unknown {
-  const command = resolveRustKernelCommand(options);
-  const result = spawnSync(command, [...(options.argsPrefix ?? []), "kernel", "eval", "--input", "-", "--json"], {
+  const env = { ...process.env, ...(options.env ?? {}) };
+  const command = rustExampleBinary("runx-core", "kernel_eval_batch", env);
+  const result = spawnSync(command, [], {
     cwd: options.cwd ?? workspaceRoot,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      ...(options.env ?? {}),
-      NO_COLOR: "1",
-      RUNX_CWD: options.cwd ?? workspaceRoot,
-      RUNX_RUST_CLI: "1",
-    },
-    input: JSON.stringify(input),
+    env,
+    input: JSON.stringify([input]),
     maxBuffer: 8 * 1024 * 1024,
     timeout: options.timeoutMs ?? 10_000,
   });
@@ -117,35 +104,20 @@ export function evaluateRustKernelInputSync(
 
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";
-  const parsed = parseKernelEnvelope(stdout);
   if (result.status !== 0) {
-    if (isKernelErrorEnvelope(parsed)) {
-      throw new RustKernelEvalError(parsed.message, parsed.code);
-    }
     throw new RustKernelEvalError(
       `Rust kernel eval failed with exit ${result.status}: ${firstNonEmpty(stderr, stdout, "no output")}`,
     );
   }
-
+  const results = parseKernelEnvelope(stdout);
+  const parsed = Array.isArray(results) && results.length === 1 ? results[0] : undefined;
+  if (isKernelErrorEnvelope(parsed)) {
+    throw new RustKernelEvalError(parsed.message, parsed.code);
+  }
   if (!isKernelSuccessEnvelope(parsed)) {
     throw new RustKernelEvalError("Rust kernel eval returned an invalid success envelope.");
   }
   return parsed.result.value;
-}
-
-function resolveRustKernelCommand(options: RustKernelEvalOptions): string {
-  const command = options.command
-    ?? options.env?.RUNX_RUST_CLI_BIN
-    ?? process.env.RUNX_RUST_CLI_BIN;
-  if (command) {
-    return command;
-  }
-  if (existsSync(defaultRunxBinary)) {
-    return defaultRunxBinary;
-  }
-  throw new RustKernelEvalError(
-    `Rust kernel eval requires RUNX_RUST_CLI_BIN or a built CLI at ${path.relative(workspaceRoot, defaultRunxBinary)}.`,
-  );
 }
 
 function parseKernelEnvelope(stdout: string): unknown {

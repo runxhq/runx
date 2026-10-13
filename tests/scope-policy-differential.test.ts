@@ -1,19 +1,13 @@
 import { spawnSync } from "node:child_process";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { RUNX_SCOPE_GRANT_POLICY, scopeGrantAllows } from "@runxhq/contracts";
+import { rustExampleBinary } from "../scripts/lib/rust-example.mjs";
 import { evaluateRustKernelInputSync } from "../scripts/rust-kernel-eval.js";
 
 const policies = Object.values(RUNX_SCOPE_GRANT_POLICY);
 const workspaceRoot = fileURLToPath(new URL("..", import.meta.url));
-const batchBinary = path.join(
-  path.resolve(workspaceRoot, process.env.CARGO_TARGET_DIR ?? "crates/target"),
-  "debug",
-  "examples",
-  process.platform === "win32" ? "kernel_eval_batch.exe" : "kernel_eval_batch",
-);
 const namespaces = ["", "repo", "repository", "repo:admin", "α", "🧭", "repo*", " ", "\0"];
 const segments = ["", "read", "write", "*", "read:child", "🛠️", "\n"];
 const grants = [...new Set([
@@ -31,10 +25,10 @@ const cases = policies.flatMap((policy) => grants.flatMap((grantedScope) => requ
   policy,
 }))));
 
-let nativeResults: readonly { kind: "output"; value: boolean }[];
+let nativeResults: readonly { status: "success"; result: { kind: "output"; value: boolean } }[];
 
 beforeAll(() => {
-  const result = spawnSync(batchBinary, [], {
+  const result = spawnSync(rustExampleBinary("runx-core", "kernel_eval_batch"), [], {
     cwd: workspaceRoot,
     encoding: "utf8",
     input: JSON.stringify(cases),
@@ -72,7 +66,7 @@ describe("Rust/TypeScript scope policy differential", () => {
       for (let index = offset; index < offset + grants.length * requests.length; index += 1) {
         const { grantedScope, requestedScope } = cases[index]!;
         const expected = scopeGrantAllows(grantedScope, requestedScope, policy);
-        expect(nativeResults[index], JSON.stringify({ grantedScope, requestedScope, policy })).toEqual({ kind: "output", value: expected });
+        expect(nativeResults[index], JSON.stringify({ grantedScope, requestedScope, policy })).toEqual({ status: "success", result: { kind: "output", value: expected } });
       }
     });
   }
