@@ -73,6 +73,7 @@ pub(crate) fn run_package_harness_with_effects(
         receipt_dir,
     )?;
     harness.stage_declared_files(&loaded)?;
+    harness.stage_installed_connectors(&loaded, workspace.paths())?;
     let mut report = PackageHarnessReport::not_declared();
     let mut cases = inline_cases(&loaded)?;
     for path in conventional_fixture_paths(&loaded.directory)? {
@@ -316,6 +317,47 @@ impl PackageHarnessEnvironment {
                 }
             })?;
             self.stage_file(declared, contents, is_declared_harness_executable(declared))?;
+        }
+        Ok(())
+    }
+
+    /// Stage in the disposable workspace the installed connector versions
+    /// the skill binds, read from the operator's project: its cases reach
+    /// exactly what its operations resolve, and nothing else installed there.
+    fn stage_installed_connectors(
+        &self,
+        loaded: &crate::LoadedSkillPackage,
+        operator: &RunxPaths,
+    ) -> Result<(), SkillRunError> {
+        let failed = |message: String| RuntimeError::SkillFailed {
+            skill_name: "package-harness".to_owned(),
+            message: format!("staging an installed connector failed: {message}"),
+        };
+        let Some(manifest) = loaded.manifest() else {
+            return Ok(());
+        };
+        let scope = crate::ConnectorScope::at(&loaded.directory)
+            .map_err(|error| failed(error.to_string()))?
+            .in_project(operator.connectors());
+        let staged = self.workspace.join("connectors");
+        for (key, requirement) in &manifest.connectors {
+            let references = match requirement.connector_from {
+                Some(_) => requirement.allowed_connectors.clone(),
+                None => vec![key.clone()],
+            };
+            for reference in references {
+                // A connector out of reach is the run's to refuse, as it would
+                // anywhere; only an installed version is staged.
+                let Ok(connector) = scope.requirement(&reference, requirement) else {
+                    continue;
+                };
+                if let crate::kernel::connectors::ConnectorOrigin::Installed { directory } =
+                    &connector.origin
+                {
+                    crate::registry::write_connector_version(&staged, &connector, Some(directory))
+                        .map_err(failed)?;
+                }
+            }
         }
         Ok(())
     }
