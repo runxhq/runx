@@ -32,8 +32,8 @@
     },
     {
       "ref": "runx/google-analytics",
-      "version": "sha-1b8362b6bb99",
-      "content_digest": "sha256:1b8362b6bb99fa39ce09c3b8872db1614482fdf0caab8da32a069abb5c8992f2"
+      "version": "sha-238d2bf6bb18",
+      "content_digest": "sha256:238d2bf6bb18a984f5bd8bb48404feff0b295f8c5dad75f3b96cb062f14fcdc8"
     },
     {
       "ref": "runx/google-calendar",
@@ -42,8 +42,8 @@
     },
     {
       "ref": "runx/google-search-console",
-      "version": "sha-6513afd0ec96",
-      "content_digest": "sha256:6513afd0ec96cdb5b26eecf6a2d77e1e66eb791eaece7c8b5c88c4fc46754c53"
+      "version": "sha-4b28e7098308",
+      "content_digest": "sha256:4b28e70983083f4c1074ee8d269163fa7f8328b923f0f83bdfe0caa6b3e66f38"
     },
     {
       "ref": "runx/google-sheets",
@@ -62,8 +62,8 @@
     },
     {
       "ref": "runx/mpp",
-      "version": "sha-94a271e10e86",
-      "content_digest": "sha256:94a271e10e866dd8a1a60dfec19cf09c059f7151f73bae66590223221a23b238"
+      "version": "sha-e1fe7dc7a673",
+      "content_digest": "sha256:e1fe7dc7a673b1c6b7059828af7a6db2031b02d6bde5d5ca21b74e04437ded28"
     },
     {
       "ref": "runx/n8n",
@@ -122,13 +122,13 @@
     },
     {
       "ref": "runx/stripe",
-      "version": "sha-3462e866e59c",
-      "content_digest": "sha256:3462e866e59c5a6a7027619d2cfeed278d39970bcde09d417fb302318158d026"
+      "version": "sha-4df32ddc270c",
+      "content_digest": "sha256:4df32ddc270c804cab4704d405f7b3b9a647d69e05d7bdd64680d488a82e5256"
     },
     {
       "ref": "runx/stripe-spt",
-      "version": "sha-f7fdf3e24b6e",
-      "content_digest": "sha256:f7fdf3e24b6ec875b2faff0a67e06c05217408ee25875171362afe1add60574b"
+      "version": "sha-54ade540d74b",
+      "content_digest": "sha256:54ade540d74b8334a22be9cd8f2c3458ecba0e46163aa51532179cbd70c0b421"
     },
     {
       "ref": "runx/twitter",
