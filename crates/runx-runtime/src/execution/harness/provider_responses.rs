@@ -12,14 +12,15 @@ pub(crate) const HARNESS_PROVIDER_BASE_URL: &str = "https://provider-fixture.run
 pub(crate) const HARNESS_PROVIDER_TOKEN: &str = "runx-harness-provider-token";
 
 /// The harness's transport beneath operation steps. It answers the provider
-/// fixture's hosted endpoints and the case's exact HTTP exchanges, and refuses
-/// every other request: a harness run never reaches a live provider.
+/// fixture's hosted endpoints, including the declared requests runx Connect
+/// renders and sends, and the case's exact HTTP exchanges, and refuses every
+/// other request: a harness run never reaches a live provider.
 #[derive(Clone, Debug)]
 pub(super) struct HarnessTransport {
     pub(super) provider: Option<HarnessProviderResponsesFixture>,
     /// The exact connector the fixture's grant is for, as runx Connect
-    /// lists it.
-    pub(super) grant_binding: Option<runx_contracts::connector::ConnectorBinding>,
+    /// lists and executes it.
+    pub(super) grant_connector: Option<Arc<crate::kernel::connectors::LoadedConnector>>,
     pub(super) exchanges: Arc<HarnessExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
 }
@@ -48,7 +49,11 @@ impl RuntimeHttpTransport for HarnessTransport {
                 ])))
             }
             (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
-                let binding = self.grant_binding.as_ref().ok_or_else(|| {
+                let binding = self
+                    .grant_connector
+                    .as_ref()
+                    .map(|connector| connector.binding());
+                let binding = binding.as_ref().ok_or_else(|| {
                     transport_error("the provider fixture's grant names no connector".to_owned())
                 })?;
                 let grant = serde_json::json!({
@@ -70,6 +75,11 @@ impl RuntimeHttpTransport for HarnessTransport {
                 if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-operations") =>
             {
                 self.provider_operation(fixture, request.body.as_deref())
+            }
+            (HttpMethod::Post, url)
+                if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-requests") =>
+            {
+                self.provider_request(fixture, request.body.as_deref())
             }
             _ => Err(transport_error(format!(
                 "the harness provider fixture has no response for {} {}",
@@ -213,6 +223,158 @@ impl HarnessTransport {
         }
         json_response(JsonValue::Object(response))
     }
+}
+
+/// One declared request of a hosted operation, as the kernel sends it to
+/// runx Connect.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeclaredRequest {
+    connector_binding: runx_contracts::connector::ConnectorBinding,
+    grant_id: String,
+    operation: String,
+    operation_digest: String,
+    implementation_digest: String,
+    input: JsonObject,
+    #[serde(default)]
+    idempotency_key: Option<String>,
+    request: String,
+    #[serde(default)]
+    item: Option<usize>,
+    #[serde(default)]
+    responses: Option<BTreeMap<String, JsonObject>>,
+}
+
+impl HarnessTransport {
+    /// Send one declared request as runx Connect does: under the fixture's
+    /// grant, for the exact connector it holds at the digests that connector
+    /// declares, rendered by Connect's renderer with the case's paid
+    /// invocation, and answered only by the case's exchanges. A refusal
+    /// answers as Connect's does, before anything is sent.
+    fn provider_request(
+        &self,
+        fixture: &HarnessProviderResponsesFixture,
+        body: Option<&str>,
+    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+        let Ok(call) = serde_json::from_str::<DeclaredRequest>(body.unwrap_or_default()) else {
+            return refused(400, "invalid_request", "the provider request is malformed");
+        };
+        if call.grant_id != fixture.grant.grant_id {
+            return refused(
+                404,
+                "unknown-grant",
+                format!(
+                    "the harness provider fixture holds no grant {:?}",
+                    call.grant_id
+                ),
+            );
+        }
+        let connector = self.grant_connector.as_ref().ok_or_else(|| {
+            transport_error("the provider fixture's grant names no connector".to_owned())
+        })?;
+        let digests = crate::kernel::connectors::operation_digest_entries(
+            &connector.manifest,
+            &connector.operation_digests,
+            |tool| connector.tools.get(tool).map(|tool| &tool.digest),
+        )
+        .map_err(transport_error)?;
+        let declared = connector
+            .operation(&call.operation)
+            .zip(digests.get(call.operation.as_str()))
+            .filter(|(_, digests)| {
+                call.connector_binding == connector.binding()
+                    && digests.operation.as_str() == call.operation_digest
+                    && digests
+                        .implementation
+                        .as_ref()
+                        .map(|digest| digest.as_str())
+                        == Some(call.implementation_digest.as_str())
+            });
+        let Some(((_, operation, _), _)) = declared else {
+            return refused(
+                409,
+                "operation_contract_mismatch",
+                format!(
+                    "{} operation '{}' is not the one granted; update runx.",
+                    call.connector_binding.connector, call.operation
+                ),
+            );
+        };
+        let Some(spec) = operation.hosted_http() else {
+            return refused(
+                400,
+                "operation_unsupported",
+                format!("operation '{}' declares no hosted requests", call.operation),
+            );
+        };
+        if operation.scopes.iter().any(|scope| {
+            !fixture
+                .grant
+                .scopes
+                .iter()
+                .any(|granted| granted == scope.as_str())
+        }) {
+            return refused(
+                400,
+                "scope_mismatch",
+                format!(
+                    "grant {:?} does not cover operation '{}'",
+                    call.grant_id, call.operation
+                ),
+            );
+        }
+        let checking = spec
+            .preconditions
+            .iter()
+            .chain(&spec.readbacks)
+            .any(|check| check.request.id.as_str() == call.request);
+        if call.responses.is_some()
+            && !(operation.access() == runx_contracts::connector::OperationAccess::Mutate
+                && checking)
+        {
+            return refused(
+                400,
+                "invalid_input",
+                "Earlier answers are accepted only for a write's checking reads.",
+            );
+        }
+        let arguments = JsonValue::Object(call.input);
+        let rendered = match crate::drivers::http::render_declared(
+            spec,
+            &crate::drivers::http::DeclaredCall {
+                request: &call.request,
+                arguments: &arguments,
+                parameters: None,
+                idempotency_key: call.idempotency_key.as_deref(),
+                invocation_id: fixture.invocation_id.as_deref(),
+                item: call.item,
+                responses: call.responses.as_ref(),
+            },
+        ) {
+            Ok(rendered) => rendered,
+            Err(error) => return refused(400, "invalid_input", error),
+        };
+        let answer = self.exchanges.answer(&rendered)?;
+        json_response(JsonValue::Object(JsonObject::from([
+            (
+                "status".to_owned(),
+                JsonValue::Number(runx_contracts::JsonNumber::from(u64::from(answer.status))),
+            ),
+            ("body".to_owned(), JsonValue::String(answer.body)),
+        ])))
+    }
+}
+
+/// Connect's answer for a request it refuses before sending anything.
+fn refused(
+    status: u16,
+    code: &str,
+    error: impl Into<String>,
+) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+    Ok(RuntimeHttpResponse::new(
+        status,
+        serde_json::json!({"error": error.into(), "code": code}).to_string(),
+    ))
 }
 
 fn access_name(access: HarnessProviderAccess) -> &'static str {

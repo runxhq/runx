@@ -145,6 +145,11 @@ pub struct HarnessProviderResponsesFixture {
     /// refused before any request leaves declares none.
     #[serde(default)]
     pub operations: Vec<HarnessProviderOperationFixture>,
+    /// The paid invocation Connect holds for the case's run, which a declared
+    /// request sends as `{"$runx": "invocation"}`. Without one such a request
+    /// fails closed, as it does for a run no paid invocation is bound to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation_id: Option<String>,
 }
 
 /// An agent turn the caller works: the calls it makes in order, then the

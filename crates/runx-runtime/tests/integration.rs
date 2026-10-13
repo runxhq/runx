@@ -10,6 +10,7 @@ mod agent_turns;
 mod approval;
 mod call_acts;
 mod config;
+mod connect_requests;
 mod credential_delivery;
 mod credential_delivery_core;
 mod doctor;

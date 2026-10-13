@@ -905,7 +905,11 @@ rendering, authentication, decoding, custody and readbacks; only transport
 response bytes come from the harness. `mcp_calls` stands in for a connector's
 MCP server the same way, matched on tool, arguments and session headers, and
 `setup.credentials` stores the one credential of a listed connector whose
-variable the case sets. A case that stops on a request it did not answer names
+variable the case sets. `provider_responses` stands in for runx Connect: it
+holds the case's grant, renders a hosted operation's declared requests as
+Connect does, with its `invocation_id` as the paid invocation, and sends them
+to the case's `http_exchanges`. Without an `invocation_id`, a request that
+sends the paid invocation fails closed. A case that stops on a request it did not answer names
 that request in its status mismatch. No caller fixture is available to
 skill inputs, environment configuration, or ordinary live runs.
 

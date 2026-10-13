@@ -35,13 +35,10 @@ pub(super) fn harness_transport(
     scope: &crate::ConnectorScope,
     skill_dir: &std::path::Path,
 ) -> Result<HarnessTransport, String> {
-    let grant_binding = caller
+    let grant_connector = caller
         .provider_responses
         .as_ref()
-        .map(|provider| {
-            granted_connector(scope, skill_dir, &provider.grant.provider)
-                .map(|connector| connector.binding())
-        })
+        .map(|provider| granted_connector(scope, skill_dir, &provider.grant.provider))
         .transpose()?;
     let exchanges = Arc::new(HarnessExchanges::new(
         caller
@@ -62,7 +59,7 @@ pub(super) fn harness_transport(
     ));
     Ok(HarnessTransport {
         provider: caller.provider_responses.clone(),
-        grant_binding,
+        grant_connector,
         exchanges,
         mutation_keys: Arc::default(),
     })
