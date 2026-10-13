@@ -1,4 +1,6 @@
 {
+  "$id": "https://schemas.runx.ai/runx/connector-binding/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "connector": {
@@ -22,5 +24,6 @@
     "manifest_digest",
     "connector_digest"
   ],
-  "type": "object"
+  "type": "object",
+  "x-runx-schema": "runx.connector_binding.v1"
 }

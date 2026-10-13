@@ -83,6 +83,7 @@ pub use ids::{
 /// carry this same binding; a publisher label alone cannot substitute bytes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.connector_binding.v1")]
 pub struct ConnectorBinding {
     pub connector: ConnectorRef,
     pub manifest_digest: Digest,

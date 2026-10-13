@@ -7791,6 +7791,8 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.payment.cancel_paid_invocation.result.v1"
   } as JsonSchema,
   "connector-binding.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/connector-binding/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
       "connector": {
@@ -7814,7 +7816,8 @@ export const runxSchemaArtifacts = {
       "manifest_digest",
       "connector_digest"
     ],
-    "type": "object"
+    "type": "object",
+    "x-runx-schema": "runx.connector_binding.v1"
   } as JsonSchema,
   "connector-instance.schema.json": {
     "$id": "https://schemas.runx.ai/runx/connector-instance/v1.json",
