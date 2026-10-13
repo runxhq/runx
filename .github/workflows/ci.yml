@@ -117,6 +117,7 @@ jobs:
         if: steps.changes.outputs.release == 'true'
         run: |
           bash -n scripts/publish-npm-tarball.sh
+          bash -n scripts/pack-typescript-packages.sh
           for script in scripts/build-release-archives.ts scripts/check-rust-cli-release-artifacts.ts \
             scripts/check-runx-cli-release-notes.mjs scripts/global-npm-prefix.mjs \
             scripts/publish-winget-manifest.mjs scripts/release-platform-matrix.mjs \

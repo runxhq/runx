@@ -97,6 +97,16 @@ jobs:
         run: node scripts/check-runx-cli-release-notes.mjs --version "${{ steps.resolve.outputs.version }}"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Refuse a package version npm holds with other bytes
+        # A registry version is immutable. A TypeScript package whose packed
+        # bytes changed needs a new version before the tag, or publish-npm
+        # fails after every other channel has shipped.
+        run: |
+          set -euo pipefail
+          bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
+          for tarball in "$RUNNER_TEMP"/typescript-packages/*.tgz; do
+            bash scripts/publish-npm-tarball.sh --check "$tarball"
+          done
       - name: Resolve release platform matrix
         id: platforms
         shell: bash
@@ -381,15 +391,7 @@ jobs:
           pnpm exec tsx scripts/check-rust-cli-release-artifacts.ts \
             --artifact-dir ".runx/rust-cli-artifacts" --no-js-delegation --verify-signatures
       - name: Pack TypeScript packages
-        # The contracts and the client the CLI's hosts build on ship with it;
-        # pnpm resolves their workspace dependencies to the packed versions.
-        run: |
-          set -euo pipefail
-          node scripts/build-workspace.mjs --pack
-          mkdir -p "$RUNNER_TEMP/typescript-packages"
-          for package in contracts client; do
-            (cd "packages/$package" && pnpm pack --pack-destination "$RUNNER_TEMP/typescript-packages")
-          done
+        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
       - name: Publish packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
