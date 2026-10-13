@@ -244,7 +244,8 @@ pub(crate) fn instance_reference(instance: &ConnectorInstance) -> Reference {
     )
 }
 
-#[cfg(test)]
+// A command session runs a shell tool, so these run where one does.
+#[cfg(all(test, unix))]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use std::collections::BTreeMap;
