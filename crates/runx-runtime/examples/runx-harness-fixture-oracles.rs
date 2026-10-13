@@ -10,15 +10,12 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use runx_contracts::{JsonObject, JsonValue, Receipt};
+use runx_contracts::Receipt;
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
 };
 use runx_runtime::harness::{HarnessFixtureCase, list_cases};
-use runx_runtime::{
-    HarnessOptions, HarnessReplayOutput, InvocationOutput, SkillAdapter, SkillInvocation,
-    replay_harness_fixture_with_adapter, run_harness_fixture_with_adapter,
-};
+use runx_runtime::{HarnessReplayOutput, replay_harness_fixture, run_harness_fixture};
 
 fn main() -> ExitCode {
     match run() {
@@ -64,18 +61,16 @@ fn process_fixture(
 ) -> Result<FixtureSummary, Box<dyn Error>> {
     let started = Instant::now();
     let fixture_path = cli.repo_root.join(fixture.fixture_path);
-    // Writing regenerates the expectations this run produces, so it replays
-    // the case without asserting them; checking asserts them all.
+    // The case runs the tools `runx harness` runs, so the oracles are what
+    // `runx harness` seals. Writing regenerates the expectations this run
+    // produces, so it replays the case without asserting them; checking
+    // asserts them all.
     let replay = if cli.write {
-        replay_harness_fixture_with_adapter
+        replay_harness_fixture
     } else {
-        run_harness_fixture_with_adapter
+        run_harness_fixture
     };
-    let output = match replay(
-        &fixture_path,
-        FixtureOracleAdapter,
-        fixture_runtime_options()?,
-    ) {
+    let output = match replay(&fixture_path, std::env::vars().collect()) {
         Ok(output) => output,
         Err(error) => {
             return Ok(FixtureSummary::failed(
@@ -416,37 +411,3 @@ impl Display for MessageError {
 }
 
 impl Error for MessageError {}
-
-fn fixture_runtime_options() -> Result<HarnessOptions, Box<dyn Error>> {
-    let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.clock = runx_runtime::RunClock::Fixed("2026-05-18T00:00:00Z".to_owned());
-    Ok(options)
-}
-
-struct FixtureOracleAdapter;
-
-impl SkillAdapter for FixtureOracleAdapter {
-    fn invoke(
-        &self,
-        request: SkillInvocation,
-    ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let message = request
-            .inputs
-            .get("message")
-            .and_then(|value| match value {
-                JsonValue::String(value) => Some(value.as_str()),
-                _ => None,
-            })
-            .unwrap_or_default()
-            .to_owned();
-        // Emit a structured `{ "message": ... }` claim so a producer step's declared
-        // artifact contract (for example json-output's `result` packet) is addressable
-        // by downstream context edges under the contract-only addressing model.
-        let mut claim = JsonObject::default();
-        claim.insert("message".to_owned(), JsonValue::String(message));
-        Ok(InvocationOutput::runtime_success(
-            JsonValue::Object(claim),
-            0,
-        ))
-    }
-}

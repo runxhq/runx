@@ -99,7 +99,7 @@ pub use error::RuntimeError;
 pub use harness::{
     HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessOptions,
     HarnessReplayError, HarnessReplayOutput, PackageHarnessReport, load_harness_fixture,
-    replay_harness_fixture_with_adapter, run_harness_fixture, run_harness_fixture_with_adapter,
+    replay_harness_fixture, run_harness_fixture, run_harness_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
 pub use hosted_api::{

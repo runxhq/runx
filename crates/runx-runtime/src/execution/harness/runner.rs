@@ -218,19 +218,21 @@ pub(crate) fn load_harness_case(
     Ok((fixture, target_path))
 }
 
-/// Replay a case without asserting its expectations: for a generator that
-/// rewrites the expectations this run produces. Every other caller asserts
-/// them through [`run_harness_fixture_with_adapter`].
-pub fn replay_harness_fixture_with_adapter<A>(
+/// Replay a case through the tools `runx harness` runs, without asserting
+/// its expectations: for a generator that rewrites the expectations this run
+/// produces, so they are what `runx harness` seals. Every other caller
+/// asserts them through [`run_harness_fixture`].
+pub fn replay_harness_fixture(
     fixture_path: impl AsRef<Path>,
-    adapter: A,
-    options: HarnessOptions,
-) -> Result<HarnessReplayOutput, HarnessReplayError>
-where
-    A: SkillAdapter,
-{
+    env: BTreeMap<String, String>,
+) -> Result<HarnessReplayOutput, HarnessReplayError> {
     let (fixture, target_path) = load_harness_case(fixture_path.as_ref())?;
-    replay_harness_case(fixture, target_path, adapter, options)
+    replay_harness_case(
+        fixture,
+        target_path,
+        crate::execution::skill_front::ExecutableAdapter,
+        HarnessOptions::new(env)?,
+    )
 }
 
 /// Run one case, a fixture file's or a runner's inline case, against the

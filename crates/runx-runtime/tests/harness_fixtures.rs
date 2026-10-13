@@ -5,11 +5,8 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema};
 use runx_receipts::canonical_receipt_json;
 use runx_runtime::{
-    HarnessExpectedStatus, HarnessFixtureKind, HarnessOptions, InvocationOutput, SkillAdapter,
-    SkillInvocation, load_harness_fixture, run_harness_fixture_with_adapter,
+    HarnessExpectedStatus, HarnessFixtureKind, load_harness_fixture, run_harness_fixture,
 };
-
-const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 
 #[test]
 fn loads_active_harness_fixtures() -> Result<(), Box<dyn std::error::Error>> {
@@ -78,9 +75,9 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(
         receipt.child_receipt_refs,
         Some(vec![
-            "runx:receipt:sha256:d54182d17e654b19be38993dde5a48c3d2706f9c374c2e2469b741adb87d9e01"
+            "runx:receipt:sha256:4299d24e992e103ed5ce9ee84a2658b8fcd209faa1d60e1dd27376b8beb29792"
                 .to_owned(),
-            "runx:receipt:sha256:28af0a811d768b576ea4b21f49755cc0a689ab89e90ce7b96af7a165b2733a24"
+            "runx:receipt:sha256:a03afe6102cbbd0723b2b781bcd9aae30d1929b3f8236aa7f29e9866ee900709"
                 .to_owned()
         ])
     );
@@ -91,7 +88,7 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
 
 #[test]
 fn replays_active_harness_skill_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let output = run_fixture_with_test_adapter("fixtures/harness/echo-skill.yaml")?;
+    let output = run_fixture("fixtures/harness/echo-skill.yaml")?;
 
     assert_eq!(output.status, HarnessExpectedStatus::Sealed);
     assert_eq!(
@@ -113,7 +110,7 @@ fn replays_active_harness_skill_fixture() -> Result<(), Box<dyn std::error::Erro
 
 #[test]
 fn replays_active_harness_graph_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let output = run_fixture_with_test_adapter("fixtures/harness/sequential-graph.yaml")?;
+    let output = run_fixture("fixtures/harness/sequential-graph.yaml")?;
 
     assert_eq!(output.status, HarnessExpectedStatus::Sealed);
     assert_eq!(
@@ -142,7 +139,7 @@ fn replays_active_harness_graph_fixture() -> Result<(), Box<dyn std::error::Erro
 
 #[test]
 fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn std::error::Error>> {
-    let echo = run_fixture_with_test_adapter("fixtures/harness/echo-skill.yaml")?;
+    let echo = run_fixture("fixtures/harness/echo-skill.yaml")?;
     assert_oracle(
         "fixtures/harness/oracle/echo-skill.receipt.json",
         &canonical_receipt_json(&echo.receipt)?,
@@ -152,7 +149,7 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
         &canonical_receipt_json(&echo.step_receipts[0])?,
     )?;
 
-    let graph = run_fixture_with_test_adapter("fixtures/harness/sequential-graph.yaml")?;
+    let graph = run_fixture("fixtures/harness/sequential-graph.yaml")?;
     assert_oracle(
         "fixtures/harness/oracle/sequential-graph.receipt.json",
         &canonical_receipt_json(&graph.receipt)?,
@@ -198,7 +195,7 @@ fn harness_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std:
          setup:\n  receipts:\n    - receipts/seed.json\nexpect:\n  status: sealed\n",
     )?;
 
-    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options()?)
+    let error = run_harness_fixture(&fixture, std::env::vars().collect())
         .err()
         .ok_or("a receipt outside its wire form must be refused")?;
     assert!(
@@ -237,7 +234,7 @@ fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
          expect:\n  status: failure\n",
     )?;
 
-    let error = run_harness_fixture_with_adapter(&fixture, TestAdapter, fixture_runtime_options()?)
+    let error = run_harness_fixture(&fixture, std::env::vars().collect())
         .err()
         .ok_or("a case that leaves a declared exchange unsent must fail")?;
     assert!(
@@ -252,48 +249,11 @@ fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
     Ok(())
 }
 
-fn run_fixture_with_test_adapter(
+fn run_fixture(
     relative_path: &str,
 ) -> Result<runx_runtime::HarnessReplayOutput, runx_runtime::HarnessReplayError> {
-    run_harness_fixture_with_adapter(
-        fixture_path(relative_path),
-        TestAdapter,
-        fixture_runtime_options()?,
-    )
-}
-
-fn fixture_runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
-    let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.clock = runx_runtime::RunClock::Fixed(FIXTURE_CREATED_AT.to_owned());
-    Ok(options)
-}
-
-struct TestAdapter;
-
-impl SkillAdapter for TestAdapter {
-    fn invoke(
-        &self,
-        request: SkillInvocation,
-    ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let message = request
-            .inputs
-            .get("message")
-            .and_then(|value| match value {
-                JsonValue::String(value) => Some(value.as_str()),
-                _ => None,
-            })
-            .unwrap_or_default()
-            .to_owned();
-        // Emit a structured `{ "message": ... }` claim so the producing step's
-        // declared artifact contract (for example json-output's `result` packet)
-        // is addressable by downstream context edges under the contract model.
-        let mut claim = JsonObject::default();
-        claim.insert("message".to_owned(), JsonValue::String(message));
-        Ok(InvocationOutput::runtime_success(
-            JsonValue::Object(claim),
-            0,
-        ))
-    }
+    // The tools `runx harness` runs, so a replay seals what it seals.
+    run_harness_fixture(fixture_path(relative_path), std::env::vars().collect())
 }
 
 fn fixture_path(relative_path: &str) -> PathBuf {
