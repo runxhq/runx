@@ -659,6 +659,20 @@ impl GraphExecution {
             state: self.state,
             steps: self.runs,
             receipt,
+            stop: None,
+        }
+    }
+
+    /// A run a governed stop sealed: it keeps why it stopped.
+    pub(super) fn finish_stopped(
+        self,
+        graph: ExecutionGraph,
+        receipt: runx_contracts::Receipt,
+        stop: String,
+    ) -> GraphRun {
+        GraphRun {
+            stop: Some(stop),
+            ..self.finish(graph, receipt)
         }
     }
 

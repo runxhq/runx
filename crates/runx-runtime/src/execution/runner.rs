@@ -236,6 +236,9 @@ pub struct GraphRun {
     pub state: SequentialGraphState,
     pub steps: Vec<StepRun>,
     pub receipt: Receipt,
+    /// Why a governed stop (a denial, a block, a pending resolution) stopped
+    /// the graph, as its error states it. None when the graph ran out.
+    pub stop: Option<String>,
 }
 
 pub struct Runtime<A> {
@@ -510,7 +513,7 @@ where
                     host,
                     LifecycleEvent::graph_stopped(&graph.name, &step_id, &receipt),
                 )?;
-                Ok(execution.finish(graph, receipt))
+                Ok(execution.finish_stopped(graph, receipt, error.to_string()))
             }
             Err(error) => Err(error),
         }
@@ -910,7 +913,10 @@ pub(crate) fn graph_failure(run: &GraphRun) -> String {
                 run.graph.name
             )
         }
-        None => format!("graph {} did not succeed", run.graph.name),
+        None => match &run.stop {
+            Some(stop) => format!("graph {} stopped: {stop}", run.graph.name),
+            None => format!("graph {} did not succeed", run.graph.name),
+        },
     }
 }
 
@@ -1113,6 +1119,26 @@ mod tests {
                 .get("deliver")
                 .and_then(JsonValue::as_object)
                 .is_some_and(|value| value.get("delivery_receipt") == Some(&packet))
+        );
+        Ok(())
+    }
+
+    /// A governed stop states why the graph stopped; a run that ran out
+    /// with no failed step and no stop says only that it did not succeed.
+    #[test]
+    fn a_governed_stop_states_why_it_stopped() -> Result<(), Box<dyn std::error::Error>> {
+        let mut run = test_graph_run(Vec::new(), Vec::new(), GraphStatus::Failed)?;
+        assert_eq!(
+            super::graph_failure(&run),
+            "graph test-graph did not succeed"
+        );
+        run.stop = Some(
+            "authority Create denied graph step 'provision': a mutation needs an idempotency_key"
+                .to_owned(),
+        );
+        assert_eq!(
+            super::graph_failure(&run),
+            "graph test-graph stopped: authority Create denied graph step 'provision': a mutation needs an idempotency_key"
         );
         Ok(())
     }
@@ -1351,6 +1377,7 @@ mod tests {
             },
             steps,
             receipt,
+            stop: None,
         })
     }
 }
