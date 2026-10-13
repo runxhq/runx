@@ -32,18 +32,21 @@ ambient trust.
 ## what runx is not
 
 Runx is the governed runtime **beneath** agents and orchestration tools, not
-another agent framework. There are no agents, prompt chains, model loops, or
-vector stores here; runx sits under whatever orchestration layer you already
+another agent framework. There are no prompt chains or vector stores here, and
+no model loop runs unless you opt into the managed agent with
+`--managed-agent`; runx sits under whatever orchestration layer you already
 run. Runx admits each act under explicit authority, delivers credentials
 without turning them into prompt material, supervises execution, and seals the
 result into a verifiable receipt.
 
 The local CLI/runtime (`runx`, the `@runxhq/cli` npm package) is what executes
-skills and seals receipts on your machine. The hosted surfaces are optional
-complements: the registry/catalog at [runx.ai/x](https://runx.ai/x) publishes
-and discovers skills, the harness replays checked-in cases, and connectors
-declare each provider operation and the credential that authorizes it. You can use the local runtime alone; none
-of the hosted surfaces are required to seal your first receipt.
+skills, replays their harness cases and seals receipts on your machine.
+Connectors declare each provider operation and the credential that authorizes
+it. The hosted surfaces are optional complements: the registry and catalog at
+[runx.ai/x](https://runx.ai/x) publish and discover skills and connectors, runx
+Connect holds provider grants, and the notary counter-seals a receipt you
+choose to share. You can use the local runtime alone; none of the hosted
+surfaces are required to seal your first receipt.
 
 ## quickstart
 
@@ -185,7 +188,7 @@ See [Skill to Graph](docs/skill-to-graph.md) and
 
 A runner calls runx through the CLI subprocess (`runx skill <skill-ref> ...`),
 the MCP surface, or the language bindings in `packages/`; there is no HTTP
-server to stand up. One `runx skill` invocation is one governed turn; to chain
+server to stand up. One `runx skill` invocation is one governed run; to chain
 multiple skills in a single run, compose a graph.
 
 Graphs let one governed act consume the typed output of another:
@@ -226,13 +229,14 @@ effect merely by naming it in prose or input data.
 ## authority without secret leakage
 
 Credentials belong to connectors, and skills only name the connector
-operations they call. Bind an account once by piping material on stdin:
+operations they call. Add a skill (it brings the connectors it binds), then bind
+an account once by piping the secret on stdin:
 
 ```bash
-printf '%s' "$EXA_API_KEY" |
-  runx credential set exa --credential api_key --from-stdin
+runx registry install runx/web-search
+printf '%s' "$EXA_API_KEY" | runx connector use runx/exa --credential api_key
 
-runx skill ./skills/web-search --input query="receipt verification" --json
+runx skill runx/web-search -i query="receipt verification" --json
 ```
 
 The kernel delivers the bound instance's credential to each operation it
@@ -281,7 +285,7 @@ learning meet in one verifiable object.
 The committed contract is
 [`schemas/receipt.schema.json`](schemas/receipt.schema.json); a real sealed
 receipt example lives at
-[`fixtures/receipt-verify/tampered-body/receipt.json`](fixtures/receipt-verify/tampered-body/receipt.json).
+[`fixtures/receipt-verify/valid-production/receipt.json`](fixtures/receipt-verify/valid-production/receipt.json).
 
 ## demos that prove boundaries
 
@@ -291,7 +295,7 @@ claims:
 | Demo | What it proves | Run |
 | --- | --- | --- |
 | `examples/hello-world` | Native CLI skill path and sealed receipt baseline | `runx harness examples/hello-world` |
-| `examples/http-graph` | Native governed HTTP executes against a local fixture | `sh examples/http-graph/run.sh` |
+| `examples/hello-graph` | One skill consumes another's typed output in a sealed graph | `runx harness examples/hello-graph/harness.yaml` |
 
 See [Demos](docs/demos.md).
 

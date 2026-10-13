@@ -376,7 +376,7 @@ deleted.
 
 The dated [Core Skill Product Review](core-skill-review.md) records the human
 product decision and evidence available at that review. Current structural
-truth comes from native package validation, the official lock, operator-context
+truth comes from native package validation, the runx-maintained lock, operator-context
 expansion, and package harnesses; no parallel review generator is authoritative.
 The review does not authorize removal, relocation, or demotion.
 

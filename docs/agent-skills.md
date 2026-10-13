@@ -103,7 +103,7 @@ execution. Runx remains the authority boundary on both surfaces.
   `RUNX_RECEIPT_SIGN_*` tuple; a partial tuple fails closed. See
   [Getting Started](./getting-started.md#production-receipt-signing).
 - **Provider accounts.** Bind them once as connector instances with
-  `runx credential set` or `runx connector use`. Exported shims do not add
+  `runx connector use`. Exported shims do not add
   credential wrappers; the invoked Runx skill performs the canonical readiness
   check. See [Credentials](./credentials.md).
 

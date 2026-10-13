@@ -32,7 +32,7 @@ loop host
   updates projection
   repeats only if stop policy allows
 
-runx turn
+runx run
   parses skill/graph
   loads digest-bound context_skills
   admits each call against the skill's limits
@@ -129,7 +129,7 @@ projection operation.
 ## Example
 
 The canonical OSS example is `examples/loop-orchestration`: a local fixture
-loop that submits bounded runx turns, prints each receipt id and next-turn
+loop that submits bounded runx runs, prints each receipt id and next-turn
 reason, demonstrates `context_skills`, includes a refusal path, and runs
 without provider keys.
 

@@ -57,8 +57,8 @@ The local runner applies authority in this order:
 ## Hosted Grants
 
 Connector `operation` steps on the hosted placement run under the connector
-instance the operator confirmed with `runx connector use <connector> --grant
-<grant-id>`. Confirmation reads the grant from Connect and refuses one that is
+instance the operator confirmed with `runx connector use <connector> --hosted`
+or `runx connector use <connector> <grant-id>`. Confirmation reads the grant from Connect and refuses one that is
 not active or is bound to another connector identity: another publisher or id,
 another manifest digest or another connector digest. Admission authenticates
 the operator and reads that grant from Connect again for every call; a grant

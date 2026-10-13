@@ -40,10 +40,9 @@ steps:
 Executable registry refs are explicit, `registry:<owner>/<name>[@<version>]`,
 and resolve only from `RUNX_REGISTRY_DIR`. Graph execution
 does not fetch remote registry content implicitly; the operator must install,
-publish, or sync the skill into the local registry first. At runtime runx
-materializes the resolved `SKILL.md` and optional `run.yaml` into
-`.runx/registry-step-skills/` as a generated cache, then executes the normal
-skill runner path against that materialized package.
+publish, or sync the skill into the local registry first. At runtime runx adds
+the resolved package to the project's `skills/<owner>/<name>/<version>/`, like
+any other added skill, then executes the normal skill runner path against it.
 
 ## Skill Context For Agents
 
@@ -139,7 +138,7 @@ governed step instead of burying it in prose.
 
 For long-running agent workflows, do not turn a graph into an unbounded resident
 loop. Use [Loop Orchestration](./loop-orchestration.md): an outer loop host
-submits one governed runx turn at a time, reads receipts and projections, and
+submits one governed runx run at a time, reads receipts and projections, and
 continues only when explicit stop policy allows.
 
 ## Acts: Why A Governed Call Is Made
@@ -219,8 +218,8 @@ runners:
 The kernel admits the call against the bound instance, renders the declared
 request, and presents the instance's credential at the transport boundary;
 skills never construct authorization headers. Bind an account once with
-`runx credential set <connector> --credential <name> --from-stdin` or
-`runx connector use`. See [Credentials](./credentials.md) for the connector
+`runx connector use <connector> --credential <name>` (the secret on stdin),
+`--session` or `--hosted`. See [Credentials](./credentials.md) for the connector
 contract, instances, and readiness. `skills/nws-weather-forecast` is the
 canonical public connector read; credentialed provider skills use the same
 path.

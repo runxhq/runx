@@ -54,7 +54,7 @@ Deferred doctor families remain owned by follow-up slices:
 
 - `runx doctor --fix` repair writes
 - diagnostic catalog, `--list-diagnostics`, and `--explain`
-- official skills lock freshness
+- runx-maintained skills lock freshness
 - tool manifest stale source and schema hashes
 - packet index diagnostics
 - graph packet path validation

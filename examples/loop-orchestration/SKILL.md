@@ -1,6 +1,6 @@
 ---
 name: loop-orchestration
-description: Reference loop-orchestration example; a local loop host chains governed runx turns through receipts, budgets, context, and stop policy.
+description: Reference loop-orchestration example; a local loop host chains governed runx runs through receipts, budgets, context, and stop policy.
 ---
 
 # Loop Orchestration
@@ -8,7 +8,7 @@ description: Reference loop-orchestration example; a local loop host chains gove
 This example shows the runx pattern for long-running agent work:
 
 1. An outer loop host decides whether work should continue.
-2. Each iteration submits one normal governed runx turn.
+2. Each iteration submits one normal governed runx run.
 3. Each turn seals a receipt before the loop can advance.
 4. The next turn consumes only explicit inputs, projection state, and receipt
    summaries.
@@ -73,12 +73,12 @@ Replace `loop/loop-host.mjs` with your real orchestrator and keep the same
 shape:
 
 ```text
-load projection -> submit runx turn -> read receipt/result -> check stop policy
+load projection -> submit runx run -> read receipt/result -> check stop policy
 ```
 
 Do not move product-specific scheduling or state into the kernel. If a loop
 needs to wake up later, persist the loop state in the host and submit another
-runx turn when policy allows.
+runx run when policy allows.
 
 ## Agent task contracts
 

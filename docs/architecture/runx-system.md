@@ -181,7 +181,7 @@ invocation and discards the worker.
 
 The same hostile-module contract is required on `darwin-arm64`, `darwin-x64`,
 `linux-arm64`, `linux-x64`, and `win32-x64`. A supported release target cannot
-silently lose official JavaScript skills.
+silently lose runx-maintained JavaScript skills.
 
 ## Native capability boundary
 
@@ -265,7 +265,7 @@ another registered family.
 
 ## Authoring and extension boundary
 
-Skill Lab and `runx new` call one authoring service and one closed,
+`skill-build` and `runx new` call one authoring service and one closed,
 digest-bound change contract. Design is judgment; inspect, validate, diff,
 write, and harness execution are native mechanics. No template generator creates a
 placeholder `.mjs`. No package writes outside its declared target. A no-op

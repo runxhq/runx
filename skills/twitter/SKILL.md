@@ -220,7 +220,7 @@ For the `plan` runner, build `twitter_plan` this way:
   never restart the thread from its first confirmed segment.
 - **Approval missing or denied:** the execute graph stops at the gate.
 - **No bound account:** admission refuses before any provider call; bind one
-  with `runx credential set twitter`.
+  with `runx connector use runx/twitter --credential user`.
 - **Fully autonomous live posting requested:** `reject`; the gate is the
   contract.
 
@@ -296,10 +296,10 @@ inputs or receipt material.
 - `user`: one JSON object holding `consumer_key`, `consumer_secret`,
   `access_token`, `access_secret` (OAuth 1.0a user context). Required for
   every mutation and for the authenticated account's own reads. Bind it with
-  `runx credential set twitter --credential user --from-stdin`.
+  `runx connector use runx/twitter --credential user`, the JSON on stdin.
 - `app`: the app-context bearer token, enough for `search` and reads that name
-  another account by `user_id`. Bind it with `runx credential set twitter
-  --credential app --from-stdin`.
+  another account by `user_id`. Bind it with `runx connector use runx/twitter
+  --credential app`, the token on stdin.
 
 The X API bills per request on current plans and a post containing a link
 costs a large multiple of a plain one, so prefer archive exports for bulk

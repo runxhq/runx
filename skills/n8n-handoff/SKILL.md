@@ -74,8 +74,8 @@ receiver must validate before starting its workflow.
   `acme.app.n8n.cloud`.
 
 The workflow's production webhook URL is the `n8n` connector's `webhook`
-credential, bound once with `runx credential set n8n --credential webhook
---from-stdin`. It must be on `webhook_host`, and it never enters the run's
+credential, bound once with `runx connector use runx/n8n --credential webhook`,
+the URL on stdin. It must be on `webhook_host`, and it never enters the run's
 inputs, records or receipts.
 
 `event_id` is also the Runx mutation idempotency key and the value delivered as

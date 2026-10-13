@@ -115,7 +115,7 @@ They are heavy gates, not the default local loop.
 
 The `runtime quality` workflow is the canonical automated heavy lane. It runs
 weekly, on explicit dispatch, and before a release build. One Ubuntu job reuses
-its Cargo cache and runs the official-skill audit, receipt ownership checks,
+its Cargo cache and runs the core-skill audit, receipt ownership checks,
 the two stress commands, and a focused performance capture. The capture is
 bound to the exact source commit, enforces worker spawn budgets, and is
 uploaded as a retained artifact before enforcement.

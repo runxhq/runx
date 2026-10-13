@@ -33,7 +33,7 @@ On macOS or Linux, choose a temporary receipt directory and run the skill:
 ```bash
 export RUNX_RECEIPT_DIR="$(mktemp -d)"
 runx skill ./examples/hello-world \
-  --message "hello from docs" \
+  -i message="hello from docs" \
   --json
 ```
 
@@ -57,9 +57,9 @@ runx history <receipt-id> --json
 ```
 
 The `runx.receipt_inspection.v1` projection should show the receipt status,
-authority, decisions, acts, the seal's reason code and criteria, and local
-issuer verification. It
-does not reproduce the execution input or output body.
+authority, decisions, acts, the seal's criteria (and its reason, when the
+disposition alone does not say why), and local issuer verification. It does
+not reproduce the execution input or output body.
 
 ## Production Receipt Signing
 
@@ -93,7 +93,7 @@ runx history <receipt-id> --json
 ## Next
 
 - Use `runx new docs-demo --objective "Create a bounded
-  documentation decision skill"` to enter the canonical Skill Lab build lane.
+  documentation decision skill"` to enter the canonical `skill-build` lane.
   Runx inspects the catalog, returns an exact agent/resume handoff unless
   `--managed-agent` was explicitly authorized, and writes only the validated
   package. It never generates a placeholder module. To cold-start without
@@ -103,7 +103,7 @@ runx history <receipt-id> --json
   [Credentials](./credentials.md); agents and MCP use the same readiness path
   automatically.
 - Publish a ready skill from a public repo at https://runx.ai/x/publish, or run
-  `crates/target/debug/runx login --for publish` followed by
-  `crates/target/debug/runx registry publish ... --registry https://api.runx.ai`.
+  `runx login --for publish` followed by
+  `runx registry publish ./skills/<name> --registry https://api.runx.ai`.
   See [Publishing](./publishing.md) for the full local and hosted paths.
 - See [API Surface](./api-surface.md) for public package exports.

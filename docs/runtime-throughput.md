@@ -133,7 +133,7 @@ The hot-path runtime changes keep ownership narrow:
   verification, and receipt tree resolution.
 - TypeScript packages remain generated contracts, host/client wrappers,
   language-neutral extension helpers, and cloud/product code. Native authoring
-  plus Skill Lab own skill creation; deleted authoring and executor packages do
+  plus `skill-build` own skill creation; deleted authoring and executor packages do
   not remain as runtime bridges.
 - Arbitrary CLI and user subprocesses are not pooled.
 

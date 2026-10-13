@@ -90,9 +90,9 @@ state.
 ## Stop conditions
 
 - Wrong or ambiguous repository: stop with one target-resolution blocker.
-- No GitHub instance selected: return the exact `runx connector use github
-  --session` or `runx credential set github` handoff; do not cycle through
-  unrelated skills.
+- No GitHub instance selected: return the exact `runx connector use runx/github
+  --session` or `runx connector use runx/github --credential token` handoff; do
+  not cycle through unrelated skills.
 - Dirty or conflicting branch state: stop before mutation and preserve the
   evidence already gathered.
 - Failed tests or failed/stale finalize: return blocked or failed, never

@@ -15,9 +15,9 @@ demos, runnable previews, and fixture support.
 | Demo | Proof | Run | Gate |
 | --- | --- | --- | --- |
 | `examples/hello-world` | Native CLI top-level skill and harness baseline. | `runx harness examples/hello-world` | harness |
-| `skills/data-store` | A provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope. | `runx harness skills/data-store/fixtures/append-read-sqlite-event.yaml` | harness |
-| `skills/nws-weather-forecast` | The official NWS skill reads through its `national-weather-service` connector and seals stable provider metadata. | `runx harness skills/nws-weather-forecast/fixtures/nws-forecast-washington-monument.yaml` | live external |
-| `examples/loop-orchestration` | A bounded outer loop submits governed runx turns, prints receipt ids and next-turn reasons, demonstrates `context_skills`, and includes a refusal path. | `sh examples/loop-orchestration/run.sh` | harness |
+| `skills/data-store` | A provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope. | `runx harness skills/data-store/fixtures/append-read-default-sqlite-event.yaml` | harness |
+| `skills/nws-weather-forecast` | The runx-maintained NWS skill reads through its `national-weather-service` connector and seals stable provider metadata. | `runx harness skills/nws-weather-forecast/fixtures/nws-forecast-washington-monument.yaml` | live external |
+| `examples/loop-orchestration` | A bounded outer loop submits governed runx runs, prints receipt ids and next-turn reasons, demonstrates `context_skills`, and includes a refusal path. | `sh examples/loop-orchestration/run.sh` | harness |
 
 ## Payment Contract Proof
 

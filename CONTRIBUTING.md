@@ -138,7 +138,7 @@ Lab and leaves the target untouched until the exact package validates:
 runx new docs-demo --objective "Create a bounded documentation decision skill"
 ```
 
-Community skills should be authored as standalone packages; the runx repo itself is the first-party lane for official skills, runtime code, tests, and examples.
+Community skills should be authored as standalone packages; the runx repo itself is the lane for runx-maintained skills, runtime code, tests, and examples.
 
 The first runnable example is documented in [docs/getting-started.md](docs/getting-started.md). The generated package export index is in [docs/api-surface.md](docs/api-surface.md).
 

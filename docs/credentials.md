@@ -92,24 +92,32 @@ and the operation's implementation digest in the receipt includes it.
 
 ## Binding an account
 
-An instance binds a connector to one account. There are three ways to make
-one:
+An instance binds a connector to one account, and `runx connector use` is the
+one place it is made. Four sources can back it:
 
 ```bash
-# A stored credential profile, secret on stdin.
+# A local secret: stored as a profile (named after the connector unless
+# --profile names it) and bound as the instance. The secret is read from stdin.
 printf '%s' "$TWITTER_USER_AUTH" |
-  runx credential set twitter --credential user --from-stdin
+  runx connector use runx/twitter --credential user --profile work
 
-# Reuse a profile already stored in Runx home without entering its secret again.
-runx connector use twitter --profile twitter --scope twitter:read
+# An instance, profile or grant confirmed earlier, by its id or name. It
+# serves what it was confirmed for; --scope narrows only a new one.
+runx connector use runx/twitter work
 
 # The account a local CLI is signed in to (for example `gh auth token`),
 # serving every scope its credential serves, or only those --scope names.
-runx connector use github --session --scope repo.read
+runx connector use runx/github --session --scope repo.read
 
-# An active runx Connect grant.
-runx connector use github --grant <grant-id>
+# A new runx Connect grant: prints the authorization link, waits up to two
+# minutes, and binds the grant. If it is not authorized yet, use prints the
+# command that finishes it.
+runx connector use runx/github --hosted --scope repo.read --target acme/app
 ```
+
+With nothing named, `runx connector use runx/github` takes the one available
+path, and refuses with the exact forms when there are several. It never
+switches accounts silently.
 
 A plugin's own connectors are bound from inside the plugin: run these
 commands in the plugin root or below it, and the instance is recorded in the
@@ -118,14 +126,14 @@ and an instance is recorded for the qualified connector, such as `acme/notes`,
 at the exact manifest and connector digests it was confirmed for; a changed
 connector needs its instance confirmed again.
 
-`runx credential set` checks the secret against the declaration's `kind` and
-`fields`, stores it as a profile (named after the connector unless `--profile`
-says otherwise), and selects it as the connector's instance. `--scope` narrows
-what the instance may do. A run uses the selected instance and never falls back
-to another instance or account.
-`runx connector revoke <instance>` disables an instance without deleting the
-credential profile or its prior receipts. Reconfirm the profile explicitly to
-use it again.
+`runx connector use --credential` checks the secret against the declaration's
+`kind` and `fields`, stores it as a profile, and selects it as the connector's
+instance. `--scope` narrows what the instance may do, and `--parameter` pins a
+value the connector's requests take. A run uses the selected instance and never
+falls back to another instance or account.
+`runx connector revoke <name>` removes one instance, one profile (and the
+instances that hold it) or one grant (and the instances that stand for it).
+Prior receipts are kept.
 
 An instance pins what it was confirmed for: the stored material, where the
 credential may be sent, what each operation means, and, for a plugin's
@@ -138,13 +146,15 @@ Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind
 the account in the same project the runs use.
 
-Inspect or remove profiles without exposing material:
+See every authority source, or remove one, without exposing material:
 
 ```bash
-runx credential list --json
-runx credential remove twitter
-runx connector instances --json
+runx connector list --json
+runx connector revoke runx/twitter
 ```
+
+`list` shows each connector in reach with the instance it uses, then every
+instance, the local profiles and the signed-in account's Connect grants.
 
 ## Readiness
 
@@ -197,9 +207,12 @@ normal admission and recovery checks still apply.
 A Connect grant keeps provider material in Cloud. An operation on the hosted
 placement sends the call to runx Connect, which renders the connector's own
 declared request for it and presents the grant's token; it renders nothing a
-manifest does not declare. The `runx connect` command manages grant setup,
-status, listing, and revocation, and `runx connector use <connector> --grant`
-makes an active grant an instance. Delegated OAuth uses the configured gateway;
+manifest does not declare. `runx connector use <connector> --hosted` opens a
+grant (with `--credential <name>` when the hosted placement takes your own
+key), `runx connector use <connector> <grant-id>` makes an active grant an
+instance, `runx connector list` shows the account's grants, and
+`runx connector revoke <grant-id>` removes one. Delegated OAuth uses the
+configured gateway;
 a stored-key placement loads the exact grant's encrypted material and presents
 the manifest's bearer or named header through the existing bounded HTTP path.
 Neither path searches for a replacement account when the binding is unavailable.
@@ -219,13 +232,15 @@ result fields into the receipt. This is mandatory for secret-adjacent
 operations and useful whenever provider evidence must bind to one exact
 repository, message, post, charge, or other resource.
 
-## Model and API tokens
+## Model keys and the runx account
 
-Managed-agent and public API tokens use the same stdin rule:
+The managed agent's model key uses the same stdin rule:
 
 ```bash
 printf '%s' "$ANTHROPIC_API_KEY" |
   runx config set agent.api_key --from-stdin
 ```
 
-No Runx secret-setting command accepts raw material on argv.
+A runx account credential is stored by `runx login`, bound to its principal and
+API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. No Runx
+secret-setting command accepts raw material on argv.

@@ -27,9 +27,9 @@ Example:
 
 ```bash
 runx skill ./skills/skill-adopt generate --json \
-  --input skill_path=vendor/acme/SKILL.md \
-  --input-json upstream='{"host":"github.com","owner":"acme","repo":"project","path":"SKILL.md","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_of_truth":true,"html_url":"https://github.com/acme/project/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md","raw_url":"https://raw.githubusercontent.com/acme/project/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md"}' \
-  --input-json registry='{"owner":"acme","trust_tier":"community","version":"upstream-aaaaaaaa"}'
+  -i skill_path=vendor/acme/SKILL.md \
+  -i upstream='{"host":"github.com","owner":"acme","repo":"project","path":"SKILL.md","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_of_truth":true,"html_url":"https://github.com/acme/project/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md","raw_url":"https://raw.githubusercontent.com/acme/project/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md"}' \
+  -i registry='{"owner":"acme","trust_tier":"community","version":"upstream-aaaaaaaa"}'
 ```
 
 If the run yields `needs_agent`, continue with the exact `runx resume` command

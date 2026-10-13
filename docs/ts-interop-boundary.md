@@ -17,7 +17,7 @@ environment, and credential material to trusted host processes, then reports
 them honestly without a filesystem, network, or syscall-confinement claim.
 TypeScript remains for generated contracts, CLI/client wrappers,
 cloud/product integrations, host adapters, docs, and narrow helper SDKs over
-language-neutral external protocols. Native authoring plus Skill Lab own skill
+language-neutral external protocols. Native authoring plus `skill-build` own skill
 creation and improvement. TypeScript does not own a parallel authoring service
 or a local executor-package fallback for trusted local behavior.
 

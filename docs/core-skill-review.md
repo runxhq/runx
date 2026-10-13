@@ -4,7 +4,7 @@ Human-reviewed product decision record, dated 2026-07-20 and updated
 2026-10-04 for the Google Calendar read binding. This document is not
 regenerated from a parallel JavaScript model of Runx execution; current
 structural truth comes from native package validation, operator-context
-expansion, the official lock, and package harnesses.
+expansion, the runx-maintained lock, and package harnesses.
 
 The product review below is a historical snapshot of 83 top-level packages,
 79 public and four internal. It is not a current release-readiness claim.
@@ -118,7 +118,7 @@ Five overlapping or under-owned package names were retired after their useful be
 - `skill-testing` moved into `skill-review`, which now owns native inspection, safe harness execution, and evidence-bounded assessment.
 - `evolve` was retired because its shipped surface stopped at shallow repository inspection plus spec planning; use `work-plan` for bounded planning, `skill-build` for skill changes, and the named downstream execution lane for mutation.
 
-The official lock, generated Rust catalog, packet schemas, documentation, and consumers now point only at the canonical owners. No generic host authoring guidance was copied into Runx: a host `skill-creator` may guide the agent, while `skill-build` remains the only portable Runx implementation. `SKILL.md` is the sole static agent-instruction source; execution profiles contain only tasks, typed contracts, tools, context, authority, and effects. Skill Lab delegates workspace inspection and exact-candidate application to native catalog tools. Native apply reports measured before/after package complexity, stages the complete candidate, parses its contracts, runs the existing in-process harness, and only then commits the same bytes through one rollback-capable filesystem transaction. Skill Lab keeps executable package code to irreducible domain computation and stops a generic gap as `needs_core`; native apply enforces objective safety rather than model-authored architecture prose.
+The runx-maintained lock, generated Rust catalog, packet schemas, documentation, and consumers now point only at the canonical owners. No generic host authoring guidance was copied into Runx: a host `skill-creator` may guide the agent, while `skill-build` remains the only portable Runx implementation. `SKILL.md` is the sole static agent-instruction source; execution profiles contain only tasks, typed contracts, tools, context, authority, and effects. `skill-build` delegates workspace inspection and exact-candidate application to native catalog tools. Native apply reports measured before/after package complexity, stages the complete candidate, parses its contracts, runs the existing in-process harness, and only then commits the same bytes through one rollback-capable filesystem transaction. `skill-build` keeps executable package code to irreducible domain computation and stops a generic gap as `needs_core`; native apply enforces objective safety rather than model-authored architecture prose.
 
 ## How this review was performed
 

@@ -27,22 +27,24 @@ operator dogfood. It should feel direct, literal, and governed:
 
 ```bash
 runx skill weather-forecast \
-  --input location="Sydney, AU" \
-  --input-json forecast_evidence='{"provider":"example","periods":[]}' \
+  -i location="Sydney, AU" \
+  -i forecast_evidence='{"provider":"example","periods":[]}' \
   --json
 
 runx skill nws-weather-forecast forecast \
-  --office LWX \
-  --grid-x 97 \
-  --grid-y 71
+  -i office=LWX \
+  -i grid_x=97 \
+  -i grid_y=71
 ```
 
 Operator rules:
 
 - Bare local skill names resolve from the current workspace's `skills/`
   directory.
-- `--input key=value` is the documented portable form; direct flags such as
-  `--office LWX` remain the ergonomic shorthand.
+- `-i name=value` gives one input, read by the type its runner declares: a
+  string as written, any other type as JSON. `--inputs file|-` gives the whole
+  input object instead. A flag runx does not own is refused, never read as an
+  input.
 - `runx skill <skill> <runner>` selects a non-default runner without changing the skill
   package.
 - `--json` prints the full machine contract. Without `--json`, the CLI prints a
@@ -55,13 +57,14 @@ Operator rules:
   `--registry`; bare names stay local or resolve to the runx-maintained skills.
   Unsigned or digest-mismatched registry packages are search/read metadata only
   and fail before execution.
-- `runx registry read`, `runx registry resolve` and `runx add <ref>` print a
-  compact human view that names the selected source, skill id, version,
-  digest, trust tier, signature key id when present, and destination or next
-  action. Use `--json` for the full registry contract.
-- `runx doctor registry [--json]` reports the selected registry target,
-  official-skill cache root, global registry cache root, trusted manifest key
-  readiness by key id, and remote install identity readiness. It names the env
+- `runx registry search` and `runx registry install <ref>` print a compact
+  human view that names the selected source, skill id, version, digest, trust
+  tier, signature key id when present, and destination or next action, and
+  `runx skill inspect <ref>` shows one package. Use `--json` for the full
+  registry contract.
+- `runx doctor registry [--json]` reports the selected registry target, the
+  project's skills directory, trusted manifest key readiness by key id, and
+  remote install identity readiness. It names the env
   vars to set but never prints raw manifest public keys.
 
 ## Hosted Connector Contract
@@ -391,12 +394,12 @@ an explicit custom overlay:
 - planned directory clients render as `catalog` until the package/app/listing is
   actually public; only local or CI surfaces that work today can render as
   `byo-ready`
-- `runx connect` is reserved for provider credentials and grants. It is not the
-  way a workflow orchestrator connects to runx. n8n/Zapier/Make/Pipedream use
-  scoped runx API credentials to call hosted run-skill endpoints; runx then uses
-  provider grants internally. Custom directory slugs are reserved from provider
-  connect routing to avoid turning `runx connect zapier` into a contradictory
-  provider-auth path.
+- `runx connector use` is reserved for provider credentials and grants. It is
+  not the way a workflow orchestrator connects to runx. n8n/Zapier/Make/Pipedream
+  use scoped runx API credentials to call hosted run-skill endpoints; runx then
+  uses provider grants internally. Custom directory slugs are reserved from
+  provider connect routing, so a `zapier` connector is never a second way for
+  Zapier to reach runx.
 
 The pages should explain:
 

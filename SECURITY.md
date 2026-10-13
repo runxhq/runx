@@ -10,7 +10,7 @@ connector. The receipt crate itself has no network access by design.
 Connectors declare the credentials they accept; operators bind an account to a
 connector as an instance, from a stored profile, a signed-in local session, or a
 runx Connect grant. Secret values are accepted only on stdin by
-`runx credential set`; encrypted local material is never written to manifests,
+`runx connector use --credential`; encrypted local material is never written to manifests,
 argv, receipts, or resume checkpoints. See [Credentials](docs/credentials.md).
 
 Authority narrows at every hop. A hop's scopes are a subset of the grant it inherits, and widening is denied by construction, so a skill deep in a graph cannot reach past the authority its caller held. Every act produces a signed, reproducible receipt.

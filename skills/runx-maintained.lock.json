@@ -78,8 +78,8 @@
   },
   {
     "skill_id": "runx/data-store",
-    "version": "sha-c28aafd4d1e8",
-    "digest": "07cc9813b2671e5dbbb00c6b22599da8d8cd00bfeba58f9d37952466c1262c37",
+    "version": "sha-eedcc3f88164",
+    "digest": "6189002404a43ce1526f2b03fd615243850d6b37ba0415e63f5467fdb32b6ba6",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -190,8 +190,8 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-75db59de05ad",
-    "digest": "8b21e2309d584d643989be616bcef2696375fa344fbe4d67fddaa8fd79fad9a0",
+    "version": "sha-f2fd053ebb92",
+    "digest": "eae16953ff145b514d4a990ee537a974d4db3e8c9e5123a4dc312c7433242754",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -246,15 +246,15 @@
   },
   {
     "skill_id": "runx/moltbook",
-    "version": "sha-5921fd9cfc3c",
-    "digest": "f8ab65090f7999692eaa9fd9779290883e723f67eacf349f26f4e9f47075e7c6",
+    "version": "sha-deb9b80cb450",
+    "digest": "b54d14eac04361efa4e78fe03c42194a8ad5366f52e947a0f001da0efb3e24e8",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/n8n-handoff",
-    "version": "sha-e8a1734e66f0",
-    "digest": "bc8620816fd239237b9b31d4c5d4c286926c0b714e8f469760a5a5784d2af2a1",
+    "version": "sha-59b19925db39",
+    "digest": "e1f03f5a2599b9c5fca972345c360a2c8c8e5ef502f4d4eb3bb803360a7915eb",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -463,8 +463,8 @@
   },
   {
     "skill_id": "runx/stripe-pay",
-    "version": "sha-47b55ae405bd",
-    "digest": "964d56b471a1d22891eba8b55c9bbb4b66e1016a30e68827a4d0416210469140",
+    "version": "sha-1a38c194a869",
+    "digest": "b87bd960cb742719dccd2d8d91a3ccd272af4f613b1cfc3cf66e7845a8a3d81c",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
@@ -477,8 +477,8 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-e5bedb7618a5",
-    "digest": "c38123baec8101a8c1d38c2f46abb08fcb30730658e245c6b9693f1217677400",
+    "version": "sha-efe5cc79b2ea",
+    "digest": "04e98ef53db19a8df61f68010756e530538a3d7f69e1270e3d6ab3bbd1fb720a",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
@@ -540,8 +540,8 @@
   },
   {
     "skill_id": "runx/zapier-handoff",
-    "version": "sha-4e1e7dd4f262",
-    "digest": "83e7330b4ed8c8dab962b3ba175c78d37c65f96c1412ee15835d0518cac1079d",
+    "version": "sha-421c842645ce",
+    "digest": "73d1148ae7f051b4a48856a5def50242c3f6713d8802e74f51e165b8e9548c89",
     "catalog_visibility": "public",
     "catalog_role": "context"
   }

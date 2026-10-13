@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Loop orchestration demo: a local loop host chains ordinary governed runx turns.
+# Loop orchestration demo: a local loop host chains ordinary governed runx runs.
 # No provider key, no network, no resident kernel loop.
 set -eu
 

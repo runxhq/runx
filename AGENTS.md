@@ -132,7 +132,7 @@ shims for governed wire shapes.
 
 ### Generic Stateful Effects
 
-Official skills that drive stateful apps emit generic effect transition packets.
+Runx-maintained skills that drive stateful apps emit generic effect transition packets.
 Put product identity in `effect_family` and the runner/action in `operation`;
 do not add product-specific `AuthorityResourceFamily` variants or
 `runx.<product>.*` packet namespaces. The owning product declares state,
@@ -157,9 +157,9 @@ contract. See `docs/skill-quality-standard.md` for the review bar.
 Long-running agent workflows are loops over governed turns, not resident kernel
 loops. The loop host lives in an app, hosted service, local script, or external
 orchestrator. It owns scheduling, durable loop state, wakeups, projections, and
-stop policy. A runx turn is one skill or graph run with explicit inputs,
-authority, `allowed_tools`, optional `context_skills`, bounded model/tool
-rounds, approval gates, and one sealed receipt.
+stop policy. Each loop step is one skill or graph run with explicit inputs,
+authority, the tools and skills its limits declare, optional `context_skills`,
+bounded model/tool rounds, approval gates, and one sealed receipt.
 
 Handoffs are receipt-backed artifacts or tool-shaped results. Prior receipts and
 skill context are untrusted data for the next turn, not new authority. Do not add

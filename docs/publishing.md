@@ -155,8 +155,9 @@ runx treats it like every other governed action, with no special-casing:
 - Hosted publishing reruns the submitted package harness. Failed harness cases
   stop the write before a registry row is created.
 - The registry row stores immutable `digest`, `profile_digest`, and
-  `package_digest` values for the published package. `runx add` installs the
-  same allowlisted package files that hosted runx validated. Signed run receipts
+  `package_digest` values for the published package. `runx registry install`
+  and `runx skill <ref>` add the same allowlisted package files that hosted
+  runx validated. Signed run receipts
   and hosted verified-run evidence are separate signals recorded when the skill
   is executed.
 - When a contributor-owned package is accepted into the Runx repository,
@@ -182,8 +183,8 @@ runx treats it like every other governed action, with no special-casing:
 - Confirm it resolves:
   ```bash
   runx registry search <your-skill>
-  runx registry read <publisher>/<skill>@<version> --json
-  runx add <publisher>/<skill>@<version>  # the friendly install path
+  runx skill inspect <publisher>/<skill>@<version> --json
+  runx registry install <publisher>/<skill>@<version>
   ```
 
 Before opening a first-party skill PR, check the live catalog and the

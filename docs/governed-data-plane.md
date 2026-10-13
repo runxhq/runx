@@ -37,8 +37,8 @@ stdin, never as part of the URL:
 
 ```bash
 printf '%s' "$BOARD_DB_PASSWORD" |
-  runx credential set store --credential password \
-    --parameter url=postgres://board@db.internal:5432/board --from-stdin
+  runx connector use store --credential password \
+    --parameter url=postgres://board@db.internal:5432/board
 ```
 
 URLs are `sqlite:<path>` (relative to the workspace), `postgres://` or

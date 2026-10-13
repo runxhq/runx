@@ -2,7 +2,7 @@
 
 Architecture and contributor reference for the runx OSS repo: the CLI surface,
 the trusted Rust local runtime, generated contracts, extension protocols, SDKs,
-harness, local receipts, registry, official skills, and packaging. For the
+harness, local receipts, registry, runx-maintained skills, and packaging. For the
 overview and quickstart, start at the [README](../README.md).
 
 The npm CLI package is `@runxhq/cli` and exposes the `runx` binary.
@@ -15,7 +15,7 @@ Start with the checked-in hello-world skill:
 cargo build --manifest-path crates/Cargo.toml -p runx-cli
 export RUNX_RECEIPT_DIR="$(mktemp -d)"
 crates/target/debug/runx skill examples/hello-world \
-  --message "hello from docs" \
+  -i message="hello from docs" \
   --json
 ```
 
@@ -82,28 +82,27 @@ a runx workspace; bare skill names resolve from the current workspace's
 
 ```bash
 runx --help
-runx skill /path/to/runx/oss/fixtures/skills/echo --message hello --json
+runx skill /path/to/runx/oss/fixtures/skills/echo -i message=hello --json
 cd /path/to/runx/oss
-runx skill ./skills/skill-build design --objective "build sourcey docs skill" --json
+runx skill ./skills/skill-build design -i objective="build sourcey docs skill" --json
 ```
 
 Recommended flows:
 
 ```bash
-runx init
 runx new docs-demo --objective "Create a bounded documentation decision skill"
 runx list skills
-runx registry search sourcey --json
-runx skill sourcey/sourcey@1.0.0 --registry https://runx.example.test --json
-runx add sourcey/sourcey@1.0.0 --registry https://runx.example.test --to ./skills --json
+runx registry search weather --json
+runx skill acme/weather@1.0.0 --registry https://runx.example.test --json
+runx registry install acme/weather@1.0.0 --registry https://runx.example.test --json
 runx skill issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="Fix the failing build"
 runx resume <run-id> answers.json
 runx mcp --run <run-id>
 runx history
 runx history <receipt-id> --json
 runx mcp ./fixtures/skills/echo
-runx skill ./skills/skill-build design --objective "build github review skill"
-runx harness ./fixtures/harness/echo-skill.yaml
+runx skill ./skills/skill-build design -i objective="build github review skill"
+runx harness ./examples/hello-graph/harness.yaml
 runx config set agent.provider openai
 printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 ```
@@ -166,8 +165,8 @@ answers it under `approvals`, by the address the paused run lists.
 and the run continues. A run whose host authority sets `max_fanout` or
 `max_child_depth` refuses a skill call that would start more child runs in one
 turn, or nest them deeper, than it allows. A run started with `--managed-agent` is worked by the
-managed agent: `runx turn` refuses it, and `--managed-agent` cannot take over a
-run its host drives.
+managed agent: `runx mcp --run` refuses it, and `--managed-agent` cannot take
+over a run its host drives.
 
 Hosted and replay drivers may bind `runx skill` or `runx resume` with
 `--package-digest` and `--execution-closure-digest`. Runx recomputes both at the
@@ -219,9 +218,9 @@ environment-based auto-approval override; development configuration must not
 silently acquire live authority.
 
 Provider-backed skills list the connectors they call in `run.yaml`; bind an
-account with `runx credential set <connector> --credential <name>
---from-stdin` or `runx connector use`. See
-[Credentials](credentials.md) for the storage contract.
+account with `runx connector use <connector> --credential <name>` (the secret
+on stdin), `--session` or `--hosted`. See [Credentials](credentials.md) for the
+storage contract.
 
 Ctrl-C (or the terminal's configured interrupt shortcut) interrupts the whole
 active Runx context, including supervised tool, JavaScript, adapter, and MCP
@@ -275,7 +274,8 @@ instructions.
 
 ### Structured input documents
 
-Use per-key `--input` and `--input-json` flags for small interactive calls. For
+Use `-i name=value` for small interactive calls; each value is read by the type
+its runner declares, a string as written and any other type as JSON. For
 generated or reusable input, pass the complete runner input object through one
 workspace-contained JSON document:
 
@@ -284,7 +284,7 @@ runx skill ./skills/research research --inputs request.json --json
 cat request.json | runx skill ./skills/research research --inputs - --json
 ```
 
-`--inputs` is exclusive with every per-key input form. A file path is resolved
+`--inputs` is exclusive with `-i`. A file path is resolved
 relative to the invocation workspace and must identify one contained, regular,
 UTF-8 file. File and stdin input are capped at 64 MiB, must decode to exactly
 one JSON object, and then enter the same selected-runner defaulting and type
@@ -411,10 +411,10 @@ The intended extension model is:
 - CLI, API, and GitHub-comment triggers all normalize into the same capability
   execution envelope, while the thread stays the review/control object
 
-Sourcey is the reference shape for this model: from inside the Sourcey repo,
-`runx skill ./skills/outreach status --issue ...` resolves the local
-`skills/outreach` capability pack. `outreach` is not a privileged engine
-command, and there is no privileged `runx docs ...` path inside the engine.
+From inside a product repository, `runx skill ./skills/<workflow> <runner> -i
+name=value` resolves that repository's local capability pack. A workflow is
+never a privileged engine command: there is no `runx docs ...` or
+`runx outreach ...` path inside the engine.
 
 `issue-to-pr` follows the same boundary. runx owns the generic source-thread to
 scafld to PR machinery; service repos own Slack, Sentry, owner assignment, and
@@ -422,12 +422,14 @@ publish policy. See [docs/issue-to-pr.md](issue-to-pr.md).
 
 ## Standalone Skill Packages
 
-`runx new <name> --objective <outcome>` is a thin client of the canonical Skill
-Lab build lane. It inspects the target and catalog, requests a closed
+`runx new <name> --objective <outcome>` is a thin client of the canonical
+`skill-build` lane. It inspects the target and catalog, requests a closed
 architecture decision and change draft, binds both to the inspected package
 digest in native code, stages and harnesses the exact candidate, then applies
-the same bytes transactionally. The command owns no templates and never adds a
-placeholder JavaScript module:
+the same bytes transactionally, by default to `skills/<name>`. It runs exactly
+as `runx skill runx/skill-build` would. The command owns no templates and never
+adds a placeholder JavaScript module. Nothing needs initializing first: a
+repository or the `skills/` directory marks the project.
 
 ```bash
 runx new docs-demo --objective "Create a bounded documentation decision skill"
@@ -440,8 +442,8 @@ loop. To cold-start without installing Runx first, invoke the same command
 through `npx @runxhq/cli`.
 
 Community skills should be authored and published as standalone packages
-through this lane. The main `runx` repo is the first-party lane for official
-skills and runtime code, not the community package catalog.
+through this lane. The main `runx` repo is the lane for runx-maintained skills
+and runtime code, not the community package catalog.
 
 Prefer declarative graphs composed from native tools and existing skills. When
 irreducible deterministic domain computation needs JavaScript, declare a worker
@@ -458,7 +460,8 @@ metadata still travels with the registry row, but the user-facing install/search
 surface stays readable.
 
 `runx registry package <SKILL.md|skill-dir> --json` projects the exact
-parser-owned publish artifact without writing a registry row. Hosted and
+parser-owned publish artifact without writing a registry row; given a
+`connector.yaml` or a directory holding one, it projects a connector instead. Hosted and
 third-party publishers should consume that output instead of implementing
 their own package-file discovery. A skill package carries each connector it
 declares at `connectors/<publisher>/<id>/` (its manifest, the tools its
@@ -467,24 +470,23 @@ its metadata binds every declared connector by `ref`, `version`,
 `manifest_digest`, `connector_digest` and `runtime_capability`. Every package
 carries `runx.package.json`, which marks the installed package's root.
 
-`runx registry connector package <connector-dir> --json` projects a connector
-published on its own: the same files at the package root, the parsed manifest,
+`runx registry package <connector-dir> --json` projects a connector published
+on its own: the same files at the package root, the parsed manifest,
 its content digest (over every file, which names the version and which the
 registry signs), and its manifest, connector and operation digests. Its
 publisher is the namespace the nearest `plugin.json` declares.
 
-Connectors are published only to a hosted registry, so `publish`, `read` and
-`install` take `--registry <url>` or `RUNX_REGISTRY_URL`:
+Connectors are published only to a hosted registry, so publishing and
+installing one take `--registry <url>` or `RUNX_REGISTRY_URL`:
 
-- `runx registry connector publish <connector-dir> [--version <label>]` sends
-  that package; the registry reads it natively, publishes it under the
-  authenticated publisher's namespace, and the CLI checks the recorded ref and
-  content digest are the package's. A missing label is `sha-` and the first 12
-  hex digits of the content digest.
-- `runx registry connector read <publisher>/<id>[@version]` shows the current
-  version, or the one named.
-- `runx registry connector install <publisher>/<id>[@version] [--digest <content-digest>]`
-  adds the version to the project's connectors directory,
+- `runx registry publish <connector-dir> [--version <label>]` sends that
+  package; the registry reads it natively, publishes it under the authenticated
+  publisher's namespace, and the CLI checks the recorded ref and content digest
+  are the package's. A missing label is `sha-` and the first 12 hex digits of
+  the content digest.
+- `runx registry install <publisher>/<id>[@version] [--digest <content-digest>]`
+  adds what is published under that name. For a connector, the version goes to
+  the project's connectors directory,
   `connectors/<publisher>/<id>/<version>/`. The signed manifest
   must name that connector (never a skill), version and content digest under a
   trusted key scoped to its publisher, and the staged files must load and
@@ -494,8 +496,8 @@ Connectors are published only to a hosted registry, so `publish`, `read` and
 
 A project keeps every package it runs in two directories beside its source.
 `skills/` holds the skills you write (`skills/<name>/`), every skill added
-from a registry by `runx add`, by running a registry ref or as a registry
-step's child (`skills/<owner>/<name>/<version>/`), and the core skills this
+from a registry by `runx registry install`, by running a registry ref or as a
+registry step's child (`skills/<owner>/<name>/<version>/`), and the core skills this
 release carries, added as `skills/runx/<name>/<version>/` when first used.
 `connectors/` holds your own connectors (`connectors/<id>/`), installed ones
 (`connectors/<publisher>/<id>/<version>/`) and the runtime capability
@@ -504,14 +506,14 @@ connectors (`store`, `web`, `vault`, `artifact`) a skill uses, added as
 every read. Every other connector, runx-maintained ones included, is a
 published package: a published skill carries the connectors it binds, and a
 local skill names one by its publisher (`runx/github`) once
-`runx registry connector install` has added it. A version directory is written once; other bytes under it are
-refused. The runx home keeps keys, configuration and state, not packages.
+`runx registry install` has added it. A version directory is written once;
+other bytes under it are refused. The runx home keeps keys, configuration and state, not packages.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new
 first-party skill.
 
-## Skill And X Model
+## Skill And Execution Profile
 
 Executable skills split authored skill content from execution profiles. A
 package's `run.yaml` is its execution profile:
@@ -643,9 +645,11 @@ protocol; it does not declare or regenerate the manifest.
 
 ```bash
 runx tool build --all --json
-runx dev --lane deterministic --json
-runx dev --lane repo-integration --json
+runx harness ./skills/<skill-that-calls-the-tool> --json
 ```
+
+A tool is proved through the skill that calls it: that skill's harness
+fixtures run the tool on the path a user runs.
 
 When a `run.mjs` entrypoint is needed, it is a thin process shim and owns no
 contract metadata. `runx tool build` is read-only: it validates the source
@@ -655,9 +659,9 @@ wrap a capability already owned by the native catalog. The declared entrypoint
 must run directly on the supported Node runtime; do not probe for build output
 or import uncompiled TypeScript.
 
-## Official Packages
+## Runx-Maintained Packages
 
-The official catalog is explicit about why each package is public:
+The runx-maintained catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
   `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
@@ -685,13 +689,12 @@ Each ships as a portable `SKILL.md` plus a colocated execution profile at
 `skills/<skill>/run.yaml` when it exposes deterministic runners or inline harness
 coverage. Upstream skills that runx does not own keep their execution profiles
 under `bindings/<owner>/<skill>/run.yaml` with adjacent `binding.json`
-governance metadata. Bare skill names resolve only to local workspace skills or
-locked first-party official shorthand. Third-party registry execution uses the
-explicit `owner/name@version` form, optionally with `--registry` and
-`--digest`, and only trusted signed registry packages are materialized into the
-runnable cache. Official skills are registry-backed and cached locally on first
-acquisition. The npm CLI package no longer needs to ship the official runtime
-skill bodies for normal execution.
+governance metadata. Bare skill names resolve to the workspace's own skills or
+to the core skills this release carries, which are added under
+`skills/runx/<name>/<version>/` when first used. Every other package runs by
+its `owner/name[@version]` ref, optionally with `--registry` and `--digest`;
+only a trusted, signed registry package is added to the project, at
+`skills/<owner>/<name>/<version>/`.
 
 Agent graphs can also demand-load skills as context instead of executing them.
 Put reusable judgement, operating procedure, or capability skills in the local
@@ -717,8 +720,8 @@ Graph steps can execute local-registry skills too:
 ```yaml
 steps:
   - id: build_docs
-    skill: registry:sourcey/sourcey
-    runner: sourcey
+    skill: registry:acme/docs-build
+    runner: build
 ```
 
 This uses the same explicit local-registry rule: set `RUNX_REGISTRY_DIR`, sync or
@@ -728,7 +731,7 @@ project's `skills/<owner>/<name>/<version>/` like any other added skill.
 Any runnable skill package can also be exposed locally as an MCP tool with:
 
 ```bash
-runx mcp serve ./skills/issue-triage
+runx mcp ./skills/issue-triage
 ```
 
 That MCP surface is a thin facade over the normal runx kernel path, so receipts,
@@ -784,7 +787,7 @@ Pass a fixture YAML path instead when intentionally replaying one standalone
 case:
 
 ```bash
-runx harness ./fixtures/harness/echo-skill.yaml --json
+runx harness ./examples/hello-graph/harness.yaml --json
 ```
 
 Fixtures can assert the terminal status, receipt identity and lineage, exact or
@@ -824,7 +827,7 @@ case, not proof of a provider action; the fixture must still assert only what
 the verified receipts and runner output establish.
 
 A case's `caller` stands in for the host and the world. It is one shape in
-fixture files, inline runner cases and dev fixtures:
+fixture files and inline runner cases:
 
 - `act`: the act the caller states for the run, which its steps read as
   `$act`;
@@ -835,14 +838,14 @@ fixture files, inline runner cases and dev fixtures:
   request each decides: an operation step's id or an ask's gate at the root,
   and `<path>#<id>` in a child run, `<path>` being its place under the root,
   such as `send#post`;
+- `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
+  requests reach, described below.
 
 An answer or a turn script keyed by an id answers that request in every run of
 the case that asks it. A key may instead be an address, such as
 `answer/0#answer`, which answers only the request at that place
 in the run and wins over an id. An approval decides only the request it
 names.
-- `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
-  requests reach, described below.
 
 A worked turn makes each call through the turn, as an attached agent would,
 then ends with its `output`. A call names a tool the turn offers, by the name
@@ -938,13 +941,14 @@ coverage.
 ## Build And Pack
 
 ```bash
-pnpm build
 pnpm test tests/cli-package.test.ts
 cd packages/cli
 npm pack --dry-run --json
 ```
 
-The package must include `dist/index.js` and `dist/index.d.ts`, and `dist/index.js` must be executable.
+The package ships only the launcher (`bin/runx`, which must be executable),
+`native/supported-platforms.json` and `LICENSE`; the native binary comes from
+the platform package that matches the machine.
 
 ## Boundary Rules
 
@@ -953,8 +957,7 @@ The package must include `dist/index.js` and `dist/index.d.ts`, and `dist/index.
 - Rust owns trusted local runtime/execution, including exact process
   supervision, receipts, policy, authority, payment, harness, and built-in
   adapters.
-- TypeScript runtime-local and adapters packages must not be fallback
-  executors for trusted local behavior.
+- No TypeScript package is a fallback executor for trusted local behavior.
 - Tools own their side effects behind language-neutral manifests and process
   contracts; non-execution extension lanes have their own protocol contracts.
 - External extension authors must not need Rust, a `runx-core` or

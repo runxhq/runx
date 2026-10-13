@@ -74,7 +74,8 @@ before any downstream action.
   `zapier:zap:runx-governed-effect`.
 
 The Catch Hook URL is the `zapier` connector's `catch_hook` credential, bound
-once with `runx credential set zapier --credential catch_hook --from-stdin`.
+once with `runx connector use runx/zapier --credential catch_hook`, the URL on
+stdin.
 It never enters the run's inputs, records or receipts.
 
 `event_id` is also the Runx mutation idempotency key and the value delivered as

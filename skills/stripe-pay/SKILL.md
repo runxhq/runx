@@ -23,7 +23,7 @@ without hosted mutation plus provider readback.
 
 ## Operator guide
 
-Use `mock-pay` only for deterministic local tests. For real Stripe execution,
+Use the `fixtures/skills/mock-pay` fixture only for deterministic local tests. For real Stripe execution,
 use this skill with an explicitly configured hosted Stripe grant. Stop on
 missing authority, profile, approval, hosted binding, or consistent readback,
 and never pass Stripe secrets in skill input.

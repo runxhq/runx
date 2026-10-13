@@ -27,13 +27,14 @@ hosted/cloud layer owns OAuth brokerage and hosted credential custody.
   redaction. Its provider-neutral hosted client authenticates the operator,
   reads opaque grant metadata, and invokes one registered operation without
   receiving provider credentials.
-- `runx-cli` keeps the native OSS CLI shape. `runx connect` is a client of the
-  hosted grant lifecycle; it does not perform OAuth brokerage. `runx credential`
-  stores local profiles as connector instances.
+- `runx-cli` keeps the native OSS CLI shape. `runx connector use --hosted` is a
+  client of the hosted grant lifecycle; it does not perform OAuth brokerage.
+  `runx connector use --credential` stores a local profile as a connector
+  instance.
 - `runx-sdk` does not expose hosted connect-list APIs.
 - Public payment skills keep only thin v1 hosted operation contracts. Internal
-  `mock-*` packages are deterministic simulators and always report that no money
-  moved. There is no `runx-pay` crate or real payment rail in OSS.
+  `mock-*` fixtures under `fixtures/skills` are deterministic simulators and
+  always report that no money moved. There is no `runx-pay` crate or real payment rail in OSS.
 
 ## Denied OSS Surface
 

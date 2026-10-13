@@ -70,8 +70,8 @@ Use the CLI when you are preparing work or checking for overlap:
 
 ```bash
 runx registry search "cve audit" --registry https://api.runx.ai --json
-runx registry read runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai --json
-runx add runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai
+runx skill inspect runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai --json
+runx registry install runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai
 runx skill runx/cve-audit@sha-e11c90bbeb16 --registry https://api.runx.ai --json
 ```
 
@@ -82,12 +82,12 @@ The command shape is deliberate:
 | Browse the catalog | `https://runx.ai/x` |
 | Browse one category | `https://runx.ai/x?category=<slug>` |
 | Search from a terminal | `runx registry search <query>` |
-| Inspect one package | `runx registry read <owner>/<name>@<version>` |
-| Install package material | `runx add <owner>/<name>@<version>` |
+| Inspect one package | `runx skill inspect <owner>/<name>@<version>` |
+| Install package material | `runx registry install <owner>/<name>@<version>` |
 | Execute a local or registry skill | `runx skill <path-or-ref>` |
 
-Do not combine the install and execution verbs. Installation is `runx add`;
-execution is `runx skill`.
+Running a registry ref fetches it, so most work needs no install.
+`runx registry install` adds a package without running it.
 
 ## Operator-first package contract
 
@@ -148,7 +148,7 @@ Name a skill so an agent instinctively reaches for the right one:
   drops go in the `description`.
 
 Renaming an existing skill is a `git mv`, a token sweep, and a regenerate
-(`packet-schemas`, `official-lock`) plus `verify:fast` and the harness. For a
+(`packet-schemas`, `runx-maintained-lock`) plus `verify:fast` and the harness. For a
 maintained `runx/*` skill the hosted registry row is preserved (its
 `created_at` and version history carry across) during the operator deploy, so a
 rename never resets the row.
@@ -249,7 +249,6 @@ publisher identity without making runx maintain it. Community packages can still
 be used immediately:
 
 ```bash
-runx add <owner>/<skill>@<version> --registry https://api.runx.ai
 runx skill <owner>/<skill>@<version> --registry https://api.runx.ai --json
 ```
 
@@ -265,7 +264,7 @@ When reviewing a skill PR, maintainers should check:
 - the public registry search does not already return a maintained equivalent;
 - any overlap is explicitly explained in the PR body;
 - the package contains only consumable skill material;
-- `runx add` installs the same files that hosted publish validated;
+- `runx registry install` adds the same files that hosted publish validated;
 - `runx skill` executes the package or fails closed with a useful receipt;
 - public artifact URLs point to durable pages, not throwaway previews.
 

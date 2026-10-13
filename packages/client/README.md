@@ -36,9 +36,9 @@ Directory separation is not an operating-system sandbox.
 | Operation | Native command |
 | --- | --- |
 | `skills.inspect({ skillPath, runner? })` | `skill inspect` |
-| `skills.run({ skillPath, inputs?, receiptDir, binding? })` | `skill` |
+| `skills.run({ skillPath, inputs?, receiptDir, binding?, runner?, act?, context?, runId?, runAuthority? })` | `skill` |
 | `runs.resume({ runId, resolutions, receiptDir, binding? })` | `resume` |
-| `turns.server({ runId, receiptDir })` | `turn` (started by your MCP client) |
+| `turns.server({ runId, receiptDir })` | `mcp --run` (started by your MCP client) |
 | `packages.materialize({ skillPath })` | `registry package` |
 | `harness.run({ skillPath, receiptDir })` | `harness` |
 | `receipts.verify({ receipt, trust? })` | `verify --receipt - --trust home\|configured` |
@@ -46,8 +46,11 @@ Directory separation is not an operating-system sandbox.
 Each operation accepts `signal`. Configuration sets `timeoutMs`, combined
 `maxOutputBytes`, `maxInputBytes`, a total `maxArtifactBytes` budget and
 `terminationGraceMs` (one second by default).
-Input and resume packets use exclusive, private temporary files removed after
-the native process closes. Input keys are never converted into CLI flags.
+A run's inputs and a resume's resolutions travel to native on stdin, never in a
+file or on argv. Input keys are never converted into CLI flags. `act` states the
+act the run is invoked with, `context` gives it the caller's current and
+historical context (which informs the run and never grants authority), and
+`runId` pins its submission identity, so a retry continues the same run.
 The resume packet passes to native unchanged; the client does not assign actors,
 answer approvals, retry a mutation or reinterpret a checkpoint.
 
@@ -100,9 +103,9 @@ modules or framework SDKs. It does not invent run-state inspection or implement
 an assistant harness. `@runxhq/langchain` separately wraps a finite client call
 as a LangChain tool and leaves pending outcomes to the host.
 
-## Integration status
+## Status
 
-The extraction and hosted consumer tests cover the process and artifact
-boundary. The current core refactor is still in progress. Full native
-inspect/run/suspend/resume/verify proof against its `run.yaml` CLI release unit
-remains required before this package is accepted or published.
+`@runxhq/client` is published with each runx release from 0.10.0, at the
+version that release names. Its own tests drive the process and artifact
+boundary against a scripted stand-in for the native binary; runx Cloud's
+hosted runs drive it against the released CLI.
