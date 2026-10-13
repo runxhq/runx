@@ -379,38 +379,62 @@ fn wire_operations(
     resolve_fixture_path(&mut env, target_path)?;
     super::transport::seed_provider_grant(&fixture.caller, &scope, &env, target_path)
         .map_err(invalid_provider)?;
-    seed_harness_sessions(fixture, target_path, options, &transport)?;
-    seed_harness_credentials(fixture, target_path, options)?;
+    seed_harness_instances(fixture, target_path, options, &transport)?;
     Ok(transport.exchanges)
 }
 
-/// Confirm and select the session instances the case runs under, as
-/// `runx connector use` would, in the case's own kernel and
-/// with the fixture environment resolved as the run resolves it.
-fn seed_harness_sessions(
+/// Confirm and select the instances the case runs under, in the case's own
+/// kernel and home, with the fixture environment resolved as the run
+/// resolves it: each session as `runx connector use <connector> --session`
+/// would, and each credential, from the variable the case sets, as
+/// `runx connector use <connector> --credential` would.
+fn seed_harness_instances(
     fixture: &HarnessFixture,
     target_path: &Path,
     options: &HarnessOptions,
     transport: &super::provider_responses::HarnessTransport,
 ) -> Result<(), HarnessReplayError> {
-    if fixture.setup.sessions.is_empty() {
+    let setup = &fixture.setup;
+    if setup.sessions.is_empty() && setup.credentials.is_empty() {
         return Ok(());
     }
+    let failed = |error: String| RuntimeError::effect_state("setting up a harness instance", error);
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, target_path)?;
-    let setup = |error: String| RuntimeError::effect_state("confirming a harness session", error);
+    let paths = crate::paths::RunxPaths::resolve(&env, target_path);
+    let workspace = crate::services::WorkspaceEnv::new(env.clone(), target_path.to_path_buf())
+        .map_err(|error| failed(error.to_string()))?;
     let instances = crate::Instances::new(
-        crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
-            .map_err(|error| setup(error.to_string()))?,
+        crate::KernelStore::for_project(&paths).map_err(|error| failed(error.to_string()))?,
     );
     let scope = crate::ConnectorScope::at(target_path)
-        .map_err(|error| setup(error.to_string()))?
-        .in_project(crate::paths::RunxPaths::resolve(&env, target_path).connectors());
-    for connector in &fixture.setup.sessions {
-        let connector = scope
-            .connector(connector.as_str())
-            .map_err(|error| setup(error.to_string()))?;
+        .map_err(|error| failed(error.to_string()))?
+        .in_project(paths.connectors());
+    // A case names a connector as its skill's `connectors:` block keys it, a
+    // connector id or a qualified ref, and it resolves as the skill's
+    // operations resolve it, pinned manifest included.
+    let requirements = match fixture.kind {
+        HarnessFixtureKind::Skill => {
+            crate::skill_package::load_validated_skill_package(target_path)?
+                .manifest()
+                .map(|manifest| manifest.connectors.clone())
+                .unwrap_or_default()
+        }
+        HarnessFixtureKind::Graph => BTreeMap::new(),
+    };
+    let connector = |key: &str| {
+        match requirements
+            .get(key)
+            .filter(|requirement| requirement.connector_from.is_none())
+        {
+            Some(requirement) => scope.requirement(key, requirement),
+            None => scope.connector(key),
+        }
+        .map_err(|error| failed(error.to_string()))
+    };
+    for key in &setup.sessions {
+        let connector = connector(key)?;
         crate::kernel::setup::confirm_session_over(
             &instances,
             &connector,
@@ -419,38 +443,10 @@ fn seed_harness_sessions(
             &env,
             target_path,
         )
-        .map_err(setup)?;
+        .map_err(failed)?;
     }
-    Ok(())
-}
-
-/// Store and select the credentials the case runs under, as
-/// `runx connector use --credential` would, in the case's own home.
-fn seed_harness_credentials(
-    fixture: &mut HarnessFixture,
-    target_path: &Path,
-    options: &HarnessOptions,
-) -> Result<(), HarnessReplayError> {
-    if fixture.setup.credentials.is_empty() {
-        return Ok(());
-    }
-    let setup = |error: String| RuntimeError::effect_state("storing a harness credential", error);
-    let mut env = options.env.clone();
-    env.extend(fixture.env.clone());
-    resolve_fixture_path(&mut env, target_path)?;
-    let workspace = crate::services::WorkspaceEnv::new(env.clone(), target_path.to_path_buf())
-        .map_err(|error| setup(error.to_string()))?;
-    let instances = crate::Instances::new(
-        crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, target_path))
-            .map_err(|error| setup(error.to_string()))?,
-    );
-    let scope = crate::ConnectorScope::at(target_path)
-        .map_err(|error| setup(error.to_string()))?
-        .in_project(crate::paths::RunxPaths::resolve(&env, target_path).connectors());
-    for connector in &fixture.setup.credentials {
-        let connector = scope
-            .connector(connector.as_str())
-            .map_err(|error| setup(error.to_string()))?;
+    for key in &setup.credentials {
+        let connector = connector(key)?;
         let manifest = &connector.manifest;
         // The one declared credential whose variable the case itself sets.
         let mut set = manifest
@@ -464,9 +460,9 @@ fn seed_harness_credentials(
                     .map(|secret| (name, secret))
             });
         let (Some((name, secret)), None) = (set.next(), set.next()) else {
-            return Err(setup(format!(
+            return Err(failed(format!(
                 "the case sets the variable of exactly one of connector {}'s credentials",
-                manifest.id
+                connector.connector_ref
             ))
             .into());
         };
@@ -480,7 +476,7 @@ fn seed_harness_credentials(
             runx_contracts::JsonObject::new(),
             &workspace,
         )
-        .map_err(setup)?;
+        .map_err(failed)?;
     }
     Ok(())
 }

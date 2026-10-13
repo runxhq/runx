@@ -226,13 +226,16 @@ pub struct HarnessSetup {
     pub receipts: Vec<String>,
     /// Connectors whose local session the case confirms and selects before
     /// it runs, the way `runx connector use <connector> --session` would.
+    /// Each is named as the skill's `connectors:` block keys it: a connector
+    /// id, or a qualified `<publisher>/<id>` ref.
     #[serde(default)]
-    pub sessions: Vec<runx_contracts::connector::ConnectorId>,
+    pub sessions: Vec<String>,
     /// Connectors whose credential the case stores from its environment and
-    /// selects, the way `runx connector use --credential` would: the one declared
-    /// credential whose variable the case sets.
+    /// selects, the way `runx connector use --credential` would: the one
+    /// declared credential whose variable the case sets. Named as `sessions`
+    /// names them.
     #[serde(default)]
-    pub credentials: Vec<runx_contracts::connector::ConnectorId>,
+    pub credentials: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -746,6 +749,14 @@ fn validate_setup(setup: HarnessSetup) -> Result<HarnessSetup, HarnessFixtureErr
                 .map(|(index, connector)| (format!("setup.credentials[{index}]"), connector)),
         )
     {
+        if !runx_contracts::connector::is_connector_id(connector)
+            && !runx_contracts::connector::is_connector_ref(connector)
+        {
+            return Err(HarnessFixtureError::Invalid {
+                field,
+                message: "must name a connector id or a qualified <publisher>/<id> ref".to_owned(),
+            });
+        }
         if !connectors.insert(connector) {
             return Err(HarnessFixtureError::Invalid {
                 field,
