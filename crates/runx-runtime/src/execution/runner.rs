@@ -43,6 +43,30 @@ use graph_engine::GraphExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 
+/// One crash model for graph steps and turn calls: what reaches the world
+/// (an operation, a native tool, a trusted host process) is claimed before it
+/// runs, so one that never settles waits on its retry instead of running
+/// again unseen. Worker compute reaches nothing and simply runs again.
+pub(crate) fn reaches_world(kind: &runx_parser::StepKind) -> bool {
+    use runx_parser::{StepKind, ToolTarget};
+    matches!(
+        kind,
+        StepKind::Operation(_) | StepKind::Tool(ToolTarget::Catalog(_) | ToolTarget::Process(_))
+    )
+}
+
+/// The request a claimed step that never settled waits on.
+pub(crate) fn unsettled_retry(id: String, what: &str) -> runx_contracts::ResolutionRequest {
+    runx_contracts::ResolutionRequest::Retry {
+        id: id.into(),
+        reason: format!(
+            "{what} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
+        )
+        .into(),
+        retry_after_seconds: 0,
+    }
+}
+
 /// Why the run's delegation refuses a child run one level below this run.
 pub(crate) fn child_depth_refusal(options: &RuntimeOptions) -> Option<String> {
     let limit = options.run_authority.as_ref()?.max_child_depth?;

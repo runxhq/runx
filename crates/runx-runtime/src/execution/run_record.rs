@@ -201,6 +201,14 @@ enum HoldEvent {
         request: String,
         digest: String,
     },
+    /// The step reaches the world and was claimed before it ran. Until its
+    /// step event follows it may have run, so the run waits on this retry
+    /// rather than running it again unseen.
+    Claimed {
+        request_id: String,
+        request: String,
+        digest: String,
+    },
 }
 
 /// A call an agent made during its turn. A later event with the same index
@@ -740,6 +748,30 @@ impl RunLog {
         )
     }
 
+    /// The step reaches the world: claim it before it runs, under the version
+    /// this driver last read, so a second driver is refused before anything
+    /// runs and a step that never settles waits on `retry`.
+    pub(crate) fn record_claim(
+        &self,
+        step_id: &str,
+        attempt: u32,
+        retry: &ResolutionRequest,
+    ) -> Result<(), RunRecordError> {
+        let (request_id, blob, digest) = request_blob(retry)?;
+        self.append(
+            RunEvent::Suspended(Box::new(SuspendedEvent {
+                step_id: step_id.to_owned(),
+                attempt,
+                hold: HoldEvent::Claimed {
+                    request_id,
+                    request: blob.digest().to_owned(),
+                    digest,
+                },
+            })),
+            vec![blob],
+        )
+    }
+
     /// The step has not started; it waits for a bounded retry.
     pub(crate) fn record_retry(
         &self,
@@ -1168,6 +1200,17 @@ fn replay(
                             digest,
                         })
                     }
+                    // A claim no step event settled may have run: it waits on
+                    // its retry like any step that has not settled.
+                    HoldEvent::Claimed {
+                        request_id,
+                        request,
+                        digest,
+                    } => Hold::Retry(PendingRequest {
+                        id: request_id,
+                        value: store.blob_json(&request)?,
+                        digest,
+                    }),
                 };
                 record.suspension = Some(Suspension {
                     step_id: suspended.step_id,
@@ -1425,6 +1468,11 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
                 digest,
             }
             | HoldEvent::Retry {
+                request_id,
+                request,
+                digest,
+            }
+            | HoldEvent::Claimed {
                 request_id,
                 request,
                 digest,

@@ -285,13 +285,11 @@ where
             }
         };
         let claim = match &target {
-            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } => {
-                Some(CallOutcome::Claimed(self.retry(index)?))
-            }
+            _ if super::reaches_world(&step.kind) => Some(CallOutcome::Claimed(self.retry(index)?)),
             TurnTarget::Skill { .. } => Some(CallOutcome::Child(
                 self.scope.runtime.options.run.child_id(&step.id),
             )),
-            TurnTarget::Ask => None,
+            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } | TurnTarget::Ask => None,
         };
         if let Some(claim) = &claim {
             let authorized = std::mem::take(&mut host.answers);
@@ -358,14 +356,10 @@ where
     /// What a claimed call waits on until it settles: the host's
     /// acknowledgement to run it again with the same input.
     fn retry(&self, index: u32) -> Result<PendingRequest, RuntimeError> {
-        pending_request(&ResolutionRequest::Retry {
-            id: self.retry_id(index).into(),
-            reason: format!(
-                "call {index} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
-            )
-            .into(),
-            retry_after_seconds: 0,
-        })
+        pending_request(&super::unsettled_retry(
+            self.retry_id(index),
+            &format!("call {index}"),
+        ))
     }
 
     /// The address of call `index`'s retry: `<step>/<index>/retry` in this

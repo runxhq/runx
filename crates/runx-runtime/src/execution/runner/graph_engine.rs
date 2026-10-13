@@ -385,6 +385,16 @@ impl GraphExecution {
             self.start_step(context.runtime, context.plan.step_id);
             None
         };
+        let log = &context.runtime.options.run;
+        let claimed = super::reaches_world(&context.step.kind);
+        if claimed {
+            let retry = log.address(&format!("{}/retry", context.plan.step_id));
+            log.record_claim(
+                context.plan.step_id,
+                context.plan.attempt,
+                &super::unsettled_retry(retry, &format!("step {}", context.plan.step_id)),
+            )?;
+        }
         let held = match &resumed_hold {
             Some(Hold::Request(held)) => Some(held),
             _ => None,
@@ -410,12 +420,16 @@ impl GraphExecution {
                 request,
                 child,
             }) => {
-                let log = &context.runtime.options.run;
-                let still_waiting = match (&child, &resumed_hold) {
-                    (Some(child), Some(Hold::Child(held))) => child == held,
-                    (None, Some(Hold::Request(held))) => request_digest(&request)? == held.digest,
-                    _ => false,
-                };
+                // A claim recorded since the hold was read is the run's
+                // latest event, so the hold is recorded again after it.
+                let still_waiting = !claimed
+                    && match (&child, &resumed_hold) {
+                        (Some(child), Some(Hold::Child(held))) => child == held,
+                        (None, Some(Hold::Request(held))) => {
+                            request_digest(&request)? == held.digest
+                        }
+                        _ => false,
+                    };
                 match &child {
                     _ if still_waiting => {}
                     Some(child) => {

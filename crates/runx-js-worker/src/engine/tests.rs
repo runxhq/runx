@@ -19,6 +19,23 @@ fn evaluates_default_export_with_fixed_time() -> Result<(), EngineError> {
 }
 
 #[test]
+fn local_time_is_utc_whatever_the_host_zone() -> Result<(), EngineError> {
+    let output = evaluate(
+        "main.mjs",
+        "default",
+        &modules(
+            "export default () => { const date = new Date(0); return { offset: date.getTimezoneOffset(), hours: date.getHours(), local: date.toString() }; };",
+        ),
+        serde_json::json!({}),
+        BTreeMap::new(),
+        InvocationLimits::default(),
+    )?;
+    assert_eq!(output["offset"].as_f64(), Some(0.0));
+    assert_eq!(output["hours"].as_f64(), Some(0.0));
+    Ok(())
+}
+
+#[test]
 fn resolves_relative_modules_from_memory() -> Result<(), EngineError> {
     let bundle = BTreeMap::from([
         (

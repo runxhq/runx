@@ -680,3 +680,32 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
         "the recorded step settled its act"
     );
 }
+
+#[test]
+fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
+    start(&log, &JsonObject::new());
+    let retry = crate::execution::runner::unsettled_retry(log.address("send/retry"), "step send");
+    log.record_claim("send", 1, &retry).unwrap();
+
+    // The driver stopped after the claim: the step may have run.
+    let record = log.load().unwrap().unwrap();
+    let Some(Suspension { step_id, hold, .. }) = &record.suspension else {
+        panic!("an unsettled claim holds the run");
+    };
+    assert_eq!(step_id, "send");
+    let Hold::Retry(request) = hold else {
+        panic!("it waits on its retry");
+    };
+    assert_eq!(request.id, log.address("send/retry"));
+    assert_eq!(record.retries, 0, "a claim is not a readback retry");
+    assert_eq!(
+        waiting_ids(&store, "run_triage_9"),
+        [log.address("send/retry")]
+    );
+
+    // A step that settles after its claim leaves nothing waiting.
+    log.record_step(&step("run_triage_9", "send"), &[]).unwrap();
+    assert!(log.load().unwrap().unwrap().suspension.is_none());
+}

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use boa_engine::builtins::promise::PromiseState;
+use boa_engine::context::HostHooks;
 use boa_engine::context::time::FixedClock;
 use boa_engine::module::MapModuleLoader;
 use boa_engine::object::IntegrityLevel;
@@ -23,6 +24,16 @@ const LOOP_ITERATION_LIMIT: u64 = 10_000_000;
 const RECURSION_LIMIT: usize = 1_024;
 const BACKTRACE_LIMIT: usize = 32;
 const ERROR_MESSAGE_BYTES: usize = 4_096;
+
+/// The engine's host: every default, except that local time is UTC, so a
+/// script reads nothing of the machine it runs on, its time zone included.
+struct WorkerHost;
+
+impl HostHooks for WorkerHost {
+    fn local_timezone_offset_seconds(&self, _unix_time_seconds: i64) -> i32 {
+        0
+    }
+}
 
 #[derive(Debug, Error)]
 #[error("{message}")]
@@ -63,6 +74,7 @@ pub(crate) fn evaluate(
     let jobs = Rc::new(BoundedJobExecutor::new(limits.queued_jobs));
     let mut context = Context::builder()
         .clock(Rc::new(FixedClock::from_millis(0)))
+        .host_hooks(Rc::new(WorkerHost))
         .job_executor(jobs.clone())
         .module_loader(loader.clone())
         .build()
