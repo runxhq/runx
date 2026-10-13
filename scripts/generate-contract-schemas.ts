@@ -19,7 +19,7 @@ const args = prebuilt
       path.join(workspaceRoot, "crates", "Cargo.toml"),
       "-p",
       "runx-contracts",
-      "--bin",
+      "--example",
       "runx-schema-artifacts",
       "--",
       "--out",

@@ -109,24 +109,6 @@ proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 name = "runx_runtime"
 path = "src/lib.rs"
 
-[[bin]]
-name = "runx-harness-fixture-oracles"
-path = "src/bin/runx-harness-fixture-oracles.rs"
-test = false
-bench = false
-
-[[bin]]
-name = "runx-maintained-connectors"
-path = "src/bin/runx-maintained-connectors.rs"
-test = false
-bench = false
-
-[[bin]]
-name = "runx-native-capability-snapshot"
-path = "src/bin/runx-native-capability-snapshot.rs"
-test = false
-bench = false
-
 [[test]]
 name = "integration"
 path = "tests/integration.rs"

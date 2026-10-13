@@ -18,11 +18,13 @@ const rustKernelBin = path.join(
 const rustHarnessFixtureOracleBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32" ? "runx-harness-fixture-oracles.exe" : "runx-harness-fixture-oracles",
 );
 const rustCapabilitySnapshotBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32"
     ? "runx-native-capability-snapshot.exe"
     : "runx-native-capability-snapshot",
@@ -30,11 +32,13 @@ const rustCapabilitySnapshotBin = path.join(
 const rustSchemaArtifactsBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32" ? "runx-schema-artifacts.exe" : "runx-schema-artifacts",
 );
 const rustPaidInvocationFixturesBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32"
     ? "runx-paid-invocation-fixtures.exe"
     : "runx-paid-invocation-fixtures",
@@ -42,6 +46,7 @@ const rustPaidInvocationFixturesBin = path.join(
 const rustPrincipalIdFixturesBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32"
     ? "runx-principal-id-fixtures.exe"
     : "runx-principal-id-fixtures",
@@ -49,6 +54,7 @@ const rustPrincipalIdFixturesBin = path.join(
 const rustX402FixturesBin = path.join(
   cargoTargetDir,
   "debug",
+  "examples",
   process.platform === "win32" ? "runx-x402-fixtures.exe" : "runx-x402-fixtures",
 );
 
@@ -92,9 +98,9 @@ await runSerialGroup("rust structure checks", [
   step("rust:crate-graph", "pnpm", ["rust:crate-graph"]),
 ]);
 
-// One invocation for all shipping binaries: the resolver unifies runx-runtime's
-// feature set across the packages, so its lib compiles once instead of twice with
-// divergent feature fingerprints.
+// One invocation for the shipped binaries and the build-only examples: the
+// resolver unifies runx-runtime's feature set across the packages, so its lib
+// compiles once instead of twice with divergent feature fingerprints.
 const rustBuild = await runStep(
   step("build rust binaries", cargo, [
     "build",
@@ -117,23 +123,23 @@ const rustBuild = await runStep(
     "runx-parser",
     "--bin",
     "runx",
-    "--bin",
+    "--example",
     "runx-harness-fixture-oracles",
-    "--bin",
+    "--example",
     "runx-native-capability-snapshot",
     "--bin",
     "runx-js-worker",
-    "--bin",
+    "--example",
     "runx-schema-artifacts",
-    "--bin",
+    "--example",
     "runx-paid-invocation-fixtures",
-    "--bin",
+    "--example",
     "runx-principal-id-fixtures",
     "--example",
     "kernel_eval_batch",
     "--example",
     "parser_eval",
-    "--bin",
+    "--example",
     "runx-x402-fixtures",
   ]),
   rustBuildEnv,

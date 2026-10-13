@@ -8,7 +8,7 @@ const cargo = process.platform === "win32" ? "cargo.exe" : "cargo";
 const oracleBinName = process.platform === "win32"
   ? "runx-harness-fixture-oracles.exe"
   : "runx-harness-fixture-oracles";
-const defaultOracleBin = path.join(repoRoot, "crates", "target", "debug", oracleBinName);
+const defaultOracleBin = path.join(repoRoot, "crates", "target", "debug", "examples", oracleBinName);
 
 const forwardedArgs = [...process.argv.slice(2), "--repo-root", repoRoot];
 const summaryJson = process.argv.includes("--summary-json");
@@ -25,7 +25,7 @@ if (process.env.RUNX_HARNESS_FIXTURE_ORACLE_BIN) {
     path.join(repoRoot, "crates", "Cargo.toml"),
     "-p",
     "runx-runtime",
-    "--bin",
+    "--example",
     "runx-harness-fixture-oracles",
     "--",
     ...forwardedArgs,

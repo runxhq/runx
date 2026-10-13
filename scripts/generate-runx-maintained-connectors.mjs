@@ -121,7 +121,7 @@ function runxMaintainedConnectors(args = []) {
       path.join(workspaceRoot, "crates", "Cargo.toml"),
       "-p",
       "runx-runtime",
-      "--bin",
+      "--example",
       "runx-maintained-connectors",
       "--",
       ...args,

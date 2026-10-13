@@ -89,7 +89,8 @@ test or harness so the docs fail loudly when the runtime shape changes.
 
 Harness replay is owned by Rust. The fixture registry lives in
 `runx_runtime::harness::list_cases()`, and the
-`runx-harness-fixture-oracles` binary consumes that same registry for checks,
+`runx-harness-fixture-oracles` example, a build-only tool that never ships,
+consumes that same registry for checks,
 regeneration, and summary output:
 
 ```bash
