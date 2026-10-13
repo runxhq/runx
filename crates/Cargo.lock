@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "runx-cli"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "base64 0.23.1",
  "chrono",
