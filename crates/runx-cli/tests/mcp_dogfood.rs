@@ -322,11 +322,20 @@ runners:
                 run_ids.insert(run_id.to_owned()),
                 "server restart reused a run identity"
             );
-            assert!(
-                response["result"]["content"][0]["text"]
-                    .as_str()
-                    .is_some_and(|text| text.contains("--receipt-dir '"))
-            );
+            // Agent work is done through the turn tools any skill server
+            // serves for the run; a person approves through `runx resume`,
+            // pointed at the receipts.
+            let text = response["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap_or_default();
+            if agent {
+                assert!(
+                    text.contains("turn_complete") && text.contains(run_id),
+                    "{text}"
+                );
+            } else {
+                assert!(text.contains("--receipt-dir '"), "{text}");
+            }
             let request_id = pending["requests"][0]["id"]
                 .as_str()
                 .ok_or("missing request id")?;

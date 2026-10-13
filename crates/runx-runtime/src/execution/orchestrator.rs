@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use runx_contracts::{ClosureDisposition, JsonValue, Receipt};
+use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, Receipt};
 use thiserror::Error;
 
 use super::harness::PackageHarnessReport;
@@ -76,7 +76,9 @@ pub struct SkillRunRequest {
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
-    pub answers_path: Option<PathBuf>,
+    /// The host's answers to what the run `run_id` names waits on: agent
+    /// answers under `answers`, a person's approvals under `approvals`.
+    pub answers: Option<JsonObject>,
     pub inputs: BTreeMap<String, JsonValue>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
@@ -90,7 +92,8 @@ pub struct SkillRunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResumeRequest {
     pub run_id: String,
-    pub answers_path: PathBuf,
+    /// Agent answers under `answers`, a person's approvals under `approvals`.
+    pub answers: JsonObject,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
@@ -302,7 +305,7 @@ impl LocalOrchestrator {
                 receipt_dir: request.receipt_dir.as_deref(),
                 env: &request.env,
                 cwd: &request.cwd,
-                answers_path: Some(&request.answers_path),
+                answers: Some(&request.answers),
                 managed_agent: request.managed_agent.clone(),
                 package_digest: request.package_digest.as_deref(),
                 execution_closure_digest: request.execution_closure_digest.as_deref(),
@@ -321,7 +324,7 @@ impl LocalOrchestrator {
                 receipt_dir: request.receipt_dir.as_deref(),
                 env: &request.env,
                 cwd: &request.cwd,
-                answers_path: None,
+                answers: None,
                 managed_agent: ManagedAgentPolicy::HostDriven,
                 package_digest: None,
                 execution_closure_digest: None,

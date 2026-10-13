@@ -41,11 +41,21 @@ pub enum McpServerToolBehavior {
     Turn(McpTurnTool),
 }
 
-/// A tool of a run's open turns: what calling it does, in which session.
+/// A tool of a run's open turns: what calling it does, on which runs.
 #[derive(Clone, Debug)]
 pub struct McpTurnTool {
-    pub session: Arc<TurnSession>,
+    pub runs: McpTurnRuns,
     pub action: McpTurnAction,
+}
+
+/// Which runs' turns a turn tool works.
+#[derive(Clone, Debug)]
+pub enum McpTurnRuns {
+    /// The one run `runx turn` was started for.
+    Bound(Arc<TurnSession>),
+    /// Any run the call names, in the workspace a skill server serves: a
+    /// turn its own skill call opened is reached without another server.
+    Named(Arc<McpServerExecutionOptions>),
 }
 
 /// The fixed tools a turn session serves; each takes a turn's address.
@@ -59,7 +69,12 @@ pub enum McpTurnAction {
 
 impl PartialEq for McpTurnTool {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.session, &other.session) && self.action == other.action
+        let same_runs = match (&self.runs, &other.runs) {
+            (McpTurnRuns::Bound(left), McpTurnRuns::Bound(right)) => Arc::ptr_eq(left, right),
+            (McpTurnRuns::Named(left), McpTurnRuns::Named(right)) => Arc::ptr_eq(left, right),
+            _ => false,
+        };
+        same_runs && self.action == other.action
     }
 }
 

@@ -87,24 +87,53 @@ pub(crate) fn resolve_environment(
         .collect())
 }
 
+/// The host's workspace policy, when it sets one.
+fn workspace_policy(
+    environment: &BTreeMap<String, String>,
+) -> Result<Option<runx_core::policy::LocalExecutionPolicy>, RuntimeError> {
+    environment
+        .get(RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV)
+        .map(|raw| {
+            serde_json::from_str::<runx_core::policy::LocalExecutionPolicy>(raw).map_err(|source| {
+                RuntimeError::InvalidProcessInvocation {
+                    message: format!("hosted workspace policy is invalid: {source}"),
+                }
+            })
+        })
+        .transpose()
+}
+
+/// Whether the host lets this run start `what`, a trusted host process.
+pub(crate) fn admit_host_process(
+    environment: &BTreeMap<String, String>,
+    what: &str,
+) -> Result<(), RuntimeError> {
+    refuse_host_process(workspace_policy(environment)?.as_ref(), what)
+}
+
+fn refuse_host_process(
+    policy: Option<&runx_core::policy::LocalExecutionPolicy>,
+    what: &str,
+) -> Result<(), RuntimeError> {
+    if policy.is_some_and(|policy| policy.refuse_host_processes) {
+        return Err(RuntimeError::InvalidProcessInvocation {
+            message: format!("this host starts no trusted host process; {what} is refused"),
+        });
+    }
+    Ok(())
+}
+
 pub(crate) fn enforce_process_execution_policy(
     command: &str,
     args: &[String],
     environment: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
-    let Some(raw) = environment.get(RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV) else {
-        return Ok(());
-    };
-    let policy =
-        serde_json::from_str::<runx_core::policy::LocalExecutionPolicy>(raw).map_err(|source| {
-            RuntimeError::InvalidProcessInvocation {
-                message: format!("hosted workspace policy is invalid: {source}"),
-            }
-        })?;
+    let policy = workspace_policy(environment)?;
+    refuse_host_process(policy.as_ref(), &format!("process {command}"))?;
     if let Some(message) = runx_core::policy::strict_process_tool_inline_code_denial(
         Some(command),
         args,
-        Some(&policy),
+        policy.as_ref(),
     ) {
         return Err(RuntimeError::InvalidProcessInvocation { message });
     }
@@ -160,6 +189,20 @@ mod tests {
                 .to_string()
                 .contains("rejected by strict workspace policy")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_host_that_refuses_host_processes_starts_none() -> Result<(), Box<dyn std::error::Error>> {
+        let environment = BTreeMap::from([(
+            RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV.to_owned(),
+            r#"{"refuseHostProcesses":true}"#.to_owned(),
+        )]);
+        let error = enforce_process_execution_policy("sh", &["./run.sh".to_owned()], &environment)
+            .err()
+            .ok_or("a refusing host started a process")?;
+        assert!(error.to_string().contains("starts no trusted host process"));
+        assert!(admit_host_process(&BTreeMap::new(), "stdio MCP server node").is_ok());
         Ok(())
     }
 

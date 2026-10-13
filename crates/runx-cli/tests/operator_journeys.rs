@@ -615,7 +615,8 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
     assert_eq!(resume["status"], "sealed");
     assert_eq!(resume["outcome"], "completed");
     assert_eq!(resume["run_id"], run_id);
-    assert!(root.join(".runx/continuations").is_dir());
+    // Answers read from stdin go to the run, never to a file.
+    assert!(!root.join(".runx/continuations").exists());
 
     Ok(())
 }

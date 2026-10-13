@@ -65,8 +65,6 @@ impl ApprovalRecord {
 pub(crate) enum ApprovalActor {
     /// A person approved this exact intent.
     Human,
-    /// A paid external job the host admitted carries it.
-    PaidExternalJob,
 }
 
 impl ApprovalActor {
@@ -74,7 +72,6 @@ impl ApprovalActor {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Human => "human",
-            Self::PaidExternalJob => "paid_external_job",
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "$id": "https://schemas.runx.ai/runx/skill-run/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "artifact_refs": {
       "items": {
@@ -45,6 +45,11 @@
       },
       "type": "array"
     },
+    "closure": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "context": {},
     "diagnostics_ref": {
       "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -84,6 +89,17 @@
       "type": "object",
       "x-runx-schema": "runx.project_artifact_ref.v1"
     },
+    "entry_provenance": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "error": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "next": {
+      "type": "string"
+    },
     "outcome": {
       "enum": [
         "completed",
@@ -95,6 +111,10 @@
     },
     "receipt_id": {
       "type": "string"
+    },
+    "refusal": {
+      "additionalProperties": {},
+      "type": "object"
     },
     "request_set_ref": {
       "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
@@ -143,10 +163,16 @@
     "run_id": {
       "type": "string"
     },
+    "runner": {
+      "type": "string"
+    },
     "schema": {
       "enum": [
         "runx.skill_run.v1"
       ],
+      "type": "string"
+    },
+    "skill_name": {
       "type": "string"
     },
     "status": {
@@ -159,7 +185,8 @@
         "failure"
       ],
       "type": "string"
-    }
+    },
+    "trace": {}
   },
   "required": [
     "status"

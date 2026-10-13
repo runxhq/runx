@@ -177,6 +177,34 @@ pub enum PaidSkillRunnerOffer {
     Prepared(PaidSkillPreparedRunnerOffer),
 }
 
+impl PaidSkillRunnerOffer {
+    /// Inputs a mediated offer's admission supplies itself, never the caller.
+    pub const ADMISSION_INPUTS: [&'static str; 2] = ["marketplace_offer", "idempotency_seed"];
+
+    /// Whether the marketplace mediates this offer: a prepared offer always,
+    /// a fixed one when it names its mediation.
+    #[must_use]
+    pub const fn mediated(&self) -> bool {
+        match self {
+            Self::Fixed(offer) => offer.mediation.is_some(),
+            Self::Prepared(_) => true,
+        }
+    }
+
+    /// The inputs a paid run of this offer is submitted with: the caller's,
+    /// less those a mediated offer's admission supplies.
+    #[must_use]
+    pub fn hosted_inputs(&self, inputs: &crate::JsonObject) -> crate::JsonObject {
+        let mut hosted = inputs.clone();
+        if self.mediated() {
+            for name in Self::ADMISSION_INPUTS {
+                hosted.remove(name);
+            }
+        }
+        hosted
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillFixedRunnerOffer {

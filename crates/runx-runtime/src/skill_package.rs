@@ -428,30 +428,45 @@ fn collect_package_entry(
         )
         .into());
     }
-    let contents = fs::read(&entry.path).map_err(|source| {
-        RuntimeError::io(
-            format!("reading package file {}", entry.path.display()),
-            source,
-        )
-    })?;
-    totals.files = totals.files.saturating_add(1);
-    totals.bytes = totals.bytes.checked_add(contents.len()).ok_or_else(|| {
+    let over_limit = |relative: String| -> RuntimeError {
         runx_parser::SkillPackageError::invalid(
-            relative.clone(),
-            "skill package byte count overflow",
-        )
-    })?;
-    if totals.files > MAX_PACKAGE_FILES || totals.bytes > MAX_PACKAGE_BYTES {
-        return Err(runx_parser::SkillPackageError::invalid(
             relative,
             format!(
                 "skill package exceeds the {MAX_PACKAGE_FILES} file / {MAX_PACKAGE_BYTES} byte admission limit"
             ),
         )
-        .into());
+        .into()
+    };
+    totals.files = totals.files.saturating_add(1);
+    if totals.files > MAX_PACKAGE_FILES {
+        return Err(over_limit(relative));
     }
+    let remaining = MAX_PACKAGE_BYTES.saturating_sub(totals.bytes);
+    let Some(contents) = read_within(&entry.path, remaining).map_err(|source| {
+        RuntimeError::io(
+            format!("reading package file {}", entry.path.display()),
+            source,
+        )
+    })?
+    else {
+        return Err(over_limit(relative));
+    };
+    totals.bytes += contents.len();
     source.files.insert(relative, contents);
     Ok(())
+}
+
+/// A package file's bytes when it holds at most `budget` of them. Reading
+/// stops one byte past the budget, so an oversized file is refused without
+/// ever being held whole.
+pub(crate) fn read_within(path: &Path, budget: usize) -> std::io::Result<Option<Vec<u8>>> {
+    let mut contents = Vec::new();
+    let file = fs::File::open(path)?;
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(file, (budget as u64).saturating_add(1)),
+        &mut contents,
+    )?;
+    Ok((contents.len() <= budget).then_some(contents))
 }
 
 fn relative_path(path: &Path) -> Result<String, RuntimeError> {
@@ -553,5 +568,20 @@ mod tests {
         let discovered = discover_workspace_skill_package_dirs(root).expect("skill discovery");
 
         assert_eq!(discovered, vec![public]);
+    }
+
+    #[test]
+    fn a_file_past_its_budget_is_refused_without_being_read_whole() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let path = root.path().join("big.bin");
+        std::fs::write(&path, vec![7_u8; 64]).expect("write");
+
+        assert_eq!(
+            super::read_within(&path, 64)
+                .expect("read")
+                .map(|bytes| bytes.len()),
+            Some(64)
+        );
+        assert_eq!(super::read_within(&path, 63).expect("read"), None);
     }
 }

@@ -38,7 +38,7 @@ pub fn receipt_proof_status(
             .findings
             .iter()
             .map(|finding| ReceiptProofFindingSummary {
-                code: format!("{:?}", finding.code),
+                code: finding.code.as_str().to_owned(),
                 path: public_text(&finding.path),
                 message: public_text(&finding.message),
             })

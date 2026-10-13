@@ -31,6 +31,7 @@ pub enum SkillOutputOutcome {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.skill_run.v1")]
 pub struct SkillOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,9 +53,31 @@ pub struct SkillOutput {
     pub diagnostics_ref: Option<ProjectArtifactRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact_refs: Option<Vec<ProjectArtifactRef>>,
-    // Native execution fields are intentionally preserved, not reinterpreted.
-    #[serde(flatten)]
-    pub fields: JsonObject,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runner: Option<String>,
+    /// How the run's seal closed it: its disposition and reason.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closure: Option<JsonObject>,
+    /// A failed run's exit code and message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<JsonObject>,
+    /// Why a guard or an authority refused the run, when one did.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<JsonObject>,
+    /// The run's operator context and step trace, written only with
+    /// `--diagnostics`; otherwise they live behind `diagnostics_ref`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace: Option<JsonValue>,
+    /// The command that continues a paused run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    /// Where the skill the run started came from, as the CLI resolved it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_provenance: Option<JsonObject>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -96,16 +119,23 @@ mod tests {
     }
 
     #[test]
-    fn transport_preserves_native_execution_fields_and_raw_failures()
-    -> Result<(), serde_json::Error> {
+    fn the_envelope_carries_its_declared_fields_and_refuses_others() -> Result<(), serde_json::Error>
+    {
         for value in [
             serde_json::json!({"status": "failure", "error": {"code": "skill_error"}}),
-            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "failed", "closure": {"disposition": "failed"}}),
-            serde_json::json!({"schema": "runx.skill_run.v1", "status": "payment_required", "outcome": "deferred", "payment": {"challenge": "native"}}),
+            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "failed", "skill_name": "echo", "runner": "default", "closure": {"disposition": "failed"}}),
+            serde_json::json!({"schema": "runx.skill_run.v1", "status": "needs_agent", "run_id": "rx_1", "requests": [], "next": "runx resume rx_1 - --json", "entry_provenance": {"kind": "local"}}),
+            serde_json::json!({"schema": "runx.skill_run.v1", "status": "payment_required", "outcome": "deferred", "result": {"payment_required": {}}}),
         ] {
             let output: SkillOutput = serde_json::from_value(value.clone())?;
             assert_eq!(serde_json::to_value(output)?, value);
         }
+        assert!(
+            serde_json::from_value::<SkillOutput>(
+                serde_json::json!({"status": "sealed", "payment": {"challenge": "native"}})
+            )
+            .is_err()
+        );
         Ok(())
     }
 }

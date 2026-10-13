@@ -14,6 +14,8 @@ pub(super) struct BoundedJobExecutor {
     count: Cell<u32>,
     maximum: u32,
     overflowed: Cell<bool>,
+    /// A timer was asked for; the deterministic worker has no clock to run one.
+    timed: Cell<bool>,
 }
 
 impl BoundedJobExecutor {
@@ -25,15 +27,23 @@ impl BoundedJobExecutor {
             count: Cell::new(0),
             maximum,
             overflowed: Cell::new(false),
+            timed: Cell::new(false),
         }
     }
 
+    /// The executor's own refusal, reported before the engine's error for it.
     pub(super) fn check(&self) -> Result<(), EngineError> {
         if self.overflowed.get() {
             return Err(EngineError::limit(format!(
                 "JavaScript queued more than {} jobs",
                 self.maximum
             )));
+        }
+        if self.timed.get() {
+            return Err(EngineError::new(
+                crate::protocol::WorkerFailureCode::ExecutionFailed,
+                "JavaScript timers do not run in the deterministic worker",
+            ));
         }
         Ok(())
     }
@@ -58,7 +68,7 @@ impl JobExecutor for BoundedJobExecutor {
             Job::PromiseJob(job) => self.promise_jobs.borrow_mut().push_back(job),
             Job::AsyncJob(job) => self.async_jobs.borrow_mut().push_back(job),
             Job::GenericJob(job) => self.generic_jobs.borrow_mut().push_back(job),
-            Job::TimeoutJob(_) => self.overflowed.set(true),
+            Job::TimeoutJob(_) => self.timed.set(true),
             _ => self.overflowed.set(true),
         }
     }
@@ -83,9 +93,9 @@ impl JobExecutor for BoundedJobExecutor {
             }
             break;
         }
-        if self.overflowed.get() {
+        if self.overflowed.get() || self.timed.get() {
             return Err(JsNativeError::range()
-                .with_message("deterministic JavaScript job limit exceeded")
+                .with_message("the deterministic JavaScript worker refused a job")
                 .into());
         }
         Ok(())

@@ -197,7 +197,7 @@ pub fn run_verify_command_with_stdin<R: Read>(
                 .findings
                 .into_iter()
                 .map(|finding| FindingReport {
-                    code: format!("{:?}", finding.code),
+                    code: finding.code.as_str().to_owned(),
                     path: finding.path,
                     message: finding.message,
                 })

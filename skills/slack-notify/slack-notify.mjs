@@ -137,11 +137,13 @@ export function reconcileExactNotification(inputs) {
       || !text(read.readback_ref).startsWith("runx:provider-readback:sha256:")) {
     throw new Error("Slack post could not be reconciled to the exact pending notification");
   }
-  return { provider_operation: {
-    ...read, operation: "channel.post.reconcile", target: channel,
-    result: { message_locator: locator, conversation_locator: channel,
-      content_digest: plan.content_digest, occurred_at: message.occurred_at,
-      normalization: "slack_bounded_preview", provider_result_digest: read.result_digest },
+  // The post is reconciled from the thread read that observed it; that read
+  // is the provider operation, and this is what it proves about the post.
+  return { reconciliation: {
+    message_locator: locator, conversation_locator: channel,
+    content_digest: plan.content_digest, occurred_at: message.occurred_at,
+    normalization: "slack_bounded_preview", provider_result_digest: read.result_digest,
+    readback_ref: read.readback_ref,
   } };
 }
 

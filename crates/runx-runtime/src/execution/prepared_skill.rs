@@ -36,6 +36,56 @@ pub(crate) fn strip_untrusted_prepared_env(env: &mut BTreeMap<String, String>) {
     }
 }
 
+/// The operator context a run was prepared with: its digest, which every act
+/// the run seals carries as its `context_ref`, and the artifacts it read,
+/// each checked again where the run uses it. The run's record keeps it, so a
+/// resumed run is held to the context it started with.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PreparedContext {
+    pub digest: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub artifact_guards: BTreeMap<String, String>,
+}
+
+impl PreparedContext {
+    /// The context a prepared run's environment carries, if it was prepared.
+    pub(crate) fn from_env(env: &BTreeMap<String, String>) -> Result<Option<Self>, RuntimeError> {
+        let Some(digest) = env.get(PREPARED_CONTEXT_DIGEST_ENV) else {
+            return Ok(None);
+        };
+        let artifact_guards = match env.get(PREPARED_ARTIFACT_GUARDS_ENV) {
+            Some(encoded) => serde_json::from_str(encoded)
+                .map_err(|source| RuntimeError::json("parsing prepared artifact guards", source))?,
+            None => BTreeMap::new(),
+        };
+        Ok(Some(Self {
+            digest: digest.clone(),
+            artifact_guards,
+        }))
+    }
+
+    /// Carry `context` into a run's environment, in place of whatever the
+    /// environment held.
+    pub(crate) fn apply(
+        context: Option<&Self>,
+        env: &mut BTreeMap<String, String>,
+    ) -> Result<(), RuntimeError> {
+        strip_untrusted_prepared_env(env);
+        if let Some(context) = context {
+            let guards = serde_json::to_string(&context.artifact_guards).map_err(|source| {
+                RuntimeError::json("serializing prepared artifact guards", source)
+            })?;
+            env.insert(
+                PREPARED_CONTEXT_DIGEST_ENV.to_owned(),
+                context.digest.clone(),
+            );
+            env.insert(PREPARED_ARTIFACT_GUARDS_ENV.to_owned(), guards);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PreparedSkillRunStatus {
@@ -72,7 +122,6 @@ pub struct PreparedRequestSummary {
     pub runner: String,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
-    pub answers_path: Option<PathBuf>,
     pub inputs: Vec<PreparedInputSummary>,
     pub managed_agent: ManagedAgentPolicy,
     pub entry: PreparedEntryProvenance,
@@ -193,11 +242,7 @@ impl PreparedSkillRun {
                     .unwrap_or_else(|| "prepared skill run is blocked".to_owned()),
             ));
         }
-        self.request.env.insert(
-            PREPARED_CONTEXT_DIGEST_ENV.to_owned(),
-            self.report.digest.clone(),
-        );
-        let guards = self
+        let artifact_guards = self
             .guards
             .iter()
             .map(|guard| {
@@ -205,11 +250,13 @@ impl PreparedSkillRun {
                 (path.to_string_lossy().into_owned(), guard.sha256.clone())
             })
             .collect::<BTreeMap<_, _>>();
-        let encoded = serde_json::to_string(&guards)
-            .map_err(|source| RuntimeError::json("serializing prepared artifact guards", source))?;
-        self.request
-            .env
-            .insert(PREPARED_ARTIFACT_GUARDS_ENV.to_owned(), encoded);
+        PreparedContext::apply(
+            Some(&PreparedContext {
+                digest: self.report.digest.clone(),
+                artifact_guards,
+            }),
+            &mut self.request.env,
+        )?;
         self.context_bound = true;
         Ok(())
     }
@@ -280,7 +327,8 @@ struct PreparedContextPreimage<'a> {
     skill_path: &'a Path,
     cwd: &'a Path,
     runner: &'a str,
-    answers_path: Option<&'a Path>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    answers: Option<&'a JsonObject>,
     inputs: &'a BTreeMap<String, JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     act: Option<&'a runx_contracts::CallAct>,
@@ -466,7 +514,7 @@ fn prepared_context_digest(
         skill_path: &summary.skill_path,
         cwd: &summary.cwd,
         runner: &summary.runner,
-        answers_path: summary.answers_path.as_deref(),
+        answers: request.answers.as_ref(),
         inputs: &request.inputs,
         act: request.act.as_ref(),
         run_authority: request.run_authority.as_ref(),
@@ -571,11 +619,13 @@ pub(crate) fn verify_prepared_artifact_at_use(
     env: &BTreeMap<String, String>,
     path: &Path,
 ) -> Result<(), RuntimeError> {
-    let Some(encoded) = env.get(PREPARED_ARTIFACT_GUARDS_ENV) else {
+    let Some(PreparedContext {
+        artifact_guards: guards,
+        ..
+    }) = PreparedContext::from_env(env)?
+    else {
         return Ok(());
     };
-    let guards = serde_json::from_str::<BTreeMap<String, String>>(encoded)
-        .map_err(|source| RuntimeError::json("parsing prepared artifact guards", source))?;
     let canonical = fs::canonicalize(path).map_err(|source| {
         RuntimeError::io(
             format!("canonicalizing prepared artifact {}", path.display()),
@@ -628,7 +678,6 @@ fn request_summary(
         runner: runner.to_owned(),
         receipt_dir: request.receipt_dir.clone(),
         run_id: request.run_id.clone(),
-        answers_path: request.answers_path.clone(),
         inputs: request
             .inputs
             .iter()
@@ -806,7 +855,7 @@ mod tests {
             skill_path: path.to_path_buf(),
             receipt_dir: None,
             run_id: None,
-            answers_path: None,
+            answers: None,
             inputs: BTreeMap::new(),
             // Anchor the runx home inside the test dir: without this the
             // agent path discovers the developer's real ~/.runx agent
@@ -1233,6 +1282,7 @@ mod tests {
     #[test]
     fn prepared_governance_consumes_typed_graph_step_contract() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
+        crate::kernel::connectors::plugin_with_source_connectors(temp.path(), &["github"]);
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),
@@ -1282,7 +1332,6 @@ runners:
     #[test]
     fn prepared_governance_includes_terminal_runner_scopes() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
-        crate::kernel::connectors::plugin_with_source_connectors(temp.path(), &["github"]);
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),

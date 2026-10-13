@@ -76,8 +76,7 @@ pub use act::result::{
 };
 pub use act::{ActForm, Criterion, CriterionBinding, CriterionStatus, Intent};
 pub use admission::{
-    Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, CheckOutcome,
-    OperationAmount, OperationIntent, Readiness,
+    AdmissionCheck, AdmissionReason, CheckOutcome, OperationAmount, OperationIntent, Readiness,
 };
 pub use agent_context::{
     AgentContextEnvelope, AgentContextProfiles, ContextArtifactMeta, ContextArtifactProducer,
@@ -101,6 +100,7 @@ pub use connector::{
 };
 pub use connector_instance::{ConnectorInstance, InstanceAuthority};
 pub use conversation_source::{ConversationObservation, ConversationPage};
+pub use copyable_command::{CommandShell, CopyableCommand, render_posix_command};
 pub use credential_delivery::{
     CredentialDeliveryMode, CredentialDeliveryObservation, CredentialDeliveryObservationSchema,
     CredentialDeliveryObservationStatus, CredentialDeliveryPurpose, CredentialMaterialRole,
@@ -164,8 +164,7 @@ pub use list::{
 };
 pub use native_packets::{
     ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,
-    DataOperationStatus, DataStopCondition, GitBlobDigest,
-    LocalArtifact, LocalArtifactPage,
+    DataOperationStatus, DataStopCondition, GitBlobDigest, LocalArtifact, LocalArtifactPage,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAdmission,
@@ -247,16 +246,15 @@ pub use registry_binding::{
     RegistryBindingSkill, RegistryBindingState, RegistryBindingUpstream, RegistryHarnessStatus,
     RegistryTrustTier,
 };
-pub use registry_taxonomy::{
-    Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_categories,
-    registry_category, validate_registry_category,
-};
-pub use copyable_command::{CommandShell, CopyableCommand, render_posix_command};
 pub use registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX,
     REGISTRY_SIGNED_MANIFEST_SCHEMA, RegistryContentDigestError, RegistryContentFile,
     RegistryManifestSignature, RegistryManifestSigner, RegistrySignedManifest, RegistrySubject,
     RegistrySubjectKind, is_registry_subject_ref, registry_content_digest,
+};
+pub use registry_taxonomy::{
+    Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_categories,
+    registry_category, validate_registry_category,
 };
 pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,

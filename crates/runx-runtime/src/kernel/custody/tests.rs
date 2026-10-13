@@ -203,7 +203,7 @@ fn a_recovered_attempt_keeps_its_approval() {
         )
         .unwrap();
     let swapped = ApprovalRecord {
-        actor: ApprovalActor::PaidExternalJob,
+        actor: ApprovalActor::Human,
         key: "approval-2".to_owned(),
         recorded_at: "2026-10-07T00:00:00Z".to_owned(),
     };

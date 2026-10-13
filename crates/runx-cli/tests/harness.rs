@@ -240,6 +240,44 @@ fn package_harness_seals_under_the_fixture_identity_whatever_the_signer_env() ->
     Ok(())
 }
 
+/// A host that refuses host processes, as a registry running a publisher's
+/// harness does, never runs the package's process tool, and its case's own
+/// environment cannot lift the refusal.
+#[test]
+fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
+    let root = crate::support::temp_root("runx-harness-refuses-processes");
+    let skill_dir = root.join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    write_process_tool_skill(&skill_dir)?;
+
+    let output = unsigned_runx_command()?
+        .env(
+            "RUNX_HOSTED_WORKSPACE_POLICY_JSON",
+            r#"{"refuseHostProcesses":true}"#,
+        )
+        .args([
+            "harness",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--receipt-dir",
+            root.join("receipts")
+                .to_str()
+                .ok_or("non-utf8 receipt dir")?,
+            "--json",
+        ])
+        .output()?;
+
+    assert_eq!(output.status.code(), Some(1));
+    let report = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
+    assert_eq!(report["status"], "failed");
+    assert!(
+        report["assertion_errors"]
+            .to_string()
+            .contains("starts no trusted host process"),
+        "{report}"
+    );
+    Ok(())
+}
+
 #[test]
 fn standalone_fixture_persists_to_requested_store() -> TestResult {
     let root = crate::support::temp_root("runx-standalone-harness-receipts");

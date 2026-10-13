@@ -184,7 +184,7 @@ fn lineage_check() -> ReceiptVerifyLineageCheck {
 
 fn verdict_finding(finding: &ReceiptFinding) -> ReceiptVerifyFinding {
     ReceiptVerifyFinding {
-        code: finding_code_name(finding.code),
+        code: finding.code.as_str().to_owned(),
         path: finding.path.clone(),
         message: finding.message.clone(),
     }
@@ -202,20 +202,4 @@ fn is_signature_finding(code: ReceiptFindingCode) -> bool {
             | ReceiptFindingCode::SignatureUnsupportedAlgorithm
             | ReceiptFindingCode::SignatureMalformed
     )
-}
-
-fn finding_code_name(code: ReceiptFindingCode) -> String {
-    let debug = format!("{code:?}");
-    let mut output = String::new();
-    for (index, ch) in debug.chars().enumerate() {
-        if ch.is_ascii_uppercase() {
-            if index > 0 {
-                output.push('_');
-            }
-            output.push(ch.to_ascii_lowercase());
-        } else {
-            output.push(ch);
-        }
-    }
-    output
 }

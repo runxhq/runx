@@ -6,35 +6,19 @@ use runx_contracts::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use runx_contracts::{
     JsonObject, JsonValue, PaidInvocationPaymentChallenge, RUNX_INVOCATION_EXTENSION_KEY,
     Reference, RunxX402InvocationExtension, RunxX402InvocationExtensionInfo, SettlementFamily,
-    X402_PAYMENT_REQUIRED_HEADER, X402_PAYMENT_RESPONSE_HEADER, X402_PAYMENT_SIGNATURE_HEADER,
-    X402AcceptedRequirements, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
-    X402ResourceInfo, X402SettleResponse, X402Version2, parse_runx_invocation_extension,
-    runx_invocation_extension_value, sha256_prefixed,
+    X402_PROTOCOL_VERSION, X402AcceptedRequirements, X402PaymentPayload, X402PaymentRequired,
+    X402PaymentRequirements, X402ResourceInfo, X402SettleResponse, X402Version2,
+    parse_runx_invocation_extension, runx_invocation_extension_value, sha256_prefixed,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
 pub const X402_JSON_MEDIA_TYPE: &str = "application/json";
+/// The settlement family an x402 challenge is bound under.
+pub const X402_SETTLEMENT_FAMILY: &str = "x402";
 pub const MAX_X402_HEADER_BYTES: usize = 65_536;
 pub const MAX_X402_DECODED_BYTES: usize = 49_152;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum X402Header {
-    PaymentRequired,
-    PaymentSignature,
-    PaymentResponse,
-}
-
-impl X402Header {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PaymentRequired => X402_PAYMENT_REQUIRED_HEADER,
-            Self::PaymentSignature => X402_PAYMENT_SIGNATURE_HEADER,
-            Self::PaymentResponse => X402_PAYMENT_RESPONSE_HEADER,
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum X402PresentationError {
@@ -62,6 +46,10 @@ pub enum X402PresentationError {
     ChallengeKindMismatch,
     #[error("the rail-neutral challenge payload digest does not match")]
     ChallengeDigestMismatch,
+    #[error("a 402 answer omitted its PAYMENT-REQUIRED header")]
+    ChallengeHeaderMissing,
+    #[error("a 402 answer's PAYMENT-REQUIRED header and body are different challenges")]
+    ChallengeHeaderMismatch,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -121,11 +109,12 @@ pub fn bind_payment_required_challenge(
     quote_expires_at: IsoDateTime,
 ) -> Result<PaidInvocationPaymentChallenge, X402PresentationError> {
     let payload = json_value_from_serializable(payment_required)?;
-    let canonical =
-        serde_json::to_vec(&payload).map_err(|_| X402PresentationError::EncodingFailed)?;
-    let settlement_family =
-        SettlementFamily::new("x402").ok_or(X402PresentationError::EncodingFailed)?;
-    let protocol_version = NonEmptyString::new("2").ok_or(X402PresentationError::EncodingFailed)?;
+    let canonical = runx_contracts::to_canonical_bytes(&payload)
+        .map_err(|_| X402PresentationError::EncodingFailed)?;
+    let settlement_family = SettlementFamily::new(X402_SETTLEMENT_FAMILY)
+        .ok_or(X402PresentationError::EncodingFailed)?;
+    let protocol_version = NonEmptyString::new(X402_PROTOCOL_VERSION.to_string())
+        .ok_or(X402PresentationError::EncodingFailed)?;
     let media_type =
         NonEmptyString::new(X402_JSON_MEDIA_TYPE).ok_or(X402PresentationError::EncodingFailed)?;
     let payload_digest = runx_contracts::Sha256Digest::new(sha256_prefixed(&canonical))
@@ -147,13 +136,13 @@ pub fn bind_payment_required_challenge(
 pub fn payment_required_from_challenge(
     challenge: &PaidInvocationPaymentChallenge,
 ) -> Result<X402PaymentRequired, X402PresentationError> {
-    if challenge.settlement_family.as_str() != "x402"
-        || challenge.protocol_version.as_str() != "2"
+    if challenge.settlement_family.as_str() != X402_SETTLEMENT_FAMILY
+        || challenge.protocol_version.as_str() != X402_PROTOCOL_VERSION.to_string()
         || challenge.media_type.as_str() != X402_JSON_MEDIA_TYPE
     {
         return Err(X402PresentationError::ChallengeKindMismatch);
     }
-    let canonical = serde_json::to_vec(&challenge.payload)
+    let canonical = runx_contracts::to_canonical_bytes(&challenge.payload)
         .map_err(|_| X402PresentationError::InvalidPayload)?;
     if sha256_prefixed(&canonical) != challenge.payload_digest.as_str() {
         return Err(X402PresentationError::ChallengeDigestMismatch);
@@ -163,6 +152,21 @@ pub fn payment_required_from_challenge(
         .clone()
         .deserialize_into()
         .map_err(|_| X402PresentationError::InvalidPayload)
+}
+
+/// The challenge a 402 answer states: its body, which must be the exact
+/// challenge its PAYMENT-REQUIRED header encodes.
+pub fn payment_required_from_answer(
+    body: &str,
+    header: Option<&str>,
+) -> Result<X402PaymentRequired, X402PresentationError> {
+    let stated: X402PaymentRequired =
+        serde_json::from_str(body).map_err(|_| X402PresentationError::InvalidPayload)?;
+    let encoded = header.ok_or(X402PresentationError::ChallengeHeaderMissing)?;
+    if decode_payment_required_header(encoded)? != stated {
+        return Err(X402PresentationError::ChallengeHeaderMismatch);
+    }
+    Ok(stated)
 }
 
 /// Validate only immutable presentation commitments. This performs no payment

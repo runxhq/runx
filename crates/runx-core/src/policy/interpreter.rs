@@ -10,10 +10,7 @@ pub fn strict_process_tool_inline_code_denial(
     args: &[String],
     policy: Option<&super::LocalExecutionPolicy>,
 ) -> Option<String> {
-    if !policy
-        .and_then(|policy| policy.strict_process_tool_inline_code)
-        .unwrap_or(false)
-    {
+    if !policy.is_some_and(|policy| policy.strict_process_tool_inline_code) {
         return None;
     }
     let interpreter = detect_inline_interpreter(command, args)?;

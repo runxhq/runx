@@ -1,5 +1,5 @@
 skill: slack-notify
-version: "0.4.6"
+version: "0.4.7"
 catalog:
   kind: graph
   audience: public
@@ -342,7 +342,4 @@ runners:
           provider_operation: $steps.read.provider_operation
           digest_result: $steps.digest.digest_result
         tool: { module: slack-notify.mjs, export: reconcileExactNotification }
-        outputs: { provider_operation: object }
-        artifacts:
-          named_emits: { provider_operation: provider_operation }
-          packets: { provider_operation: runx.provider.operation.v1 }
+        outputs: { reconciliation: object }

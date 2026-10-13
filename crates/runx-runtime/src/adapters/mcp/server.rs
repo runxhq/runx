@@ -64,14 +64,16 @@ pub fn mcp_tool_result_from_run_result(
                 )
             })
             .unwrap_or_default();
-        let needs = match runx.get("status").and_then(JsonValue::as_str) {
-            Some("needs_approval") => "approval",
-            _ => "agent input",
-        };
-        format!(
-            "{skill_name} needs {needs} at {run_id}. Resolve {} request(s), write answers.json, then run: runx resume {run_id} answers.json{receipt_option}.",
-            result.pending_requests.len()
-        )
+        match runx.get("status").and_then(JsonValue::as_str) {
+            Some("needs_approval") => format!(
+                "{skill_name} needs a person's approval at {run_id}: {} request(s). The person approves with: runx resume {run_id} <approvals.json|->{receipt_option}.",
+                result.pending_requests.len()
+            ),
+            _ => format!(
+                "{skill_name} needs agent work at {run_id}: {} request(s). Work its open turns with turn_list, turn_status, turn_call and turn_complete for run {run_id}.",
+                result.pending_requests.len()
+            ),
+        }
     } else if pending {
         format!(
             "{skill_name} is deferred at {run_id}. Inspect receipt {} and reconcile provider state before retrying.",

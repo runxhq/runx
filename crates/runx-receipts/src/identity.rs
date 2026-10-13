@@ -1,4 +1,4 @@
-use runx_contracts::{Receipt, ReceiptIssuerType};
+use runx_contracts::Receipt;
 
 /// Display identity derived only from fields inside the signed receipt body.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,19 +12,11 @@ pub struct SignedDisplayIdentity {
 pub fn signed_display_identity(receipt: &Receipt) -> SignedDisplayIdentity {
     SignedDisplayIdentity {
         subject_ref: receipt.subject.reference.uri.to_string(),
-        issuer_type: issuer_type_name(&receipt.issuer.issuer_type).to_owned(),
+        issuer_type: receipt.issuer.issuer_type.label().to_owned(),
         actor: receipt
             .authority
             .actor_ref
             .as_ref()
             .map(|actor| actor.uri.to_string()),
-    }
-}
-
-fn issuer_type_name(issuer_type: &ReceiptIssuerType) -> &'static str {
-    match issuer_type {
-        ReceiptIssuerType::Local => "local",
-        ReceiptIssuerType::Hosted => "hosted",
-        ReceiptIssuerType::Ci => "ci",
     }
 }

@@ -89,8 +89,11 @@ export type DecisionContract = DeepReadonly<{
   selected_act_id: string;
 }>;
 export type ArtifactContract = ContractObject;
+/** Who sealed a receipt, as the Rust `ReceiptIssuerType` names it. */
+export type ReceiptIssuerTypeContract = "local" | "hosted" | "ci";
+
 export type ReceiptIssuerContract = DeepReadonly<{
-  type: string;
+  type: ReceiptIssuerTypeContract;
   kid: string;
   public_key_sha256: string;
 }>;

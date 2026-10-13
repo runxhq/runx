@@ -1,11 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue};
 
 use super::{SkillRunError, invalid};
-use crate::RuntimeError;
 
 /// Resolution values retain their authority lane instead of flattening every
 /// caller-supplied value into an agent answer. Each is keyed by the address
@@ -70,6 +67,13 @@ impl ResolutionAnswers {
         self.human_approvals.contains(request_id)
     }
 
+    /// Whether these answers carry agent work, not only a person's approvals.
+    pub(super) fn answers_agents(&self) -> bool {
+        self.values
+            .keys()
+            .any(|request_id| !self.human_approvals.contains(request_id))
+    }
+
     /// A person approves only what they were shown: every approval a resume
     /// brings names one of `waiting`, the addresses the run is paused at, so
     /// none reaches a request first asked during the resume.
@@ -96,19 +100,9 @@ impl ResolutionAnswers {
     }
 }
 
-pub(super) fn read_answers(path: &Path) -> Result<ResolutionAnswers, SkillRunError> {
-    let raw = fs::read_to_string(path)
-        .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
-    let value = serde_json::from_str::<JsonValue>(&raw).map_err(|source| {
-        RuntimeError::json(format!("parsing answers file {}", path.display()), source)
-    })?;
-    match value {
-        JsonValue::Object(object) => normalize_answers(object),
-        _ => Err(invalid("answers file must be a JSON object")),
-    }
-}
-
-fn normalize_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillRunError> {
+/// The answers a host brings to a paused run: agent answers and a person's
+/// approvals, each in its own lane.
+pub(super) fn parse_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillRunError> {
     let nested_shape = object.contains_key("answers") || object.contains_key("approvals");
     if !nested_shape {
         return Ok(ResolutionAnswers::agent(object));
@@ -120,7 +114,7 @@ fn normalize_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillR
         .collect::<Vec<_>>();
     if !extra.is_empty() {
         return Err(invalid(format!(
-            "answers file mixes top-level keys [{}] with the nested answers/approvals shape",
+            "answers mix top-level keys [{}] with the nested answers/approvals shape",
             extra.join(", ")
         )));
     }
@@ -157,13 +151,13 @@ fn is_human_approval_payload(value: &JsonValue) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_answers;
+    use super::parse_answers;
     use runx_contracts::{JsonObject, JsonValue};
 
     #[test]
     fn nested_approvals_retain_host_attested_human_provenance() -> Result<(), String> {
         let approval_id = "send.approval";
-        let answers = normalize_answers(JsonObject::from([
+        let answers = parse_answers(JsonObject::from([
             (
                 "answers".to_owned(),
                 JsonValue::Object(JsonObject::from([(
@@ -198,7 +192,7 @@ mod tests {
 
     #[test]
     fn an_addressed_answer_answers_its_request_and_no_other() -> Result<(), String> {
-        let mut answers = normalize_answers(JsonObject::from([(
+        let mut answers = parse_answers(JsonObject::from([(
             "answer".to_owned(),
             JsonValue::String("done".to_owned()),
         )]))
@@ -221,7 +215,7 @@ mod tests {
 
     #[test]
     fn flat_answers_do_not_gain_human_approval_authority() -> Result<(), String> {
-        let answers = normalize_answers(JsonObject::from([(
+        let answers = parse_answers(JsonObject::from([(
             "send.approval".to_owned(),
             JsonValue::Bool(true),
         )]))

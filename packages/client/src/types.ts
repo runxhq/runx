@@ -1,4 +1,4 @@
-import type { ExternalJobStageRequestContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
+import type { ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -51,8 +51,6 @@ export interface RunAuthority {
   readonly delegations?: readonly Readonly<Record<string, unknown>>[];
   readonly max_fanout?: number;
   readonly max_child_depth?: number;
-  /** The paid job stage the run executes. */
-  readonly paid_job?: ExternalJobStageRequestContract;
 }
 
 export interface SkillRunOptions extends SkillInspectOptions {

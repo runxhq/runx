@@ -81,9 +81,6 @@ pub(super) fn write_operator_context(
     out.push_str("\nFull operator context\n");
     out.push_str(&format!("cwd: {}\n", report.request.cwd.display()));
     out.push_str(&format!("entry_kind: {}\n", report.request.entry.kind));
-    if let Some(answers_path) = &report.request.answers_path {
-        out.push_str(&format!("answers_path: {}\n", answers_path.display()));
-    }
     out.push_str("request_bindings:\n");
     for input in &report.request.inputs {
         out.push_str(&format!(

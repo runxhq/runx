@@ -19,6 +19,7 @@ use crate::RuntimeError;
 use crate::adapter::SkillInvocation;
 use crate::execution::graph::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
+use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
     Driver, Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest,
     waiting_requests,
@@ -33,7 +34,7 @@ use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
-use super::resolution_answers::{ResolutionAnswers, read_answers};
+use super::resolution_answers::{ResolutionAnswers, parse_answers};
 use super::runner_manifest::write_skill_receipt;
 
 /// How many times a run waits for an independent provider readback before
@@ -44,8 +45,8 @@ impl BoundRun {
     /// Start the run, or continue it with the answers its request brings, and
     /// drive it as far as it goes.
     pub(crate) fn execute(&self) -> Result<RunResult, SkillRunError> {
-        let answers = match &self.request.answers_path {
-            Some(path) => read_answers(path)?,
+        let answers = match &self.request.answers {
+            Some(answers) => parse_answers(answers.clone())?,
             None => ResolutionAnswers::default(),
         };
         let mut host = RunHost::new(answers);
@@ -88,7 +89,7 @@ impl BoundRun {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
-        let (graph_inputs, run_act, run_context, run_authority) = match &existing {
+        let (graph_inputs, run_act, run_context, run_authority, prepared) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
                     record,
@@ -104,9 +105,10 @@ impl BoundRun {
                     record.act.clone(),
                     record.context.clone(),
                     started.run_authority.clone(),
+                    started.prepared.clone(),
                 )
             }
-            None if request.answers_path.is_some() => {
+            None if request.answers.is_some() => {
                 return Err(invalid(format!(
                     "run {} has no record to continue",
                     log.run_id()
@@ -118,6 +120,7 @@ impl BoundRun {
                     .iter()
                     .map(|(key, value)| (key.clone(), value.clone()))
                     .collect::<JsonObject>();
+                let prepared = PreparedContext::from_env(self.workspace.env())?;
                 log.begin(StartRequest {
                     skill: &self.manifest.skill,
                     skill_ref: &request.skill_path.to_string_lossy(),
@@ -133,6 +136,7 @@ impl BoundRun {
                     } else {
                         Driver::Attached
                     },
+                    prepared: prepared.as_ref(),
                     created_at: &crate::time::now_iso8601(),
                 })?;
                 (
@@ -140,6 +144,7 @@ impl BoundRun {
                     request.act.clone(),
                     request_context,
                     request.run_authority.clone(),
+                    prepared,
                 )
             }
         };
@@ -183,7 +188,7 @@ impl BoundRun {
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
-        let runtime = self.runtime(&log, run_context, run_authority);
+        let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
         let graph = bind_run_inputs(self.runner.graph.clone(), &graph_inputs, run_act.as_ref())?;
         let run = Driven {
             bound: self,
@@ -272,14 +277,16 @@ impl BoundRun {
     }
 
     /// The run's runtime for one pass: the skill's environment, the run's
-    /// identity and authority, and its log.
+    /// identity, authority and prepared context, and its log.
     fn runtime(
         &self,
         log: &RunLog,
         context: RunContext,
         run_authority: Option<RunAuthority>,
-    ) -> Runtime<ExecutableAdapter> {
+        prepared: Option<&PreparedContext>,
+    ) -> Result<Runtime<ExecutableAdapter>, RuntimeError> {
         let mut env = self.workspace.skill_env_for_skill(&self.skill_dir);
+        PreparedContext::apply(prepared, &mut env)?;
         env.insert(RUNX_RUN_ID_ENV.to_owned(), log.run_id().to_owned());
         env.insert(
             crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
@@ -299,7 +306,7 @@ impl BoundRun {
             effects: self.effects.clone(),
             run: log.clone(),
         };
-        match &self.overrides.javascript {
+        Ok(match &self.overrides.javascript {
             Some(javascript) => Runtime::with_native_services(
                 ExecutableAdapter,
                 options,
@@ -307,7 +314,7 @@ impl BoundRun {
                 crate::services::LocalArtifactService::default(),
             ),
             None => Runtime::new(ExecutableAdapter, options),
-        }
+        })
     }
 
     /// Every request the run waits on, by address.
@@ -371,7 +378,7 @@ fn run_log(
     workspace: &WorkspaceEnv,
     skill: &str,
 ) -> Result<RunLog, SkillRunError> {
-    let run_id = match (&request.run_id, &request.answers_path) {
+    let run_id = match (&request.run_id, &request.answers) {
         // A caller-pinned id is a submission identity: a repeated submission
         // continues the same run, and hosted execution keys its effects on
         // it, so a retry recovers the same mutation instead of minting one.
@@ -641,22 +648,22 @@ impl RunHost {
         )))
     }
 
-    /// One driver works a run's turns: the one it started with. Answers
-    /// alone drive no turn.
-    fn check_driver(&self, run_id: &str, driver: Option<Driver>) -> Result<(), SkillRunError> {
-        let attached = self.act.is_some();
-        let drives = self.manages() || attached;
+    /// One driver works a run's turns: the one it started with. A run the
+    /// managed agent drives takes a person's approvals from any host, never
+    /// another host's agent work.
+    fn check_driver(&self, run_id: &str, driver: Driver) -> Result<(), SkillRunError> {
         match driver {
-            None if drives => Err(invalid(format!(
-                "run {run_id} was started before runs recorded their driver; no driver can work its turns, so start it again"
-            ))),
-            Some(Driver::Attached) if self.manages() => Err(invalid(format!(
+            Driver::Attached if self.manages() => Err(invalid(format!(
                 "run {run_id} is driven by the host it is attached to; the managed agent cannot work its turns"
             ))),
-            Some(Driver::Managed) if attached => Err(invalid(format!(
-                "run {run_id} is driven by the managed agent; another host cannot work its turns"
-            ))),
-            None | Some(Driver::Attached | Driver::Managed) => Ok(()),
+            Driver::Managed
+                if !self.manages() && (self.act.is_some() || self.answers.answers_agents()) =>
+            {
+                Err(invalid(format!(
+                    "run {run_id} is driven by the managed agent; another host cannot work its turns"
+                )))
+            }
+            Driver::Attached | Driver::Managed => Ok(()),
         }
     }
 
@@ -813,32 +820,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_run_without_a_recorded_driver_takes_answers_but_no_driver() {
-        let answers = RunHost::new(ResolutionAnswers::default());
-        assert!(answers.check_driver("run_old", None).is_ok());
+    fn a_managed_run_takes_approvals_but_no_other_hosts_agent_work() {
         let acting = RunHost::acting(TurnAct {
             turn: "answer".to_owned(),
             action: TurnAction::Status,
         });
-        let refused = acting
-            .check_driver("run_old", None)
+        assert!(acting.check_driver("run", Driver::Attached).is_ok());
+        assert!(acting.check_driver("run", Driver::Managed).is_err());
+
+        let agent_work = RunHost::new(ResolutionAnswers::agent(JsonObject::from([(
+            "answer".to_owned(),
+            JsonValue::String("done".to_owned()),
+        )])));
+        let refused = agent_work
+            .check_driver("run", Driver::Managed)
             .err()
             .map(|error| error.to_string())
             .unwrap_or_default();
-        assert!(
-            refused.contains("started before runs recorded their driver"),
-            "{refused}"
-        );
-        assert!(
-            acting
-                .check_driver("run_new", Some(Driver::Attached))
-                .is_ok()
-        );
-        assert!(
-            acting
-                .check_driver("run_new", Some(Driver::Managed))
-                .is_err()
-        );
+        assert!(refused.contains("driven by the managed agent"), "{refused}");
+        assert!(agent_work.check_driver("run", Driver::Attached).is_ok());
+
+        let approvals = RunHost::new(ResolutionAnswers::default());
+        assert!(approvals.check_driver("run", Driver::Managed).is_ok());
     }
     use crate::adapter::SkillAdapter;
 
@@ -945,6 +948,7 @@ steps:
                 run_authority: None,
                 act: None,
                 driver: crate::execution::run_record::Driver::Managed,
+                prepared: None,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {
@@ -1024,7 +1028,7 @@ steps:
                 skill_path: temp.path().join("skill"),
                 receipt_dir: Some(receipt_dir.clone()),
                 run_id: None,
-                answers_path: None,
+                answers: None,
                 inputs: Default::default(),
                 env: Default::default(),
                 cwd: temp.path().to_path_buf(),

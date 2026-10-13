@@ -98,10 +98,11 @@ pub(crate) struct Started {
     /// The act its invoker stated, which the run's steps read as `$act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
-    /// Who works the run's turns, fixed when it starts. A run started before
-    /// runs recorded it has none, and no driver may take its turns.
+    /// Who works the run's turns, fixed when it starts.
+    pub driver: Driver,
+    /// The operator context the run was prepared with, held for every pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<Driver>,
+    pub prepared: Option<crate::execution::prepared_skill::PreparedContext>,
     pub created_at: String,
 }
 
@@ -291,11 +292,6 @@ struct SealedEvent {
     receipt_id: String,
     /// Blob: the run's receipt.
     receipt: String,
-    /// Blob: the standalone act receipt runs sealed before acts moved onto
-    /// their calls. No run writes it now and nothing reads it; the log is
-    /// append-only and chained, so the events that carry it must still read.
-    #[serde(rename = "primary", default, skip_serializing)]
-    _primary: Option<String>,
     /// Blob: the public result of a run that stopped short of completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     terminal_result: Option<String>,
@@ -583,7 +579,8 @@ impl RunLog {
             context: context.as_ref().map(|blob| blob.digest().to_owned()),
             run_authority: started.run_authority.cloned(),
             act: started.act.cloned(),
-            driver: Some(started.driver),
+            driver: started.driver,
+            prepared: started.prepared.cloned(),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];
@@ -901,7 +898,6 @@ impl RunLog {
             disposition: receipt.seal.disposition.clone(),
             receipt_id: receipt.id.to_string(),
             receipt: receipt_blob.digest().to_owned(),
-            _primary: None,
             terminal_result: terminal_result
                 .as_ref()
                 .map(|blob| blob.digest().to_owned()),
@@ -1010,6 +1006,7 @@ pub(crate) struct StartRequest<'a> {
     pub run_authority: Option<&'a RunAuthority>,
     pub act: Option<&'a CallAct>,
     pub driver: Driver,
+    pub prepared: Option<&'a crate::execution::prepared_skill::PreparedContext>,
     pub created_at: &'a str,
 }
 

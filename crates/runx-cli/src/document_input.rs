@@ -103,6 +103,17 @@ pub fn read_document_input_with<R: Read>(
     }
 }
 
+/// A document the operator names on the command line, such as a resume's
+/// answers: theirs to place anywhere, read under the same bound as stdin.
+pub fn read_operator_document(path: &Path) -> Result<String, DocumentInputError> {
+    let location = path.display().to_string();
+    let file = std::fs::File::open(path).map_err(|source| DocumentInputError::Read {
+        location: location.clone(),
+        source,
+    })?;
+    read_bounded_utf8(file, location, MAX_DOCUMENT_INPUT_BYTES)
+}
+
 fn read_bounded_utf8<R: Read>(
     reader: R,
     location: String,

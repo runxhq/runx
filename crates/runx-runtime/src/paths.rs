@@ -213,11 +213,6 @@ impl RunxPaths {
         self.project.join("artifacts")
     }
 
-    #[must_use]
-    pub fn continuations(&self) -> PathBuf {
-        self.project.join("continuations")
-    }
-
     /// The SQLite file of the `store` connector when no instance names one.
     #[must_use]
     pub fn workspace_store(&self) -> PathBuf {

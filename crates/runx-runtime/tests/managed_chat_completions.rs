@@ -275,7 +275,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
-        answers_path: None,
+        answers: None,
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
@@ -359,7 +359,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
-        answers_path: None,
+        answers: None,
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
@@ -437,7 +437,7 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
         skill_path: skill_dir,
         receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
-        answers_path: None,
+        answers: None,
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
@@ -526,7 +526,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
         skill_path: skill_dir,
         receipt_dir: Some(receipts.clone()),
         run_id: None,
-        answers_path: None,
+        answers: None,
         inputs: BTreeMap::new(),
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
@@ -555,11 +555,9 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
         .as_str()
         .ok_or("missing run_id")?
         .to_owned();
-    let answers = temp.path().join("answers.json");
-    fs::write(&answers, json!({"approvals": {ask: true}}).to_string())?;
     let sealed = LocalOrchestrator::default().resume(&runx_runtime::ResumeRequest {
         run_id,
-        answers_path: answers,
+        answers: serde_json::from_value(json!({"approvals": {ask: true}}))?,
         receipt_dir: Some(receipts),
         env,
         cwd: temp.path().to_path_buf(),

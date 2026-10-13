@@ -18,10 +18,10 @@ use runx_contracts::connector::{
 };
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
-    Admission, AdmissionCheck, AdmissionDisposition, AdmissionReason, AuthorityApproval,
-    AuthorityBounds, AuthorityDerivation, AuthorityEvidence, AuthorityEvidenceKind,
-    AuthorityResourceFamily, AuthorityTerm, AuthorityUseLimit, CheckOutcome, ConnectorInstance,
-    JsonObject, JsonValue, OperationIntent, Readiness, Reference, ReferenceType,
+    AdmissionCheck, AdmissionReason, AuthorityApproval, AuthorityBounds, AuthorityDerivation,
+    AuthorityEvidence, AuthorityEvidenceKind, AuthorityResourceFamily, AuthorityTerm,
+    AuthorityUseLimit, CheckOutcome, ConnectorInstance, JsonObject, JsonValue, OperationIntent,
+    Readiness, Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -65,10 +65,31 @@ pub(crate) struct Evaluation<'a> {
     pub context: Context<'a>,
 }
 
+/// Whether an admitted call runs now or waits on an approval. A call that
+/// cannot be admitted is refused, never admitted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AdmissionDisposition {
+    Admit,
+    /// A person must answer first: an approval floor or gate applies.
+    NeedsResolution,
+}
+
+/// One call's admission: the intent it covers, every reason, and, once
+/// admitted, the narrowest term that satisfies the evidence, bounded to this
+/// intent and a single use, with its derivation.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Admission {
+    pub disposition: AdmissionDisposition,
+    pub intent: OperationIntent,
+    pub intent_digest: Digest,
+    pub reasons: Vec<AdmissionReason>,
+    pub execution_term: Option<AuthorityTerm>,
+    pub derivation: Option<AuthorityDerivation>,
+}
+
 /// An exact call admitted, or owed an approval.
 #[derive(Clone, Debug)]
 pub(crate) struct Admitted {
-    /// `Admit` or `NeedsResolution`; never `Refuse`.
     pub admission: Admission,
     pub connector: Arc<LoadedConnector>,
     pub operation: OperationName,

@@ -39,8 +39,15 @@ export type ReceiptSubjectContract = DeepReadonly<{
   outcome: string;
 }>;
 
+/** Where a step ran, as the Rust `ExecutionBoundaryKind` names it. */
+export type ExecutionBoundaryKindContract =
+  | "trusted_host_process"
+  | "deterministic_worker"
+  | "native_capability"
+  | "remote_provider";
+
 export type ReceiptEnforcementContract = DeepReadonly<{
-  execution_boundary?: { readonly kind: string };
+  execution_boundary?: { readonly kind: ExecutionBoundaryKindContract };
 }>;
 
 export type ReceiptAuthorityContract = DeepReadonly<{

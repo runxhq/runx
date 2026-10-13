@@ -40,7 +40,6 @@ pub fn run_native_new_with_workspace(plan: NewPlan, workspace: &WorkspaceEnv) ->
             runner: Some("build".to_owned()),
             receipt_dir: plan.receipt_dir,
             run_id: None,
-            answers: None,
             registry: None,
             expected_digest: None,
             expected_package_digest: None,

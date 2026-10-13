@@ -13,19 +13,18 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ApprovalFloor, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
-    ProviderIdempotency, implementation_digest,
+    IdempotencyKeyFormat, Implementation, OperationAccess, Placement, ProviderIdempotency,
+    implementation_digest,
 };
 use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{
-    AdmissionDisposition, ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind,
-    ExternalJobStageRequest, InstanceAuthority, JsonObject, JsonValue, ProofKind, Reference,
-    ReferenceType, ResolutionRequest,
+    ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind, InstanceAuthority,
+    JsonObject, JsonValue, ProofKind, Reference, ReferenceType, ResolutionRequest,
 };
 use runx_core::state_machine::AuthorityAdmissionWitness;
 use runx_parser::{DuplicatePolicy, GraphStep};
 
-use super::admission::{self, AdmitError, Admitted, Context, Evaluation};
+use super::admission::{self, AdmissionDisposition, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
 use super::custody::{Acknowledgement, ApprovalActor, ApprovalRecord, Attempt};
 use super::instances::Instances;
@@ -259,10 +258,10 @@ pub(crate) struct OperationAdmission {
     admitted: Admitted,
     call: OperationCall,
     shape: ResultShape,
+    duplicates: Option<DuplicatePolicy>,
     /// The resource the caller's act targets, classified at admission by the
     /// connectors the run can reach.
     target_ref: Option<Reference>,
-    duplicates: Option<DuplicatePolicy>,
     /// What the host supplied for approval lanes, bound at admission.
     lanes: LaneInputs,
     /// Set when the step is prepared for dispatch.
@@ -271,15 +270,12 @@ pub(crate) struct OperationAdmission {
 
 #[derive(Clone, Debug, Default)]
 struct LaneInputs {
-    /// The paid job the run's authority names, if any.
-    paid_job: Option<ExternalJobStageRequest>,
     run_id: String,
 }
 
 impl LaneInputs {
-    fn of(authority: Option<&crate::RunAuthority>, run_id: &str) -> Self {
+    fn of(run_id: &str) -> Self {
         Self {
-            paid_job: authority.and_then(|authority| authority.paid_job.as_deref().cloned()),
             run_id: run_id.to_owned(),
         }
     }
@@ -448,7 +444,7 @@ impl RuntimeEffect for OperationEffect {
             request.graph_dir,
         ))
         .map_err(state)?;
-        let lanes = LaneInputs::of(request.run_authority, request.run_id);
+        let lanes = LaneInputs::of(request.run_id);
         let scope = ConnectorScope::at(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?
             .in_project(
@@ -478,6 +474,10 @@ impl RuntimeEffect for OperationEffect {
                 // A requirement that names no operation has no verb of its
                 // own; it is refused as the write it might have been.
                 verb: refusal.verb.unwrap_or(AuthorityVerb::Write),
+            },
+            AdmitError::State(message) => state(message),
+        })?;
+        let verb = admitted.operation().verb.authority_verb();
         let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {
             Some(target) => {
                 let reachable = scope
@@ -494,17 +494,13 @@ impl RuntimeEffect for OperationEffect {
             }
             None => None,
         };
-            },
-            AdmitError::State(message) => state(message),
-        })?;
-        let verb = admitted.operation().verb.authority_verb();
         let context = OperationAdmission {
             placements: Arc::clone(&self.placements),
-            target_ref,
             admitted,
             call,
             shape,
             duplicates: request.step.duplicates,
+            target_ref,
             lanes,
             attempt: None,
         };
@@ -1610,6 +1606,11 @@ fn stdio_server(
     args: &[runx_contracts::schema::NonEmptyString],
 ) -> Result<crate::drivers::mcp::StdioServer, Failure> {
     let unavailable = |reason: String| rejected("mcp_unavailable", reason);
+    crate::execution_environment::admit_host_process(
+        call.env,
+        &format!("stdio MCP server {command}"),
+    )
+    .map_err(|error| unavailable(error.to_string()))?;
     let delivery = process_delivery(context, call.credential)?;
     let mut env = crate::process_invocation::process_base_environment(call.env)
         .map_err(|error| unavailable(error.to_string()))?;
@@ -1895,90 +1896,22 @@ impl Approved {
     }
 }
 
-/// Gather approval evidence. A recovered attempt keeps the lane it was
-/// approved under; otherwise a host-admitted paid job, then a person.
+/// Gather approval evidence. A recovered attempt keeps the approval it was
+/// given; otherwise a person approves.
 fn approve(
     context: &OperationAdmission,
     step: &GraphStep,
     host: &mut dyn crate::Host,
 ) -> Result<Lane, RuntimeEffectError> {
-    let admitted = &context.admitted;
-    let operation = admitted.operation();
-    let paid = context.lanes.paid_job.as_ref();
-    let floored = operation.approval == ApprovalFloor::Required || context.call.approval.is_some();
     if let Some(record) = context
         .admitted
         .pending
         .as_ref()
         .and_then(|pending| pending.approval.clone())
     {
-        return match record.actor {
-            ApprovalActor::Human => Ok(Lane::Approved(Box::new(Approved::new(record, Vec::new())))),
-            ApprovalActor::PaidExternalJob => {
-                let (key, refs) = paid_authority(context, paid)?;
-                if key != record.key {
-                    return Err(denied("the pending attempt changed its paid job authority"));
-                }
-                Ok(Lane::Approved(Box::new(Approved::new(record, refs))))
-            }
-        };
-    }
-    if paid.is_some() {
-        if floored {
-            return Err(denied(
-                "an explicitly gated or approval-floored operation needs exact approval, not paid job authority",
-            ));
-        }
-        let (key, refs) = paid_authority(context, paid)?;
-        return Ok(Lane::Approved(Box::new(Approved::new(
-            ApprovalRecord::new(ApprovalActor::PaidExternalJob, key),
-            refs,
-        ))));
+        return Ok(Lane::Approved(Box::new(Approved::new(record, Vec::new()))));
     }
     human(context, step, host)
-}
-
-fn paid_authority(
-    context: &OperationAdmission,
-    authority: Option<&ExternalJobStageRequest>,
-) -> Result<(String, Vec<Reference>), RuntimeEffectError> {
-    let authority = authority.ok_or_else(|| denied("the paid job authority is missing"))?;
-    let principal = authority
-        .continuation
-        .principal_ref
-        .as_reference()
-        .uri
-        .as_str()
-        .to_owned();
-    if principal != context.admitted.instance.principal_ref.as_str() {
-        return Err(denied(
-            "the paid job authority belongs to another principal",
-        ));
-    }
-    let evidence = |reference: &Reference| Reference {
-        provider: Some("runx".to_owned().into()),
-        proof_kind: Some(ProofKind::EffectEvidence),
-        ..reference.clone()
-    };
-    let continuation = Reference {
-        provider: Some("runx".to_owned().into()),
-        proof_kind: Some(ProofKind::EffectEvidence),
-        ..Reference::with_uri(
-            ReferenceType::Target,
-            format!(
-                "runx:external-job:{}",
-                authority.continuation.continuation_id.as_str()
-            ),
-        )
-    };
-    Ok((
-        authority.operation_key.as_str().to_owned(),
-        vec![
-            evidence(&authority.continuation.invocation_ref),
-            evidence(&authority.continuation.source_run_ref),
-            continuation,
-        ],
-    ))
 }
 
 fn human(

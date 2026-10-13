@@ -5,6 +5,9 @@
 // runx receipt. You recompute the canonical body hash yourself, and you verify
 // the Ed25519 signature yourself, with a tool you already have.
 //
+// Needs Node.js 22 or later, whose JSON.parse hands a reviver each number's
+// source text.
+//
 // Usage:
 //   node verify.mjs <receipt.json> --issuer-type <local|hosted|ci> --kid <kid> --pubkey <base64-raw-ed25519>
 //   node verify.mjs <receipt.json> --jwks <jwks-file-or-url>
@@ -19,6 +22,11 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
+if (Number(process.versions.node.split(".")[0]) < 22) {
+  process.stderr.write("verify.mjs needs Node.js 22 or later to read receipt numbers exactly\n");
+  process.exit(2);
+}
 
 // The one receipt-tree rule every runx verifier applies (runx-receipts
 // MAX_RECEIPT_TREE_DEPTH and MAX_RECEIPT_TREE_RECEIPTS): each receipt committed
@@ -63,12 +71,21 @@ const I64_MIN = -(2n ** 63n);
 const U64_MAX = 2n ** 64n - 1n;
 
 // Integers in the 64-bit range read exactly, as the issuer reads them;
-// JSON.parse alone rounds past 2^53.
+// JSON.parse alone rounds past 2^53. A number must be written the one way the
+// issuer writes it: `1.0`, `1e2` or `-0` is refused, as the Rust reader
+// refuses it, rather than hashed as `1`, `100` or `0`.
 function parseReceiptJson(text) {
   return JSON.parse(text, (_key, value, context) => {
-    if (typeof value !== "number" || !/^-?\d+$/.test(context.source)) return value;
-    const integer = BigInt(context.source);
-    return integer >= I64_MIN && integer <= U64_MAX ? integer : value;
+    if (typeof value !== "number") return value;
+    if (/^-?\d+$/.test(context.source)) {
+      const integer = BigInt(context.source);
+      if (integer.toString() !== context.source) throw new Error(`number ${context.source} is not written canonically`);
+      return integer >= I64_MIN && integer <= U64_MAX ? integer : value;
+    }
+    if (canonNumber(value) !== context.source || Number.isInteger(value)) {
+      throw new Error(`number ${context.source} is not written canonically`);
+    }
+    return value;
   });
 }
 
@@ -187,7 +204,7 @@ async function resolveTrustedKeys() {
     const issuerType = arg("--issuer-type");
     const kid = arg("--kid");
     if (!issuerType || !kid) throw new Error("--pubkey requires --issuer-type and --kid");
-    return [trustedKey(issuerType, kid, Buffer.from(arg("--pubkey"), "base64"))];
+    return [trustedKey(issuerType, kid, strictBase64(arg("--pubkey"), "base64"))];
   }
   if (arg("--jwks")) return trustedKeysFromJwks(arg("--jwks"));
   throw new Error(USAGE);
@@ -201,7 +218,16 @@ async function trustedKeysFromJwks(locator) {
   return jwks.keys
     .filter((key) => key?.kty === "OKP" && key?.crv === "Ed25519" && typeof key?.x === "string"
       && typeof key?.kid === "string" && typeof key?.issuer_type === "string")
-    .map((key) => trustedKey(key.issuer_type, key.kid, Buffer.from(key.x, "base64url")));
+    .map((key) => trustedKey(key.issuer_type, key.kid, strictBase64(key.x, "base64url")));
+}
+
+// A key decodes only from its one spelling: Buffer.from skips characters it
+// does not know and accepts missing padding, so the text must re-encode to
+// itself.
+function strictBase64(text, encoding) {
+  const bytes = Buffer.from(text, encoding);
+  if (bytes.toString(encoding) !== text) throw new Error(`key is not canonical ${encoding}`);
+  return bytes;
 }
 
 function trustedKey(issuerType, kid, raw) {

@@ -204,10 +204,9 @@ fn settle_module(
     context: &mut Context,
 ) -> Result<(), EngineError> {
     let promise = module.load_link_evaluate(context);
-    context
-        .run_jobs()
-        .map_err(|error| engine_failure("evaluating JavaScript module", error))?;
+    let ran = context.run_jobs();
     jobs.check()?;
+    ran.map_err(|error| engine_failure("evaluating JavaScript module", error))?;
     match promise.state() {
         PromiseState::Fulfilled(_) => Ok(()),
         PromiseState::Rejected(error) => Err(engine_failure(
@@ -232,10 +231,9 @@ fn settle_result(
     let Ok(promise) = boa_engine::object::builtins::JsPromise::from_object(object.clone()) else {
         return Ok(result);
     };
-    context
-        .run_jobs()
-        .map_err(|error| engine_failure("settling JavaScript result", error))?;
+    let ran = context.run_jobs();
     jobs.check()?;
+    ran.map_err(|error| engine_failure("settling JavaScript result", error))?;
     match promise.state() {
         PromiseState::Fulfilled(value) => Ok(value),
         PromiseState::Rejected(error) => Err(engine_failure(

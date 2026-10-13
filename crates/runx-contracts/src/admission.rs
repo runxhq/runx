@@ -1,20 +1,19 @@
-//! Admission contracts: `runx.admission.v1` and `runx.readiness.v1`.
+//! Admission contracts: the operation intent a call is admitted as, and the
+//! `runx.readiness.v1` projection.
 //!
-//! One evaluator answers both. An exact intent (operation, instance, target,
-//! payload digest) gets the authoritative [`Admission`]: admit, needs
-//! resolution, or refuse, with every reason and, when admitted, the execution
-//! term and its derivation. Anything less exact gets a [`Readiness`]
+//! An exact intent (operation, instance, target, payload digest) is admitted
+//! or refused by the kernel. Anything less exact gets a [`Readiness`]
 //! projection: could this requirement be admitted with the instances,
 //! capabilities and delegations present. A projection is never an admission;
 //! only a call is admitted.
 
 use serde::{Deserialize, Serialize};
 
+use crate::Reference;
 use crate::connector::{
     ConnectorDigestError, ConnectorRef, Digest, InstanceId, OperationName, Placement, stable_digest,
 };
 use crate::schema::{NonEmptyString, RunxSchema};
-use crate::{AuthorityDerivation, AuthorityTerm, Reference};
 
 /// An operation call before admission: everything a grant, a delegation or
 /// a person is asked to cover. Its digest is the one identity of the call:
@@ -62,15 +61,6 @@ pub struct OperationAmount {
     pub unit: NonEmptyString,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AdmissionDisposition {
-    Admit,
-    /// A person or host must answer first: an approval floor applies.
-    NeedsResolution,
-    Refuse,
-}
-
 /// The checks admission runs, in order; each refuses before the next.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
@@ -114,22 +104,6 @@ pub struct AdmissionReason {
     pub detail: NonEmptyString,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<Reference>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.admission.v1")]
-pub struct Admission {
-    pub disposition: AdmissionDisposition,
-    pub intent: OperationIntent,
-    pub intent_digest: Digest,
-    pub reasons: Vec<AdmissionReason>,
-    /// The narrowest term that satisfies every piece of evidence, bounded to
-    /// this intent and a single use. Present only when admitted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution_term: Option<AuthorityTerm>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub derivation: Option<AuthorityDerivation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

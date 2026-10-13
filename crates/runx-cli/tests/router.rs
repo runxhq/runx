@@ -510,7 +510,6 @@ fn routes_canonical_skill_run_to_native_plan() {
             runner: Some("intake".to_owned()),
             receipt_dir: Some(PathBuf::from(".runx/receipts")),
             run_id: None,
-            answers: None,
             registry: None,
             expected_digest: None,
             expected_package_digest: None,
@@ -546,7 +545,7 @@ fn a_host_gives_a_run_its_authority_and_inspect_refuses_one() -> Result<(), Stri
     };
     let authority = run.run_authority.ok_or("the run carries its authority")?;
     assert_eq!(authority.max_child_depth, Some(2));
-    assert!(authority.delegations.is_empty() && authority.paid_job.is_none());
+    assert!(authority.delegations.is_empty());
 
     assert!(matches!(
         plan(&["skill", "skills/echo", "--run-authority", r#"{"actor":"x"}"#]),
@@ -1015,7 +1014,7 @@ fn rejects_zero_registry_limit() {
 #[test]
 fn rejects_unsafe_registry_version() {
     assert_eq!(
-        plan(&["registry", "install", "acme/echo@../bad"]),
+        plan(&["add", "acme/echo@../bad"]),
         RouterAction::Error(
             runx_contracts::validate_registry_version("../bad")
                 .err()
@@ -1023,7 +1022,7 @@ fn rejects_unsafe_registry_version() {
         )
     );
     assert!(matches!(
-        plan(&["registry", "install", "acme/echo@-rf"]),
+        plan(&["add", "acme/echo@-rf"]),
         RouterAction::Error(message) if message.contains("starts with an ASCII letter or digit")
     ));
 }

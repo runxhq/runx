@@ -52,14 +52,13 @@ Operator rules:
   resolves the generated source marker back to the governed runx skill; stale
   shims fail closed with an instruction to rerun `runx export`.
 - Runnable registry skills use explicit `owner/name@version` refs with optional
-  `--registry`; bare names stay local or locked first-party official shorthand.
+  `--registry`; bare names stay local or resolve to the runx-maintained skills.
   Unsigned or digest-mismatched registry packages are search/read metadata only
   and fail before execution.
-- `runx registry read`, `runx registry resolve`, and low-level `runx registry install`
-  print a compact human view that names the selected source, skill id, version,
+- `runx registry read`, `runx registry resolve` and `runx add <ref>` print a
+  compact human view that names the selected source, skill id, version,
   digest, trust tier, signature key id when present, and destination or next
-  action. Operators should use `runx add <ref>` for the friendly install path.
-  Use `--json` for the full registry contract.
+  action. Use `--json` for the full registry contract.
 - `runx doctor registry [--json]` reports the selected registry target,
   official-skill cache root, global registry cache root, trusted manifest key
   readiness by key id, and remote install identity readiness. It names the env

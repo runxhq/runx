@@ -123,7 +123,7 @@ fn project_json_output_value(
         .unwrap_or("unbound-run")
         .to_owned();
     let mut diagnostic_payload = JsonObject::new();
-    for key in ["context", "trace", "execution"] {
+    for key in ["context", "trace"] {
         if let Some(value) = object.remove(key) {
             diagnostic_payload.insert(key.to_owned(), value);
         }
@@ -290,7 +290,6 @@ fn insert_next_command(object: &mut JsonObject) {
         object_string(object, "status"),
         Some("needs_agent" | "needs_approval")
     ) {
-        object.insert("next".to_owned(), JsonValue::Null);
         return;
     }
     if let Some(run_id) = object_string(object, "run_id") {
@@ -716,7 +715,7 @@ mod tests {
         // The runtime states the outcome; the projection carries it as is.
         assert_eq!(projected["outcome"], "failed");
         assert_eq!(projected["result"]["message"], "ready");
-        assert_eq!(projected["next"], serde_json::Value::Null);
+        assert!(projected.get("next").is_none());
 
         let diagnostic = serialize_json_output(&value, &artifacts, true)?;
         let diagnostic: serde_json::Value = serde_json::from_str(&diagnostic)?;

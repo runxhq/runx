@@ -271,6 +271,13 @@ where
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
+    // The host's workspace policy is the host's: a case's environment never
+    // sets it, so a publisher's harness cannot lift a refusal the host made.
+    let policy = crate::execution_environment::RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV;
+    match options.env.get(policy) {
+        Some(host) => fixture.env.insert(policy.to_owned(), host.clone()),
+        None => fixture.env.remove(policy),
+    };
     let mut options = options;
     let exchanges = wire_operations(&mut fixture, &target_path, &mut options)?;
     seed_harness_receipts(&fixture, &target_path, &options)?;

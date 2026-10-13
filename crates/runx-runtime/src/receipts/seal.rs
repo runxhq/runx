@@ -656,7 +656,7 @@ fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome: Digest)
 /// The authority a step receipt seals: who acted, the grants and scopes that
 /// admitted the step, the mandate a delegated actor acted under, and the
 /// execution terms derived for it with their proofs. A step no admission
-/// names an actor for is the local runtime's.
+/// names an actor for seals none.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SealAuthority {
     pub actor_ref: Option<Reference>,

@@ -239,7 +239,7 @@ pub(crate) struct Continuation<'a> {
     pub(crate) receipt_dir: Option<&'a Path>,
     pub(crate) env: &'a BTreeMap<String, String>,
     pub(crate) cwd: &'a Path,
-    pub(crate) answers_path: Option<&'a Path>,
+    pub(crate) answers: Option<&'a JsonObject>,
     pub(crate) managed_agent: crate::execution::orchestrator::ManagedAgentPolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub(crate) package_digest: Option<&'a str>,
@@ -285,7 +285,7 @@ pub(crate) fn bind_paused_run(
             skill_path: PathBuf::from(&paused.skill_ref),
             receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
             run_id: Some(paused.run_id),
-            answers_path: continuation.answers_path.map(Path::to_path_buf),
+            answers: continuation.answers.cloned(),
             inputs: BTreeMap::new(),
             env: continuation.env.clone(),
             cwd: continuation.cwd.to_path_buf(),
@@ -408,7 +408,7 @@ fn prepare_skill_execution(
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     restore_continuation_inputs(&mut request, &raw_workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
-    let materialize = if request.answers_path.is_some() {
+    let materialize = if request.answers.is_some() {
         crate::input_contract::materialize_present_runner_inputs
     } else {
         crate::input_contract::materialize_complete_runner_inputs
@@ -457,7 +457,7 @@ pub(crate) fn restore_continuation_inputs(
     request: &mut SkillRunRequest,
     workspace: &WorkspaceEnv,
 ) -> Result<(), SkillRunError> {
-    let answered = request.answers_path.is_some();
+    let answered = request.answers.is_some();
     let Some(run_id) = request.run_id.as_deref() else {
         return if answered {
             Err(invalid("graph continuation requires run_id"))

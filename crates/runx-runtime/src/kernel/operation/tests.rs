@@ -595,7 +595,7 @@ fn an_approved_post_binds_its_intent_term_and_readback() {
     let admitted = &context.admitted.admission;
     assert_eq!(
         admitted.disposition,
-        runx_contracts::AdmissionDisposition::Admit
+        crate::kernel::admission::AdmissionDisposition::Admit
     );
     let term = admitted.execution_term.as_ref().expect("execution term");
     assert_eq!(term.approvals.len(), 1);
@@ -618,7 +618,7 @@ fn the_floor_cannot_be_skipped_by_omitting_approval_text() {
     let context = admission.context::<OperationAdmission>().unwrap();
     assert_eq!(
         context.admitted.admission.disposition,
-        runx_contracts::AdmissionDisposition::NeedsResolution
+        crate::kernel::admission::AdmissionDisposition::NeedsResolution
     );
     let mut host = Approver::new(None);
     assert!(matches!(
@@ -675,7 +675,6 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
-        paid_job: None,
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -916,71 +915,6 @@ fn the_approval_summary_carries_digests_not_payloads() {
     let request = serde_json::to_string(&host.requests).unwrap();
     assert!(!request.contains(SECRET));
     assert!(request.contains("payload_digest"));
-}
-
-/// A host's authority for a run that executes one stage of a paid job held
-/// by `principal`.
-fn paid_job(principal: &str) -> crate::RunAuthority {
-    let digest = format!("sha256:{}", "e".repeat(64));
-    let stage = serde_json::json!({
-        "continuation": {
-            "continuation_id": "job-1",
-            "principal_ref": {"type": "principal", "uri": principal},
-            "vendor_ref": {"type": "principal", "uri": "runx:principal:vendor"},
-            "invocation_ref": {"type": "target", "uri": "runx:paid-invocation:paid-1"},
-            "source_run_ref": {"type": "act", "uri": "runx:run:source-1"},
-            "execution_binding": {
-                "skill": "vendor/document-analysis",
-                "runner": "continue",
-                "package_digest": digest,
-                "execution_closure_digest": digest,
-            },
-            "operation_identity": digest,
-            "stage": "start",
-            "status": "runnable",
-            "attempts": 1,
-            "max_attempts": 6,
-            "deadline_at": "2026-08-27T01:00:00.000Z",
-            "created_at": "2026-08-27T00:00:00.000Z",
-            "updated_at": "2026-08-27T00:00:00.000Z",
-        },
-        "checkpoint": {"document": "input"},
-        "operation_key": digest,
-    });
-    crate::RunAuthority {
-        actor_ref: Reference::with_uri(ReferenceType::Principal, principal),
-        mandate_ref: None,
-        delegations: Vec::new(),
-        max_fanout: None,
-        max_child_depth: None,
-        paid_job: Some(Box::new(serde_json::from_value(stage).unwrap())),
-    }
-}
-
-#[test]
-fn paid_job_authority_cannot_satisfy_an_approval_floor() {
-    let fixture = Fixture::new(&["channel.post"]);
-    let authority = paid_job(PRINCIPAL_REF);
-    let error = fixture
-        .run_under("post", &post("hi"), None, Some(&authority))
-        .expect_err("refused");
-    assert!(error.contains("not paid job authority"), "{error}");
-}
-
-#[test]
-fn paid_job_authority_cannot_satisfy_an_explicit_call_gate() {
-    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
-    let call: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "s3://media/interview.mp3"},
-        "idempotency_key": "transcribe-1",
-        "approval": {"reason": "review this transcription job"}
-    }))
-    .unwrap();
-    let authority = paid_job(PRINCIPAL_REF);
-    let error = fixture
-        .run_under("transcribe", &call, None, Some(&authority))
-        .expect_err("refused");
-    assert!(error.contains("not paid job authority"), "{error}");
 }
 
 #[test]

@@ -319,7 +319,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--input-json key=json    Set an input that must parse as JSON",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with per-key inputs",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
-            "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and the paid job it runs a stage of",
+            "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations and child-run bounds",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--full-operator-context  Print the complete prepared context before execution",
             "--managed-agent          Explicitly allow an in-process model loop for this run",
@@ -371,14 +371,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "registry",
         top_level_usage: &[
-            "runx registry search|read|resolve|install|package|publish ... --json",
+            "runx registry search|read|resolve|package|publish ... --json",
             "runx registry connector package|publish|read|install ... --json",
         ],
         usage: &[
             "runx registry search <query> [--registry url|path] [--registry-dir dir] [--limit n] [-j|--json]",
             "runx registry read <ref> [--registry url|path] [--registry-dir dir] [--version version] [-j|--json]",
             "runx registry resolve <ref> [--registry url|path] [--registry-dir dir] [--version version] [-j|--json]",
-            "runx registry install <ref> [--registry url|path] [--registry-dir dir] [--version version] [--digest sha256] [--to dir] [-j|--json]",
             "runx registry package <SKILL.md|skill-dir> [--profile run.yaml] [-j|--json]",
             "runx registry connector package <connector-dir> [-j|--json]",
             "runx registry connector publish <connector-dir> [--registry url] [--version version] [-j|--json]",

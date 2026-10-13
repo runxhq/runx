@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::types::{
     McpServerExecutionOptions, McpServerOptions, McpServerSkillExecution, McpServerTool,
-    McpServerToolBehavior, McpToolResult,
+    McpServerToolBehavior, McpToolResult, McpTurnRuns,
 };
 use crate::RuntimeError;
 use runx_contracts::schema::RunxSchema;
@@ -19,14 +19,20 @@ impl McpServerOptions {
         package_version: impl Into<String>,
         execution: McpServerExecutionOptions,
     ) -> Result<Self, RuntimeError> {
-        let tools = skill_paths
+        let mut tools = skill_paths
             .iter()
             .map(|path| load_mcp_server_tool(path, &execution))
             .collect::<Result<Vec<_>, _>>()?;
+        tools.extend(super::server_turn::turn_tools(&McpTurnRuns::Named(
+            std::sync::Arc::new(execution.clone()),
+        )));
         Ok(Self {
             package_name: package_name.into(),
             package_version: package_version.into(),
-            instructions: None,
+            instructions: Some(
+                "Each skill is a tool. A skill that pauses for agent work names its run; work that run's open turns here with turn_list, turn_status, turn_call and turn_complete, naming the run. An approval is a person's to give, with runx resume."
+                    .to_owned(),
+            ),
             effects: execution.effects,
             tools,
         })
@@ -140,7 +146,7 @@ pub(super) fn execute_mcp_server_skill(
         skill_path: execution.skill_path,
         receipt_dir: execution.receipt_dir.clone(),
         run_id: Some(run_id.to_owned()),
-        answers_path: None,
+        answers: None,
         inputs,
         env: execution.env,
         cwd: workspace.cwd().to_path_buf(),

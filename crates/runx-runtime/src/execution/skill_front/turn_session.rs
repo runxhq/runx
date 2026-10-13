@@ -53,6 +53,12 @@ impl TurnSession {
         self.run.request.run_id.as_deref().unwrap_or_default()
     }
 
+    /// Where the run's receipts go, when its host named a directory.
+    #[must_use]
+    pub fn receipt_dir(&self) -> Option<&std::path::Path> {
+        self.run.request.receipt_dir.as_deref()
+    }
+
     /// Everything the run waits on, by address: each open turn's act, and
     /// each ask, approval or retry beneath them.
     pub fn waiting(&self) -> Result<Vec<ResolutionRequest>, SkillRunError> {
@@ -143,11 +149,9 @@ mod tests {
     }
 
     fn resume(root: &Path, run_id: &str, answers: serde_json::Value) -> TestResult<RunResult> {
-        let path = root.join("answers.json");
-        fs::write(&path, answers.to_string())?;
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: run_id.to_owned(),
-            answers_path: path,
+            answers: serde_json::from_value(answers)?,
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
             cwd: root.to_path_buf(),
@@ -179,7 +183,7 @@ mod tests {
             skill_path: skill,
             receipt_dir: Some(root.join("receipts")),
             run_id: None,
-            answers_path: None,
+            answers: None,
             inputs: BTreeMap::new(),
             env: env(root),
             cwd: root.to_path_buf(),

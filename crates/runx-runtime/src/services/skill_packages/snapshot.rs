@@ -213,21 +213,27 @@ fn collect_package_files(
         if entry.is_dir {
             collect_package_files(root, &entry.path, files, file_count, byte_count)?;
         } else if entry.is_file {
-            let contents = fs::read(&entry.path).map_err(|source| {
+            let over_limit = || {
+                invalid_skill_change(format!(
+                    "skill package exceeds validation limit ({MAX_PACKAGE_FILES} files, {MAX_PACKAGE_BYTES} bytes)"
+                ))
+            };
+            *file_count += 1;
+            if *file_count > MAX_PACKAGE_FILES {
+                return Err(over_limit());
+            }
+            let contents = crate::skill_package::read_within(
+                &entry.path,
+                MAX_PACKAGE_BYTES.saturating_sub(*byte_count),
+            )
+            .map_err(|source| {
                 RuntimeError::io(
                     format!("reading package file {}", entry.path.display()),
                     source,
                 )
-            })?;
-            *file_count += 1;
-            *byte_count = byte_count
-                .checked_add(contents.len())
-                .ok_or_else(|| invalid_skill_change("candidate package byte count overflow"))?;
-            if *file_count > MAX_PACKAGE_FILES || *byte_count > MAX_PACKAGE_BYTES {
-                return Err(invalid_skill_change(format!(
-                    "skill package exceeds validation limit ({MAX_PACKAGE_FILES} files, {MAX_PACKAGE_BYTES} bytes)"
-                )));
-            }
+            })?
+            .ok_or_else(over_limit)?;
+            *byte_count += contents.len();
             files.push(PackageFile {
                 relative: entry
                     .path

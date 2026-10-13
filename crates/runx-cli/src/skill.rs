@@ -33,7 +33,6 @@ pub struct SkillPlan {
     pub runner: Option<String>,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
-    pub answers: Option<PathBuf>,
     pub registry: Option<String>,
     pub expected_digest: Option<String>,
     pub expected_package_digest: Option<String>,
@@ -144,7 +143,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             exit_code,
             ResumeHint {
                 receipt_dir: plan.receipt_dir.as_deref(),
-                answers_path: plan.answers.as_deref(),
+                answers_path: None,
             },
             &artifacts,
             plan.diagnostics,
@@ -152,7 +151,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     }
     let resume = ResumeHint {
         receipt_dir: plan.receipt_dir.as_deref(),
-        answers_path: plan.answers.as_deref(),
+        answers_path: None,
     };
     let request = SkillRunRequest {
         current_context: Vec::new(),
@@ -162,7 +161,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         skill_path,
         receipt_dir: plan.receipt_dir.clone(),
         run_id: plan.run_id.clone(),
-        answers_path: plan.answers.clone(),
+        answers: None,
         inputs,
         env,
         cwd,

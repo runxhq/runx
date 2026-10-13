@@ -752,6 +752,12 @@ fn set_add_string(
 }
 
 fn add_registry_plan(parsed: AddParseState) -> Result<RegistryPlan, String> {
+    if let Some(subject) = &parsed.subject {
+        validate_registry_ref_version(subject)?;
+    }
+    if let Some(version) = &parsed.version {
+        validate_registry_version(version)?;
+    }
     Ok(RegistryPlan {
         action: RegistryAction::Install,
         subject: parsed.subject.unwrap_or_default(),
@@ -1385,7 +1391,6 @@ fn parse_registry_action(subcommand: &str) -> Result<RegistryAction, String> {
         "search" => Ok(RegistryAction::Search),
         "read" => Ok(RegistryAction::Read),
         "resolve" => Ok(RegistryAction::Resolve),
-        "install" => Ok(RegistryAction::Install),
         "package" => Ok(RegistryAction::Package),
         "publish" => Ok(RegistryAction::Publish),
         _ => Err(format!("unknown registry subcommand {subcommand}")),
@@ -1552,6 +1557,7 @@ fn registry_subject(
             Ok(subject)
         }
         RegistryAction::Read | RegistryAction::Resolve | RegistryAction::Install => {
+            // `runx add` installs; `registry` names no install subcommand.
             if positionals.len() != 1 {
                 return Err(format!(
                     "runx registry {subcommand} requires exactly one ref"

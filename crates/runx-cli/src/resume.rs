@@ -1,9 +1,9 @@
 use std::ffi::OsString;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use runx_contracts::{JsonObject, JsonValue};
 use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
 
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
@@ -165,13 +165,9 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
 /// Continue a paused run with the host's answers. The run's skill, runner
 /// and digests come from its record; pinned digests must match them.
 pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceEnv) -> ExitCode {
-    let answers_path = if plan.answers_path == Path::new("-") {
-        match materialize_stdin_answers(workspace, &plan.run_id) {
-            Ok(path) => path,
-            Err(error) => return write_resume_failure(&error, plan.json, 1),
-        }
-    } else {
-        plan.answers_path
+    let answers = match read_answers(&plan.answers_path, workspace) {
+        Ok(answers) => answers,
+        Err(error) => return write_resume_failure(&error, plan.json, 1),
     };
     let orchestrator = match crate::runtime::local_orchestrator(workspace.env()) {
         Ok(orchestrator) => orchestrator,
@@ -185,7 +181,7 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     };
     let result = orchestrator.resume(&ResumeRequest {
         run_id: plan.run_id,
-        answers_path: answers_path.clone(),
+        answers,
         receipt_dir: plan.receipt_dir.clone(),
         env: workspace.env().clone(),
         cwd: workspace.cwd().to_path_buf(),
@@ -200,7 +196,7 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
                 json: plan.json,
                 diagnostics: plan.diagnostics,
                 receipt_dir: plan.receipt_dir.as_deref(),
-                answers_path: Some(&answers_path),
+                answers_path: Some(&plan.answers_path),
                 artifacts: &workspace.paths().artifacts(),
             },
         ),
@@ -208,65 +204,24 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     }
 }
 
-fn materialize_stdin_answers(workspace: &WorkspaceEnv, run_id: &str) -> Result<PathBuf, String> {
-    // Resume answers read from stdin as any document input does, under the
-    // same bound as a skill's inputs.
-    let text = crate::document_input::read_document_input(
-        &crate::document_input::DocumentInputSource::Stdin,
-        workspace.env(),
-        workspace.cwd(),
-    )
-    .map_err(|error| format!("failed to read resume answers from stdin: {error}"))?;
-    let value = serde_json::from_str::<runx_contracts::JsonValue>(&text)
-        .map_err(|error| format!("resume answers from stdin are not valid JSON: {error}"))?;
-    if value.as_object().is_none() {
-        return Err("resume answers from stdin must be a JSON object".to_owned());
-    }
-    let canonical = serde_json::to_vec(&value)
-        .map_err(|error| format!("failed to encode resume answers: {error}"))?;
-    let directory = workspace.paths().continuations();
-    fs::create_dir_all(&directory)
-        .map_err(|error| format!("failed to create {}: {error}", directory.display()))?;
-    let digest = runx_contracts::sha256_prefixed(&canonical);
-    let digest = digest.strip_prefix("sha256:").unwrap_or(&digest);
-    let path = directory.join(format!(
-        "{}-{digest}.answers.json",
-        safe_path_segment(run_id)
-    ));
-    if !path.exists() {
-        let temporary = directory.join(format!(
-            ".{}-{digest}.answers.tmp-{}",
-            safe_path_segment(run_id),
-            std::process::id()
-        ));
-        fs::write(&temporary, &canonical)
-            .map_err(|error| format!("failed to write {}: {error}", temporary.display()))?;
-        if let Err(error) = fs::rename(&temporary, &path) {
-            if !path.exists() {
-                let _ = fs::remove_file(&temporary);
-                return Err(format!("failed to commit {}: {error}", path.display()));
-            }
-            let _ = fs::remove_file(&temporary);
-        }
-    }
-    Ok(path)
-}
-
-fn safe_path_segment(value: &str) -> String {
-    let value = value
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    if value.is_empty() {
-        "run".to_owned()
+/// The answers object at `path`, or on stdin for `-`, read under the same
+/// bound as a skill's inputs. Nothing is written: the run records what it
+/// consumes.
+fn read_answers(path: &Path, workspace: &WorkspaceEnv) -> Result<JsonObject, String> {
+    let text = if path == Path::new("-") {
+        crate::document_input::read_document_input(
+            &crate::document_input::DocumentInputSource::Stdin,
+            workspace.env(),
+            workspace.cwd(),
+        )
     } else {
-        value
+        crate::document_input::read_operator_document(path)
+    }
+    .map_err(|error| format!("failed to read resume answers: {error}"))?;
+    match serde_json::from_str::<JsonValue>(&text) {
+        Ok(JsonValue::Object(answers)) => Ok(answers),
+        Ok(_) => Err("resume answers must be a JSON object".to_owned()),
+        Err(error) => Err(format!("resume answers are not valid JSON: {error}")),
     }
 }
 

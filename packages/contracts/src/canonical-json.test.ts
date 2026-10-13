@@ -111,7 +111,6 @@ describe("runx.stable-json.v1 canonical JSON", () => {
       { value: Symbol("value") },
       "runx.stable-json.v1: unsupported symbol at $[\"value\"]",
     ],
-    ["BigInt", 1n, "runx.stable-json.v1: unsupported BigInt at $"],
     ["NaN", NaN, "runx.stable-json.v1: unsupported NaN at $"],
     ["Infinity", Infinity, "runx.stable-json.v1: unsupported Infinity at $"],
     ["-Infinity", -Infinity, "runx.stable-json.v1: unsupported -Infinity at $"],
@@ -122,6 +121,12 @@ describe("runx.stable-json.v1 canonical JSON", () => {
     ],
   ] as const)("rejects unsupported value: %s", (_name, value, message) => {
     expect(captureErrorMessage(() => canonicalJsonStringify(value))).toBe(message);
+  });
+});
+
+describe("runx.stable-json.v1 integers", () => {
+  it("writes a 64-bit integer exactly, as the Rust writer does", () => {
+    expect(canonicalJsonStringify({ units: 9007199254740993n })).toBe('{"units":9007199254740993}');
   });
 });
 

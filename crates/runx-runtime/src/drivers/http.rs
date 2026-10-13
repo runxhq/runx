@@ -615,16 +615,8 @@ fn decode(response: &RuntimeHttpResponse, steps: &[DecodeStep]) -> Result<JsonVa
             JsonValue::Number(JsonNumber::from(u64::from(response.status))),
         )])),
         Some(DecodeStep::Text) => JsonValue::String(response.body.clone()),
-        Some(DecodeStep::AutoJson) => {
-            let body = response.body.as_str();
-            let event = body
-                .lines()
-                .filter_map(|line| line.strip_prefix("data:"))
-                .map(str::trim)
-                .rfind(|line| !line.is_empty() && *line != "[DONE]");
-            serde_json::from_str::<JsonValue>(event.unwrap_or(body))
-                .map_err(|_| "the provider response is not valid JSON".to_owned())?
-        }
+        Some(DecodeStep::AutoJson) => serde_json::from_str::<JsonValue>(&response.body)
+            .map_err(|_| "the provider response is not valid JSON".to_owned())?,
         _ => return Err("the decoder has no source".to_owned()),
     };
     for step in steps.iter().skip(1) {

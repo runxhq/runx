@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::{CopyableCommand, JsonObject, JsonValue};
 
@@ -113,29 +111,25 @@ impl RunxClient {
             args.push(runner);
         }
         for (name, value) in options.inputs {
-            args.push(format!("--{name}"));
-            args.push(value);
+            args.push("-i".to_owned());
+            args.push(format!("{name}={value}"));
         }
         Ok(RunxJsonReport::new(self.run_json(args, None)?))
     }
 
+    /// Continue a paused run with answers and approvals, read by the CLI from
+    /// stdin, never a file another process could read.
     pub fn continue_run(
         &self,
-        _skill_ref: &str,
         run_id: &str,
         payload: ContinuePayload,
     ) -> RunxResult<RunxJsonReport> {
-        let answers_path = write_continue_payload(payload)?;
+        let payload = serde_json::to_string(&continue_payload_to_json(payload))?;
         let result = self.run_json(
-            vec![
-                "resume".to_owned(),
-                run_id.to_owned(),
-                answers_path.to_string_lossy().into_owned(),
-            ],
-            None,
-        );
-        let _ignored = fs::remove_file(&answers_path);
-        Ok(RunxJsonReport::new(result?))
+            vec!["resume".to_owned(), run_id.to_owned(), "-".to_owned()],
+            Some(payload),
+        )?;
+        Ok(RunxJsonReport::new(result))
     }
 
     pub fn run_json(&self, args: Vec<String>, stdin: Option<String>) -> RunxResult<JsonObject> {
@@ -169,7 +163,13 @@ impl ContinuePayload {
     }
 
     pub fn with_approval(mut self, id: impl Into<String>, approved: bool) -> Self {
-        self.approvals.insert(id.into(), JsonValue::Bool(approved));
+        self.approvals.insert(
+            id.into(),
+            JsonValue::Object(JsonObject::from([(
+                "approved".to_owned(),
+                JsonValue::Bool(approved),
+            )])),
+        );
         self
     }
 }
@@ -211,20 +211,6 @@ fn continue_payload_to_json(payload: ContinuePayload) -> JsonValue {
     object.insert("answers".to_owned(), JsonValue::Object(payload.answers));
     object.insert("approvals".to_owned(), JsonValue::Object(payload.approvals));
     JsonValue::Object(object)
-}
-
-fn write_continue_payload(payload: ContinuePayload) -> RunxResult<PathBuf> {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let path =
-        std::env::temp_dir().join(format!("runx-continue-{}-{nanos}.json", std::process::id()));
-    fs::write(
-        &path,
-        serde_json::to_vec(&continue_payload_to_json(payload))?,
-    )?;
-    Ok(path)
 }
 
 fn search_result_from_json(value: &JsonValue) -> RunxResult<SkillSearchResult> {

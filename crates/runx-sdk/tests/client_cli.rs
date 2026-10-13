@@ -29,21 +29,19 @@ fn search_and_run_use_runx_cli_json() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(report.status(), Some("success"));
     assert_eq!(
         fs::read_to_string(fixture.args_path())?,
-        "skill\nskills/example\n--message\nhi\n--json\n"
+        "skill\nskills/example\n-i\nmessage=hi\n--json\n"
     );
     Ok(())
 }
 
 #[test]
-fn continue_run_writes_answers_file_for_canonical_skill_rerun()
--> Result<(), Box<dyn std::error::Error>> {
+fn continue_run_sends_answers_and_approvals_on_stdin() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = CliFixture::create()?;
     let client = fixture.client();
     let mut answer = JsonObject::new();
     answer.insert("ok".to_owned(), JsonValue::Bool(true));
 
     let report = client.continue_run(
-        "skills/example",
         "run-123",
         ContinuePayload::default()
             .with_answer("req-1", JsonValue::Object(answer))
@@ -56,7 +54,7 @@ fn continue_run_writes_answers_file_for_canonical_skill_rerun()
     assert!(args.ends_with("\n--json\n"));
     assert_eq!(
         fs::read_to_string(fixture.stdin_path())?,
-        r#"{"answers":{"req-1":{"ok":true}},"approvals":{"gate-1":true}}"#
+        r#"{"answers":{"req-1":{"ok":true}},"approvals":{"gate-1":{"approved":true}}}"#
     );
     Ok(())
 }

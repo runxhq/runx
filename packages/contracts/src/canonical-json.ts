@@ -33,7 +33,7 @@ function canonicalJsonValue(value: unknown, path: string, stack: Set<object>): s
     case "symbol":
       throw unsupported(path, "symbol");
     case "bigint":
-      throw unsupported(path, "BigInt");
+      return value.toString();
     case "object":
       return Array.isArray(value)
         ? canonicalJsonArray(value, path, stack)

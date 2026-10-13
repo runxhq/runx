@@ -15,7 +15,6 @@ pub runx_core::kernel_eval::KernelEvalOutput::Output::value: runx_contracts::jso
 pub fn runx_core::kernel_eval::evaluate_kernel_document_str(source: &str) -> core::result::Result<runx_core::kernel_eval::KernelEvalOutput, runx_core::kernel_eval::KernelEvalError>
 pub mod runx_core::policy
 pub enum runx_core::policy::AttenuationError
-pub runx_core::policy::AttenuationError::CapabilitiesNotSubset
 pub runx_core::policy::AttenuationError::ChildNotSubset
 pub runx_core::policy::AttenuationError::Expired
 pub runx_core::policy::AttenuationError::ExpiryNotSubset
@@ -27,8 +26,6 @@ pub runx_core::policy::DerivationError::ActorMismatch
 pub runx_core::policy::DerivationError::ActorMismatch::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::BoundsNotCovered
 pub runx_core::policy::DerivationError::BoundsNotCovered::parent: runx_core::policy::DerivationParent
-pub runx_core::policy::DerivationError::CapabilitiesNotCovered
-pub runx_core::policy::DerivationError::CapabilitiesNotCovered::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::Expired
 pub runx_core::policy::DerivationError::Expired::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::ExpiryNotCovered
@@ -50,7 +47,6 @@ pub runx_core::policy::ScopeGrantPolicy::ExactOnly
 pub runx_core::policy::ScopeGrantPolicy::Trusted
 pub struct runx_core::policy::AttenuationRequest
 pub runx_core::policy::AttenuationRequest::bounds: runx_contracts::authority::AuthorityBounds
-pub runx_core::policy::AttenuationRequest::capabilities: alloc::vec::Vec<runx_contracts::authority::AuthorityCapability>
 pub runx_core::policy::AttenuationRequest::expires_at: core::option::Option<runx_contracts::schema::IsoDateTime>
 pub runx_core::policy::AttenuationRequest::principal_ref: runx_contracts::reference::Reference
 pub runx_core::policy::AttenuationRequest::resource_family: runx_contracts::authority::AuthorityResourceFamily
@@ -71,7 +67,8 @@ pub runx_core::policy::ExecutionTermRequest::intent: &'a runx_core::policy::Atte
 pub runx_core::policy::ExecutionTermRequest::intent_digest: &'a str
 pub runx_core::policy::ExecutionTermRequest::issued_by_ref: runx_contracts::reference::Reference
 pub struct runx_core::policy::LocalExecutionPolicy
-pub runx_core::policy::LocalExecutionPolicy::strict_process_tool_inline_code: core::option::Option<bool>
+pub runx_core::policy::LocalExecutionPolicy::refuse_host_processes: bool
+pub runx_core::policy::LocalExecutionPolicy::strict_process_tool_inline_code: bool
 pub struct runx_core::policy::ToolRefAdmission
 pub runx_core::policy::ToolRefAdmission::allowed: bool
 pub runx_core::policy::ToolRefAdmission::reason: &'static str

@@ -158,3 +158,47 @@ fn passes_exact_declared_environment_as_frozen_context() -> Result<(), EngineErr
     );
     Ok(())
 }
+
+#[test]
+fn a_flood_of_jobs_is_reported_as_the_queued_jobs_limit() {
+    let error = evaluate(
+        "main.mjs",
+        "default",
+        &modules(
+            "export default async function () { for (let i = 0; i < 64; i++) { await Promise.resolve(i); } return {}; }",
+        ),
+        serde_json::json!({}),
+        BTreeMap::new(),
+        InvocationLimits {
+            queued_jobs: 8,
+            ..InvocationLimits::default()
+        },
+    )
+    .err();
+    let message = error
+        .as_ref()
+        .map(|error| error.message.clone())
+        .unwrap_or_default();
+    assert_eq!(
+        error.map(|error| error.code),
+        Some(WorkerFailureCode::ResourceLimit),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_timer_is_refused_not_reported_as_a_limit() {
+    let error = evaluate(
+        "main.mjs",
+        "default",
+        &modules("export default () => new Promise((resolve) => setTimeout(resolve, 1));"),
+        serde_json::json!({}),
+        BTreeMap::new(),
+        InvocationLimits::default(),
+    )
+    .err();
+    assert_eq!(
+        error.map(|error| error.code),
+        Some(WorkerFailureCode::ExecutionFailed)
+    );
+}

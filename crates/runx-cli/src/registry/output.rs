@@ -188,7 +188,7 @@ pub(super) fn render_install(
     signed_manifest: Option<&runx_runtime::registry::RegistrySignedManifest>,
 ) -> String {
     format!(
-        "\n  registry install {registry_ref}\n  source           {source}\n  status           {}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
+        "\n  add {registry_ref}\n  source           {source}\n  status           {}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
         install_status_label(&install.status),
         install.skill_id.as_deref().unwrap_or(&install.skill_name),
         install.version.as_deref().unwrap_or("unknown"),

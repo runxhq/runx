@@ -442,6 +442,89 @@ fn mcp_server_never_treats_configured_model_credentials_as_managed_agent_consent
     Ok(())
 }
 
+/// A skill server serves the turn tools over any run it names, so the turn a
+/// skill call opened is worked without starting `runx turn`.
+#[test]
+#[cfg(feature = "mcp")]
+fn a_skill_server_works_the_turn_its_own_skill_call_opened()
+-> Result<(), Box<dyn std::error::Error>> {
+    let receipts = tempfile::tempdir()?;
+    let options = McpServerOptions::from_skill_paths_with_execution(
+        &[repo_root()?.join("fixtures/skills/agent-task")],
+        "runx-cli",
+        "0.0.0",
+        mcp_server_execution_options(Some(receipts.path().to_path_buf()))?,
+    )?;
+    let call = |name: &str, arguments: JsonObject| {
+        request(
+            1,
+            "tools/call",
+            [
+                ("name".to_owned(), JsonValue::String(name.to_owned())),
+                ("arguments".to_owned(), JsonValue::Object(arguments)),
+            ]
+            .into(),
+        )
+    };
+    let started = run_server_with_options(
+        vec![call(
+            "reviewer-boundary",
+            [("prompt".to_owned(), JsonValue::String("review".to_owned()))].into(),
+        )],
+        options.clone(),
+    )?;
+    let run_id = path(
+        &started[0],
+        &["result", "structuredContent", "runx", "run_id"],
+    )
+    .and_then(JsonValue::as_str)
+    .ok_or("the paused call names its run")?
+    .to_owned();
+
+    let turn = |extra: Option<(&str, JsonValue)>| {
+        let mut arguments = JsonObject::from([
+            ("run".to_owned(), JsonValue::String(run_id.clone())),
+            ("turn".to_owned(), JsonValue::String("default".to_owned())),
+        ]);
+        arguments.extend(extra.map(|(key, value)| (key.to_owned(), value)));
+        arguments
+    };
+    let worked = run_server_with_options(
+        vec![
+            call("turn_status", turn(None)),
+            call(
+                "turn_complete",
+                turn(Some((
+                    "output",
+                    JsonValue::Object(JsonObject::from([(
+                        "verdict".to_owned(),
+                        JsonValue::String("pass".to_owned()),
+                    )])),
+                ))),
+            ),
+        ],
+        options,
+    )?;
+    for response in &worked {
+        assert_no_json_rpc_error(response);
+        assert_ne!(
+            path(response, &["result", "isError"]),
+            Some(&JsonValue::Bool(true)),
+            "{response:?}"
+        );
+    }
+    assert_eq!(
+        path(
+            &worked[1],
+            &["result", "structuredContent", "runx", "status"]
+        ),
+        Some(&JsonValue::String("sealed".to_owned())),
+        "{:?}",
+        worked[1]
+    );
+    Ok(())
+}
+
 #[test]
 #[cfg(feature = "mcp")]
 fn mcp_server_graph_approval_pauses_with_request() -> Result<(), Box<dyn std::error::Error>> {

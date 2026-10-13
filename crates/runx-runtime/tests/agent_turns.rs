@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
@@ -132,7 +131,7 @@ impl Paused {
             skill_path: skill_dir,
             receipt_dir: Some(receipts.clone()),
             run_id: None,
-            answers_path: None,
+            answers: None,
             inputs: BTreeMap::from([(
                 "question".to_owned(),
                 JsonValue::String("what digests?".to_owned()),
@@ -169,11 +168,9 @@ impl Paused {
         answers: serde_json::Value,
         managed_agent: ManagedAgentPolicy,
     ) -> TestResult<RunResult> {
-        let path = self.root.join("answers.json");
-        fs::write(&path, answers.to_string())?;
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: self.run_id.clone(),
-            answers_path: path,
+            answers: serde_json::from_value(answers)?,
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
             cwd: self.root.clone(),
@@ -640,12 +637,10 @@ fn a_run_keeps_the_driver_it_started_with() -> TestResult {
 fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
-    let path = temp.path().join("answers.json");
-    fs::write(&path, "{}")?;
     let error = LocalOrchestrator::default()
         .resume(&ResumeRequest {
             run_id: paused.run_id.clone(),
-            answers_path: path,
+            answers: JsonObject::new(),
             receipt_dir: Some(paused.receipts.clone()),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),
@@ -815,7 +810,6 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         delegations: Vec::new(),
         max_fanout: fanout,
         max_child_depth: depth,
-        paid_job: None,
     }
 }
 
@@ -833,7 +827,7 @@ fn start_bounded(
         skill_path: skill_dir,
         receipt_dir: Some(root.join("receipts")),
         run_id: None,
-        answers_path: None,
+        answers: None,
         inputs: BTreeMap::from([(
             "question".to_owned(),
             JsonValue::String("what digests?".to_owned()),

@@ -84,10 +84,9 @@ fn registry_local_publish_search_resolve_install_json() -> Result<(), Box<dyn st
     mutate_registry_version(&registry_dir, insert_signed_manifest)?;
     let install = runx_command()?
         .args([
-            "registry",
-            "install",
+            "add",
             "acme/echo@1.0.0",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--to",
             install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -227,10 +226,9 @@ runners:
 
     let install = runx_command()?
         .args([
-            "registry",
-            "install",
+            "add",
             "acme/bundled-root@1.0.0",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--to",
             install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -267,6 +265,8 @@ runners:
     );
 
     Ok(())
+}
+
 /// Adding a skill adds the connectors its package carries to the project, so
 /// the project can bind their instances by qualified reference.
 #[test]
@@ -352,13 +352,11 @@ runners:
     Ok(())
 }
 
-}
-
 #[test]
 fn registry_package_metadata_names_the_declared_connectors()
-    crate::support::plugin_with_source_connectors(&root, &["github", "stripe-spt", "mpp"])?;
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-package-connectors");
+    crate::support::plugin_with_source_connectors(&root, &["github", "stripe-spt", "mpp"])?;
     let skill_dir = root.join("connected");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -679,10 +677,9 @@ fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error
     for (subject, version_flag) in [("acme/echo@1.0.0", None), ("acme/echo", Some("2.0.0"))] {
         let install = runx_command()?
             .args([
-                "registry",
-                "install",
+                "add",
                 subject,
-                "--registry-dir",
+                "--registry",
                 registry_dir.to_str().ok_or("non-utf8 registry dir")?,
                 "--to",
                 install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -763,10 +760,9 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
 
         let install = runx_command()?
             .args([
-                "registry",
-                "install",
+                "add",
                 "acme/echo@1.0.0",
-                "--registry-dir",
+                "--registry",
                 registry_dir.to_str().ok_or("non-utf8 registry dir")?,
                 "--to",
                 install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -774,7 +770,7 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
             ])
             .output()?;
 
-        assert_json_failure_contains(&install, &format!("registry install {error_kind}:"))?;
+        assert_json_failure_contains(&install, &format!("add {error_kind}:"))?;
         assert!(
             !install_dir.exists(),
             "{error_kind} should leave no install dir"
@@ -799,10 +795,9 @@ fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std:
     let install = runx_command()?
         .env("RUNX_REGISTRY_URL", "https://runx.ai")
         .args([
-            "registry",
-            "install",
+            "add",
             "acme/echo@1.0.0",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--to",
             install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -894,10 +889,9 @@ fn registry_human_output_names_selected_version_and_digest()
 
     let install_v1 = runx_command()?
         .args([
-            "registry",
-            "install",
+            "add",
             "acme/echo@1.0.0",
-            "--registry-dir",
+            "--registry",
             registry_dir.to_str().ok_or("non-utf8 registry dir")?,
             "--to",
             install_dir.to_str().ok_or("non-utf8 install dir")?,
@@ -906,7 +900,7 @@ fn registry_human_output_names_selected_version_and_digest()
     assert_success_contains(
         &install_v1,
         &[
-            "registry install acme/echo@1.0.0",
+            "add acme/echo@1.0.0",
             "status           installed",
             "version          1.0.0",
             "digest           sha256:",

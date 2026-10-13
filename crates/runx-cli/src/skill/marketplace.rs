@@ -4,11 +4,9 @@
 // skill and never enters this router.
 use std::collections::BTreeMap;
 
-use runx_contracts::{
-    JsonObject, JsonValue, PaidSkillRunnerOffer, X402_PAYMENT_REQUIRED_HEADER, X402PaymentRequired,
-};
+use runx_contracts::{JsonObject, JsonValue, X402_PAYMENT_REQUIRED_HEADER};
 use runx_runtime::{HostedSkillChallenge, request_hosted_skill_challenge};
-use runx_x402::decode_payment_required_header;
+use runx_x402::payment_required_from_answer;
 
 use super::resolver::ResolvedSkillRef;
 
@@ -50,9 +48,7 @@ fn render_paid_skill_challenge(
             response.status
         ));
     }
-    let body: X402PaymentRequired = serde_json::from_str(&response.body)
-        .map_err(|error| format!("marketplace returned an invalid x402 challenge body: {error}"))?;
-    let encoded = response
+    let header = response
         .headers
         .iter()
         .find(|header| {
@@ -60,13 +56,9 @@ fn render_paid_skill_challenge(
                 .name
                 .eq_ignore_ascii_case(X402_PAYMENT_REQUIRED_HEADER)
         })
-        .map(|header| header.value.as_str())
-        .ok_or_else(|| "marketplace 402 omitted PAYMENT-REQUIRED".to_owned())?;
-    let header = decode_payment_required_header(encoded)
-        .map_err(|error| format!("marketplace PAYMENT-REQUIRED is invalid: {error}"))?;
-    if header != body {
-        return Err("marketplace x402 header and body challenges differ".to_owned());
-    }
+        .map(|header| header.value.as_str());
+    let body = payment_required_from_answer(&response.body, header)
+        .map_err(|error| format!("marketplace challenge: {error}"))?;
     // The registry transport may be an internal origin behind a proxy. The
     // canonical paid resource is the one declared by the matching x402 header
     // and body, not the address used to fetch that challenge.
@@ -76,15 +68,7 @@ fn render_paid_skill_challenge(
         .as_map()
         .get(runner.as_str())
         .ok_or_else(|| format!("paid listing has no offer for runner '{runner}'"))?;
-    let mediated = match offer {
-        PaidSkillRunnerOffer::Fixed(offer) => offer.mediation.is_some(),
-        PaidSkillRunnerOffer::Prepared(_) => true,
-    };
-    let mut hosted_inputs = inputs.clone();
-    if mediated {
-        hosted_inputs.remove("marketplace_offer");
-        hosted_inputs.remove("idempotency_seed");
-    }
+    let hosted_inputs = offer.hosted_inputs(inputs);
 
     serde_json::from_value(serde_json::json!({
         "status": "payment_required",
@@ -217,7 +201,7 @@ mod tests {
 
         assert!(matches!(
             &result,
-            Err(error) if error.contains("header and body challenges differ")
+            Err(error) if error.contains("header and body are different challenges")
         ));
         Ok(())
     }
@@ -226,7 +210,7 @@ mod tests {
         body: &serde_json::Value,
         header: &serde_json::Value,
     ) -> Result<HostedSkillChallenge, String> {
-        let header: X402PaymentRequired =
+        let header: runx_contracts::X402PaymentRequired =
             serde_json::from_value(header.clone()).map_err(|error| error.to_string())?;
         let encoded = runx_x402::encode_payment_required_header(&header)
             .map_err(|error| error.to_string())?;

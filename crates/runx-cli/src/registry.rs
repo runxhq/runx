@@ -669,7 +669,7 @@ impl From<runx_runtime::registry::InstallError> for RegistryCliError {
             _ => None,
         };
         match error_kind {
-            Some(kind) => internal_error(format!("registry install {kind}: {error}")),
+            Some(kind) => internal_error(format!("add {kind}: {error}")),
             None => internal_error(error.to_string()),
         }
     }

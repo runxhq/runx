@@ -344,7 +344,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
             skill_path: approval_skill,
             receipt_dir: Some(receipt_dir),
             run_id: Some(run_id.to_owned()),
-            answers_path: None,
+            answers: None,
             inputs: std::collections::BTreeMap::new(),
             env: std::collections::BTreeMap::from([(
                 "RUNX_HOME".to_owned(),

@@ -70,7 +70,7 @@ pub(super) fn tree_findings(findings: &[runx_receipts::ReceiptFinding]) -> Vec<J
             JsonValue::Object(JsonObject::from([
                 (
                     "code".to_owned(),
-                    JsonValue::String(format!("{:?}", finding.code)),
+                    JsonValue::String(finding.code.as_str().to_owned()),
                 ),
                 ("path".to_owned(), JsonValue::String(finding.path.clone())),
                 (

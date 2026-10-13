@@ -31,8 +31,19 @@ export async function readBoundedJson(file: string, root: string, maximum: numbe
       bytes += read.bytesRead;
     }
     if (bytes > maximum || bytes !== stat.size) throw new RunxClientError("artifact", "Native artifact changed size while reading.");
-    return { bytes: buffer.subarray(0, bytes), value: JSON.parse(buffer.subarray(0, bytes).toString("utf8")) };
+    return { bytes: buffer.subarray(0, bytes), value: parseExactJson(buffer.subarray(0, bytes).toString("utf8")) };
   } finally { await handle.close(); }
+}
+
+// JSON.parse rounds an integer past 2^53, which would change what a recomputed
+// id or digest covers; such a value is refused rather than read wrong.
+function parseExactJson(text: string): unknown {
+  return JSON.parse(text, (_key, value: unknown, context?: { source?: string }) => {
+    if (typeof value === "number" && Number.isInteger(value) && !Number.isSafeInteger(value) && /^-?\d+$/u.test(context?.source ?? "")) {
+      throw new RunxClientError("artifact", `Native artifact holds an integer this client cannot read exactly: ${context?.source}.`);
+    }
+    return value;
+  });
 }
 
 export async function readProjectArtifact(reference: unknown, projectDir: string, maximum: number): Promise<unknown> {
