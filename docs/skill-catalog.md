@@ -89,6 +89,12 @@ The command shape is deliberate:
 Running a registry ref fetches it, so most work needs no install.
 `runx registry install` adds a package without running it.
 
+Every package a project runs lives beside its source, under
+`skills/<owner>/<name>/<version>/`: a registry skill when it is first run or
+installed, the registry skills a graph names, and a bundled runx skill the
+first time the project uses it (`runx new` uses `runx/skill-build`). Commit
+them or ignore them as you would any other dependency.
+
 ## Operator-first package contract
 
 A public package has one memorable capability name and two supported invocation

@@ -61,6 +61,24 @@ authority, decisions, acts, the seal's criteria (and its reason, when the
 disposition alone does not say why), and local issuer verification. It does
 not reproduce the execution input or output body.
 
+## Verify The Receipt
+
+Check the receipt and the step receipts beneath it against this home's key:
+
+```bash
+runx verify <receipt-id>
+```
+
+```text
+tree sha256:<receipt-id> (2 receipts): ok
+verification: ok
+```
+
+With `--json` the verdict reports `"valid": true`. A receipt whose digest,
+content address or signature does not check out is reported `INVALID`, and one
+signed by a key this home does not trust is reported `UNTRUSTED`; both fail the
+command.
+
 ## Production Receipt Signing
 
 For receipts a hosted or CI identity signs, configure its Ed25519 signing key
@@ -96,8 +114,10 @@ runx history <receipt-id> --json
   documentation decision skill"` to enter the canonical `skill-build` lane.
   Runx inspects the catalog, returns an exact agent/resume handoff unless
   `--managed-agent` was explicitly authorized, and writes only the validated
-  package. It never generates a placeholder module. To cold-start without
-  installing Runx first, use the same command through `npx @runxhq/cli`.
+  package. It never generates a placeholder module. Like every package a
+  project runs, the `skill-build` it uses is added beside your source under
+  `skills/runx/skill-build/<version>/`. To cold-start without installing Runx
+  first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a graph with [Skill To Graph](./skill-to-graph.md).
 - Bind provider accounts once as described in
   [Credentials](./credentials.md); agents and MCP use the same readiness path

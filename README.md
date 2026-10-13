@@ -91,7 +91,8 @@ cd runx
 runx skill ./examples/hello-world -i message="hello, runx" --json
 ```
 
-The checked-in `examples/hello-world` skill runs a local command, and the final
+The checked-in `examples/hello-world` skill runs a local Node.js script, so it
+needs `node` on your PATH. The final
 `--json` output is a `runx.skill_run.v1` result with `status: "sealed"` and a
 `receipt_id`. Inspect the governance record with
 `runx history <receipt-id> --json`.
@@ -99,15 +100,18 @@ The checked-in `examples/hello-world` skill runs a local command, and the final
 Some other examples:
 
 ```bash
-# Research and strategy: produce a governed decision brief.
-runx skill deep-research \
+# Research and strategy: a governed decision brief from files in this repo.
+runx skill deep-research local-files \
   -i objective="Which launch risks should we resolve first?" \
+  -i paths='["README.md","docs/getting-started.md"]' \
   --json
 
-# Maintainer operations: draft a useful issue response.
+# Maintainer operations: draft a useful issue response. Bind GitHub once
+# through your `gh` sign-in.
+runx connector use runx/github --session
 runx skill issue-triage \
   -i repository=runxhq/runx \
-  -i issue_number=241 \
+  -i issue_number=496 \
   -i objective="Draft the next helpful maintainer response" \
   --json
 ```

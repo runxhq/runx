@@ -127,8 +127,8 @@ mechanics, not duplicate instructions.
 Bundled local tools use
 `tools/<namespace>/<tool>/manifest.json`; the dotted manifest name must match
 that path. Skill-package admission parses each manifest and binds its complete
-static local source closure. Registry publication consumes that admitted set—it
-does not rescan or reinterpret tool source—so a missing import, uncompiled Node
+static local source closure. Registry publication consumes that admitted set and
+does not rescan or reinterpret tool source, so a missing import, uncompiled Node
 TypeScript entrypoint, or path/name mismatch fails before execution or publish.
 
 ## Permission proof
@@ -223,6 +223,26 @@ Timeout is terminal. On Unix, the runtime starts the skill in a new process
 group, sends `SIGTERM` to the group, then sends `SIGKILL` after a short grace
 period. On Windows, the runtime owns the process tree through a per-execution
 Job Object and terminates that job on timeout or cancellation.
+
+## Resource limits
+
+On Unix every process tool runs under these limits, each clamped to what the
+host already allows:
+
+- 256 open files;
+- 512 MiB for any one file the process writes;
+- 60 seconds of CPU time;
+- on Linux, 16 GiB of data for each process (`ulimit -d`): its heap and the
+  private memory it maps for writing, counted when mapped. Address space a
+  program only reserves, as V8 does for every WebAssembly memory, does not
+  count against it.
+
+Past a limit the operating system refuses the open, write or allocation, or
+stops the process when its CPU time runs out; a tool that then exits non-zero
+fails its step. Each limit applies to each process on its own. Memory shared
+between mappings or spread across child processes is not bounded by them, so a
+host that must cap a tool's whole footprint sets that limit itself, with a
+container or cgroup.
 
 ## Output
 

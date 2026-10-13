@@ -697,8 +697,8 @@ only a trusted, signed registry package is added to the project, at
 `skills/<owner>/<name>/<version>/`.
 
 Agent graphs can also demand-load skills as context instead of executing them.
-Put reusable judgement, operating procedure, or capability skills in the local
-registry, then reference them from an `agent` step with `context_skills`:
+Reference reusable judgement, operating procedure, or capability skills from an
+`agent` step with `context_skills`:
 
 ```yaml
 context_skills:
@@ -708,9 +708,10 @@ context_skills:
 
 The runtime injects each referenced `SKILL.md` as a generic
 `runx.skill.context` artifact in the agent invocation `current_context`. Local
-path refs resolve relative to the graph; registry refs require
-`RUNX_REGISTRY_DIR` and are read from the local registry, not fetched remotely at
-execution time. Explicit local/file registry sources are treated as user-owned
+path refs resolve relative to the graph; `runx skill` fetches each registry ref
+the project does not hold before the run, into the project's skills, and the
+runtime reads it from there, never from a registry during execution. Explicit
+local/file registry sources are treated as user-owned
 local material: they are digest-checked, but they do not require hosted registry
 signatures. Context skills are bounded, digest-labeled, and presented to managed
 agents as untrusted advisory data.

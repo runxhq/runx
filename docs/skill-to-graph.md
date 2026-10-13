@@ -26,7 +26,7 @@ first step's `message` output and passes it as its own `message` input. The grap
 receipt links both step receipts, so inspection can show what ran and how the
 steps connected.
 
-Graph steps may also execute a cataloged skill from the local registry:
+Graph steps may also execute a registry skill:
 
 ```yaml
 steps:
@@ -37,12 +37,14 @@ steps:
       objective: refresh the public docs
 ```
 
-Executable registry refs are explicit, `registry:<owner>/<name>[@<version>]`,
-and resolve only from `RUNX_REGISTRY_DIR`. Graph execution
-does not fetch remote registry content implicitly; the operator must install,
-publish, or sync the skill into the local registry first. At runtime runx adds
-the resolved package to the project's `skills/<owner>/<name>/<version>/`, like
-any other added skill, then executes the normal skill runner path against it.
+Executable registry refs are explicit, `registry:<owner>/<name>[@<version>]`.
+Before the run, `runx skill` fetches each one the project does not hold, exactly
+as it fetches a top-level ref, into the project's
+`skills/<owner>/<name>/<version>/`, and repeats for the skills those name. The
+run resolves the step from there, so the runtime itself never reaches a
+registry. A ref with no version names the one version the project holds.
+`RUNX_REGISTRY_DIR` or `--registry <dir>` names a local registry instead of the
+hosted catalog.
 
 ## Skill Context For Agents
 
@@ -69,10 +71,10 @@ skill; the skill remains an abstract context/capability document.
 
 Local path refs resolve relative to the graph skill directory and must stay
 inside the owning skill root. Use registry refs for cataloged skills shared
-across skill roots. Registry refs use the local registry (`RUNX_REGISTRY_DIR`)
-and must be explicit (`registry:<owner>/<name>[@<version>]`). Graph
-execution does not fetch remote registry content
-implicitly; install or ingest the skill first, then reference the local registry.
+across skill roots. Registry refs must be explicit
+(`registry:<owner>/<name>[@<version>]`) and arrive as executable registry steps
+do: `runx skill` fetches each one the project does not hold before the run, and
+the turn reads it from the project's skills.
 
 The gates are intentionally narrow:
 
@@ -84,7 +86,8 @@ The gates are intentionally narrow:
   role (`graph-stage`, `runtime-path`, or `harness-fixture`).
   Internal catalog entries are context-loadable only when they explicitly declare
   `catalog.role: context`.
-- Registry refs resolve only from the configured local registry.
+- Registry refs resolve from the project's fetched skills, or a named local
+  registry.
 - Each context skill is capped at 64 KiB, the step is capped at 12 context
   skills, and total resolved skill context is capped at 256 KiB.
 - Duplicate context refs are rejected.
