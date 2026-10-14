@@ -9,9 +9,9 @@ use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
-pub(crate) use execution_closure::LocalExecutionClosure;
 use execution_closure::inspect_local_execution_closure;
 use execution_closure::unheld_registry_refs;
+pub(crate) use execution_closure::{CaseClosureTarget, LocalExecutionClosure};
 use execution_closure::{UnheldRegistryRefs, inspect_execution_closures};
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
@@ -304,6 +304,15 @@ pub(crate) fn inspect_loaded_local_execution_closure(
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<LocalExecutionClosure, SkillInspectionError> {
     inspect_local_execution_closure(Arc::new(loaded.clone()), env)
+}
+
+/// Every connector a harness case's run binds through its whole closure.
+pub(crate) fn case_closure_connectors(
+    loaded: &LoadedSkillPackage,
+    target: CaseClosureTarget<'_>,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<Vec<Arc<crate::kernel::connectors::LoadedConnector>>, SkillInspectionError> {
+    execution_closure::case_closure_connectors(Arc::new(loaded.clone()), target, env)
 }
 
 fn base_inspection(loaded: &LoadedSkillPackage) -> Result<JsonObject, SkillInspectionError> {

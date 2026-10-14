@@ -391,6 +391,174 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A case's provider grant reaches a connector only a registry child carries:
+/// the case's package names the child, the child's bundle carries the
+/// connector, and the case's run binds it from there.
+#[test]
+fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-child-grant");
+    let registry_dir = publish_calendar_revisions(&root, &["1.0.0"])?;
+    let consumer = calendar_consumer(&root, &["1.0.0"])?;
+    let publish = publish_consumer(&consumer, &registry_dir)?;
+    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A grant binds one revision: a closure whose registry children carry two
+/// manifests of the same connector is refused, never settled by whichever
+/// child was found first.
+#[test]
+fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-child-grant-ambiguous");
+    let registry_dir = publish_calendar_revisions(&root, &["1.0.0", "2.0.0"])?;
+    let consumer = calendar_consumer(&root, &["1.0.0", "2.0.0"])?;
+    let publish = publish_consumer(&consumer, &registry_dir)?;
+    assert_ne!(publish.status.code(), Some(0));
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&publish.stdout),
+        String::from_utf8_lossy(&publish.stderr)
+    );
+    assert!(
+        output.contains("connector runx/google-calendar reaches more than one revision"),
+        "{output}"
+    );
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// Publishes the google-calendar skill as acme's at each version, each
+/// carrying its own revision of the runx/google-calendar connector.
+fn publish_calendar_revisions(
+    root: &std::path::Path,
+    versions: &[&str],
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let source = root.join("source");
+    crate::support::plugin_with_source_connectors(&source, &["google-calendar"])?;
+    let skill_dir = source.join("skills/google-calendar");
+    crate::support::copy_dir(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/google-calendar"),
+        &skill_dir,
+    )?;
+    let manifest = source.join("connectors/google-calendar/connector.yaml");
+    let registry_dir = root.join("registry");
+    let original = fs::read_to_string(&manifest)?;
+    for version in versions {
+        fs::write(
+            &manifest,
+            original.replacen(
+                "description: Read Google Calendar events",
+                &format!("description: Revision {version} reads Google Calendar events"),
+                1,
+            ),
+        )?;
+        let publish = runx_command()?
+            .args([
+                "registry",
+                "publish",
+                skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+                "--registry",
+                registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                "--publisher",
+                "acme",
+                "--version",
+                version,
+                "--json",
+            ])
+            .output()?;
+        assert_success_contains(&publish, &["\"action\": \"publish\""])?;
+    }
+    Ok(registry_dir)
+}
+
+/// A package in no plugin whose one case reads events through each named
+/// version of acme's google-calendar, granting runx/google-calendar.
+fn calendar_consumer(
+    root: &std::path::Path,
+    versions: &[&str],
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let consumer = root.join("consumer/agenda");
+    fs::create_dir_all(consumer.join("fixtures"))?;
+    fs::write(
+        consumer.join("SKILL.md"),
+        "---\nname: agenda\ndescription: Reads the day's events through a published calendar skill.\n---\n# Agenda\n",
+    )?;
+    let steps = versions
+        .iter()
+        .enumerate()
+        .map(|(index, version)| {
+            format!(
+                "      - id: events-{index}\n        skill: registry:acme/google-calendar@{version}\n        runner: events\n        inputs:\n          calendar_id: primary\n          time_min: \"2026-10-04T00:00:00Z\"\n          time_max: \"2026-10-05T00:00:00Z\"\n"
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        consumer.join("run.yaml"),
+        format!(
+            "skill: agenda\nrunners:\n  default:\n    default: true\n    result_from: [events-0]\n    steps:\n{steps}"
+        ),
+    )?;
+    // Every child makes the one call, which the fixture answers once.
+    let operations = r#"      - operation: events.list
+        target: primary
+        access: read
+        result:
+          calendar_id: primary
+          time_min: "2026-10-04T00:00:00Z"
+          time_max: "2026-10-05T00:00:00Z"
+          fetched_at: "2026-10-04T01:00:00Z"
+          complete: true
+          events:
+            - { event_id: instance-1, revision: v1, status: confirmed, visibility: default, transparency: opaque, summary: Review, all_day: false, start: "2026-10-04T09:00:00Z", end: "2026-10-04T10:00:00Z" }
+"#;
+    fs::write(
+        consumer.join("fixtures/reads-through-registry-child.yaml"),
+        format!(
+            r#"name: agenda-reads-through-registry-child
+kind: skill
+target: ..
+runner: default
+caller:
+  provider_responses:
+    principal_id: operator-fixture
+    grant:
+      grant_id: calendar-events-fixture
+      provider: runx/google-calendar
+      scopes: [events.read]
+    operations:
+{operations}expect:
+  status: sealed
+"#
+        ),
+    )?;
+    Ok(consumer)
+}
+
+fn publish_consumer(
+    consumer: &std::path::Path,
+    registry_dir: &std::path::Path,
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    Ok(runx_command()?
+        .current_dir(consumer.parent().ok_or("consumer has no parent")?)
+        .env("RUNX_REGISTRY_DIR", registry_dir)
+        .args([
+            "registry",
+            "publish",
+            consumer.to_str().ok_or("non-utf8 consumer dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--publisher",
+            "consumer",
+            "--version",
+            "1.0.0",
+            "--json",
+        ])
+        .output()?)
+}
+
 /// A graph case runs its composed skill's operations under what it binds: a
 /// credential from the variable the case sets, or the provider grant its
 /// caller answers for. Both are bound from the graph file's directory.

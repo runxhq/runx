@@ -375,21 +375,78 @@ fn wire_operations(
             message,
         })
     };
-    let transport = super::transport::harness_transport(&fixture.caller, &scope, skill_dir)
-        .map_err(invalid_provider)?;
-    options.effects =
-        super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
-            .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
-    fixture
-        .env
-        .extend(super::transport::provider_env(&fixture.caller));
     let mut env = options.env.clone();
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, skill_dir)?;
-    super::transport::seed_provider_grant(&fixture.caller, &scope, &env, skill_dir)
+    let closure = granted_closure(fixture, target_path, &env)?;
+    let transport =
+        super::transport::harness_transport(&fixture.caller, &scope, &closure, skill_dir)
+            .map_err(invalid_provider)?;
+    options.effects =
+        super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
+            .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
+    let provider_env = super::transport::provider_env(&fixture.caller);
+    fixture.env.extend(provider_env.clone());
+    env.extend(provider_env);
+    super::transport::seed_provider_grant(&fixture.caller, &scope, &closure, &env, skill_dir)
         .map_err(invalid_provider)?;
     seed_harness_instances(fixture, target_path, skill_dir, options, &transport)?;
     Ok(transport.exchanges)
+}
+
+/// Every connector the case's run binds through its whole closure, for its
+/// provider grant to reach: walked in the case's environment, so its registry
+/// children are materialized where the run finds them. None without a grant,
+/// or for a graph in no package.
+fn granted_closure(
+    fixture: &HarnessFixture,
+    target_path: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<Vec<Arc<crate::kernel::connectors::LoadedConnector>>, HarnessReplayError> {
+    if fixture.caller.provider_responses.is_none() {
+        return Ok(Vec::new());
+    }
+    let unbound = |error: crate::skill_package::SkillInspectionError| {
+        RuntimeError::effect_state("binding the case's closure", error.to_string())
+    };
+    match fixture.kind {
+        HarnessFixtureKind::Skill => {
+            let loaded = crate::load_validated_skill_package(target_path)?;
+            let manifest =
+                loaded
+                    .manifest()
+                    .ok_or_else(|| RuntimeError::UnsupportedRunnerSelection {
+                        runner: fixture
+                            .runner
+                            .clone()
+                            .unwrap_or_else(|| "default".to_owned()),
+                    })?;
+            let runner = select_harness_runner(manifest, fixture.runner.as_deref())?
+                .name
+                .clone();
+            crate::skill_package::case_closure_connectors(
+                &loaded,
+                crate::skill_package::CaseClosureTarget::Runner(&runner),
+                env,
+            )
+            .map_err(|error| unbound(error).into())
+        }
+        HarnessFixtureKind::Graph => {
+            let Some(package_root) = target_path
+                .parent()
+                .and_then(crate::skill_package::find_owning_package_root)
+            else {
+                return Ok(Vec::new());
+            };
+            let loaded = crate::load_validated_skill_package(&package_root)?;
+            crate::skill_package::case_closure_connectors(
+                &loaded,
+                crate::skill_package::CaseClosureTarget::Graph(target_path),
+                env,
+            )
+            .map_err(|error| unbound(error).into())
+        }
+    }
 }
 
 /// Confirm and select the instances the case runs under, in the case's own

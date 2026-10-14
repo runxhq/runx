@@ -49,17 +49,15 @@ impl RuntimeHttpTransport for HarnessTransport {
                 ])))
             }
             (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
-                let binding = self
-                    .grant_connector
-                    .as_ref()
-                    .map(|connector| connector.binding());
-                let binding = binding.as_ref().ok_or_else(|| {
+                let connector = self.grant_connector.as_ref().ok_or_else(|| {
                     transport_error("the provider fixture's grant names no connector".to_owned())
                 })?;
+                // Connect records the provider of the connector a grant binds,
+                // however the fixture named that connector.
                 let grant = serde_json::json!({
                     "grant_id": fixture.grant.grant_id,
-                    "provider": fixture.grant.provider,
-                    "connector_binding": binding,
+                    "provider": connector.manifest.id.as_str(),
+                    "connector_binding": connector.binding(),
                     "status": "active",
                     "scopes": fixture.grant.scopes,
                 });
@@ -132,7 +130,10 @@ impl HarnessTransport {
                 "the harness provider fixture holds no grant {grant_id:?}"
             )));
         }
-        let provider = fixture.grant.provider.clone();
+        let provider = self.grant_connector.as_ref().map_or_else(
+            || fixture.grant.provider.clone(),
+            |connector| connector.manifest.id.as_str().to_owned(),
+        );
         let fixture = fixture
             .operations
             .iter()

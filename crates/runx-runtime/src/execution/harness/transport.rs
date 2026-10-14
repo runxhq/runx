@@ -11,6 +11,7 @@ use crate::http::{
     HarnessExchanges, HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
     RuntimeHttpHeader, RuntimeHttpResponse,
 };
+use crate::kernel::connectors::LoadedConnector;
 use crate::kernel::operation::OperationEffect;
 
 /// The registry a harness case runs with: operation steps run over the
@@ -30,15 +31,17 @@ pub(super) fn effects_over(
 }
 
 /// The transport the caller's fixtures stand in for the world with.
+/// `closure` is every connector the case's run binds through its closure.
 pub(super) fn harness_transport(
     caller: &HarnessCaller,
     scope: &crate::ConnectorScope,
+    closure: &[Arc<LoadedConnector>],
     skill_dir: &std::path::Path,
 ) -> Result<HarnessTransport, String> {
     let grant_connector = caller
         .provider_responses
         .as_ref()
-        .map(|provider| granted_connector(scope, skill_dir, &provider.grant.provider))
+        .map(|provider| granted_connector(scope, closure, skill_dir, &provider.grant.provider))
         .transpose()?;
     let exchanges = Arc::new(HarnessExchanges::new(
         caller
@@ -66,36 +69,66 @@ pub(super) fn harness_transport(
 }
 
 /// The connector a case's provider grant names, as its operations reach it:
-/// from the case's own package or, in a bundle, from whichever of the
-/// bundle's packages carries it, since a case runs its whole closure.
+/// from the case's own package, from whichever of a bundle's packages
+/// carries it, or from the closure its run binds, registry children
+/// included, since a case runs its whole closure. A name that reaches more
+/// than one revision is refused, never settled by where it was found first.
 fn granted_connector(
     scope: &crate::ConnectorScope,
+    closure: &[Arc<LoadedConnector>],
     skill_dir: &std::path::Path,
     id: &str,
-) -> Result<Arc<crate::kernel::connectors::LoadedConnector>, String> {
-    let unreached = match scope.connector(id) {
-        Ok(connector) => return Ok(connector),
-        Err(error) => error.to_string(),
-    };
-    let Some(packages) = crate::registry::package_bundle::bundle_package_dirs(skill_dir)? else {
-        return Err(unreached);
-    };
-    let mut carried: Vec<Arc<crate::kernel::connectors::LoadedConnector>> = Vec::new();
-    for package in packages {
-        let scope = crate::ConnectorScope::at(&package).map_err(|error| error.to_string())?;
-        if let Ok(connector) = scope.connector(id)
-            && !carried
-                .iter()
-                .any(|known| known.binding() == connector.binding())
+) -> Result<Arc<LoadedConnector>, String> {
+    let mut reached: Vec<Arc<LoadedConnector>> = Vec::new();
+    let mut reach = |connector: Arc<LoadedConnector>| {
+        if !reached
+            .iter()
+            .any(|known| known.binding() == connector.binding())
         {
-            carried.push(connector);
+            reached.push(connector);
+        }
+    };
+    let unreached = match scope.connector(id) {
+        Ok(connector) => {
+            reach(connector);
+            None
+        }
+        Err(error) => Some(error.to_string()),
+    };
+    for package in crate::registry::package_bundle::bundle_package_dirs(skill_dir)?
+        .into_iter()
+        .flatten()
+    {
+        let scope = crate::ConnectorScope::at(&package).map_err(|error| error.to_string())?;
+        if let Ok(connector) = scope.connector(id) {
+            reach(connector);
         }
     }
-    match carried.len() {
-        0 => Err(unreached),
-        1 => Ok(carried.remove(0)),
+    // A qualified name is one connector; a bare one is its id, as a
+    // plugin names its own.
+    let qualified = runx_contracts::connector::ConnectorRef::new(id);
+    for connector in closure {
+        let named = match &qualified {
+            Some(reference) => &connector.connector_ref == reference,
+            None => connector.connector_ref.id() == id,
+        };
+        if named {
+            reach(Arc::clone(connector));
+        }
+    }
+    match reached.len() {
+        0 => Err(unreached.unwrap_or_else(|| format!("connector {id} is not in the case's reach"))),
+        1 => Ok(reached.remove(0)),
         _ => Err(format!(
-            "connector {id} is carried by more than one package of the bundle at different digests; grant it by its qualified reference"
+            "connector {id} reaches more than one revision across the case's package, its bundle and its closure ({}); one grant binds one revision",
+            reached
+                .iter()
+                .map(|connector| format!(
+                    "{} at {}",
+                    connector.connector_ref, connector.manifest_digest
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
         )),
     }
 }
@@ -124,13 +157,14 @@ pub(crate) fn provider_env(caller: &HarnessCaller) -> BTreeMap<String, String> {
 pub(crate) fn seed_provider_grant(
     caller: &HarnessCaller,
     scope: &crate::ConnectorScope,
+    closure: &[Arc<LoadedConnector>],
     env: &BTreeMap<String, String>,
     cwd: &std::path::Path,
 ) -> Result<(), String> {
     let Some(provider) = &caller.provider_responses else {
         return Ok(());
     };
-    let connector = granted_connector(scope, cwd, &provider.grant.provider)?;
+    let connector = granted_connector(scope, closure, cwd, &provider.grant.provider)?;
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
             .map_err(|error| error.to_string())?,
@@ -138,7 +172,7 @@ pub(crate) fn seed_provider_grant(
     crate::kernel::setup::confirm_grant_over(
         &instances,
         &connector,
-        Arc::new(harness_transport(caller, scope, cwd)?),
+        Arc::new(harness_transport(caller, scope, closure, cwd)?),
         &provider.grant.grant_id,
         env,
         cwd,

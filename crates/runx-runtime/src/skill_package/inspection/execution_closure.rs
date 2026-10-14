@@ -12,6 +12,7 @@ use serde::Serialize;
 
 use super::super::LoadedSkillPackage;
 use super::SkillInspectionError;
+use crate::kernel::connectors::LoadedConnector;
 
 #[derive(Default)]
 struct ClosureAccumulator {
@@ -23,7 +24,8 @@ struct ClosureAccumulator {
     /// registry holds; reported, never part of the closure.
     unheld_context_registry_refs: BTreeSet<String>,
     package_bindings: BTreeSet<ExecutionPackageBinding>,
-    connector_bindings: BTreeSet<ExecutionConnectorBinding>,
+    /// Each connector the closure binds, as its package resolved it.
+    connector_bindings: BTreeMap<ExecutionConnectorBinding, Arc<LoadedConnector>>,
     local_packages: BTreeMap<PathBuf, BTreeSet<String>>,
     local_skill_edges: BTreeSet<LocalSkillEdge>,
     profiles: BTreeSet<String>,
@@ -193,6 +195,33 @@ pub(super) fn inspect_local_execution_closure(
     Ok(closure)
 }
 
+/// What a harness case runs: one of its package's runners, or a graph file
+/// in its package.
+pub(crate) enum CaseClosureTarget<'a> {
+    Runner(&'a str),
+    Graph(&'a Path),
+}
+
+/// Every connector a harness case's run binds, each as the package that
+/// declares it resolves it: the whole closure of the case's runner or graph,
+/// its registry children materialized into the case's project as the run
+/// materializes them. A child no registry holds is the run's to refuse.
+pub(super) fn case_closure_connectors(
+    loaded: Arc<LoadedSkillPackage>,
+    target: CaseClosureTarget<'_>,
+    env: &BTreeMap<String, String>,
+) -> Result<Vec<Arc<LoadedConnector>>, SkillInspectionError> {
+    let mut inspector =
+        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let closure = match target {
+        CaseClosureTarget::Runner(runner) => inspector.inspect_root_runner_accumulator(runner)?,
+        CaseClosureTarget::Graph(graph) => {
+            inspector.inspect_graph_accumulator(graph, &graph.to_string_lossy())?
+        }
+    };
+    Ok(closure.connector_bindings.into_values().collect())
+}
+
 /// The registry refs a package's runners and harness graphs name that the
 /// environment's registry directory does not hold: what a host supplies
 /// before the package's closure can be bound.
@@ -339,8 +368,17 @@ impl<'a> ExecutionClosureInspector<'a> {
                 .ok_or_else(|| SkillInspectionError::ProfileEscape {
                     reference: fixture_path.to_string_lossy().into_owned(),
                 })?;
-        let target_path =
-            canonical_directory(&fixture_directory.join(target), "harness graph target")?;
+        self.inspect_graph_accumulator(&fixture_directory.join(target), target)
+    }
+
+    /// The closure of the graph file at `graph`, which lies in the package;
+    /// `target` is how the case named it.
+    fn inspect_graph_accumulator(
+        &mut self,
+        graph: &Path,
+        target: &str,
+    ) -> Result<ClosureAccumulator, SkillInspectionError> {
+        let target_path = canonical_directory(graph, "harness graph target")?;
         let graph_directory =
             target_path
                 .parent()
@@ -420,13 +458,14 @@ impl<'a> ExecutionClosureInspector<'a> {
                 let connector = scope
                     .requirement(reference, requirement)
                     .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
-                walk.closure
-                    .connector_bindings
-                    .insert(ExecutionConnectorBinding {
+                walk.closure.connector_bindings.insert(
+                    ExecutionConnectorBinding {
                         connector: connector.connector_ref.clone(),
                         manifest_digest: connector.manifest_digest.clone(),
                         connector_digest: connector.connector_digest.clone(),
-                    });
+                    },
+                    connector,
+                );
             }
         }
         let runner = loaded
@@ -789,7 +828,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
     };
     let components = closure.components.into_iter().collect::<Vec<_>>();
     let package_bindings = closure.package_bindings.into_iter().collect::<Vec<_>>();
-    let connector_bindings = closure.connector_bindings.into_iter().collect::<Vec<_>>();
+    let connector_bindings = closure.connector_bindings.into_keys().collect::<Vec<_>>();
     let unresolved_skill_edges = closure
         .unresolved_skill_edges
         .into_iter()
