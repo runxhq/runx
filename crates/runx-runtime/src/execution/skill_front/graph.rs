@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{
     ClosureDisposition, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, SealReason, TurnCallOutcome, TurnCallResult, TurnStatus,
+    ResolutionResponseActor, RunDriver, SealReason, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 
@@ -21,8 +21,7 @@ use crate::execution::graph::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
-    Driver, Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest,
-    waiting_requests,
+    Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest, waiting_requests,
 };
 use crate::execution::runner::turn::{Turn, call_tool};
 use crate::execution::runner::{
@@ -132,9 +131,9 @@ impl BoundRun {
                     run_authority: request.run_authority.as_ref(),
                     act: request.act.as_ref(),
                     driver: if request.managed_agent.max_rounds().is_some() {
-                        Driver::Managed
+                        RunDriver::Managed
                     } else {
-                        Driver::Attached
+                        RunDriver::Attached
                     },
                     prepared: prepared.as_ref(),
                     created_at: &crate::time::now_iso8601(),
@@ -657,19 +656,19 @@ impl RunHost {
     /// One driver works a run's turns: the one it started with. A run the
     /// managed agent drives takes a person's approvals from any host, never
     /// another host's agent work.
-    fn check_driver(&self, run_id: &str, driver: Driver) -> Result<(), SkillRunError> {
+    fn check_driver(&self, run_id: &str, driver: RunDriver) -> Result<(), SkillRunError> {
         match driver {
-            Driver::Attached if self.manages() => Err(invalid(format!(
+            RunDriver::Attached if self.manages() => Err(invalid(format!(
                 "run {run_id} is driven by the host it is attached to; the managed agent cannot work its turns"
             ))),
-            Driver::Managed
+            RunDriver::Managed
                 if !self.manages() && (self.act.is_some() || self.answers.answers_agents()) =>
             {
                 Err(invalid(format!(
                     "run {run_id} is driven by the managed agent; another host cannot work its turns"
                 )))
             }
-            Driver::Attached | Driver::Managed => Ok(()),
+            RunDriver::Attached | RunDriver::Managed => Ok(()),
         }
     }
 
@@ -831,23 +830,23 @@ mod tests {
             turn: "answer".to_owned(),
             action: TurnAction::Status,
         });
-        assert!(acting.check_driver("run", Driver::Attached).is_ok());
-        assert!(acting.check_driver("run", Driver::Managed).is_err());
+        assert!(acting.check_driver("run", RunDriver::Attached).is_ok());
+        assert!(acting.check_driver("run", RunDriver::Managed).is_err());
 
         let agent_work = RunHost::new(ResolutionAnswers::agent(JsonObject::from([(
             "answer".to_owned(),
             JsonValue::String("done".to_owned()),
         )])));
         let refused = agent_work
-            .check_driver("run", Driver::Managed)
+            .check_driver("run", RunDriver::Managed)
             .err()
             .map(|error| error.to_string())
             .unwrap_or_default();
         assert!(refused.contains("driven by the managed agent"), "{refused}");
-        assert!(agent_work.check_driver("run", Driver::Attached).is_ok());
+        assert!(agent_work.check_driver("run", RunDriver::Attached).is_ok());
 
         let approvals = RunHost::new(ResolutionAnswers::default());
-        assert!(approvals.check_driver("run", Driver::Managed).is_ok());
+        assert!(approvals.check_driver("run", RunDriver::Managed).is_ok());
     }
     use crate::adapter::SkillAdapter;
 
@@ -953,7 +952,7 @@ steps:
                 context: &RunContext::default(),
                 run_authority: None,
                 act: None,
-                driver: crate::execution::run_record::Driver::Managed,
+                driver: RunDriver::Managed,
                 prepared: None,
                 created_at: "2026-07-24T00:00:00Z",
             })?;

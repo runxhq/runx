@@ -55,6 +55,28 @@ describe("native invocation and decoding", () => {
     expect(captured.packet).toEqual(packet);
     expect(captured.args.slice(0, 3)).toEqual(["resume", "run_test", "-"]);
   });
+  it("reads one run after its cursor, and refuses a read that is not one", async () => {
+    const { root, config } = await setup();
+    const capture = path.join(root, "history.json");
+    const read = {
+      schema: "runx.run_read.v1",
+      run: { run_id: "run_test", skill: "reply", runner: "reply", state: "paused", package_digest: "sha256:p", execution_closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
+      waiting: [{ address: "send.approval", request_digest: "sha256:r", request: { kind: "approval", id: "send.approval", gate: { id: "send.approval", reason: "send it" } } }],
+      events: [{ stream: "run_test", version: 2, committed_at: "t1", event: { kind: "suspended", step_id: "send", attempt: 1, hold: { kind: "request", address: "send.approval", request_digest: "sha256:r" } } }],
+      cursor: "-cursor_1",
+      more: false,
+    };
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+      if (process.argv.includes('--after=stale')) { process.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'invalid_cursor', message: 'the cursor is damaged' } })); process.exitCode = 1; }
+      else process.stdout.write(JSON.stringify(process.argv.includes('--after=bad') ? { runs: [] } : ${JSON.stringify(read)}));`);
+    const client = createRunxClient(config);
+    await expect(client.runs.read({ runId: "run_test", after: "-cursor_0" })).resolves.toEqual(read);
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["history", "run_test", "--after=-cursor_0", "--json"]);
+    await expect(client.runs.read({ runId: "run_test", after: "bad" })).rejects.toMatchObject({ reason: "contract" });
+    await expect(client.runs.read({ runId: "run_test", after: "a b" })).rejects.toThrow("cursor");
+    await expect(client.runs.read({ runId: "run_test", after: "stale" })).rejects.toMatchObject({ reason: "exit", code: "invalid_cursor" });
+  });
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();
     const server = createRunxClient(config).turns.server({ runId: "run_test", receiptDir, environment: { SKILL_FLAG: "1" } });

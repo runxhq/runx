@@ -445,6 +445,39 @@ impl KernelStore {
         self.heads_of(E::KIND, after, limit)
     }
 
+    /// The heads of `root`'s stream and of every stream below it, keyed
+    /// `<root>/...`, in key order. A root key holds no `/`, so the range
+    /// `[<root>/, <root>0)` holds exactly its descendants.
+    pub(crate) fn tree_heads<E: StreamEvent>(
+        &self,
+        root: &str,
+    ) -> Result<Vec<Head>, KernelStoreError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT key, version, event_type, updated_at FROM kernel_streams
+                 WHERE kind = ?1 AND (key = ?2 OR (key >= ?3 AND key < ?4)) ORDER BY key",
+            )
+            .map_err(|source| self.database("preparing a stream tree listing", source))?;
+        statement
+            .query_map(
+                params![E::KIND, root, format!("{root}/"), format!("{root}0")],
+                head_row,
+            )
+            .and_then(Iterator::collect)
+            .map_err(|source| self.database("listing a stream tree", source))
+    }
+
+    /// At most `limit` events of a kernel stream after version `after`.
+    pub(crate) fn read_after<E: StreamEvent>(
+        &self,
+        key: &str,
+        after: u64,
+        limit: usize,
+    ) -> Result<Vec<Recorded<E>>, KernelStoreError> {
+        self.read_range(E::KIND, key, after, Some(limit))
+    }
+
     /// Stream heads of one kernel kind, most recently advanced first, strictly
     /// before the `before` head when one is given.
     pub(crate) fn recent_heads<E: StreamEvent>(
@@ -460,7 +493,7 @@ impl KernelStore {
                  ORDER BY updated_at DESC, key DESC LIMIT ?4",
             )
             .map_err(|source| self.database("preparing a recent head listing", source))?;
-        let rows = statement
+        statement
             .query_map(
                 params![
                     E::KIND,
@@ -468,17 +501,9 @@ impl KernelStore {
                     before.map_or("", |head| head.key.as_str()),
                     limit.min(1000) as i64
                 ],
-                |row| {
-                    Ok(Head {
-                        key: row.get(0)?,
-                        version: row.get::<_, i64>(1)? as u64,
-                        event_type: row.get(2)?,
-                        updated_at: row.get(3)?,
-                    })
-                },
+                head_row,
             )
-            .map_err(|source| self.database("listing recent stream heads", source))?;
-        rows.collect::<Result<Vec<_>, _>>()
+            .and_then(Iterator::collect)
             .map_err(|source| self.database("listing recent stream heads", source))
     }
 
@@ -530,15 +555,33 @@ impl KernelStore {
         kind: &str,
         key: &str,
     ) -> Result<Vec<Recorded<E>>, KernelStoreError> {
+        self.read_range(kind, key, 0, None)
+    }
+
+    /// The events of a stream after version `after`, at most `limit`, each
+    /// checked against the chain from the event at `after`, or from the
+    /// stream's start. A ranged read trusts its anchor's stored link, as
+    /// `latest` trusts its head's; reading from the start audits the chain.
+    fn read_range<E: StreamEvent>(
+        &self,
+        kind: &str,
+        key: &str,
+        after: u64,
+        limit: Option<usize>,
+    ) -> Result<Vec<Recorded<E>>, KernelStoreError> {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
                 "SELECT version, event_type, data, chain, committed_at FROM kernel_events
-                 WHERE kind = ?1 AND key = ?2 ORDER BY version",
+                 WHERE kind = ?1 AND key = ?2 AND version >= ?3 ORDER BY version LIMIT ?4",
             )
             .map_err(|source| self.database("preparing a stream read", source))?;
+        let anchored = after > 0;
+        // SQLite reads a negative limit as none; an anchored read also
+        // returns its anchor.
+        let limit = limit.map_or(-1, |limit| (limit + usize::from(anchored)) as i64);
         let rows = statement
-            .query_map(params![kind, key], |row| {
+            .query_map(params![kind, key, after.max(1) as i64, limit], |row| {
                 Ok((
                     row.get::<_, i64>(0)? as u64,
                     row.get::<_, String>(1)?,
@@ -548,33 +591,39 @@ impl KernelStore {
                 ))
             })
             .map_err(|source| self.database("reading a stream", source))?;
+        let integrity = |version| KernelStoreError::Integrity {
+            kind: kind.to_owned(),
+            key: key.to_owned(),
+            version,
+        };
         let mut chain = String::new();
+        let mut expected = after.max(1);
         let mut events = Vec::new();
-        for (index, row) in rows.enumerate() {
+        for row in rows {
             let (version, event_type, data, stored_chain, committed_at) =
                 row.map_err(|source| self.database("reading a stream", source))?;
-            let expected = chain_link(&chain, &event_type, &data);
-            if version != index as u64 + 1 || stored_chain != expected {
-                return Err(KernelStoreError::Integrity {
-                    kind: kind.to_owned(),
-                    key: key.to_owned(),
+            if version != expected {
+                return Err(integrity(version));
+            }
+            expected += 1;
+            if !(anchored && version == after) {
+                if chain_link(&chain, &event_type, &data) != stored_chain {
+                    return Err(integrity(version));
+                }
+                let event: E = serde_json::from_slice(&data).map_err(KernelStoreError::encode)?;
+                if event.event_type() != event_type {
+                    return Err(integrity(version));
+                }
+                events.push(Recorded {
                     version,
+                    committed_at,
+                    event,
                 });
             }
-            chain = expected;
-            let event: E = serde_json::from_slice(&data).map_err(KernelStoreError::encode)?;
-            if event.event_type() != event_type {
-                return Err(KernelStoreError::Integrity {
-                    kind: kind.to_owned(),
-                    key: key.to_owned(),
-                    version,
-                });
-            }
-            events.push(Recorded {
-                version,
-                committed_at,
-                event,
-            });
+            chain = stored_chain;
+        }
+        if anchored && expected == after {
+            return Err(integrity(after));
         }
         Ok(events)
     }
@@ -613,20 +662,12 @@ impl KernelStore {
                  WHERE kind = ?1 AND key > ?2 ORDER BY key LIMIT ?3",
             )
             .map_err(|source| self.database("preparing a head listing", source))?;
-        let rows = statement
+        statement
             .query_map(
                 params![kind, after.unwrap_or(""), limit.min(1000) as i64],
-                |row| {
-                    Ok(Head {
-                        key: row.get(0)?,
-                        version: row.get::<_, i64>(1)? as u64,
-                        event_type: row.get(2)?,
-                        updated_at: row.get(3)?,
-                    })
-                },
+                head_row,
             )
-            .map_err(|source| self.database("listing stream heads", source))?;
-        rows.collect::<Result<Vec<_>, _>>()
+            .and_then(Iterator::collect)
             .map_err(|source| self.database("listing stream heads", source))
     }
 
@@ -643,6 +684,15 @@ impl KernelStore {
             source,
         }
     }
+}
+
+fn head_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Head> {
+    Ok(Head {
+        key: row.get(0)?,
+        version: row.get::<_, i64>(1)? as u64,
+        event_type: row.get(2)?,
+        updated_at: row.get(3)?,
+    })
 }
 
 fn latest_kind_on<E: StreamEvent>(

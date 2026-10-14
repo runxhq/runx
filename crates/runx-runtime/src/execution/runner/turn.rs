@@ -455,7 +455,7 @@ where
         Ok(TurnCallResult {
             index,
             target: target.clone(),
-            input_digest: input_digest(input)?,
+            input_digest: crate::execution::run_record::input_digest(input)?.into(),
             outcome,
         })
     }
@@ -893,17 +893,6 @@ where
             settled => self.result(index, &call.target, &call.input, &settled),
         }
     }
-}
-
-/// The digest a host recomputes from the input it sent: `sha256:` over its
-/// canonical JSON.
-fn input_digest(input: &JsonObject) -> Result<NonEmptyString, RuntimeError> {
-    runx_contracts::canonical_digest(input)
-        .map(NonEmptyString::from)
-        .map_err(|error| RuntimeError::EngineInvariant {
-            context: "digesting a turn call's input",
-            message: error.to_string(),
-        })
 }
 
 /// A recorded request as the host protocol carries it.

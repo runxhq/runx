@@ -242,9 +242,7 @@ fn slack_reply_journey_gates_once_and_closes_on_provider_readback() -> TestResul
     );
     let receipt_id = json_string(&sent, "receipt_id")?;
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history =
-        super::assert_history_contains_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
-    assert!(!super::run_is_paused(&history, &run_id));
+    super::assert_run_sealed_with_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
     Ok(())
 }
 

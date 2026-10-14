@@ -26,6 +26,7 @@ use runx_contracts::redaction::Redaction;
 use runx_contracts::reference::{Reference, ReferenceLink};
 use runx_contracts::registry_binding::RegistryBinding;
 use runx_contracts::review::ReviewReceiptOutput;
+use runx_contracts::run_read::{RunEventRecord, RunRead};
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
@@ -198,6 +199,16 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "turn-status.schema.json",
             emitted: TurnStatus::json_schema(),
             corpus: turn_status_corpus(),
+        },
+        Covered {
+            file_name: "run-read.schema.json",
+            emitted: RunRead::json_schema(),
+            corpus: run_read_corpus(),
+        },
+        Covered {
+            file_name: "run-event.schema.json",
+            emitted: RunEventRecord::json_schema(),
+            corpus: run_event_corpus(),
         },
         Covered {
             file_name: "act-result.schema.json",

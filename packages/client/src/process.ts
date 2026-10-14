@@ -1,13 +1,17 @@
 import { spawn } from "node:child_process";
 
 export class RunxClientError extends Error {
+  /** The native failure code, when runx wrote a `--json` failure envelope. */
+  readonly code?: string;
+
   constructor(
     readonly reason: "spawn" | "timeout" | "output_limit" | "input_limit" | "aborted" | "signal" | "exit" | "contract" | "artifact",
     message: string,
-    options?: ErrorOptions,
+    options?: ErrorOptions & { readonly code?: string },
   ) {
     super(message, options);
     this.name = "RunxClientError";
+    this.code = options?.code;
   }
 }
 

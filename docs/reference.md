@@ -99,6 +99,7 @@ runx skill issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="F
 runx resume <run-id> answers.json
 runx mcp --run <run-id>
 runx history
+runx history <run-id> --json
 runx history <receipt-id> --json
 runx mcp ./fixtures/skills/echo
 runx skill ./skills/skill-build design -i objective="build github review skill"
@@ -108,7 +109,11 @@ runx config set agent.model gpt-6-sol
 printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 ```
 
-`runx resume` continues a paused run from its run record. A sealed run is
+`runx resume` continues a paused run from its run record. A host reads a run
+with `runx history <run-id> --json` (`runx.run_read.v1`): its state, every
+request it waits on with the digest an answer binds to, whether a process
+drives it, and its events stream by stream. The read's `cursor`, passed back
+as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx history <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
 receipts if you need to compare the outcomes. The current CLI has no standalone

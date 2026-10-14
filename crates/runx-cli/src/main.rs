@@ -35,21 +35,7 @@ fn main() -> ExitCode {
 }
 
 fn install_interrupt_handler() -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(|| {
-        if !runx_runtime::interrupt::terminate_active_processes() {
-            std::process::exit(130);
-        }
-        if std::thread::Builder::new()
-            .name("runx-interrupt-watchdog".to_owned())
-            .spawn(|| {
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                std::process::exit(130);
-            })
-            .is_err()
-        {
-            std::process::exit(130);
-        }
-    })
+    ctrlc::set_handler(runx_runtime::interrupt::interrupt)
 }
 
 fn dispatch(action: RouterAction, workspace: Option<&runx_runtime::WorkspaceEnv>) -> ExitCode {
@@ -157,15 +143,19 @@ fn invocation_is_informational(args: &[OsString]) -> bool {
 }
 
 fn run_native_history(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
+    let json = runx_cli::router::json_requested(&args);
     match runx_cli::history::run_history_command(&args, workspace.env(), workspace.cwd()) {
         Ok(output) => write_stdout(&output.output),
-        Err(runx_cli::history::HistoryCliError::InvalidArgs(message)) => {
-            let _ignored = write_stderr_line(&format!("runx: {message}"));
-            ExitCode::from(64)
-        }
         Err(error) => {
+            let exit_code = match error {
+                runx_cli::history::HistoryCliError::InvalidArgs(_) => 64,
+                _ => 1,
+            };
+            if json {
+                return write_json_failure(&error.to_string(), error.code(), exit_code);
+            }
             let _ignored = write_stderr_line(&format!("runx: {error}"));
-            ExitCode::from(1)
+            ExitCode::from(exit_code)
         }
     }
 }

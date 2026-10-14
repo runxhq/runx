@@ -54,6 +54,8 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         schema_artifact::<AgentActInvocation>("agent-act-invocation.schema.json"),
         schema_artifact::<TurnCallResult>("turn-call.schema.json"),
         schema_artifact::<TurnStatus>("turn-status.schema.json"),
+        schema_artifact::<crate::RunRead>("run-read.schema.json"),
+        schema_artifact::<crate::RunEventRecord>("run-event.schema.json"),
         schema_artifact::<Question>("question.schema.json"),
         schema_artifact::<ApprovalGate>("approval-gate.schema.json"),
         schema_artifact::<ResolutionRequest>("resolution-request.schema.json"),

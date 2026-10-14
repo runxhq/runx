@@ -31,9 +31,10 @@
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 
+pub use runx_contracts::RunState;
 use runx_contracts::{
     CallAct, ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
-    TurnTarget,
+    RunDriver, TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -45,6 +46,12 @@ use crate::kernel::custody::Settlement;
 use crate::kernel::store::{
     Append, Blob, Expected, Head, KernelStore, KernelStoreError, StreamEvent,
 };
+
+mod driver;
+mod read;
+
+pub use driver::{DriverLock, driven};
+pub use read::read_run;
 
 /// One event in a run's stream.
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,21 +106,11 @@ pub(crate) struct Started {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
     /// Who works the run's turns, fixed when it starts.
-    pub driver: Driver,
+    pub driver: RunDriver,
     /// The operator context the run was prepared with, held for every pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepared: Option<crate::execution::prepared_skill::PreparedContext>,
     pub created_at: String,
-}
-
-/// Who works a run's agent turns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum Driver {
-    /// The host the run is attached to.
-    Attached,
-    /// runx's managed agent.
-    Managed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -418,26 +415,6 @@ pub(crate) struct RunRecord {
     pub sealed: Option<Sealed>,
 }
 
-/// Where a run stands, from its latest event alone.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RunState {
-    Running,
-    Paused,
-    Sealed,
-}
-
-impl RunState {
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Running => "running",
-            Self::Paused => "paused",
-            Self::Sealed => "sealed",
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum RunRecordError {
     #[error(transparent)]
@@ -448,12 +425,28 @@ pub enum RunRecordError {
     IdentityMismatch { run_id: String, field: &'static str },
     #[error("run {run_id} has an invalid record: {reason}")]
     Invalid { run_id: String, reason: String },
-    #[error("run id {run_id:?} is invalid: use letters, digits and _ - . : (at most 200 bytes)")]
+    #[error(
+        "run id {run_id:?} is invalid: use letters, digits and _ - . : (at most 200 bytes), not beginning sha256:"
+    )]
     InvalidId { run_id: String },
     #[error("the system random source is unavailable for a run id")]
     Entropy,
     #[error("invalid {field} filter '{value}': expected an RFC 3339 timestamp")]
     InvalidFilter { field: &'static str, value: String },
+    #[error("run {run_id} is driven by another process; this driver is refused")]
+    Driven { run_id: String },
+    #[error("run {run_id}'s driver lock is unavailable: {source}")]
+    DriverLock {
+        run_id: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("the cursor belongs to run {cursor_run}, not {run_id}")]
+    CursorRunMismatch { run_id: String, cursor_run: String },
+    #[error("the cursor is damaged or names a version its run does not hold")]
+    InvalidCursor,
+    #[error("run {run_id} has no record in this workspace")]
+    UnknownRun { run_id: String },
 }
 
 /// The writer of one run's stream.
@@ -1005,7 +998,7 @@ pub(crate) struct StartRequest<'a> {
     pub context: &'a RunContext,
     pub run_authority: Option<&'a RunAuthority>,
     pub act: Option<&'a CallAct>,
-    pub driver: Driver,
+    pub driver: RunDriver,
     pub prepared: Option<&'a crate::execution::prepared_skill::PreparedContext>,
     pub created_at: &'a str,
 }
@@ -1014,9 +1007,11 @@ pub(crate) struct StartRequest<'a> {
 const MAX_RUN_ID_BYTES: usize = 200;
 
 /// A caller-pinned run id: letters, digits and `_ - . :`, so it can never
-/// name a child run or escape a key space.
+/// name a child run or escape a key space, and never beginning `sha256:`, so
+/// `runx history` never reads it as a receipt id.
 pub(crate) fn validate_run_id(run_id: &str) -> Result<&str, RunRecordError> {
     let valid = !run_id.is_empty()
+        && !run_id.starts_with("sha256:")
         && run_id.len() <= MAX_RUN_ID_BYTES
         && run_id
             .bytes()
@@ -1057,6 +1052,27 @@ pub(crate) fn mint_run_id(skill: &str) -> Result<String, RunRecordError> {
         "run_{segment}_{millis:012x}{}",
         runx_contracts::hex_lower(&random)
     ))
+}
+
+/// The digest a turn call's input is known by: `sha256:` over its canonical
+/// JSON, which a host recomputes from the input it sent.
+pub(crate) fn input_digest(input: &JsonObject) -> Result<String, RunRecordError> {
+    runx_contracts::canonical_digest(input)
+        .map_err(|error| KernelStoreError::Codec(error.to_string()).into())
+}
+
+/// Where a run stands from its latest event: its state, and a sealed run's
+/// disposition and receipt id.
+fn standing(latest: &RunEvent) -> (RunState, Option<ClosureDisposition>, Option<String>) {
+    match latest {
+        RunEvent::Sealed(sealed) => (
+            RunState::Sealed,
+            Some(sealed.disposition.clone()),
+            Some(sealed.receipt_id.clone()),
+        ),
+        RunEvent::Suspended(_) | RunEvent::Call(_) => (RunState::Paused, None, None),
+        _ => (RunState::Running, None, None),
+    }
 }
 
 /// The digest an answer to `request` binds to.
@@ -1525,6 +1541,18 @@ pub struct RunFilter {
     pub limit: Option<usize>,
 }
 
+impl RunFilter {
+    /// Whether anything beyond the query narrows the listing.
+    #[must_use]
+    pub fn has_list_filters(&self) -> bool {
+        self.skill.is_some()
+            || self.state.is_some()
+            || self.since.is_some()
+            || self.until.is_some()
+            || self.limit.is_some()
+    }
+}
+
 pub const RUN_LISTING_PROJECTOR_ID: &str = "runx-runtime.run-record.v1";
 const DEFAULT_RUN_LIMIT: usize = 50;
 const RUN_PAGE: usize = 200;
@@ -1660,7 +1688,7 @@ pub fn paused_run(
     // step was recorded is taken further by the next continuation.
     let paused = store
         .latest::<RunEvent>(run_id)?
-        .is_some_and(|latest| matches!(latest.event, RunEvent::Suspended(_) | RunEvent::Call(_)));
+        .is_some_and(|latest| standing(&latest.event).0 == RunState::Paused);
     if !paused {
         return Ok(None);
     }
@@ -1723,21 +1751,11 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, Run
     let Some(latest) = store.latest::<RunEvent>(&head.key)? else {
         return Ok(None);
     };
-    let (state, disposition, receipt_id, pending_request_id) = match latest.event {
-        RunEvent::Sealed(sealed) => (
-            RunState::Sealed,
-            Some(sealed.disposition),
-            Some(sealed.receipt_id),
-            None,
-        ),
-        RunEvent::Suspended(_) => (
-            RunState::Paused,
-            None,
-            None,
-            held(store, &head.key)?.map(|held| held.request.id),
-        ),
-        RunEvent::Call(call) => (RunState::Paused, None, None, Some(call.turn.request_id)),
-        _ => (RunState::Running, None, None, None),
+    let (state, disposition, receipt_id) = standing(&latest.event);
+    let pending_request_id = match latest.event {
+        RunEvent::Suspended(_) => held(store, &head.key)?.map(|held| held.request.id),
+        RunEvent::Call(call) => Some(call.turn.request_id),
+        _ => None,
     };
     Ok(Some(RunSummary {
         run_id: head.key.clone(),

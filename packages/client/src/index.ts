@@ -1,4 +1,5 @@
 import path from "node:path";
+import { validateRunReadContract } from "@runxhq/contracts";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
 import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
@@ -50,6 +51,12 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
       },
     },
     runs: {
+      read: async (options) => {
+        if (options.after !== undefined && !/^[A-Za-z0-9_-]+$/u.test(options.after)) throw new TypeError("Invalid run read cursor.");
+        // The cursor goes inline: base64url may begin with "-".
+        const output = parseJson(await execute(["history", argument(options.runId), ...(options.after ? [`--after=${options.after}`] : []), "--json"], options), [0]);
+        try { return validateRunReadContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native run read.", { cause: error }); }
+      },
       resume: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         const result = await execute(["resume", argument(options.runId), "-", ...bindingArgs(options.binding), "--receipt-dir", receiptDir, "--json"], options, payload(options.resolutions));

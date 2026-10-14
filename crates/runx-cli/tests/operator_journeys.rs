@@ -79,7 +79,7 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
     let run_id = json_string(&run, "run_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
+    assert_run_sealed_with_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
 
     Ok(())
 }
@@ -112,8 +112,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     assert!(run_id.starts_with("run_issue-intake_"), "{run_id}");
     assert!(pause_text.contains(&format!("runx resume {run_id} -")));
 
-    let pending = history_json(&root, &receipt_dir, &run_id)?;
-    assert!(run_is_paused(&pending, &run_id));
+    assert!(run_is_paused(&run_read(&root, &run_id)?));
 
     let malformed_answers = root.join("malformed-answers.json");
     fs::write(
@@ -170,8 +169,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let receipt_id = json_string(&resume, "receipt_id")?;
 
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    let history = assert_history_contains_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
-    assert!(!run_is_paused(&history, &run_id));
+    assert_run_sealed_with_local_receipt(&root, &receipt_dir, &run_id, receipt_id)?;
 
     Ok(())
 }
@@ -232,7 +230,7 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
         let receipt_id = json_string(&resume, "receipt_id")?;
         let run_id = json_string(&resume, "run_id")?;
         assert_receipt_verifies(&case_root, &receipt_dir, receipt_id)?;
-        assert_history_contains_local_receipt(&case_root, &receipt_dir, run_id, receipt_id)?;
+        assert_run_sealed_with_local_receipt(&case_root, &receipt_dir, run_id, receipt_id)?;
     }
 
     Ok(())
@@ -334,7 +332,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let receipt_id = json_string(&denied, "receipt_id")?;
     let run_id = json_string(&denied, "run_id")?;
     assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
-    assert_history_contains_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
+    assert_run_sealed_with_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
 
     Ok(())
 }
@@ -579,8 +577,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
         assert_eq!(rejected["status"], "failure");
     }
 
-    let pending = history_json(&root, &receipt_dir, run_id)?;
-    assert!(run_is_paused(&pending, run_id));
+    assert!(run_is_paused(&run_read(&root, run_id)?));
     let answer = serde_json::json!({
         "answers": {
             (request_id): {
@@ -836,20 +833,16 @@ fn assert_receipt_verifies(root: &Path, receipt_dir: &Path, receipt_id: &str) ->
 }
 
 /// The run sealed with this receipt, and the receipt inspects as the signed
-/// record: history lists the run, and its receipt id reads the receipt.
-fn assert_history_contains_local_receipt(
+/// record: history reads the run sealed, and its receipt id reads the receipt.
+fn assert_run_sealed_with_local_receipt(
     root: &Path,
     receipt_dir: &Path,
     run_id: &str,
     receipt_id: &str,
-) -> TestResult<Value> {
-    let history = history_json(root, receipt_dir, run_id)?;
-    let run = history["runs"]
-        .as_array()
-        .and_then(|runs| runs.iter().find(|run| run["run_id"] == run_id))
-        .ok_or("history did not list the run")?;
-    assert_eq!(run["state"], "sealed");
-    assert_eq!(run["receipt_id"], receipt_id);
+) -> TestResult {
+    let read = run_read(root, run_id)?;
+    assert_eq!(read["run"]["state"], "sealed");
+    assert_eq!(read["run"]["receipt_id"], receipt_id);
     let detail = command(root)
         .arg("history")
         .arg(receipt_id)
@@ -862,26 +855,24 @@ fn assert_history_contains_local_receipt(
     // The run sealed under this home's key, so this home verifies it.
     assert_eq!(detail["receipt"]["verification"]["status"], "verified");
     assert_eq!(detail["receipt"]["issuer_type"], "local");
-    Ok(history)
+    Ok(())
 }
 
-/// Whether history lists the run as paused.
-fn run_is_paused(history: &Value, run_id: &str) -> bool {
-    history["runs"].as_array().is_some_and(|runs| {
-        runs.iter()
-            .any(|run| run["run_id"] == run_id && run["state"] == "paused")
-    })
+/// Whether a run read shows the run paused.
+fn run_is_paused(read: &Value) -> bool {
+    read["run"]["state"] == "paused"
 }
 
-fn history_json(root: &Path, receipt_dir: &Path, query: &str) -> TestResult<Value> {
+/// `runx history <run-id> --json`: the run as a host reads it.
+fn run_read(root: &Path, run_id: &str) -> TestResult<Value> {
     let output = command(root)
         .arg("history")
-        .arg(query)
-        .arg("--receipt-dir")
-        .arg(receipt_dir)
+        .arg(run_id)
         .arg("--json")
         .output()?;
-    assert_json(&output, 0)
+    let read = assert_json(&output, 0)?;
+    assert_eq!(read["schema"], "runx.run_read.v1");
+    Ok(read)
 }
 
 fn assert_json(output: &Output, expected_exit: i32) -> TestResult<Value> {

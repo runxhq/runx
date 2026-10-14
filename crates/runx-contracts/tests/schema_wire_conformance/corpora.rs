@@ -1711,6 +1711,7 @@ fn turn_call() -> Value {
     json!({
         "index": 0,
         "target": { "kind": "tool", "tool": "data.digest" },
+        "input_digest": "sha256:input",
         "outcome": {
             "status": "completed",
             "output": { "digest": "sha256:abc" },
@@ -1728,6 +1729,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             json!({
                 "index": 1,
                 "target": { "kind": "operation", "requirement": "mail", "operation": "send" },
+                "input_digest": "sha256:input",
                 "outcome": { "status": "refused", "reason": "not in the turn's allowance" },
             }),
         ),
@@ -1736,6 +1738,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             json!({
                 "index": 2,
                 "target": { "kind": "skill", "skill": "./triage" },
+                "input_digest": "sha256:input",
                 "outcome": { "status": "failed", "reason": "the child skill failed" },
             }),
         ),
@@ -1744,6 +1747,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             json!({
                 "index": 3,
                 "target": { "kind": "ask" },
+                "input_digest": "sha256:input",
                 "outcome": {
                     "status": "pending",
                     "waiting": [{
@@ -1759,6 +1763,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             json!({
                 "index": 4,
                 "target": { "kind": "skill", "skill": "./report" },
+                "input_digest": "sha256:input",
                 "outcome": {
                     "status": "pending",
                     "waiting": [{
@@ -1770,6 +1775,10 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
             }),
         ),
         ("missing outcome", drop_field(valid.clone(), "outcome")),
+        (
+            "missing input digest",
+            drop_field(valid.clone(), "input_digest"),
+        ),
         (
             "unknown target kind",
             set_field(valid.clone(), "target", json!({ "kind": "shell" })),
@@ -2468,5 +2477,129 @@ pub(super) fn reference_link_corpus() -> Vec<(&'static str, Value)> {
             v["bogus"] = json!(true);
             v
         }),
+    ]
+}
+
+fn run_event() -> Value {
+    json!({
+        "stream": "run_1/review",
+        "version": 3,
+        "committed_at": "2026-10-14T00:00:01Z",
+        "event": {
+            "kind": "call",
+            "step_id": "draft",
+            "attempt": 1,
+            "turn": "review#draft",
+            "index": 0,
+            "target": { "kind": "tool", "tool": "data.digest" },
+            "input_digest": "sha256:input",
+            "outcome": { "status": "claimed", "address": "review#draft/0/retry", "request_digest": "sha256:retry" },
+        },
+    })
+}
+
+pub(super) fn run_event_corpus() -> Vec<(&'static str, Value)> {
+    let valid = run_event();
+    let event = |value: Value| set_field(valid.clone(), "event", value);
+    vec![
+        ("valid claimed call", valid.clone()),
+        (
+            "valid step",
+            event(
+                json!({ "kind": "step", "step_id": "send", "attempt": 1, "succeeded": true, "receipt_id": "sha256:step" }),
+            ),
+        ),
+        (
+            "valid suspension on a child",
+            event(
+                json!({ "kind": "suspended", "step_id": "review", "attempt": 1, "hold": { "kind": "child", "run_id": "run_1/review" } }),
+            ),
+        ),
+        (
+            "valid seal",
+            event(
+                json!({ "kind": "sealed", "disposition": "superseded", "receipt_id": "sha256:run" }),
+            ),
+        ),
+        (
+            "an event never carries an output",
+            event(
+                json!({ "kind": "sealed", "disposition": "closed", "receipt_id": "sha256:run", "output": {} }),
+            ),
+        ),
+        (
+            "a refused call carries no reason",
+            set_field(
+                valid.clone(),
+                "event",
+                json!({
+                    "kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0,
+                    "target": { "kind": "ask" }, "input_digest": "sha256:input",
+                    "outcome": { "status": "refused", "reason": "not allowed" },
+                }),
+            ),
+        ),
+        ("unknown kind", event(json!({ "kind": "replayed" }))),
+        ("missing stream", drop_field(valid.clone(), "stream")),
+    ]
+}
+
+pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
+    let valid = json!({
+        "schema": "runx.run_read.v1",
+        "run": {
+            "run_id": "run_1",
+            "skill": "reply",
+            "runner": "reply",
+            "state": "paused",
+            "package_digest": "sha256:package",
+            "execution_closure_digest": "sha256:closure",
+            "driver": "attached",
+            "driven": false,
+            "created_at": "2026-10-14T00:00:00Z",
+            "updated_at": "2026-10-14T00:00:01Z",
+        },
+        "waiting": [{
+            "address": "send.approval",
+            "request_digest": "sha256:approval",
+            "request": { "kind": "approval", "id": "send.approval", "gate": { "id": "send.approval", "reason": "Send it?" } },
+        }],
+        "events": [run_event()],
+        "cursor": "eyJydW4iOiJydW5fMSJ9",
+        "more": false,
+    });
+    vec![
+        ("valid paused read", valid.clone()),
+        (
+            "valid sealed read",
+            set_field(
+                valid.clone(),
+                "run",
+                json!({
+                    "run_id": "run_1", "skill": "reply", "runner": "reply", "state": "sealed",
+                    "disposition": "closed", "receipt_id": "sha256:run",
+                    "package_digest": "sha256:package", "execution_closure_digest": "sha256:closure",
+                    "driver": "managed", "driven": false,
+                    "created_at": "2026-10-14T00:00:00Z", "updated_at": "2026-10-14T00:00:02Z",
+                }),
+            ),
+        ),
+        ("missing cursor", drop_field(valid.clone(), "cursor")),
+        (
+            "wrong schema",
+            set_field(valid.clone(), "schema", json!("runx.run_read.v2")),
+        ),
+        (
+            "a waited request without its digest",
+            set_field(
+                valid.clone(),
+                "waiting",
+                json!([{ "address": "send.approval", "request": { "kind": "approval", "id": "send.approval", "gate": { "id": "send.approval", "reason": "Send it?" } } }]),
+            ),
+        ),
+        (
+            "additional property",
+            set_field(valid.clone(), "output", json!({})),
+        ),
     ]
 }

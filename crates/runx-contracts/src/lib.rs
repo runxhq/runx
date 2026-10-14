@@ -50,6 +50,7 @@ pub mod registry_signed_manifest;
 pub mod registry_taxonomy;
 pub mod registry_version;
 pub mod review;
+pub mod run_read;
 pub mod schema;
 pub mod schema_artifacts;
 mod schema_reconcile;
@@ -255,6 +256,10 @@ pub use registry_version::{
     validate_registry_version,
 };
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
+pub use run_read::{
+    RunCallOutcome, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead, RunReadSchema,
+    RunReadSummary, RunState, WaitedRequest,
+};
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,
 };

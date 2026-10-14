@@ -437,3 +437,84 @@ fn a_store_closes_when_its_last_holder_drops_it() -> Result<(), Box<dyn std::err
 fn closed_path(root: &tempfile::TempDir) -> Result<PathBuf, std::io::Error> {
     Ok(root.path().canonicalize()?.join(KERNEL_STORE_FILE))
 }
+
+fn moves(store: &KernelStore, key: &str, count: u64) {
+    for amount in 1..=count {
+        let expected = match amount {
+            1 => Expected::Absent,
+            _ => Expected::Version(amount - 1),
+        };
+        store
+            .append(vec![
+                Append::kernel(key, expected, &Ledger::Moved { amount }).unwrap(),
+            ])
+            .unwrap();
+    }
+}
+
+#[test]
+fn a_ranged_read_returns_what_follows_its_anchor() {
+    let (_root, store) = store();
+    moves(&store, "a", 5);
+    let versions = |events: Vec<Recorded<Ledger>>| {
+        events.iter().map(|event| event.version).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        versions(store.read_after::<Ledger>("a", 0, 10).unwrap()),
+        [1, 2, 3, 4, 5]
+    );
+    assert_eq!(
+        versions(store.read_after::<Ledger>("a", 2, 10).unwrap()),
+        [3, 4, 5]
+    );
+    assert_eq!(
+        versions(store.read_after::<Ledger>("a", 2, 2).unwrap()),
+        [3, 4]
+    );
+    assert!(store.read_after::<Ledger>("a", 5, 10).unwrap().is_empty());
+    assert!(
+        store
+            .read_after::<Ledger>("missing", 0, 10)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(matches!(
+        store.read_after::<Ledger>("a", 9, 10),
+        Err(KernelStoreError::Integrity { version: 9, .. })
+    ));
+}
+
+#[test]
+fn a_ranged_read_fails_a_rewritten_event_after_its_anchor() {
+    let (_root, store) = store();
+    moves(&store, "a", 3);
+    store
+        .lock()
+        .execute(
+            "UPDATE kernel_events SET data = ?1 WHERE key = 'a' AND version = 3",
+            params![br#"{"type":"moved","amount":999}"#.to_vec()],
+        )
+        .unwrap();
+    assert!(matches!(
+        store.read_after::<Ledger>("a", 1, 10),
+        Err(KernelStoreError::Integrity { version: 3, .. })
+    ));
+}
+
+#[test]
+fn a_tree_holds_its_root_and_descendants_only() {
+    let (_root, store) = store();
+    for key in [
+        "run", "run/a", "run/a/0", "run/b", "run-x", "run.x", "run0", "runx", "ru",
+    ] {
+        moves(&store, key, 1);
+    }
+    let keys = store
+        .tree_heads::<Ledger>("run")
+        .unwrap()
+        .into_iter()
+        .map(|head| head.key)
+        .collect::<Vec<_>>();
+    assert_eq!(keys, ["run", "run/a", "run/a/0", "run/b"]);
+    assert!(store.tree_heads::<Ledger>("missing").unwrap().is_empty());
+}

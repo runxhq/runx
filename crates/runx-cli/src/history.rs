@@ -4,8 +4,11 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::cli_args;
+use runx_contracts::RunRead;
 use runx_runtime::receipts::inspection::{ReceiptInspectionProjection, inspect_local_receipt};
-use runx_runtime::run_record::{RunFilter, RunListing, RunRecordError, RunState, list_runs};
+use runx_runtime::run_record::{
+    RunFilter, RunListing, RunRecordError, RunState, list_runs, read_run,
+};
 use runx_runtime::{
     LocalReceiptStore, ReceiptPathInputs, ReceiptStoreError, ReceiptTrust, RuntimeReceiptConfig,
     RuntimeReceiptSignaturePolicy, receipt_verifier, resolve_receipt_path,
@@ -37,6 +40,22 @@ impl fmt::Display for HistoryCliError {
 
 impl std::error::Error for HistoryCliError {}
 
+impl HistoryCliError {
+    /// The code a `--json` failure carries.
+    #[must_use]
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidArgs(_) => "invalid_args",
+            Self::Runs(RunRecordError::CursorRunMismatch { .. }) => "cursor_run_mismatch",
+            Self::Runs(RunRecordError::InvalidCursor) => "invalid_cursor",
+            Self::Runs(_)
+            | Self::InvalidReceiptVerifier(_)
+            | Self::Receipt(_)
+            | Self::Serialize(_) => "history_error",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HistoryCliResult {
     pub output: String,
@@ -49,6 +68,9 @@ struct ParsedHistoryArgs {
     query: Option<String>,
     filter: RunFilter,
     detail: bool,
+    /// The one positional, when there is exactly one: a run it names is read.
+    run_id: Option<String>,
+    after: Option<String>,
     json: bool,
 }
 
@@ -60,6 +82,22 @@ pub fn run_history_command(
     let parsed = parse_history_args(args)?;
     if parsed.detail {
         return run_receipt_detail(&parsed, env, cwd);
+    }
+    if let Some(read) = read_named_run(&parsed, env, cwd)? {
+        let output = if parsed.json {
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&read).map_err(HistoryCliError::Serialize)?
+            )
+        } else {
+            render_run(&read)
+        };
+        return Ok(successful_result(output));
+    }
+    if parsed.after.is_some() {
+        return Err(invalid_args(
+            "--after continues one run's read: runx history <run-id> --after <cursor>",
+        ));
     }
     let listing = list_runs(env, cwd, &parsed.filter).map_err(HistoryCliError::Runs)?;
     let output = if parsed.json {
@@ -77,6 +115,26 @@ pub fn run_history_command(
     Ok(successful_result(output))
 }
 
+/// The run the one positional names, read after `--after`; `None` when it
+/// names no run of this workspace, so the positional searches instead.
+fn read_named_run(
+    parsed: &ParsedHistoryArgs,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<Option<RunRead>, HistoryCliError> {
+    let Some(run_id) = parsed.run_id.as_deref() else {
+        return Ok(None);
+    };
+    match read_run(env, cwd, run_id, parsed.after.as_deref()) {
+        Ok(_) if parsed.filter.has_list_filters() => {
+            Err(invalid_args("history <run-id> takes no list filters"))
+        }
+        Ok(read) => Ok(Some(read)),
+        Err(RunRecordError::UnknownRun { .. } | RunRecordError::InvalidId { .. }) => Ok(None),
+        Err(error) => Err(HistoryCliError::Runs(error)),
+    }
+}
+
 /// One receipt from the receipt directory, inspected and verified.
 fn run_receipt_detail(
     parsed: &ParsedHistoryArgs,
@@ -86,15 +144,9 @@ fn run_receipt_detail(
     let receipt_reference = parsed.query.as_deref().ok_or_else(|| {
         HistoryCliError::InvalidArgs("history needs one receipt id to inspect".to_owned())
     })?;
-    let filter = &parsed.filter;
-    if filter.skill.is_some()
-        || filter.state.is_some()
-        || filter.since.is_some()
-        || filter.until.is_some()
-        || filter.limit.is_some()
-    {
-        return Err(HistoryCliError::InvalidArgs(
-            "history <receipt-id> takes no list filters".to_owned(),
+    if parsed.filter.has_list_filters() || parsed.after.is_some() {
+        return Err(invalid_args(
+            "history <receipt-id> takes no list filters or cursor",
         ));
     }
     let receipt_config = RuntimeReceiptConfig::default();
@@ -160,7 +212,8 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
                 parsed.json = true;
                 index += 1;
             }
-            "--receipt-dir" | "--skill" | "--status" | "--since" | "--until" | "--limit" => {
+            "--receipt-dir" | "--skill" | "--status" | "--since" | "--until" | "--limit"
+            | "--after" => {
                 let (value, next_index) =
                     cli_args::flag_value(args, index, flag, inline_value, "history")
                         .map_err(invalid_args)?;
@@ -170,6 +223,7 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
                     "--status" => parsed.filter.state = Some(value),
                     "--since" => parsed.filter.since = Some(value),
                     "--until" => parsed.filter.until = Some(value),
+                    "--after" => parsed.after = Some(value),
                     _ => {
                         parsed.filter.limit = Some(value.parse().map_err(|_| {
                             invalid_args(format!("invalid --limit value '{value}'"))
@@ -187,6 +241,10 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
     }
     // A receipt id names one receipt to inspect; anything else searches.
     parsed.detail = matches!(positionals.as_slice(), [only] if is_receipt_id(only));
+    parsed.run_id = match positionals.as_slice() {
+        [only] if !parsed.detail => Some(only.clone()),
+        _ => None,
+    };
     parsed.query = (!positionals.is_empty()).then(|| positionals.join(" "));
     parsed.filter.query = parsed.query.clone();
     Ok(parsed)
@@ -252,6 +310,33 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
     } else {
         "  next  pipe one answers object into one of the commands above".to_owned()
     });
+    lines.push(String::new());
+    lines.join("\n")
+}
+
+fn render_run(read: &RunRead) -> String {
+    let run = &read.run;
+    let mut lines = vec![
+        String::new(),
+        format!(
+            "  {}  {}  {}",
+            run.disposition
+                .as_ref()
+                .map_or(run.state.label(), |disposition| disposition.label()),
+            run.skill,
+            run.run_id
+        ),
+    ];
+    if let Some(receipt_id) = &run.receipt_id {
+        lines.push(format!("     receipt  {receipt_id}"));
+    }
+    for waited in &read.waiting {
+        lines.push(format!("     waits on  {}", waited.address));
+    }
+    if run.driven {
+        lines.push("     driven by a running process".to_owned());
+    }
+    lines.push(format!("     {} event(s) read", read.events.len()));
     lines.push(String::new());
     lines.join("\n")
 }
@@ -429,6 +514,53 @@ mod tests {
         assert_eq!(output.receipt.verification.status, "verified");
         assert!(!result.output.contains("structured_output"));
         assert!(!result.output.contains("stderr"));
+        Ok(())
+    }
+
+    #[test]
+    fn one_positional_naming_a_run_reads_it_and_otherwise_searches() -> Result<(), io::Error> {
+        let parsed = parse_history_args(&[
+            "history".into(),
+            "run_1".into(),
+            "--after".into(),
+            "c".into(),
+        ])
+        .map_err(|error| io::Error::other(error.to_string()))?;
+        assert_eq!(parsed.run_id.as_deref(), Some("run_1"));
+        assert_eq!(parsed.after.as_deref(), Some("c"));
+        let searched = parse_history_args(&["history".into(), "two".into(), "words".into()])
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert_eq!(searched.run_id, None);
+
+        let temp = tempfile_dir()?;
+        let mut env = BTreeMap::new();
+        env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
+        let unknown = run_history_command(
+            &["history".into(), "run_none".into(), "--json".into()],
+            &env,
+            &temp,
+        )
+        .map_err(|error| io::Error::other(error.to_string()))?;
+        let listing: serde_json::Value = serde_json::from_str(&unknown.output)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        assert_eq!(
+            listing["runs"],
+            serde_json::json!([]),
+            "an unknown run id searches"
+        );
+        assert!(matches!(
+            run_history_command(
+                &[
+                    "history".into(),
+                    "run_none".into(),
+                    "--after".into(),
+                    "c".into()
+                ],
+                &env,
+                &temp
+            ),
+            Err(HistoryCliError::InvalidArgs(_))
+        ));
         Ok(())
     }
 

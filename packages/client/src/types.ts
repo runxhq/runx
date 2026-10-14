@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, SkillOutputContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, RunReadContract, SkillOutputContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -87,6 +87,11 @@ export interface RunResumeOptions extends InvocationOptions {
   readonly binding?: ExecutionBinding;
 }
 
+export interface RunReadOptions extends InvocationOptions {
+  readonly runId: string;
+  readonly after?: string;
+}
+
 export interface TurnServerOptions extends InvocationOptions {
   readonly runId: string;
   readonly receiptDir: string;
@@ -168,7 +173,11 @@ export interface RunxClient {
     inspect(options: SkillInspectOptions): Promise<SkillInspection>;
     run(options: SkillRunOptions): Promise<SkillRunOutput>;
   };
-  readonly runs: { resume(options: RunResumeOptions): Promise<SkillRunOutput> };
+  readonly runs: {
+    /** One run's summary, waited requests and events after `after`, the cursor a previous read returned. */
+    read(options: RunReadOptions): Promise<RunReadContract>;
+    resume(options: RunResumeOptions): Promise<SkillRunOutput>;
+  };
   readonly turns: { server(options: TurnServerOptions): TurnServer };
   readonly packages: {
     materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput>;

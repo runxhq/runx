@@ -1,0 +1,514 @@
+{
+  "$id": "https://schemas.runx.ai/runx/run-event/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "committed_at": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "event": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "started",
+              "type": "string"
+            },
+            "runner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "skill": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "skill",
+            "runner"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "child_started",
+              "type": "string"
+            },
+            "parent": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "skill": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "step_id": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "parent",
+            "step_id",
+            "skill"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "step",
+              "type": "string"
+            },
+            "receipt_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "step_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "succeeded": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "step_id",
+            "attempt",
+            "succeeded",
+            "receipt_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "skipped",
+              "type": "string"
+            },
+            "step_ids": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "step_ids"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "hold": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "request",
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "address",
+                    "request_digest"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "retry",
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "address",
+                    "request_digest"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "claimed",
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "address",
+                    "request_digest"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "child",
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "run_id"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "kind": {
+              "const": "suspended",
+              "type": "string"
+            },
+            "step_id": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "step_id",
+            "attempt",
+            "hold"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "input_digest": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "call",
+              "type": "string"
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "receipt_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": "completed",
+                      "type": "string"
+                    },
+                    "succeeded": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "succeeded",
+                    "receipt_id"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "refused",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "failed",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": "pending",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "address",
+                    "request_digest"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": "claimed",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "address",
+                    "request_digest"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "run_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": "child",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "run_id"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "step_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "tool",
+                      "type": "string"
+                    },
+                    "tool": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "tool"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "operation",
+                      "type": "string"
+                    },
+                    "operation": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requirement": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "requirement",
+                    "operation"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "skill",
+                      "type": "string"
+                    },
+                    "skill": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "skill"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "turn": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "step_id",
+            "attempt",
+            "turn",
+            "index",
+            "target",
+            "input_digest",
+            "outcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "enum": [
+                "closed",
+                "deferred",
+                "superseded",
+                "declined",
+                "blocked",
+                "failed",
+                "killed",
+                "timed_out"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "const": "sealed",
+              "type": "string"
+            },
+            "receipt_id": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "disposition",
+            "receipt_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "stream": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "version": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "stream",
+    "version",
+    "committed_at",
+    "event"
+  ],
+  "type": "object",
+  "x-runx-schema": "runx.run_event.v1"
+}

@@ -32,7 +32,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         context: &RunContext::default(),
         run_authority: None,
         act: None,
-        driver: Driver::Attached,
+        driver: RunDriver::Attached,
         prepared: None,
         created_at: "2026-10-09T00:00:00.000Z",
     })
@@ -225,7 +225,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 context: &RunContext::default(),
                 run_authority: None,
                 act: None,
-                driver: Driver::Attached,
+                driver: RunDriver::Attached,
                 prepared: None,
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
@@ -312,7 +312,7 @@ fn run_ids_are_minted_unique_and_validated() {
     assert!(first.starts_with("run_triage-issues_"));
     assert!(validate_run_id(&first).is_ok());
     assert!(validate_run_id("hosted:job.42-a").is_ok());
-    for invalid in ["", "run/child", "run id", "run\nid"] {
+    for invalid in ["", "run/child", "run id", "run\nid", "sha256:abc"] {
         assert!(
             validate_run_id(invalid).is_err(),
             "{invalid:?} must be refused"
@@ -696,4 +696,168 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
     // A step that settles after its claim leaves nothing waiting.
     log.record_step(&step("run_triage_9", "send"), &[]).unwrap();
     assert!(log.load().unwrap().unwrap().suspension.is_none());
+}
+
+fn project_env(workspace: &tempfile::TempDir) -> (BTreeMap<String, String>, Arc<KernelStore>) {
+    let env = BTreeMap::from([(
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        workspace.path().join(".runx").display().to_string(),
+    )]);
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, workspace.path()))
+        .unwrap();
+    (env, store)
+}
+
+fn kinds(read: &runx_contracts::RunRead) -> Vec<(String, u64, String)> {
+    read.events
+        .iter()
+        .map(|record| {
+            let kind = serde_json::to_value(&record.event).unwrap()["kind"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            (record.stream.as_str().to_owned(), record.version, kind)
+        })
+        .collect()
+}
+
+#[test]
+fn a_read_after_its_cursor_returns_only_new_events_in_every_stream() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    let parent = RunLog::open(Arc::clone(&store), "run_read_1").unwrap();
+    start(&parent, &JsonObject::new());
+    parent
+        .record_request("send", 1, &approval("send.approval"))
+        .unwrap();
+
+    let first = read_run(&env, workspace.path(), "run_read_1", None).unwrap();
+    assert_eq!(
+        kinds(&first),
+        [
+            ("run_read_1".to_owned(), 1, "started".to_owned()),
+            ("run_read_1".to_owned(), 2, "suspended".to_owned()),
+        ]
+    );
+    assert_eq!(first.run.state, RunState::Paused);
+    assert!(!first.run.driven);
+    assert!(!first.more);
+    assert_eq!(first.waiting.len(), 1);
+    assert_eq!(first.waiting[0].address, "send.approval");
+
+    // A child that starts after the first read is read from its beginning.
+    let child = parent.child("review").unwrap();
+    child
+        .start_child(
+            "run_read_1",
+            "review",
+            "review",
+            &JsonObject::new(),
+            None,
+            "2026-10-09T00:00:00.000Z",
+        )
+        .unwrap();
+    parent
+        .record_step(&step("run_read_1", "send"), &[])
+        .unwrap();
+
+    let second = read_run(
+        &env,
+        workspace.path(),
+        "run_read_1",
+        Some(first.cursor.as_str()),
+    )
+    .unwrap();
+    assert_eq!(
+        kinds(&second),
+        [
+            ("run_read_1".to_owned(), 3, "step".to_owned()),
+            (
+                "run_read_1/review".to_owned(),
+                1,
+                "child_started".to_owned()
+            ),
+        ]
+    );
+    let third = read_run(
+        &env,
+        workspace.path(),
+        "run_read_1",
+        Some(second.cursor.as_str()),
+    )
+    .unwrap();
+    assert!(third.events.is_empty(), "nothing is read twice");
+    assert_eq!(third.run.state, RunState::Running);
+}
+
+#[test]
+fn a_read_refuses_another_runs_cursor_a_damaged_one_and_an_unknown_run() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    for run_id in ["run_read_a", "run_read_b"] {
+        start(
+            &RunLog::open(Arc::clone(&store), run_id).unwrap(),
+            &JsonObject::new(),
+        );
+    }
+    let other = read_run(&env, workspace.path(), "run_read_b", None).unwrap();
+    assert!(matches!(
+        read_run(
+            &env,
+            workspace.path(),
+            "run_read_a",
+            Some(other.cursor.as_str())
+        ),
+        Err(RunRecordError::CursorRunMismatch { .. })
+    ));
+    assert!(matches!(
+        read_run(&env, workspace.path(), "run_read_a", Some("not a cursor")),
+        Err(RunRecordError::InvalidCursor)
+    ));
+    assert!(matches!(
+        read_run(&env, workspace.path(), "run_missing", None),
+        Err(RunRecordError::UnknownRun { .. })
+    ));
+}
+
+#[test]
+fn a_long_record_is_read_in_pages() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    let log = RunLog::open(Arc::clone(&store), "run_read_long").unwrap();
+    start(&log, &JsonObject::new());
+    for index in 0..520 {
+        log.record_skipped(vec![format!("step-{index}")]).unwrap();
+    }
+    let first = read_run(&env, workspace.path(), "run_read_long", None).unwrap();
+    assert_eq!(first.events.len(), 500);
+    assert!(first.more);
+    let rest = read_run(
+        &env,
+        workspace.path(),
+        "run_read_long",
+        Some(first.cursor.as_str()),
+    )
+    .unwrap();
+    assert_eq!(rest.events.len(), 21);
+    assert!(!rest.more);
+    assert_eq!(rest.events[0].version, 501);
+}
+
+#[test]
+fn a_driving_process_reads_as_driven() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    start(
+        &RunLog::open(Arc::clone(&store), "run_read_driven").unwrap(),
+        &JsonObject::new(),
+    );
+    let paths = crate::paths::RunxPaths::resolve(&env, workspace.path());
+    let _driver = DriverLock::acquire(&paths, "run_read_driven").unwrap();
+    assert!(
+        read_run(&env, workspace.path(), "run_read_driven", None)
+            .unwrap()
+            .run
+            .driven
+    );
 }

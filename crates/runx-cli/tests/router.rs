@@ -158,6 +158,10 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
     );
     assert_help_line(
         &history_help_text(),
+        "runx history <run-id> [--after cursor] [--json]",
+    );
+    assert_help_line(
+        &history_help_text(),
         "runx history <receipt-id> [--receipt-dir dir] [--json]",
     );
     assert_help_line(

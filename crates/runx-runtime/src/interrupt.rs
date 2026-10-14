@@ -67,6 +67,44 @@ pub fn was_interrupted() -> bool {
     interrupt_requested().load(Ordering::Acquire)
 }
 
+/// End the process early, the one way it ends early: stop every supervised
+/// child process group, then exit after a short cleanup window. A second
+/// request exits at once.
+pub fn interrupt() {
+    if !terminate_active_processes() {
+        std::process::exit(130);
+    }
+    let watchdog = std::thread::Builder::new()
+        .name("runx-interrupt-watchdog".to_owned())
+        .spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            std::process::exit(130);
+        });
+    if watchdog.is_err() {
+        std::process::exit(130);
+    }
+}
+
+/// End the process through [`interrupt`] once the process that started it is
+/// gone, checked every second, so a host that dies leaves no driver behind.
+/// A process whose parent is already init has nothing to outlive.
+pub fn end_with_parent() {
+    #[cfg(unix)]
+    {
+        let parent = std::os::unix::process::parent_id();
+        if parent > 1 {
+            let _watch = std::thread::Builder::new()
+                .name("runx-parent-watch".to_owned())
+                .spawn(move || {
+                    while std::os::unix::process::parent_id() == parent {
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
+                    interrupt();
+                });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

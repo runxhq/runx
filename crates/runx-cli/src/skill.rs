@@ -169,6 +169,23 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             plan.diagnostics,
         );
     }
+    let _driver = match plan
+        .run_id
+        .as_deref()
+        .map(|run_id| crate::runtime::drive(workspace, run_id))
+        .transpose()
+    {
+        Ok(driver) => driver,
+        Err(error) => {
+            return write_skill_failure(
+                &error,
+                plan.json,
+                "skill_error",
+                1,
+                entry_provenance(&resolved),
+            );
+        }
+    };
     let resume = ResumeHint {
         receipt_dir: plan.receipt_dir.as_deref(),
         answers_path: None,

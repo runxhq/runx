@@ -366,17 +366,10 @@ runners:
                 command.current_dir(root).env("RUNX_CWD", root);
                 command
             };
-            let history = command()
-                .args(["history", run_id, "--receipt-dir"])
-                .arg(&receipts)
-                .arg("--json")
-                .output()?;
-            assert!(history.status.success());
-            let history: Value = serde_json::from_slice(&history.stdout)?;
-            assert!(history["runs"].as_array().is_some_and(|runs| {
-                runs.iter()
-                    .any(|run| run["run_id"] == run_id && run["state"] == "paused")
-            }));
+            let read = command().args(["history", run_id, "--json"]).output()?;
+            assert!(read.status.success());
+            let read: Value = serde_json::from_slice(&read.stdout)?;
+            assert_eq!(read["run"]["state"], "paused");
 
             // An approval of a request the run was not paused on is refused.
             let mut wrong = answers.clone();
@@ -420,17 +413,10 @@ runners:
             );
             let verified: Value = serde_json::from_slice(&verified.stdout)?;
             assert_eq!(verified["valid"], true);
-            let history = command()
-                .args(["history", run_id, "--receipt-dir"])
-                .arg(&receipts)
-                .arg("--json")
-                .output()?;
-            assert!(history.status.success());
-            let history: Value = serde_json::from_slice(&history.stdout)?;
-            assert!(!history["runs"].as_array().is_some_and(|runs| {
-                runs.iter()
-                    .any(|run| run["run_id"] == run_id && run["state"] == "paused")
-            }));
+            let read = command().args(["history", run_id, "--json"]).output()?;
+            assert!(read.status.success());
+            let read: Value = serde_json::from_slice(&read.stdout)?;
+            assert_eq!(read["run"]["state"], "sealed");
         }
     }
     Ok(())
