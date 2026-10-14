@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, RunReadContract, RunxListReportContract, SkillOutputContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -81,8 +81,8 @@ export interface RunContext {
 
 export interface RunResumeOptions extends InvocationOptions {
   readonly runId: string;
-  /** Exact native resume packet. The client never assigns or upgrades actors. */
-  readonly resolutions: Readonly<Record<string, unknown>>;
+  /** The exact `runx.resume.v1` document. The client never assigns or upgrades actors. */
+  readonly resolutions: ResumeDocumentContract;
   readonly receiptDir: string;
   readonly binding?: ExecutionBinding;
 }
@@ -120,7 +120,8 @@ export interface ReceiptTree {
 }
 
 export interface SkillRunOutput extends SkillOutputContract {
-  readonly requests?: readonly ResolutionRequestContract[];
+  /** What the run waits on, each request with the digest an answer binds to. */
+  readonly requests?: readonly WaitedRequestContract[];
   readonly receiptTree?: ReceiptTree;
 }
 

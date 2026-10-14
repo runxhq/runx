@@ -87,7 +87,8 @@ If Runx pauses for host work, continue the same immutable run:
 runx resume <run-id> -
 ```
 
-The stdin document carries the requested agent answer. Normal output stays
+The stdin document (`runx.resume.v1`) carries the requested agent answer,
+bound to the request's digest. Normal output stays
 compact; use `--diagnostics` only when graph internals are actually needed.
 
 ## Dogfood proof

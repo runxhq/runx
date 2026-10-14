@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::KeyPair;
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::JsonValue;
 use runx_receipts::ReceiptTreeConfig;
 use runx_runtime::registry::TrustTier;
 use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
@@ -359,7 +359,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -370,22 +370,25 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
                 }
             }
         }
-    }))?;
+    });
 
-    let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir.clone()),
-        run_id: Some("issue-intake-run".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }))?;
+    let result = complete_agent_fixture(
+        with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("issue-intake-run".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: BTreeMap::new(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        }),
+        answers,
+    )?;
 
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -434,7 +437,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -462,22 +465,25 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
                 }
             }
         }
-    }))?;
+    });
 
-    let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir.clone()),
-        run_id: Some("malicious-stdout-run".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }))?;
+    let result = complete_agent_fixture(
+        with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("malicious-stdout-run".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: BTreeMap::new(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        }),
+        answers,
+    )?;
 
     let output = object(&result.output, "skill run result")?;
     assert!(object_field(output, "result").is_some());
@@ -515,7 +521,7 @@ fn native_skill_run_preserves_deferred_closure_disposition()
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -526,22 +532,25 @@ fn native_skill_run_preserves_deferred_closure_disposition()
                 }
             }
         }
-    }))?;
+    });
 
-    let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir.clone()),
-        run_id: Some("issue-intake-deferred".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }))?;
+    let result = complete_agent_fixture(
+        with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("issue-intake-deferred".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: BTreeMap::new(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        }),
+        answers,
+    )?;
 
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -561,7 +570,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let env_receipt_dir = temp.path().join("env-receipts");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -572,27 +581,30 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
                 }
             }
         }
-    }))?;
+    });
 
-    let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: None,
-        run_id: Some("env-receipt-run".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: [(
-            RUNX_RECEIPT_DIR_ENV.to_owned(),
-            env_receipt_dir.to_string_lossy().into_owned(),
-        )]
-        .into_iter()
-        .collect(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }))?;
+    let result = complete_agent_fixture(
+        with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: None,
+            run_id: Some("env-receipt-run".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: [(
+                RUNX_RECEIPT_DIR_ENV.to_owned(),
+                env_receipt_dir.to_string_lossy().into_owned(),
+            )]
+            .into_iter()
+            .collect(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        }),
+        answers,
+    )?;
 
     let output = object(&result.output, "skill run result")?;
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
@@ -855,7 +867,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -866,23 +878,26 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
                 }
             }
         }
-    }))?;
+    });
     let env = crate::support::test_signing_env();
 
-    let result = complete_agent_fixture(with_test_signing_env(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir.clone()),
-        run_id: Some("production-signed-run".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: env.clone(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }))?;
+    let result = complete_agent_fixture(
+        with_test_signing_env(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("production-signed-run".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        }),
+        answers,
+    )?;
 
     let output = object(&result.output, "skill run result")?;
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
@@ -899,7 +914,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
 fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "intake": {
                 "intake_report": {
@@ -910,26 +925,29 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
                 }
             }
         }
-    }))?;
+    });
     let receipt_dir = temp.path().join("receipts");
     let env = BTreeMap::from([(
         runx_runtime::RUNX_HOME_ENV.to_owned(),
         temp.path().join("home").display().to_string(),
     )]);
-    let result = complete_agent_fixture(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir.clone()),
-        run_id: Some("home-signed-run".to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: env.clone(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    })?;
+    let result = complete_agent_fixture(
+        SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some("home-signed-run".to_owned()),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        },
+        answers,
+    )?;
     assert_eq!(result.status, runx_runtime::RunStatus::Sealed);
     assert_eq!(result.receipt_refs.len(), 1);
 
@@ -1042,8 +1060,9 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     );
 
     // An answer the run refuses is never recorded: the run still waits.
-    let malformed_answers: JsonObject =
-        serde_json::from_value(serde_json::json!({"answers": {"decide": {"unexpected": true}}}))?;
+    let malformed_answers = serde_json::json!({"answers": {"decide": {"unexpected": true}}});
+    let malformed_answers =
+        crate::support::bind_resume(&BTreeMap::new(), temp.path(), run_id, malformed_answers)?;
     let refused = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1080,7 +1099,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         &manual,
         format!("{original_manual}\nAn edit after the run paused.\n"),
     )?;
-    let bad_answers = JsonObject::new();
+    let bad_answers = runx_contracts::ResumeDocument::default();
     let binding_mismatch = match run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1106,7 +1125,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     );
     fs::write(&manual, original_manual)?;
 
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "decide": {
                 "result": {
@@ -1117,7 +1136,8 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
                 }
             }
         }
-    }))?;
+    });
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), run_id, answers)?;
     let resumed = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1177,7 +1197,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
     let output = object(&initial.output, "gated graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "decide": {
                 "approved": true,
@@ -1186,8 +1206,9 @@ fn native_graph_transition_gate_allows_declared_agent_output()
                 }
             }
         }
-    }))?;
+    });
 
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), run_id, answers)?;
     let resumed = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1248,29 +1269,33 @@ runners:
     )?;
     let receipt_dir = temp.path().join("receipts");
     let evidence_root = temp.path().join("evidence").to_string_lossy().into_owned();
-    let request =
-        |answers: Option<JsonObject>, inputs: BTreeMap<String, JsonValue>| SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill_dir.clone(),
-            receipt_dir: Some(receipt_dir.clone()),
-            run_id: Some("run_continuation".to_owned()),
-            answers,
-            inputs,
-            env: BTreeMap::new(),
-            cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
-        };
+    let request = |answers: Option<runx_contracts::ResumeDocument>,
+                   inputs: BTreeMap<String, JsonValue>| SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir.clone(),
+        receipt_dir: Some(receipt_dir.clone()),
+        run_id: Some("run_continuation".to_owned()),
+        answers,
+        inputs,
+        env: BTreeMap::new(),
+        cwd: temp.path().to_path_buf(),
+        managed_agent: Default::default(),
+    };
 
     let paused = run_skill(request(
         None,
         BTreeMap::from([("repo_root".to_owned(), JsonValue::String(evidence_root))]),
     ))?;
     assert_eq!(paused.status, runx_runtime::RunStatus::NeedsAgent);
-    let answers: JsonObject =
-        serde_json::from_value(serde_json::json!({ "approvals": { "continuation": true } }))?;
+    let answers = crate::support::bind_resume(
+        &BTreeMap::new(),
+        temp.path(),
+        "run_continuation",
+        serde_json::json!({ "approvals": { "continuation": true } }),
+    )?;
 
     let resumed = run_skill(request(Some(answers), BTreeMap::new()))?;
     assert_eq!(resumed.status, runx_runtime::RunStatus::Sealed);
@@ -1300,7 +1325,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     let output = object(&initial.output, "gated graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "decide": {
                 "approved": true,
@@ -1309,8 +1334,9 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
                 }
             }
         }
-    }))?;
+    });
 
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), run_id, answers)?;
     let blocked = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1382,7 +1408,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
     assert_eq!(string_field(invocation, "role"), Some("builder"));
     assert_eq!(string_field(invocation, "task"), Some("child-agent"));
 
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "nested#author": {
                 "result": {
@@ -1393,7 +1419,8 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
                 }
             }
         }
-    }))?;
+    });
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), run_id, answers)?;
     let resumed = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1778,7 +1805,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
     write_echo_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "author": {
                 "fix_bundle": {
@@ -1789,7 +1816,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
                 }
             }
         }
-    }))?;
+    });
     let env = [(
         "RUNX_TOOL_ROOTS".to_owned(),
         tool_root.to_string_lossy().into_owned(),
@@ -1816,6 +1843,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
         .ok_or("pending graph agent artifact result missing run_id")?
         .to_owned();
 
+    let answers = crate::support::bind_resume(&env, temp.path(), &run_id, answers)?;
     let result = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1852,7 +1880,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
     )?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "author": {
                 "result": {
@@ -1863,7 +1891,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
                 }
             }
         }
-    }))?;
+    });
     let env = [(
         "RUNX_TOOL_ROOTS".to_owned(),
         tool_root.to_string_lossy().into_owned(),
@@ -1903,6 +1931,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         .ok_or("pending graph input resume result missing run_id")?
         .to_owned();
 
+    let answers = crate::support::bind_resume(&env.clone(), temp.path(), &run_id, answers)?;
     let changed = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -1962,7 +1991,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
     write_echo_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": {
             "author": {
                 "output": {
@@ -1975,7 +2004,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
                 }
             }
         }
-    }))?;
+    });
     let env = [(
         "RUNX_TOOL_ROOTS".to_owned(),
         tool_root.to_string_lossy().into_owned(),
@@ -2007,6 +2036,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
 
     // An answer that breaks the act's output contract is refused and the
     // turn stays open: nothing is sealed, and the run can still be answered.
+    let answers = crate::support::bind_resume(&env.clone(), temp.path(), &run_id, answers)?;
     let Err(refused) = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -2155,7 +2185,6 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
     let temp = tempdir()?;
     let skill_dir = write_graph_approval_resume_skill(temp.path())?;
     let receipt_dir = temp.path().join(format!("receipts-{case}"));
-    let answers: JsonObject = serde_json::from_value(answers)?;
 
     let pending = run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -2180,6 +2209,7 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
         .ok_or("pending approval result missing run_id")?
         .to_owned();
 
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), &run_id, answers)?;
     let resumed = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -2239,23 +2269,27 @@ fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
             .ok_or("the paused run's approval request is missing")?;
     // A person approves only what the run waits on: an approval of any other
     // request, such as one the resume would ask next, is refused.
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
-        "approvals": { request.id.clone(): true, "a-later-step": true }
-    }))?;
     let mut resume = start;
-    resume.answers = Some(answers);
+    resume.answers = Some(serde_json::from_value(serde_json::json!({
+        "approvals": {
+            request.id.clone(): { "request_digest": request.digest.clone(), "approved": true },
+            "a-later-step": { "request_digest": "sha256:not-shown", "approved": true }
+        }
+    }))?);
     let rejected = run_skill(resume.clone())
         .err()
         .ok_or("an approval of a request not shown was accepted")?;
     assert!(
         rejected
             .to_string()
-            .contains("approval a-later-step names no request"),
+            .contains("a-later-step names no request"),
         "{rejected}"
     );
-    resume.answers = Some(serde_json::from_value(
-        serde_json::json!({ "approvals": { request.id.clone(): true } }),
-    )?);
+    resume.answers = Some(serde_json::from_value(serde_json::json!({
+        "approvals": {
+            request.id.clone(): { "request_digest": request.digest.clone(), "approved": true }
+        }
+    }))?);
     let resumed = run_skill(resume)?;
     assert_eq!(resumed.status, runx_runtime::RunStatus::Sealed);
     assert!(resumed.succeeded());
@@ -2268,9 +2302,9 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
     let temp = tempdir()?;
     let skill_dir = write_graph_approval_resume_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts-agent-approval");
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
+    let answers = serde_json::json!({
         "answers": { "approval-resume.approve": true }
-    }))?;
+    });
 
     let pending = run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -2291,6 +2325,7 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
         .ok_or("pending approval result missing run_id")?
         .to_owned();
 
+    let answers = crate::support::bind_resume(&BTreeMap::new(), temp.path(), &run_id, answers)?;
     let rejected = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
@@ -3069,7 +3104,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         skill_path: skill_dir.clone(),
         receipt_dir: None,
         run_id: None,
-        answers: Some(JsonObject::new()),
+        answers: Some(runx_contracts::ResumeDocument::default()),
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
@@ -3092,7 +3127,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         skill_path: skill_dir,
         receipt_dir: None,
         run_id: Some("missing".to_owned()),
-        answers: Some(JsonObject::new()),
+        answers: Some(runx_contracts::ResumeDocument::default()),
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
@@ -3111,20 +3146,24 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
 
 // Exercise durable admission before applying fixture answers; a named answer
 // without an admitted checkpoint is never a continuation.
+/// Start `request`'s run, then answer what it pauses on with `answers`,
+/// bound to the requests it waits on as a host binds them.
 fn complete_agent_fixture(
-    request: SkillRunRequest,
+    mut request: SkillRunRequest,
+    answers: serde_json::Value,
 ) -> Result<RunResult, Box<dyn std::error::Error>> {
-    let mut start = request.clone();
-    start.answers = None;
-    let pending = LocalOrchestrator::default().run_skill(&start)?;
+    let pending = LocalOrchestrator::default().run_skill(&request)?;
     assert!(!pending.pending_requests.is_empty());
     let pending = serde_json::to_value(&pending.output)?;
     assert_eq!(pending["status"], "needs_agent");
-    assert_eq!(pending["run_id"].as_str(), request.run_id.as_deref());
-    request
-        .answers
-        .as_ref()
-        .ok_or("fixture answers are required")?;
+    let run_id = request.run_id.clone().ok_or("fixture runs pin their id")?;
+    assert_eq!(pending["run_id"].as_str(), Some(run_id.as_str()));
+    request.answers = Some(crate::support::bind_resume(
+        &request.env,
+        &request.cwd,
+        &run_id,
+        answers,
+    )?);
     LocalOrchestrator::default()
         .run_skill(&request)
         .map_err(Into::into)
@@ -4140,39 +4179,37 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
     let output = object(&initial.output, "when graph result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
 
-    // answers for decide and the selected branch only; branch_stop gets no
-    // answer, so the run can seal only if `when` skipped it.
-    let answers: JsonObject = serde_json::from_value(serde_json::json!({
-        "answers": {
-            "decide": {
-                "verdict": "go",
-                "closure": {
-                    "disposition": "closed"
-                }
-            },
-            "branch_go": {
-                "result": { "ok": true },
-                "closure": {
-                    "disposition": "closed"
-                }
-            }
-        }
+    // Answer decide, then the selected branch it leads to; branch_stop is
+    // never asked, so the run can seal only if `when` skipped it.
+    let answer = |answers: serde_json::Value| -> Result<RunResult, Box<dyn std::error::Error>> {
+        run_skill(SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir.clone(),
+            receipt_dir: Some(receipt_dir.clone()),
+            run_id: Some(run_id.to_owned()),
+            answers: Some(crate::support::bind_resume(
+                &BTreeMap::new(),
+                temp.path(),
+                run_id,
+                answers,
+            )?),
+            inputs: BTreeMap::new(),
+            env: BTreeMap::new(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: Default::default(),
+        })
+    };
+    let branched = answer(serde_json::json!({
+        "answers": { "decide": { "verdict": "go", "closure": { "disposition": "closed" } } }
     }))?;
-
-    let sealed = run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
-        run_id: Some(run_id.to_owned()),
-        answers: Some(answers),
-        inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    })?;
+    let branched = object(&branched.output, "branched when graph result")?;
+    assert_eq!(string_field(branched, "status"), Some("needs_agent"));
+    let sealed = answer(serde_json::json!({
+        "answers": { "branch_go": { "result": { "ok": true }, "closure": { "disposition": "closed" } } }
+    }))?;
     let output = object(&sealed.output, "sealed when graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     Ok(())

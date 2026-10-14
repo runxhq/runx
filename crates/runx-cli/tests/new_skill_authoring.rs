@@ -42,17 +42,29 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
         "runx new wrote before authoring completed"
     );
 
+    // Each act is answered when the run asks it: the architect, then the
+    // author its decision leads to.
     let answers = root.join("answers.json");
-    fs::write(&answers, authoring_answers())?;
-    let completed = command(&repo, &root)
-        .arg("resume")
-        .arg(run_id)
-        .arg(&answers)
-        .arg("--receipt-dir")
-        .arg(&receipts)
-        .args(["--json", "--diagnostics"])
-        .output()?;
-    let completed = assert_json(&completed, 0)?;
+    let mut completed = Value::Null;
+    for (step, exit) in [("architect", 2), ("author", 0)] {
+        let read = command(&repo, &root)
+            .args(["history", run_id, "--json"])
+            .output()?;
+        let answer = serde_json::json!({ "answers": { step: authoring_answers()[step].clone() } });
+        fs::write(
+            &answers,
+            crate::support::bind_resume(&assert_json(&read, 0)?, answer)?.to_string(),
+        )?;
+        let resumed = command(&repo, &root)
+            .arg("resume")
+            .arg(run_id)
+            .arg(&answers)
+            .arg("--receipt-dir")
+            .arg(&receipts)
+            .args(["--json", "--diagnostics"])
+            .output()?;
+        completed = assert_json(&resumed, exit)?;
+    }
 
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["closure"]["disposition"], "closed");
@@ -132,9 +144,9 @@ fn assert_json(output: &Output, expected: i32) -> TestResult<Value> {
     serde_json::from_slice(&output.stdout).map_err(Into::into)
 }
 
-fn authoring_answers() -> String {
+/// What the architect and the author answer, by step.
+fn authoring_answers() -> Value {
     serde_json::json!({
-        "answers": {
             "architect": {
                 "architecture_decision": {
                     "schema": "runx.skill.architecture_decision.v1",
@@ -247,9 +259,7 @@ fn authoring_answers() -> String {
                     }]
                 }
             }
-        }
     })
-    .to_string()
 }
 
 pub(crate) fn digest_note_manual() -> &'static str {

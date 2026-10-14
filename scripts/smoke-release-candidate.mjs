@@ -317,11 +317,11 @@ runners:
   if (preparedRunCount(pausedResult.stderr) !== 1) {
     throw new Error("approval probe did not emit exactly one initial Prepared run");
   }
-  const requestId = paused.requests[0].id;
+  const { id: requestId, request_digest: requestDigest } = paused.requests[0];
   const agentAnswers = path.join(root, "agent-approval-answers.json");
   writeFileSync(
     agentAnswers,
-    `${JSON.stringify({ answers: { [requestId]: { approved: true } } })}\n`,
+    `${JSON.stringify({ answers: { [requestId]: { request_digest: requestDigest, value: { approved: true } } } })}\n`,
   );
   const rejectedAgentResult = run(
     [
@@ -345,7 +345,7 @@ runners:
   const answers = path.join(root, "approval-answers.json");
   writeFileSync(
     answers,
-    `${JSON.stringify({ approvals: { [requestId]: { approved: true } } })}\n`,
+    `${JSON.stringify({ approvals: { [requestId]: { request_digest: requestDigest, approved: true } } })}\n`,
   );
   const resumedResult = run([
     "resume",

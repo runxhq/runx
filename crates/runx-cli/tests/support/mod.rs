@@ -528,3 +528,45 @@ pub fn plugin_with_source_connectors(
     }
     Ok(())
 }
+
+/// Bind a resume written by address alone (`{answers: {address: value},
+/// approvals: {address: approved}}`) to what a run read (`runx history
+/// <run-id> --json`) reports the run waiting on, by each request's digest,
+/// as a host binds it.
+pub fn bind_resume(
+    read: &serde_json::Value,
+    unbound: serde_json::Value,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let waiting = read["waiting"]
+        .as_array()
+        .ok_or("the run read lists no waited requests")?;
+    let digest = |address: &str| {
+        waiting
+            .iter()
+            .find(|request| request["address"] == address)
+            .map(|request| request["request_digest"].clone())
+            .ok_or_else(|| format!("the run waits on no request {address}"))
+    };
+    let mut bound = serde_json::Map::new();
+    for (lane, entries) in unbound.as_object().into_iter().flatten() {
+        let mut lane_entries = serde_json::Map::new();
+        for (address, value) in entries.as_object().into_iter().flatten() {
+            let mut entry =
+                serde_json::Map::from_iter([("request_digest".to_owned(), digest(address)?)]);
+            match (lane.as_str(), value) {
+                ("approvals", serde_json::Value::Bool(approved)) => {
+                    entry.insert("approved".to_owned(), serde_json::Value::Bool(*approved));
+                }
+                ("approvals", serde_json::Value::Object(decision)) => {
+                    entry.extend(decision.clone());
+                }
+                _ => {
+                    entry.insert("value".to_owned(), value.clone());
+                }
+            }
+            lane_entries.insert(address.clone(), serde_json::Value::Object(entry));
+        }
+        bound.insert(lane.clone(), serde_json::Value::Object(lane_entries));
+    }
+    Ok(serde_json::Value::Object(bound))
+}

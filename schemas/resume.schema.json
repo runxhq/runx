@@ -1,0 +1,69 @@
+{
+  "$id": "https://schemas.runx.ai/runx/resume/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "answers": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "request_digest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "request_digest",
+          "value"
+        ],
+        "type": "object"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "approvals": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "request_digest": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_digest",
+          "approved"
+        ],
+        "type": "object"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "close": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "declined",
+            "superseded"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "disposition"
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object",
+  "x-runx-schema": "runx.resume.v1"
+}

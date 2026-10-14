@@ -49,6 +49,7 @@ pub mod registry_binding;
 pub mod registry_signed_manifest;
 pub mod registry_taxonomy;
 pub mod registry_version;
+pub mod resume;
 pub mod review;
 pub mod run_read;
 pub mod schema;
@@ -255,6 +256,7 @@ pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
     validate_registry_version,
 };
+pub use resume::{BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose};
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
 pub use run_read::{
     RunCallOutcome, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead, RunReadSchema,

@@ -576,9 +576,15 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
         .as_str()
         .ok_or("missing run_id")?
         .to_owned();
+    let answers = crate::support::bind_resume(
+        &env,
+        temp.path(),
+        &run_id,
+        json!({"approvals": {ask: true}}),
+    )?;
     let sealed = LocalOrchestrator::default().resume(&runx_runtime::ResumeRequest {
         run_id,
-        answers: serde_json::from_value(json!({"approvals": {ask: true}}))?,
+        answers,
         receipt_dir: Some(receipts),
         env,
         cwd: temp.path().to_path_buf(),

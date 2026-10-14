@@ -328,7 +328,7 @@ struct PreparedContextPreimage<'a> {
     cwd: &'a Path,
     runner: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    answers: Option<&'a JsonObject>,
+    answers: Option<&'a runx_contracts::ResumeDocument>,
     inputs: &'a BTreeMap<String, JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     act: Option<&'a runx_contracts::CallAct>,

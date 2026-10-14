@@ -119,23 +119,34 @@ the work again, invoke the original `runx skill` command and retain both
 receipts if you need to compare the outcomes. The current CLI has no standalone
 `replay` or run `diff` command.
 
-The resume file keeps agent work and human authorization distinct:
+The resume document (`runx.resume.v1`) keeps agent work and human
+authorization distinct, and binds every entry to the request it answers:
 
 ```json
 {
   "answers": {
     "summarize": {
-      "result": {}
+      "request_digest": "sha256:…",
+      "value": { "result": {} }
     }
   },
   "approvals": {
     "deliver": {
+      "request_digest": "sha256:…",
       "approved": true,
       "reason": "I authorize this exact provider action."
     }
   }
 }
 ```
+
+Each `request_digest` is the one the run reported for that request: in the
+paused output's `requests`, and in `runx history <run-id> --json` under
+`waiting`. An entry whose address the run does not wait on, or whose digest
+belongs to another request, refuses the whole resume, so a decision never
+reaches a request that changed after the person saw it, and nothing answers a
+request the run has not asked yet. The pending run's `answers_template` is
+already bound.
 
 Only entries under `approvals` carry host-attested human approval provenance.
 The local CLI cannot authenticate a person from JSON: by placing a decision
@@ -144,11 +155,13 @@ must never author or promote that entry; it returns the pending approval to its
 human or to an integrated host that authenticates the decision. Never place a
 consequential decision under `answers`; that section records agent or
 caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
-response presented to an approval request. An approval names a request the run
-is paused on, by the address the paused run lists; one naming any other
-request is refused, so no approval reaches a request a person has not seen,
-and a resumed run checks that each request it re-asks is the one it paused on.
-The pending run's `answers_template` contains the exact request ids to resolve.
+response presented to an approval request.
+
+A host ends a paused run instead with `{"close": {"disposition": "declined"}}`
+(a person stopped it) or `"superseded"` (a new attempt replaced it). The close
+comes alone. The run seals with that disposition and the seal reason
+`host_closed`; it is allowed while a retry waits, and an effect the run left
+unconfirmed stays unconfirmed.
 
 `runx mcp --run <run-id>` serves the agent turns a paused run waits on as MCP
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves

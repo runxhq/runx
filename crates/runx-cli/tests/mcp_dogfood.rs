@@ -357,7 +357,6 @@ runners:
                 json!({"approvals": {request_id: true}})
             };
             let answers_path = root.join("answers.json");
-            fs::write(&answers_path, serde_json::to_vec(&answers)?)?;
             server.close_stdin();
             assert!(server.wait_timeout(Duration::from_secs(10))?.success());
 
@@ -370,10 +369,12 @@ runners:
             assert!(read.status.success());
             let read: Value = serde_json::from_slice(&read.stdout)?;
             assert_eq!(read["run"]["state"], "paused");
+            let answers = crate::support::bind_resume(&read, answers)?;
 
             // An approval of a request the run was not paused on is refused.
             let mut wrong = answers.clone();
-            wrong["approvals"]["not-asked"] = json!(true);
+            wrong["approvals"]["not-asked"] =
+                json!({"request_digest": "sha256:not-asked", "approved": true});
             fs::write(&answers_path, serde_json::to_vec(&wrong)?)?;
             let refused = command()
                 .args(["resume", run_id])

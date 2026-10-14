@@ -182,14 +182,21 @@ fn approve(
     run_id: &str,
     approval_id: &str,
 ) -> TestResult<Output> {
-    let approval = serde_json::json!({
-        "approvals": {
-            (approval_id): {
-                "approved": true,
-                "reason": "Post this exact reply to this exact thread once."
+    let read = connect
+        .command(root)
+        .args(["history", run_id, "--json"])
+        .output()?;
+    let approval = crate::support::bind_resume(
+        &serde_json::from_slice(&read.stdout)?,
+        serde_json::json!({
+            "approvals": {
+                (approval_id): {
+                    "approved": true,
+                    "reason": "Post this exact reply to this exact thread once."
+                }
             }
-        }
-    })
+        }),
+    )?
     .to_string();
     let mut resume = connect.command(root);
     resume

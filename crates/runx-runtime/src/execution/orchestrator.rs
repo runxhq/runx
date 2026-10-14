@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, Receipt};
+use runx_contracts::{ClosureDisposition, JsonValue, Receipt};
 use thiserror::Error;
 
 use super::harness::PackageHarnessReport;
@@ -76,9 +76,10 @@ pub struct SkillRunRequest {
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
-    /// The host's answers to what the run `run_id` names waits on: agent
-    /// answers under `answers`, a person's approvals under `approvals`.
-    pub answers: Option<JsonObject>,
+    /// What the host brings the run `run_id` names (`runx.resume.v1`): agent
+    /// answers and a person's approvals, each bound to the request it
+    /// answers, or a close.
+    pub answers: Option<runx_contracts::ResumeDocument>,
     pub inputs: BTreeMap<String, JsonValue>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
@@ -92,8 +93,8 @@ pub struct SkillRunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResumeRequest {
     pub run_id: String,
-    /// Agent answers under `answers`, a person's approvals under `approvals`.
-    pub answers: JsonObject,
+    /// What the host brings the run (`runx.resume.v1`).
+    pub answers: runx_contracts::ResumeDocument,
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,

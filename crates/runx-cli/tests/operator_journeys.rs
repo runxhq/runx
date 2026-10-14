@@ -117,13 +117,16 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let malformed_answers = root.join("malformed-answers.json");
     fs::write(
         &malformed_answers,
-        serde_json::json!({
-            "answers": {
-                "intake": {
-                    "intake_report": "not-an-object"
+        crate::support::bind_resume(
+            &run_read(&root, &run_id)?,
+            serde_json::json!({
+                "answers": {
+                    "intake": {
+                        "intake_report": "not-an-object"
+                    }
                 }
-            }
-        })
+            }),
+        )?
         .to_string(),
     )?;
     let malformed = command(&root)
@@ -140,15 +143,18 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     let answers = root.join("answers.json");
     fs::write(
         &answers,
-        serde_json::json!({
-            "answers": {
-                "intake": {
-                    "intake_report": {
-                        "summary": "Docs bug is bounded."
+        crate::support::bind_resume(
+            &run_read(&root, &run_id)?,
+            serde_json::json!({
+                "answers": {
+                    "intake": {
+                        "intake_report": {
+                            "summary": "Docs bug is bounded."
+                        }
                     }
                 }
-            }
-        })
+            }),
+        )?
         .to_string(),
     )?;
     let resume = command(&root)
@@ -200,18 +206,21 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
         let answers = case_root.join("answers.json");
         fs::write(
             &answers,
-            serde_json::json!({
-                "answers": {
-                    request_id: {
-                        "intake_report": {
-                            "summary": format!("Operator chose {disposition}.")
-                        },
-                        "closure": {
-                            "disposition": disposition
+            crate::support::bind_resume(
+                &run_read(&case_root, run_id)?,
+                serde_json::json!({
+                    "answers": {
+                        request_id: {
+                            "intake_report": {
+                                "summary": format!("Operator chose {disposition}.")
+                            },
+                            "closure": {
+                                "disposition": disposition
+                            }
                         }
                     }
-                }
-            })
+                }),
+            )?
             .to_string(),
         )?;
 
@@ -578,13 +587,16 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
     }
 
     assert!(run_is_paused(&run_read(&root, run_id)?));
-    let answer = serde_json::json!({
-        "answers": {
-            (request_id): {
-                "intake_report": { "summary": "Docs bug is bounded." }
+    let answer = crate::support::bind_resume(
+        &run_read(&root, run_id)?,
+        serde_json::json!({
+            "answers": {
+                (request_id): {
+                    "intake_report": { "summary": "Docs bug is bounded." }
+                }
             }
-        }
-    })
+        }),
+    )?
     .to_string();
 
     let mut resume = command(&root);
@@ -684,9 +696,12 @@ runners:
             fs::write(root.join(marker), "observed after pause")?;
             let request = &paused["requests"][0];
             let request_id = json_string(request, "id")?;
-            let answers = serde_json::json!({
-                "answers": { (request_id): { "decision": { "accepted": true } } }
-            });
+            let answers = crate::support::bind_resume(
+                &run_read(&root, &run_id)?,
+                serde_json::json!({
+                    "answers": { (request_id): { "decision": { "accepted": true } } }
+                }),
+            )?;
             let mut resume = command(&root);
             resume
                 .arg("resume")

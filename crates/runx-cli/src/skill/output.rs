@@ -236,13 +236,17 @@ fn project_json_output_value(
     Ok(minimal)
 }
 
+/// The digest an answer to `request` binds to, as the run record keeps it.
+fn request_digest(request: &JsonValue) -> Option<String> {
+    serde_json::to_vec(request)
+        .ok()
+        .map(|bytes| sha256_prefixed(&bytes))
+}
+
 fn compact_request(request: &JsonValue, artifact_ref: JsonValue) -> JsonValue {
     let mut summary = JsonObject::new();
-    if let Ok(bytes) = serde_json::to_vec(request) {
-        summary.insert(
-            "request_digest".to_owned(),
-            JsonValue::String(sha256_prefixed(&bytes)),
-        );
+    if let Some(digest) = request_digest(request) {
+        summary.insert("request_digest".to_owned(), JsonValue::String(digest));
     }
     if let Some(id) = request_id(request) {
         summary.insert("id".to_owned(), JsonValue::String(id.to_owned()));
@@ -471,20 +475,35 @@ fn write_pending_requests(
     Ok(())
 }
 
+/// A `runx.resume.v1` document to fill in: one entry per request, each
+/// already bound to its request's digest.
 fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
     let mut answers = JsonObject::new();
     let mut approvals = JsonObject::new();
     for request in requests {
-        let Some(request) = request.as_object() else {
+        let (Some(object), Some(digest)) = (request.as_object(), request_digest(request)) else {
             continue;
         };
-        let Some(id) = object_string(request, "id") else {
+        let Some(id) = object_string(object, "id") else {
             continue;
         };
-        if object_string(request, "kind") == Some("approval") {
-            approvals.insert(id.to_owned(), JsonValue::Bool(false));
+        let digest = ("request_digest".to_owned(), JsonValue::String(digest));
+        if object_string(object, "kind") == Some("approval") {
+            approvals.insert(
+                id.to_owned(),
+                JsonValue::Object(JsonObject::from([
+                    digest,
+                    ("approved".to_owned(), JsonValue::Bool(false)),
+                ])),
+            );
         } else {
-            answers.insert(id.to_owned(), JsonValue::Object(JsonObject::new()));
+            answers.insert(
+                id.to_owned(),
+                JsonValue::Object(JsonObject::from([
+                    digest,
+                    ("value".to_owned(), JsonValue::Object(JsonObject::new())),
+                ])),
+            );
         }
     }
     if answers.is_empty() && approvals.is_empty() {
@@ -857,7 +876,9 @@ mod tests {
             "runx resume run_weather 'operator answers.json' --receipt-dir 'custom receipts'"
         ));
         assert!(output.contains("answers_template:"));
-        assert!(output.contains(r#""request_1": {}"#));
+        assert!(output.contains(r#""request_1": {"#));
+        assert!(output.contains(r#""request_digest": "sha256:"#));
+        assert!(output.contains(r#""value": {}"#));
     }
 
     #[test]
@@ -881,8 +902,8 @@ mod tests {
         let output = render(value);
 
         assert!(output.contains(r#""approvals""#));
-        assert!(output.contains(r#""sourcey.discovery.approval": false"#));
-        assert!(!output.contains(r#""sourcey.discovery.approval": {}"#));
+        assert!(output.contains(r#""request_digest": "sha256:"#));
+        assert!(output.contains(r#""approved": false"#));
     }
 
     fn base_result() -> JsonObject {

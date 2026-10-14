@@ -279,15 +279,16 @@ fn resume_loads_workspace_env_from_discovered_project_root()
     // rather than retaining the pause command's values.
     fs::write(temp.join(".env"), "RESUME_PROBE_TOKEN=after-resume\n")?;
     let answers_path = temp.join("answers.json");
+    let read = native_command()?
+        .current_dir(&nested)
+        .args(["history", run_id, "--json"])
+        .output()?;
     fs::write(
         &answers_path,
-        serde_json::json!({
-            "answers": {
-                "approve": {
-                    "approved": true
-                }
-            }
-        })
+        crate::support::bind_resume(
+            &serde_json::from_slice(&read.stdout)?,
+            serde_json::json!({ "answers": { "approve": { "approved": true } } }),
+        )?
         .to_string(),
     )?;
 

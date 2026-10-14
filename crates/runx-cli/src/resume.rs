@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::ResumeDocument;
 use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
 
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
@@ -208,10 +208,10 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
     }
 }
 
-/// The answers object at `path`, or on stdin for `-`, read under the same
-/// bound as a skill's inputs. Nothing is written: the run records what it
-/// consumes.
-fn read_answers(path: &Path, workspace: &WorkspaceEnv) -> Result<JsonObject, String> {
+/// The resume document (`runx.resume.v1`) at `path`, or on stdin for `-`,
+/// read under the same bound as a skill's inputs. Nothing is written: the run
+/// records what it consumes.
+fn read_answers(path: &Path, workspace: &WorkspaceEnv) -> Result<ResumeDocument, String> {
     let text = if path == Path::new("-") {
         crate::document_input::read_document_input(
             &crate::document_input::DocumentInputSource::Stdin,
@@ -222,11 +222,11 @@ fn read_answers(path: &Path, workspace: &WorkspaceEnv) -> Result<JsonObject, Str
         crate::document_input::read_operator_document(path)
     }
     .map_err(|error| format!("failed to read resume answers: {error}"))?;
-    match serde_json::from_str::<JsonValue>(&text) {
-        Ok(JsonValue::Object(answers)) => Ok(answers),
-        Ok(_) => Err("resume answers must be a JSON object".to_owned()),
-        Err(error) => Err(format!("resume answers are not valid JSON: {error}")),
-    }
+    serde_json::from_str::<ResumeDocument>(&text).map_err(|error| {
+        format!(
+            "resume answers are not a runx.resume.v1 document: {error}; each entry under answers and approvals carries the request_digest the run reported"
+        )
+    })
 }
 
 fn binding_flag_value(flag: &str, value: &str) -> Result<String, String> {

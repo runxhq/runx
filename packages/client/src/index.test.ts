@@ -50,7 +50,7 @@ describe("native invocation and decoding", () => {
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), packet: JSON.parse(readFileSync(0, 'utf8')) }));
       process.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'stale_resolution' } })); process.exitCode = 1;`);
-    const packet = { answers: { task: { actor: "agent", value: "answer" } }, approvals: { gate: { actor: "human", approved: true } } };
+    const packet = { answers: { task: { request_digest: "sha256:task", value: "answer" } }, approvals: { gate: { request_digest: "sha256:gate", approved: true } } };
     await expect(createRunxClient(config).runs.resume({ runId: "run_test", receiptDir, resolutions: packet })).resolves.toMatchObject({ status: "failure", error: { code: "stale_resolution" } });
     const captured = JSON.parse(await readFile(capture, "utf8"));
     expect(captured.packet).toEqual(packet);
@@ -201,7 +201,7 @@ describe("native invocation and decoding", () => {
     const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: ref.digest, artifact_ref: ref }], "request-set");
     const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_ref: set })), stderr: "" };
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 };
-    await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [inputRequest] });
+    await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [{ address: inputRequest.id, request_digest: ref.digest, request: inputRequest }] });
     await writeFile(ref.path, JSON.stringify({ ...inputRequest, id: "other" }));
     await expect(decodeSkill(result, settings)).rejects.toThrow("digest or byte count");
   });
@@ -223,9 +223,12 @@ describe("native invocation and decoding", () => {
     const { config, receiptDir } = await setup();
     const full = output("needs_agent", "deferred", { requests: [inputRequest], result: "large payload" });
     const ref = await artifact(config.projectDir, full, "full-output");
-    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], artifact_refs: [ref] })), stderr: "" };
+    // As the CLI writes it: the request set's summaries carry each digest.
+    const requestRef = await artifact(config.projectDir, inputRequest);
+    const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: requestRef.digest, artifact_ref: requestRef }], "request-set");
+    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_ref: set, artifact_refs: [ref] })), stderr: "" };
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 };
-    await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [inputRequest], result: "large payload" });
+    await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [{ address: inputRequest.id, request_digest: requestRef.digest, request: inputRequest }], result: "large payload" });
     const other = await artifact(config.projectDir, { ...full, run_id: "other" }, "full-output");
     await expect(decodeSkill({ ...result, stdout: JSON.stringify(output("needs_agent", "deferred", { artifact_refs: [other] })) }, settings)).rejects.toThrow("disagrees on run_id");
   });

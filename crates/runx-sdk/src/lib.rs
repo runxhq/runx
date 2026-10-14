@@ -10,7 +10,7 @@ pub mod error;
 pub mod host;
 
 pub use client::{
-    ContinuePayload, RunSkillOptions, RunxClient, RunxClientOptions, RunxJsonReport,
-    SkillSearchResult,
+    RunSkillOptions, RunxClient, RunxClientOptions, RunxJsonReport, SkillSearchResult,
 };
 pub use error::{RunxError, RunxResult};
+pub use runx_contracts::{BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose};

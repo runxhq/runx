@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use runx_contracts::{CopyableCommand, JsonObject, JsonValue};
+use runx_contracts::{CopyableCommand, JsonObject, JsonValue, ResumeDocument};
 
 use crate::command::{CommandPlan, run_command};
 use crate::error::{RunxError, RunxResult};
@@ -32,12 +32,6 @@ pub struct RunxClient {
 pub struct RunSkillOptions {
     pub runner: Option<String>,
     pub inputs: BTreeMap<String, String>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ContinuePayload {
-    pub answers: JsonObject,
-    pub approvals: JsonObject,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -119,12 +113,15 @@ impl RunxClient {
 
     /// Continue a paused run with answers and approvals, read by the CLI from
     /// stdin, never a file another process could read.
+    /// Continue a paused run with a `runx.resume.v1` document: each entry
+    /// bound to the request it answers by the digest the run reported, or a
+    /// close.
     pub fn continue_run(
         &self,
         run_id: &str,
-        payload: ContinuePayload,
+        document: &ResumeDocument,
     ) -> RunxResult<RunxJsonReport> {
-        let payload = serde_json::to_string(&continue_payload_to_json(payload))?;
+        let payload = serde_json::to_string(document)?;
         let result = self.run_json(
             vec!["resume".to_owned(), run_id.to_owned(), "-".to_owned()],
             Some(payload),
@@ -152,24 +149,6 @@ impl Default for RunxClient {
 impl RunSkillOptions {
     pub fn with_input(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.inputs.insert(name.into(), value.into());
-        self
-    }
-}
-
-impl ContinuePayload {
-    pub fn with_answer(mut self, id: impl Into<String>, value: JsonValue) -> Self {
-        self.answers.insert(id.into(), value);
-        self
-    }
-
-    pub fn with_approval(mut self, id: impl Into<String>, approved: bool) -> Self {
-        self.approvals.insert(
-            id.into(),
-            JsonValue::Object(JsonObject::from([(
-                "approved".to_owned(),
-                JsonValue::Bool(approved),
-            )])),
-        );
         self
     }
 }
@@ -204,13 +183,6 @@ fn decode_json_object(stdout: &str) -> RunxResult<JsonObject> {
         JsonValue::Object(object) => Ok(object),
         _ => Err(RunxError::ExpectedObject),
     }
-}
-
-fn continue_payload_to_json(payload: ContinuePayload) -> JsonValue {
-    let mut object = JsonObject::new();
-    object.insert("answers".to_owned(), JsonValue::Object(payload.answers));
-    object.insert("approvals".to_owned(), JsonValue::Object(payload.approvals));
-    JsonValue::Object(object)
 }
 
 fn search_result_from_json(value: &JsonValue) -> RunxResult<SkillSearchResult> {

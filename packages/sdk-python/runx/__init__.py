@@ -128,6 +128,11 @@ class RunxClient:
         answers_file: str,
         inputs: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Continue a paused run with the runx.resume.v1 document in answers_file.
+
+        Each entry under answers and approvals carries the request_digest the
+        run reported for the request it answers; a close comes alone.
+        """
         del skill_path
         if inputs:
             raise ValueError("runx resume reads answers from the answers file; pass fresh inputs only on a new skill run.")

@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::{JsonObject, JsonValue};
-use runx_sdk::{ContinuePayload, RunSkillOptions, RunxClient, RunxClientOptions};
+use runx_sdk::{
+    BoundAnswer, BoundApproval, ResumeDocument, RunSkillOptions, RunxClient, RunxClientOptions,
+};
 
 #[test]
 fn search_and_run_use_runx_cli_json() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,18 +37,34 @@ fn search_and_run_use_runx_cli_json() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[test]
-fn continue_run_sends_answers_and_approvals_on_stdin() -> Result<(), Box<dyn std::error::Error>> {
+fn continue_run_sends_bound_answers_and_approvals_on_stdin()
+-> Result<(), Box<dyn std::error::Error>> {
     let fixture = CliFixture::create()?;
     let client = fixture.client();
     let mut answer = JsonObject::new();
     answer.insert("ok".to_owned(), JsonValue::Bool(true));
+    let document = ResumeDocument {
+        answers: [(
+            "req-1".to_owned(),
+            BoundAnswer {
+                request_digest: "sha256:req".into(),
+                value: JsonValue::Object(answer),
+            },
+        )]
+        .into(),
+        approvals: [(
+            "gate-1".to_owned(),
+            BoundApproval {
+                request_digest: "sha256:gate".into(),
+                approved: true,
+                reason: None,
+            },
+        )]
+        .into(),
+        close: None,
+    };
 
-    let report = client.continue_run(
-        "run-123",
-        ContinuePayload::default()
-            .with_answer("req-1", JsonValue::Object(answer))
-            .with_approval("gate-1", true),
-    )?;
+    let report = client.continue_run("run-123", &document)?;
 
     assert_eq!(report.status(), Some("sealed"));
     let args = fs::read_to_string(fixture.args_path())?;
@@ -54,7 +72,7 @@ fn continue_run_sends_answers_and_approvals_on_stdin() -> Result<(), Box<dyn std
     assert!(args.ends_with("\n--json\n"));
     assert_eq!(
         fs::read_to_string(fixture.stdin_path())?,
-        r#"{"answers":{"req-1":{"ok":true}},"approvals":{"gate-1":{"approved":true}}}"#
+        r#"{"answers":{"req-1":{"request_digest":"sha256:req","value":{"ok":true}}},"approvals":{"gate-1":{"request_digest":"sha256:gate","approved":true}}}"#
     );
     Ok(())
 }

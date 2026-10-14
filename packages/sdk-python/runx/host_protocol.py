@@ -164,6 +164,9 @@ class HostBridge:
                 responses.append(
                     {
                         "requestId": str(request.get("id") or ""),
+                        # The digest an answer binds to in a runx.resume.v1
+                        # document, as the run reported it.
+                        "requestDigest": str(request.get("request_digest") or ""),
                         "actor": normalized["actor"],
                         "payload": normalized["payload"],
                     }

@@ -1,227 +1,195 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, ResumeDocument, RunClose};
 
 use super::{SkillRunError, invalid};
+use crate::execution::run_record::PendingRequest;
 
-/// Resolution values retain their authority lane instead of flattening every
-/// caller-supplied value into an agent answer. Each is keyed by the address
-/// of the one open request it answers, once.
+/// What a host brings a paused run, by the address of the request each entry
+/// answers: agent answers and a person's approvals, each in its own lane and
+/// bound to the digest of the request it answers; or a close, which comes
+/// alone.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ResolutionAnswers {
-    values: JsonObject,
-    human_approvals: BTreeSet<String>,
-    /// The digest of the request each addressed answer was spent on.
-    spent: BTreeMap<String, String>,
+    entries: BTreeMap<String, Entry>,
+    close: Option<RunClose>,
+}
+
+#[derive(Clone, Debug)]
+struct Entry {
+    digest: String,
+    value: JsonValue,
+    human: bool,
 }
 
 impl ResolutionAnswers {
-    pub(super) fn agent(values: JsonObject) -> Self {
-        Self {
-            values,
-            ..Self::default()
-        }
-    }
-
-    pub(super) fn from_lanes(
-        answers: JsonObject,
-        approvals: impl IntoIterator<Item = (String, JsonValue)>,
-    ) -> Result<Self, SkillRunError> {
-        let mut resolved = Self::agent(answers);
-        for (gate_id, decision) in approvals {
-            if !is_human_approval_payload(&decision) {
-                return Err(invalid(format!(
-                    "approvals.{gate_id} must be a boolean or {{approved: boolean, reason?: string}}"
-                )));
-            }
-            if resolved.values.insert(gate_id.clone(), decision).is_some() {
-                return Err(invalid(format!(
-                    "request {gate_id} is declared in both answers and approvals"
-                )));
-            }
-            resolved.human_approvals.insert(gate_id);
-        }
-        Ok(resolved)
-    }
-
-    /// Spend the answer to `request_id` on the request with `digest`. An
-    /// addressed answer answers that request wherever it is asked again,
-    /// and no other: a different request at its address waits.
-    pub(super) fn spend(&mut self, request_id: &str, digest: &str) {
-        self.spent.insert(request_id.to_owned(), digest.to_owned());
-    }
-
-    /// The answer to `request_id`, the request with `digest`.
-    pub(super) fn get(&self, request_id: &str, digest: &str) -> Option<&JsonValue> {
-        if self
-            .spent
-            .get(request_id)
-            .is_some_and(|spent| spent != digest)
+    pub(super) fn from_document(document: ResumeDocument) -> Result<Self, SkillRunError> {
+        if document.close.is_some()
+            && (!document.answers.is_empty() || !document.approvals.is_empty())
         {
-            return None;
+            return Err(invalid("a close comes alone, without answers or approvals"));
         }
-        self.values.get(request_id)
+        let mut entries = document
+            .answers
+            .into_iter()
+            .map(|(address, answer)| {
+                let entry = Entry {
+                    digest: answer.request_digest.into_string(),
+                    value: answer.value,
+                    human: false,
+                };
+                (address, entry)
+            })
+            .collect::<BTreeMap<_, _>>();
+        for (address, approval) in document.approvals {
+            let mut decision =
+                JsonObject::from([("approved".to_owned(), JsonValue::Bool(approval.approved))]);
+            if let Some(reason) = approval.reason {
+                decision.insert("reason".to_owned(), JsonValue::String(reason.into_string()));
+            }
+            let entry = Entry {
+                digest: approval.request_digest.into_string(),
+                value: JsonValue::Object(decision),
+                human: true,
+            };
+            if entries.insert(address.clone(), entry).is_some() {
+                return Err(invalid(format!(
+                    "request {address} is declared in both answers and approvals"
+                )));
+            }
+        }
+        Ok(Self {
+            entries,
+            close: document.close,
+        })
     }
 
-    pub(super) fn is_human_approval(&self, request_id: &str) -> bool {
-        self.human_approvals.contains(request_id)
+    /// The answer to the request at `address` whose digest is `digest`; a
+    /// different request at that address is not answered.
+    pub(super) fn get(&self, address: &str, digest: &str) -> Option<&JsonValue> {
+        self.entries
+            .get(address)
+            .filter(|entry| entry.digest == digest)
+            .map(|entry| &entry.value)
+    }
+
+    pub(super) fn is_human_approval(&self, address: &str) -> bool {
+        self.entries.get(address).is_some_and(|entry| entry.human)
     }
 
     /// Whether these answers carry agent work, not only a person's approvals.
     pub(super) fn answers_agents(&self) -> bool {
-        self.values
-            .keys()
-            .any(|request_id| !self.human_approvals.contains(request_id))
+        self.entries.values().any(|entry| !entry.human)
     }
 
-    /// A person approves only what they were shown: every approval a resume
-    /// brings names one of `waiting`, the addresses the run is paused at, so
-    /// none reaches a request first asked during the resume.
-    pub(super) fn check_waiting(
-        &self,
-        run_id: &str,
-        waiting: &[&str],
-    ) -> Result<(), SkillRunError> {
-        match self
-            .human_approvals
-            .iter()
-            .find(|key| !waiting.contains(&key.as_str()))
-        {
-            Some(key) => Err(invalid(format!(
-                "approval {key} names no request run {run_id} waits on; it waits on [{}]",
-                waiting.join(", ")
-            ))),
-            None => Ok(()),
-        }
+    pub(super) fn close(&self) -> Option<RunClose> {
+        self.close
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.entries.is_empty() && self.close.is_none()
     }
-}
 
-/// The answers a host brings to a paused run: agent answers and a person's
-/// approvals, each in its own lane.
-pub(super) fn parse_answers(mut object: JsonObject) -> Result<ResolutionAnswers, SkillRunError> {
-    let nested_shape = object.contains_key("answers") || object.contains_key("approvals");
-    if !nested_shape {
-        return Ok(ResolutionAnswers::agent(object));
-    }
-    let extra = object
-        .keys()
-        .filter(|key| !matches!(key.as_str(), "answers" | "approvals"))
-        .cloned()
-        .collect::<Vec<_>>();
-    if !extra.is_empty() {
-        return Err(invalid(format!(
-            "answers mix top-level keys [{}] with the nested answers/approvals shape",
-            extra.join(", ")
-        )));
-    }
-    let answers = match object.remove("answers") {
-        Some(JsonValue::Object(nested)) => nested,
-        Some(_) => return Err(invalid("answers field must be a JSON object")),
-        None => JsonObject::new(),
-    };
-    let approvals = match object.remove("approvals") {
-        Some(JsonValue::Object(approvals)) => approvals,
-        Some(_) => return Err(invalid("approvals field must be a JSON object")),
-        None => JsonObject::new(),
-    };
-    ResolutionAnswers::from_lanes(answers, approvals)
-}
-
-fn is_human_approval_payload(value: &JsonValue) -> bool {
-    match value {
-        JsonValue::Bool(_) => true,
-        JsonValue::Object(object) => {
-            matches!(object.get("approved"), Some(JsonValue::Bool(_)))
-                && object
-                    .keys()
-                    .all(|key| matches!(key.as_str(), "approved" | "reason"))
-                && match object.get("reason") {
-                    None => true,
-                    Some(JsonValue::String(reason)) => !reason.trim().is_empty(),
-                    Some(_) => false,
+    /// Every entry answers a request the run waits on now, by its address and
+    /// its digest. A request that changed since its host read it refuses the
+    /// whole resume, and no entry reaches a request first asked during it.
+    pub(super) fn check_waiting(
+        &self,
+        run_id: &str,
+        waiting: &[PendingRequest],
+    ) -> Result<(), SkillRunError> {
+        for (address, entry) in &self.entries {
+            match waiting.iter().find(|request| request.id == *address) {
+                Some(request) if request.digest == entry.digest => {}
+                Some(request) => {
+                    return Err(invalid(format!(
+                        "the request at {address} changed since it was read; run {run_id} waits on {}",
+                        request.digest
+                    )));
                 }
+                None => {
+                    return Err(invalid(format!(
+                        "{address} names no request run {run_id} waits on; it waits on [{}]",
+                        waiting
+                            .iter()
+                            .map(|request| request.id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )));
+                }
+            }
         }
-        _ => false,
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parse_answers;
-    use runx_contracts::{JsonObject, JsonValue};
+    use runx_contracts::ResumeDocument;
+
+    use super::ResolutionAnswers;
+    use crate::execution::run_record::PendingRequest;
+
+    fn answers(value: serde_json::Value) -> Result<ResolutionAnswers, String> {
+        let document: ResumeDocument =
+            serde_json::from_value(value).map_err(|error| error.to_string())?;
+        ResolutionAnswers::from_document(document).map_err(|error| error.to_string())
+    }
+
+    fn waiting(address: &str, digest: &str) -> PendingRequest {
+        PendingRequest {
+            id: address.to_owned(),
+            value: runx_contracts::JsonValue::Null,
+            digest: digest.to_owned(),
+        }
+    }
 
     #[test]
-    fn nested_approvals_retain_host_attested_human_provenance() -> Result<(), String> {
-        let approval_id = "send.approval";
-        let answers = parse_answers(JsonObject::from([
-            (
-                "answers".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "agent.task".to_owned(),
-                    JsonValue::String("done".to_owned()),
-                )])),
-            ),
-            (
-                "approvals".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    approval_id.to_owned(),
-                    JsonValue::Object(JsonObject::from([
-                        ("approved".to_owned(), JsonValue::Bool(true)),
-                        (
-                            "reason".to_owned(),
-                            JsonValue::String("operator authorized the exact send".to_owned()),
-                        ),
-                    ])),
-                )])),
-            ),
-        ]))
-        .map_err(|error| error.to_string())?;
-
-        assert!(answers.is_human_approval(approval_id));
-        assert!(!answers.is_human_approval("agent.task"));
-        assert!(matches!(
-            answers.get(approval_id, "sha256:approval"),
-            Some(JsonValue::Object(_))
-        ));
+    fn an_entry_answers_only_the_request_it_is_bound_to() -> Result<(), String> {
+        let bound = answers(serde_json::json!({
+            "answers": {"draft": {"request_digest": "sha256:a", "value": "done"}},
+            "approvals": {"send.approval": {"request_digest": "sha256:b", "approved": true}}
+        }))?;
+        assert!(bound.get("draft", "sha256:a").is_some());
+        assert!(bound.get("draft", "sha256:changed").is_none());
+        assert!(bound.is_human_approval("send.approval"));
+        assert!(!bound.is_human_approval("draft"));
+        assert!(bound.answers_agents());
         Ok(())
     }
 
     #[test]
-    fn an_addressed_answer_answers_its_request_and_no_other() -> Result<(), String> {
-        let mut answers = parse_answers(JsonObject::from([(
-            "answer".to_owned(),
-            JsonValue::String("done".to_owned()),
-        )]))
-        .map_err(|error| error.to_string())?;
-        answers.spend("answer", "sha256:first");
+    fn a_resume_refuses_a_changed_or_unasked_request() -> Result<(), String> {
+        let bound = answers(serde_json::json!({
+            "answers": {"draft": {"request_digest": "sha256:a", "value": "done"}}
+        }))?;
         assert!(
-            answers.get("answer", "sha256:first").is_some(),
-            "the same request asked again is answered again"
+            bound
+                .check_waiting("run", &[waiting("draft", "sha256:a")])
+                .is_ok()
         );
+        let changed = bound
+            .check_waiting("run", &[waiting("draft", "sha256:b")])
+            .err()
+            .ok_or("a changed request is refused")?;
+        assert!(changed.to_string().contains("changed since it was read"));
         assert!(
-            answers.get("answer", "sha256:second").is_none(),
-            "a different request at the same address waits"
-        );
-        assert!(
-            answers.get("answer/0#answer", "sha256:first").is_none(),
-            "an addressed answer answers only its own address"
+            bound
+                .check_waiting("run", &[waiting("other", "sha256:a")])
+                .is_err()
         );
         Ok(())
     }
 
     #[test]
-    fn flat_answers_do_not_gain_human_approval_authority() -> Result<(), String> {
-        let answers = parse_answers(JsonObject::from([(
-            "send.approval".to_owned(),
-            JsonValue::Bool(true),
-        )]))
-        .map_err(|error| error.to_string())?;
-
-        assert!(!answers.is_human_approval("send.approval"));
-        Ok(())
+    fn a_close_comes_alone() {
+        assert!(answers(serde_json::json!({"close": {"disposition": "declined"}})).is_ok());
+        assert!(
+            answers(serde_json::json!({
+                "close": {"disposition": "superseded"},
+                "approvals": {"send.approval": {"request_digest": "sha256:b", "approved": true}}
+            }))
+            .is_err()
+        );
     }
 }

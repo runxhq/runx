@@ -22069,7 +22069,8 @@ export const runxSchemaArtifacts = {
               "managed_agent_resolution_failed",
               "managed_agent_empty_turn_budget_exhausted",
               "managed_agent_tool_execution_failed",
-              "managed_agent_round_budget_exhausted"
+              "managed_agent_round_budget_exhausted",
+              "host_closed"
             ],
             "type": "string"
           }
@@ -23755,6 +23756,75 @@ export const runxSchemaArtifacts = {
     ],
     "type": "object",
     "x-runx-schema": "runx.resolution_response.v1"
+  } as JsonSchema,
+  "resume.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/resume/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "answers": {
+        "additionalProperties": {
+          "additionalProperties": false,
+          "properties": {
+            "request_digest": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "request_digest",
+            "value"
+          ],
+          "type": "object"
+        },
+        "minProperties": 1,
+        "type": "object"
+      },
+      "approvals": {
+        "additionalProperties": {
+          "additionalProperties": false,
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "reason": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "request_digest": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "request_digest",
+            "approved"
+          ],
+          "type": "object"
+        },
+        "minProperties": 1,
+        "type": "object"
+      },
+      "close": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "enum": [
+              "declined",
+              "superseded"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "disposition"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "object",
+    "x-runx-schema": "runx.resume.v1"
   } as JsonSchema,
   "review-receipt-output.schema.json": {
     "$id": "https://schemas.runx.ai/runx/review-receipt-output/v1.json",

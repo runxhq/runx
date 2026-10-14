@@ -197,3 +197,44 @@ pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) -> std::i
     }
     Ok(())
 }
+
+/// Bind a resume written by address alone (`{answers: {address: value},
+/// approvals: {address: approved}}`) to the requests run `run_id` waits on
+/// now, as a host binds it from its read of the run.
+pub(crate) fn bind_resume(
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    run_id: &str,
+    unbound: serde_json::Value,
+) -> Result<runx_contracts::ResumeDocument, Box<dyn std::error::Error>> {
+    let waiting = runx_runtime::run_record::paused_requests(env, cwd, run_id)?;
+    let digest = |address: &str| {
+        waiting
+            .iter()
+            .find(|request| request.id == address)
+            .map(|request| serde_json::Value::String(request.digest.clone()))
+            .ok_or_else(|| format!("run {run_id} waits on no request {address}"))
+    };
+    let mut bound = serde_json::Map::new();
+    for (lane, entries) in unbound.as_object().into_iter().flatten() {
+        let mut lane_entries = serde_json::Map::new();
+        for (address, value) in entries.as_object().into_iter().flatten() {
+            let mut entry =
+                serde_json::Map::from_iter([("request_digest".to_owned(), digest(address)?)]);
+            match (lane.as_str(), value) {
+                ("approvals", serde_json::Value::Bool(approved)) => {
+                    entry.insert("approved".to_owned(), serde_json::Value::Bool(*approved));
+                }
+                ("approvals", serde_json::Value::Object(decision)) => {
+                    entry.extend(decision.clone());
+                }
+                _ => {
+                    entry.insert("value".to_owned(), value.clone());
+                }
+            }
+            lane_entries.insert(address.clone(), serde_json::Value::Object(entry));
+        }
+        bound.insert(lane.clone(), serde_json::Value::Object(lane_entries));
+    }
+    Ok(serde_json::from_value(serde_json::Value::Object(bound))?)
+}

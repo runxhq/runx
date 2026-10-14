@@ -187,6 +187,8 @@ pub enum SealReason {
     ManagedAgentToolExecutionFailed,
     /// The managed agent used every round its turn allowed.
     ManagedAgentRoundBudgetExhausted,
+    /// The host driving the run closed it while it waited.
+    HostClosed,
 }
 
 impl SealReason {
@@ -207,6 +209,7 @@ impl SealReason {
             }
             Self::ManagedAgentToolExecutionFailed => "managed_agent_tool_execution_failed",
             Self::ManagedAgentRoundBudgetExhausted => "managed_agent_round_budget_exhausted",
+            Self::HostClosed => "host_closed",
         }
     }
 }

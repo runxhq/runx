@@ -309,9 +309,16 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
         .as_str()
         .ok_or("missing request id")?;
     let answers = root.join("decline.json");
+    let read = crate::support::unsigned_runx_command_at(&root)
+        .args(["history", run_id, "--json"])
+        .output()?;
     fs::write(
         &answers,
-        serde_json::json!({"approvals": { request_id: false }}).to_string(),
+        crate::support::bind_resume(
+            &serde_json::from_slice(&read.stdout)?,
+            serde_json::json!({"approvals": { request_id: false }}),
+        )?
+        .to_string(),
     )?;
     let declined = crate::support::unsigned_runx_command_at(&root)
         .arg("resume")

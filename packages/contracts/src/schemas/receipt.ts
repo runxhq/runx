@@ -107,7 +107,8 @@ export type ReceiptSealReasonContract =
   | "managed_agent_resolution_failed"
   | "managed_agent_empty_turn_budget_exhausted"
   | "managed_agent_tool_execution_failed"
-  | "managed_agent_round_budget_exhausted";
+  | "managed_agent_round_budget_exhausted"
+  | "host_closed";
 
 export type ReceiptSealContract = DeepReadonly<{
   disposition: ClosureDispositionContract;

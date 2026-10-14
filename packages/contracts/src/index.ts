@@ -251,6 +251,12 @@ export {
 } from "./schemas/run-read.js";
 
 export {
+  resumeDocumentSchema,
+  validateResumeDocumentContract,
+  type ResumeDocumentContract,
+} from "./schemas/resume.js";
+
+export {
   resolutionRequestSchema,
   resolutionResponseSchema,
   actResultEnvelopeSchema,
@@ -694,6 +700,7 @@ export const runxContractSchemas = {
   turnStatus: runxSchemaArtifacts["turn-status.schema.json"],
   runRead: runxSchemaArtifacts["run-read.schema.json"],
   runEvent: runxSchemaArtifacts["run-event.schema.json"],
+  resume: runxSchemaArtifacts["resume.schema.json"],
   question: runxSchemaArtifacts["question.schema.json"],
   approvalGate: runxSchemaArtifacts["approval-gate.schema.json"],
   resolutionRequest: runxSchemaArtifacts["resolution-request.schema.json"],

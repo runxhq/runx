@@ -33,7 +33,7 @@ use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
-use super::resolution_answers::{ResolutionAnswers, parse_answers};
+use super::resolution_answers::ResolutionAnswers;
 use super::runner_manifest::write_skill_receipt;
 
 /// How many times a run waits for an independent provider readback before
@@ -45,7 +45,7 @@ impl BoundRun {
     /// drive it as far as it goes.
     pub(crate) fn execute(&self) -> Result<RunResult, SkillRunError> {
         let answers = match &self.request.answers {
-            Some(answers) => parse_answers(answers.clone())?,
+            Some(answers) => ResolutionAnswers::from_document(answers.clone())?,
             None => ResolutionAnswers::default(),
         };
         let mut host = RunHost::new(answers);
@@ -77,13 +77,7 @@ impl BoundRun {
         let existing = log.load()?;
         let waiting = waiting_requests(log.store(), log.run_id())?;
         host.check_turn(log.run_id(), &waiting)?;
-        host.answers.check_waiting(
-            log.run_id(),
-            &waiting
-                .iter()
-                .map(|request| request.id.as_str())
-                .collect::<Vec<_>>(),
-        )?;
+        host.answers.check_waiting(log.run_id(), &waiting)?;
         let request_context = RunContext {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
@@ -157,10 +151,38 @@ impl BoundRun {
             )
             .map_err(|error| error.into_runtime_error())?;
         }
-        if let Some(suspension) = existing
+        let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
+        let graph = bind_run_inputs(
+            self.runner.graph.clone(),
+            &graph_inputs,
+            run_act.as_ref(),
+            log.run_id(),
+        )?;
+        let run = Driven {
+            bound: self,
+            log: &log,
+            runtime: &runtime,
+            graph: &graph,
+        };
+        let suspension = existing
             .as_ref()
-            .and_then(|record| record.suspension.as_ref())
-        {
+            .and_then(|record| record.suspension.as_ref());
+        // A close seals the run where it waits, whatever it waits on: an
+        // effect it left unconfirmed stays unconfirmed.
+        if let Some(close) = host.answers.close() {
+            let suspension = suspension.ok_or_else(|| {
+                invalid(format!(
+                    "run {} is not paused; only a paused run closes",
+                    log.run_id()
+                ))
+            })?;
+            return run.seal_stopped(
+                &suspension.step_id,
+                Some(SealReason::HostClosed),
+                Stop::Closed(close.disposition.into()),
+            );
+        }
+        if let Some(suspension) = suspension {
             match &suspension.hold {
                 Hold::Retry(retry) => {
                     let Some(answer) = host.answers.get(&retry.id, &retry.digest) else {
@@ -187,19 +209,6 @@ impl BoundRun {
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
-        let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
-        let graph = bind_run_inputs(
-            self.runner.graph.clone(),
-            &graph_inputs,
-            run_act.as_ref(),
-            log.run_id(),
-        )?;
-        let run = Driven {
-            bound: self,
-            log: &log,
-            runtime: &runtime,
-            graph: &graph,
-        };
         match runtime.run_graph_with_host(&self.skill_dir, graph.clone(), host) {
             Ok(completed) => run.seal_completed(completed),
             Err(RuntimeError::ResolutionPending { .. }) => self.paused(&log),
@@ -738,9 +747,6 @@ impl Host for RunHost {
         } else {
             ResolutionResponseActor::Agent
         };
-        // An answer answers its request: a different request at the same
-        // address waits.
-        self.answers.spend(&request_id, &current);
         Ok(Some(ResolutionResponse {
             actor,
             payload: answer,
@@ -825,7 +831,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_managed_run_takes_approvals_but_no_other_hosts_agent_work() {
+    fn a_managed_run_takes_approvals_but_no_other_hosts_agent_work() -> Result<(), SkillRunError> {
         let acting = RunHost::acting(TurnAct {
             turn: "answer".to_owned(),
             action: TurnAction::Status,
@@ -833,10 +839,19 @@ mod tests {
         assert!(acting.check_driver("run", RunDriver::Attached).is_ok());
         assert!(acting.check_driver("run", RunDriver::Managed).is_err());
 
-        let agent_work = RunHost::new(ResolutionAnswers::agent(JsonObject::from([(
-            "answer".to_owned(),
-            JsonValue::String("done".to_owned()),
-        )])));
+        let agent_work = RunHost::new(ResolutionAnswers::from_document(
+            runx_contracts::ResumeDocument {
+                answers: [(
+                    "answer".to_owned(),
+                    runx_contracts::BoundAnswer {
+                        request_digest: "sha256:answer".into(),
+                        value: JsonValue::String("done".to_owned()),
+                    },
+                )]
+                .into(),
+                ..Default::default()
+            },
+        )?);
         let refused = agent_work
             .check_driver("run", RunDriver::Managed)
             .err()
@@ -847,6 +862,7 @@ mod tests {
 
         let approvals = RunHost::new(ResolutionAnswers::default());
         assert!(approvals.check_driver("run", RunDriver::Managed).is_ok());
+        Ok(())
     }
     use crate::adapter::SkillAdapter;
 

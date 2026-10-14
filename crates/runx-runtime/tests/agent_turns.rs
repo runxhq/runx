@@ -170,7 +170,12 @@ impl Paused {
     ) -> TestResult<RunResult> {
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: self.run_id.clone(),
-            answers: serde_json::from_value(answers)?,
+            answers: crate::support::bind_resume(
+                &env(&self.root),
+                &self.root,
+                &self.run_id,
+                answers,
+            )?,
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
             cwd: self.root.clone(),
@@ -640,7 +645,7 @@ fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
     let error = LocalOrchestrator::default()
         .resume(&ResumeRequest {
             run_id: paused.run_id.clone(),
-            answers: JsonObject::new(),
+            answers: runx_contracts::ResumeDocument::default(),
             receipt_dir: Some(paused.receipts.clone()),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),

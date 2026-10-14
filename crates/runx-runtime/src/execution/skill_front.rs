@@ -239,7 +239,7 @@ pub(crate) struct Continuation<'a> {
     pub(crate) receipt_dir: Option<&'a Path>,
     pub(crate) env: &'a BTreeMap<String, String>,
     pub(crate) cwd: &'a Path,
-    pub(crate) answers: Option<&'a JsonObject>,
+    pub(crate) answers: Option<&'a runx_contracts::ResumeDocument>,
     pub(crate) managed_agent: crate::execution::orchestrator::ManagedAgentPolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub(crate) package_digest: Option<&'a str>,

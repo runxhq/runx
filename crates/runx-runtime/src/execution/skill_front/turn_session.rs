@@ -130,7 +130,10 @@ mod tests {
     use std::path::Path;
     use std::sync::Arc;
 
-    use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome, TurnTarget};
+    use runx_contracts::{
+        CloseDisposition, ClosureDisposition, JsonObject, JsonValue, ResolutionRequest,
+        ResumeDocument, RunClose, SealReason, TurnCallOutcome, TurnTarget,
+    };
 
     use crate::execution::orchestrator::{
         LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest,
@@ -148,10 +151,25 @@ mod tests {
         BTreeMap::from([(RUNX_CWD_ENV.to_owned(), root.display().to_string())])
     }
 
-    fn resume(root: &Path, run_id: &str, answers: serde_json::Value) -> TestResult<RunResult> {
+    /// Answer the request run `run_id` waits on at `address` with `value`,
+    /// bound to that request's digest.
+    fn answer(
+        root: &Path,
+        run_id: &str,
+        address: &str,
+        value: serde_json::Value,
+    ) -> TestResult<RunResult> {
+        let store = KernelStore::for_project(&RunxPaths::resolve(&env(root), root))?;
+        let digest = waiting_requests(&store, run_id)?
+            .into_iter()
+            .find(|request| request.id == address)
+            .ok_or("the run waits on no such request")?
+            .digest;
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: run_id.to_owned(),
-            answers: serde_json::from_value(answers)?,
+            answers: serde_json::from_value(serde_json::json!({
+                "answers": { address: { "request_digest": digest, "value": value } }
+            }))?,
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
             cwd: root.to_path_buf(),
@@ -162,9 +180,42 @@ mod tests {
     }
 
     #[test]
-    fn a_call_that_did_not_settle_runs_again_only_on_its_acknowledgement() -> TestResult {
+    fn a_close_seals_the_run_and_leaves_its_unsettled_call_unconfirmed() -> TestResult {
         let temp = tempfile::tempdir()?;
         let root = temp.path();
+        let (run_id, log) = paused_with_unsettled_call(root)?;
+        LocalOrchestrator::default().resume(&ResumeRequest {
+            run_id,
+            answers: ResumeDocument {
+                close: Some(RunClose {
+                    disposition: CloseDisposition::Superseded,
+                }),
+                ..ResumeDocument::default()
+            },
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+            package_digest: None,
+            execution_closure_digest: None,
+        })?;
+        let record = log.load()?.ok_or("the run has a record")?;
+        let sealed = record.sealed.ok_or("the close seals the run")?;
+        assert_eq!(
+            sealed.receipt.seal.disposition,
+            ClosureDisposition::Superseded
+        );
+        assert_eq!(sealed.receipt.seal.reason, Some(SealReason::HostClosed));
+        assert!(
+            matches!(record.calls.as_slice(), [call] if matches!(call.outcome, CallOutcome::Claimed(_))),
+            "the claimed call stays unconfirmed"
+        );
+        Ok(())
+    }
+
+    /// A run paused at its turn, whose call 0 a driver claimed and stopped
+    /// before it settled.
+    fn paused_with_unsettled_call(root: &Path) -> TestResult<(String, RunLog)> {
         let skill = root.join("turn-demo");
         fs::create_dir_all(&skill)?;
         fs::write(
@@ -225,6 +276,14 @@ mod tests {
             }),
             answers: &[],
         })?;
+        Ok((run_id, log))
+    }
+
+    #[test]
+    fn a_call_that_did_not_settle_runs_again_only_on_its_acknowledgement() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let (run_id, log) = paused_with_unsettled_call(root)?;
 
         let session = LocalOrchestrator::default().open_turns(&TurnRequest {
             run_id: run_id.clone(),
@@ -251,19 +310,21 @@ mod tests {
             "{early}"
         );
 
-        let refused = resume(
+        let refused = answer(
             root,
             &run_id,
-            serde_json::json!({"answer/0/retry": {"retry": false}}),
+            "answer/0/retry",
+            serde_json::json!({"retry": false}),
         )
         .err()
         .ok_or("only the exact acknowledgement runs the call again")?;
         assert!(refused.to_string().contains("acknowledgement"), "{refused}");
 
-        let settled = resume(
+        let settled = answer(
             root,
             &run_id,
-            serde_json::json!({"answer/0/retry": {"retry": true}}),
+            "answer/0/retry",
+            serde_json::json!({"retry": true}),
         )?;
         assert!(settled.needs_resolution());
         assert!(matches!(

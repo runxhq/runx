@@ -1,5 +1,5 @@
 import path from "node:path";
-import { validateResolutionRequestContract, validateSkillOutputContract, type SkillOutputContract } from "@runxhq/contracts";
+import { validateResolutionRequestContract, validateSkillOutputContract, type SkillOutputContract, type WaitedRequestContract } from "@runxhq/contracts";
 import { readProjectArtifact } from "./artifacts.js";
 import { RunxClientError, type ProcessResult } from "./process.js";
 import { readReceiptTree } from "./receipt-tree.js";
@@ -66,22 +66,26 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
       output = { ...compact, ...diagnostics };
     }
-    let requests: readonly unknown[] = output.requests ?? [];
-    if (output.request_set_ref) {
-      if (requests.length) throw new Error("Native output contains both requests and a spilled request set.");
-      const set = await artifact(output.request_set_ref);
+    // What the run waits on comes from the compact summaries runx always
+    // writes, each with the digest an answer binds to; a full-output copy
+    // carries the requests without it.
+    let summaries: readonly unknown[] = compact.requests ?? [];
+    if (compact.request_set_ref) {
+      if (summaries.length) throw new Error("Native output contains both requests and a spilled request set.");
+      const set = await artifact(compact.request_set_ref);
       if (!Array.isArray(set)) throw new Error("Request-set artifact is not an array.");
-      requests = set;
+      summaries = set;
     }
-    const hydrated = [];
-    for (const request of requests) {
-      if (record(request) && request.artifact_ref !== undefined) {
-        const full = await artifact(request.artifact_ref);
-        if (!record(request.artifact_ref) || request.request_digest !== request.artifact_ref.digest || !record(full) || full.id !== request.id || full.kind !== request.kind) throw new Error("Resolution request artifact identity differs from its summary.");
-        hydrated.push(validateResolutionRequestContract(full));
-      } else hydrated.push(validateResolutionRequestContract(request));
+    const waiting: WaitedRequestContract[] = [];
+    for (const summary of summaries) {
+      if (!record(summary) || typeof summary.id !== "string" || typeof summary.request_digest !== "string" || !record(summary.artifact_ref) || summary.request_digest !== summary.artifact_ref.digest) {
+        throw new Error("A waited request lacks its digest-bound summary.");
+      }
+      const full = await artifact(summary.artifact_ref);
+      if (!record(full) || full.id !== summary.id || full.kind !== summary.kind) throw new Error("Resolution request artifact identity differs from its summary.");
+      waiting.push({ address: summary.id, request_digest: summary.request_digest, request: validateResolutionRequestContract(full) });
     }
-    if (["needs_agent", "needs_approval"].includes(output.status) && !hydrated.length) throw new Error("Pending run has no resolution requests.");
+    if (["needs_agent", "needs_approval"].includes(output.status) && !waiting.length) throw new Error("Pending run has no resolution requests.");
     let value = output.result;
     // artifact_ref is also ordinary provider/skill data. Only the CLI's
     // compact wrapper can be hydrated; a full-output artifact contains the
@@ -95,7 +99,7 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     const receiptTree = output.receipt_id === undefined
       ? undefined
       : await readReceiptTree(output.receipt_id, config.receiptDir, budget);
-    return { ...output, ...(value === undefined ? {} : { result: value }), requests: hydrated, ...(receiptTree ? { receiptTree } : {}) };
+    return { ...output, ...(value === undefined ? {} : { result: value }), requests: waiting, ...(receiptTree ? { receiptTree } : {}) };
   } catch (error) {
     if (error instanceof RunxClientError) throw error;
     throw new RunxClientError("contract", `Invalid native skill output: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
