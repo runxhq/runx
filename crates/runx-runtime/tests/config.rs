@@ -198,10 +198,10 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         load_managed_agent_config(&explicit_env, temp.path())?,
         Some(ManagedAgentConfig {
             provider: "openai".into(),
-            dialect: ModelDialect::ChatCompletions,
+            dialect: ModelDialect::OpenAiResponses,
             model: "gpt-test".to_owned(),
             api_key: Some(SecretString::new("sk-explicit")),
-            endpoint_url: "https://api.openai.com/v1/chat/completions".to_owned(),
+            endpoint_url: "https://api.openai.com/v1/responses".to_owned(),
             auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
         })
     );
@@ -269,6 +269,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
     let over_blank = env_map([
         ("RUNX_HOME", blank_home.path().to_str().unwrap_or_default()),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
+        ("RUNX_AGENT_MODEL", "claude-env"),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
     assert_eq!(
@@ -429,16 +430,20 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         None
     );
 
-    // A blank model is no model: the provider's default applies.
+    // A blank model is no model, as a blank provider is no provider, and
+    // runx names none of its own.
     let blank_model = env_map([
         ("RUNX_HOME", runx_home),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
         ("RUNX_AGENT_MODEL", ""),
     ]);
-    assert_eq!(
-        load_managed_agent_config(&blank_model, temp.path())?.map(|config| config.model),
-        Some("claude-opus-5-5".to_owned())
-    );
+    assert!(matches!(
+        load_managed_agent_config(&blank_model, temp.path()),
+        Err(ConfigError::InvalidAgentSetting {
+            key: "agent.model",
+            ..
+        })
+    ));
 
     let blank_generic_key = env_map([
         ("RUNX_HOME", runx_home),
@@ -467,7 +472,8 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     let endpoint = "http://127.0.0.1:18081/v1/chat/completions";
     let config = RunxConfigFile {
         agent: Some(RunxAgentConfig {
-            provider: Some("openai".to_owned()),
+            provider: Some("local".to_owned()),
+            dialect: Some("chat_completions".to_owned()),
             model: Some("qwen2.5".to_owned()),
             endpoint_url: Some(endpoint.to_owned()),
             auth_mode: Some("local_none".to_owned()),
@@ -480,7 +486,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     assert_eq!(
         load_managed_agent_config(&env, temp.path())?,
         Some(ManagedAgentConfig {
-            provider: "openai".into(),
+            provider: "local".into(),
             dialect: ModelDialect::ChatCompletions,
             model: "qwen2.5".to_owned(),
             api_key: None,

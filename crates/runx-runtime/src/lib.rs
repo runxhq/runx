@@ -79,11 +79,12 @@ pub use capability::{
 pub use config::{
     ConfigError, ConfigKey, MODEL_PROVIDERS, ManagedAgentAuthMode, ManagedAgentConfig,
     ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxCredentialProfile,
-    RunxCredentialsConfig, RunxPublicConfig, clear_runx_agent_endpoint_url,
-    load_local_agent_api_key, load_local_credential_secret, load_local_public_api_token,
-    load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, model_provider, parse_config_key, remove_local_credential_secret,
-    store_local_credential_secret, update_runx_config_value, write_runx_config_file,
+    RunxCredentialsConfig, RunxPublicConfig, clear_runx_agent_dialect,
+    clear_runx_agent_endpoint_url, load_local_agent_api_key, load_local_credential_secret,
+    load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, model_provider, parse_config_key,
+    remove_local_credential_secret, store_local_credential_secret, update_runx_config_value,
+    write_runx_config_file,
 };
 pub use credential_profiles::{
     CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,

@@ -285,12 +285,12 @@ fn managed_agent_config_diagnostic(
                 path: Some("runx config".to_owned()),
                 json_pointer: Some("/agent".to_owned()),
                 contents: Some(
-                    "Set agent.provider, agent.model, and agent.api_key; or set agent.auth_mode local_none and an exact loopback agent.endpoint_url. Clear a local endpoint with runx config unset agent.endpoint_url before switching to Anthropic. Correct other invalid settings through runx config set."
+                    "Set agent.provider, agent.model, and agent.api_key; or set agent.auth_mode local_none and an exact loopback agent.endpoint_url. Clear a local endpoint and its dialect with runx config unset agent.endpoint_url and runx config unset agent.dialect before switching to a built-in provider. Correct other invalid settings through runx config set."
                         .to_owned(),
                 ),
                 patch: None,
                 command: Some(
-                    "runx config unset agent.endpoint_url && runx config set agent.auth_mode api_key && runx config set agent.provider anthropic && runx config set agent.model <model> && printf '%s' \"$ANTHROPIC_API_KEY\" | runx config set agent.api_key --from-stdin".to_owned(),
+                    "runx config unset agent.endpoint_url && runx config unset agent.dialect && runx config set agent.auth_mode api_key && runx config set agent.provider anthropic && runx config set agent.model <model> && printf '%s' \"$ANTHROPIC_API_KEY\" | runx config set agent.api_key --from-stdin".to_owned(),
                 ),
                 requires_human_review: false,
             }]

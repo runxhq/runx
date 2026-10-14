@@ -101,6 +101,9 @@ pub struct AgentToolUse {
     pub id: String,
     pub name: String,
     pub input: JsonValue,
+    /// What the provider returned with this call and needs back when the call
+    /// is replayed (Gemini's thought signature); opaque to the loop.
+    pub replay: Option<serde_json::Value>,
 }
 
 /// A tool result fed back to the model on the next round.
@@ -124,6 +127,58 @@ pub enum AgentTurn {
 /// the loop never inspects tool specifications itself.
 pub trait ModelCaller {
     fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError>;
+}
+
+/// The most of a provider failure the loop reports.
+const MAX_PROVIDER_DETAIL: usize = 300;
+
+/// A provider failure the loop may report: runx's own words, or a provider's
+/// error fields from [`provider_refused`], never a raw body or prompt.
+pub(crate) fn provider_failed(detail: impl Into<String>) -> RuntimeError {
+    RuntimeError::ModelProvider {
+        detail: detail.into(),
+    }
+}
+
+/// A non-2xx provider response, as its status and the provider's own error
+/// code and message on one bounded line, with the key removed.
+pub(crate) fn provider_refused(status: u16, body: &str, key: Option<&str>) -> RuntimeError {
+    let parsed = serde_json::from_str::<serde_json::Value>(body).ok();
+    // Gemini wraps its error in a one-element array.
+    let error = parsed
+        .as_ref()
+        .map(|value| {
+            value
+                .as_array()
+                .and_then(|items| items.first())
+                .unwrap_or(value)
+        })
+        .and_then(|value| value.get("error"));
+    let field = |name: &str| {
+        error
+            .and_then(|error| error.get(name))
+            .and_then(serde_json::Value::as_str)
+    };
+    let mut detail = format!("status {status}");
+    if let Some(code) = field("code")
+        .or_else(|| field("type"))
+        .or_else(|| field("status"))
+    {
+        detail.push(' ');
+        detail.push_str(code);
+    }
+    if let Some(message) = field("message") {
+        detail.push_str(": ");
+        detail.push_str(&message.split_whitespace().collect::<Vec<_>>().join(" "));
+    }
+    if let Some(key) = key.filter(|key| !key.is_empty()) {
+        detail = detail.replace(key, "[redacted]");
+    }
+    if let Some((end, _)) = detail.char_indices().nth(MAX_PROVIDER_DETAIL) {
+        detail.truncate(end);
+        detail.push_str("...");
+    }
+    provider_failed(detail)
 }
 
 /// Executes one chosen tool through the governed runtime. Production
@@ -174,6 +229,13 @@ pub struct AgentLoopConfig {
     pub final_result_schema: Option<JsonValue>,
 }
 
+/// Why asking the model for a turn ended the loop.
+enum TurnStop {
+    /// The provider failed, with what it may report of why.
+    Provider(Option<String>),
+    EmptyTurns,
+}
+
 /// Ask the model for the next tool uses, tolerating a transient empty turn by
 /// resampling up to `max_resamples` extra times. Returns the first non-empty
 /// turn, or fails closed if every attempt is empty. A provider error from the
@@ -183,20 +245,23 @@ fn next_tool_uses_resilient<M>(
     transcript: &[AgentTurn],
     max_resamples: u32,
     model_calls: &mut u32,
-) -> Result<Vec<AgentToolUse>, AgentLoopFailureReason>
+) -> Result<Vec<AgentToolUse>, TurnStop>
 where
     M: ModelCaller + ?Sized,
 {
     for _ in 0..=max_resamples {
         *model_calls = model_calls.saturating_add(1);
-        let uses = model
-            .next_tool_uses(transcript)
-            .map_err(|_| AgentLoopFailureReason::ProviderFailed)?;
+        let uses = model.next_tool_uses(transcript).map_err(|error| {
+            TurnStop::Provider(match error {
+                RuntimeError::ModelProvider { detail } => Some(detail),
+                _ => None,
+            })
+        })?;
         if !uses.is_empty() {
             return Ok(uses);
         }
     }
-    Err(AgentLoopFailureReason::EmptyTurnBudgetExhausted)
+    Err(TurnStop::EmptyTurns)
 }
 
 /// The loop's accounting so far.
@@ -247,27 +312,23 @@ where
             &mut model_calls,
         ) {
             Ok(uses) => uses,
-            Err(AgentLoopFailureReason::ProviderFailed) => {
+            Err(TurnStop::Provider(detail)) => {
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::ProviderFailed,
-                    "Managed agent provider request failed.",
+                    detail.map_or_else(
+                        || "Managed agent provider request failed.".to_owned(),
+                        |detail| format!("Managed agent provider request failed: {detail}"),
+                    ),
                     telemetry(round, model_calls, tool_calls, tools, tool_executions),
                 ));
             }
-            Err(AgentLoopFailureReason::EmptyTurnBudgetExhausted) => {
+            Err(TurnStop::EmptyTurns) => {
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::EmptyTurnBudgetExhausted,
                     format!(
                         "Managed agent returned no tool use after {} attempts.",
                         config.max_empty_turn_resamples + 1
                     ),
-                    telemetry(round, model_calls, tool_calls, tools, tool_executions),
-                ));
-            }
-            Err(reason) => {
-                return Err(AgentLoopFailure::new(
-                    reason,
-                    "Managed agent failed.",
                     telemetry(round, model_calls, tool_calls, tools, tool_executions),
                 ));
             }
@@ -540,6 +601,7 @@ mod tests {
             id: "call-1".to_owned(),
             name: "noop".to_owned(),
             input: JsonValue::Object(Default::default()),
+            replay: None,
         };
         let config = AgentLoopConfig {
             max_rounds: 2,
@@ -564,6 +626,7 @@ mod tests {
                     id: "final".to_owned(),
                     name: FINAL.to_owned(),
                     input: done_payload(),
+                    replay: None,
                 },
             ],
             vec![
@@ -572,6 +635,7 @@ mod tests {
                     id: "unknown".to_owned(),
                     name: UNRECOGNIZED_MODEL_TOOL.to_owned(),
                     input: JsonValue::Object(Default::default()),
+                    replay: None,
                 },
             ],
         ];
@@ -617,12 +681,14 @@ mod tests {
                     id: "f".to_owned(),
                     name: FINAL.to_owned(),
                     input: done_payload(),
+                    replay: None,
                 }])
             } else {
                 Ok(vec![AgentToolUse {
                     id: "t1".to_owned(),
                     name: "pay".to_owned(),
                     input: JsonValue::Object(Default::default()),
+                    replay: None,
                 }])
             }
         }
@@ -726,6 +792,7 @@ mod tests {
                     id: format!("final-{call}"),
                     name: FINAL.to_owned(),
                     input,
+                    replay: None,
                 }])
             }
         }
@@ -781,6 +848,7 @@ mod tests {
                     id: format!("x{}", _transcript.len()),
                     name: "noop".to_owned(),
                     input: JsonValue::Object(Default::default()),
+                    replay: None,
                 }])
             }
         }
@@ -867,12 +935,14 @@ mod tests {
                         id: "f".to_owned(),
                         name: FINAL.to_owned(),
                         input: done_payload(),
+                        replay: None,
                     }])
                 } else {
                     Ok(vec![AgentToolUse {
                         id: "t1".to_owned(),
                         name: "pay".to_owned(),
                         input: JsonValue::Object(Default::default()),
+                        replay: None,
                     }])
                 }
             }
@@ -1009,6 +1079,59 @@ mod tests {
     }
 
     #[test]
+    fn a_provider_refusal_says_why_without_the_key_or_the_body() {
+        const KEY: &str = "AIza-dogfood-key";
+        struct RefusingModel;
+        impl ModelCaller for RefusingModel {
+            fn next_tool_uses(
+                &self,
+                _transcript: &[AgentTurn],
+            ) -> Result<Vec<AgentToolUse>, RuntimeError> {
+                let body = format!(
+                    r#"[{{"error":{{"code":404,"message":"This model is no longer\n available for key {KEY}.","status":"NOT_FOUND","details":["private prompt"]}}}}]"#
+                );
+                Err(provider_refused(404, &body, Some(KEY)))
+            }
+        }
+        let config = AgentLoopConfig {
+            max_rounds: 3,
+            max_empty_turn_resamples: 3,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+
+        let result = run_agent_loop(
+            &config,
+            &RefusingModel,
+            &mut OkExecutor,
+            "private prompt".to_owned(),
+        );
+
+        assert!(
+            matches!(
+                &result,
+                Err(error)
+                    if error.reason() == AgentLoopFailureReason::ProviderFailed
+                    && error.sanitized_message()
+                        == "Managed agent provider request failed: status 404 NOT_FOUND: This model is no longer available for key [redacted]."
+            ),
+            "got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn a_long_provider_message_is_cut_short() {
+        let body = format!(r#"{{"error":{{"message":"{}"}}}}"#, "x".repeat(1000));
+        let refused = provider_refused(400, &body, None);
+        assert!(
+            matches!(&refused, RuntimeError::ModelProvider { detail }
+                if detail.chars().count() == MAX_PROVIDER_DETAIL + 3 && detail.ends_with("...")),
+            "got: {refused:?}"
+        );
+    }
+
+    #[test]
     fn unknown_model_tool_name_never_reaches_durable_telemetry()
     -> Result<(), Box<dyn std::error::Error>> {
         const SENSITIVE_MARKER: &str = "leak_customer_secret_7f3a";
@@ -1023,6 +1146,7 @@ mod tests {
                     id: "unknown".to_owned(),
                     name: SENSITIVE_MARKER.to_owned(),
                     input: JsonValue::Object(Default::default()),
+                    replay: None,
                 }])
             }
         }
@@ -1151,6 +1275,7 @@ mod tests {
                 id: format!("c{executed}"),
                 name: name.to_owned(),
                 input,
+                replay: None,
             }])
         }
     }

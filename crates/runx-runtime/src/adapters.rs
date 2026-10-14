@@ -15,6 +15,9 @@ pub mod agent_anthropic_messages;
 pub mod agent_chat_completions;
 
 #[cfg(feature = "agent")]
+pub mod agent_openai_responses;
+
+#[cfg(feature = "agent")]
 pub mod agent_tool_definitions;
 
 #[cfg(feature = "agent")]

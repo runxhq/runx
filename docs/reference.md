@@ -104,6 +104,7 @@ runx mcp ./fixtures/skills/echo
 runx skill ./skills/skill-build design -i objective="build github review skill"
 runx harness ./examples/hello-graph/harness.yaml
 runx config set agent.provider openai
+runx config set agent.model gpt-6-sol
 printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 ```
 
@@ -195,16 +196,18 @@ reject exact secret-field names before the data can enter receipts. That check
 is not a general text heuristic and never removes URLs or unrelated operator
 diagnostics.
 
-With `agent.provider` and `agent.api_key` configured, the CLI can resolve
+With `agent.provider`, `agent.model` and a key configured, the CLI can resolve
 managed agent work directly. Deterministic tools, approvals, and required human
 inputs keep their existing local behavior. `anthropic`, `openai` and `gemini`
 are built-in providers, each reading its own key variable when `agent.api_key`
-is unset and using its default model (`claude-opus-5-5`, `gpt-6-sol`,
-`gemini-3-pro-preview`) when `agent.model` is unset. Any other provider, and
-any configured `agent.endpoint_url`, also sets `agent.model`; another provider
-sets `agent.dialect` (`chat_completions` or `anthropic_messages`) and
-`agent.endpoint_url` too, and reads only `agent.api_key` or
-`RUNX_AGENT_API_KEY`.
+is unset; `openai` speaks OpenAI's Responses API. Runx names no model of its
+own: every provider sets `agent.model`, and a managed run refuses without one.
+Any other provider sets `agent.dialect` (`chat_completions`,
+`anthropic_messages` or `openai_responses`) and `agent.endpoint_url` too, and
+reads only `agent.api_key` or `RUNX_AGENT_API_KEY`; a local OpenAI-compatible
+server is such a provider, speaking `chat_completions`. A provider's refusal
+reaches the receipt as its status and its own error message, never its raw
+body or the key.
 
 Prepared context never asks for performative approval: it binds the selected
 skill, inputs, execution closure, and drift guards into the receipt. A

@@ -112,7 +112,7 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"fixture_read","arguments":"{\"value\":\"proof\"}"},"extra_content":{"google":{"thought_signature":"sig-1"}}}]}}]}),
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"final-1","type":"function","function":{"name":"runx_final_result","arguments":"{\"status\":\"done\"}"}}]}}]}),
             ],
         )
@@ -168,6 +168,11 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[0]["tools"][0]["function"]["name"], "fixture_read");
     assert_eq!(requests[1]["messages"][1]["tool_calls"][0]["id"], "call-1");
+    // Gemini refuses a replayed call without the signature it returned.
+    assert_eq!(
+        requests[1]["messages"][1]["tool_calls"][0]["extra_content"],
+        json!({"google":{"thought_signature":"sig-1"}})
+    );
     assert_eq!(requests[1]["messages"][2]["tool_call_id"], "call-1");
     assert!(
         requests[1]["messages"][2]["content"]
@@ -261,7 +266,11 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
         ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
         ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
@@ -345,7 +354,11 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
         ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
         ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
@@ -423,7 +436,11 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
         ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
         ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
@@ -511,7 +528,11 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
             "RUNX_HOME".to_owned(),
             temp.path().join("home").to_string_lossy().into_owned(),
         ),
-        ("RUNX_AGENT_PROVIDER".to_owned(), "openai".to_owned()),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
         ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
         ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),

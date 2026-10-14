@@ -71,15 +71,6 @@ pub struct ManagedAgentError {
 
 impl ManagedAgentError {
     #[must_use]
-    pub fn provider_error(_message: impl Into<String>) -> Self {
-        Self {
-            reason: SealReason::ManagedAgentProviderFailed,
-            sanitized_message: "Managed agent provider request failed.".to_owned(),
-            telemetry: None,
-        }
-    }
-
-    #[must_use]
     pub fn sanitized(message: impl Into<String>) -> Self {
         Self {
             reason: SealReason::ManagedAgentResolutionFailed,

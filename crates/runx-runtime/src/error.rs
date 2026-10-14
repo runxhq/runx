@@ -151,6 +151,9 @@ pub enum RuntimeError {
     },
     #[error("skill '{skill_name}' failed: {message}")]
     SkillFailed { skill_name: String, message: String },
+    #[cfg(feature = "agent")]
+    #[error("model provider failed: {detail}")]
+    ModelProvider { detail: String },
     #[error("continuation rejected: {reason}")]
     ContinuationRejected { reason: String },
     #[error("{owner} input contract failed at '{path}': {message}")]
@@ -245,7 +248,7 @@ impl RuntimeError {
             | Self::SkillFailed { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution { .. } => false,
+            Self::ManagedAgentResolution { .. } | Self::ModelProvider { .. } => false,
         }
     }
 

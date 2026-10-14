@@ -13,7 +13,10 @@
 use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
-use super::agent_loop::{AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL};
+use super::agent_loop::{
+    AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL, provider_failed,
+    provider_refused,
+};
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
 use crate::credentials::SecretString;
@@ -26,7 +29,6 @@ const MESSAGES_VERSION: &str = "2023-06-01";
 // Eight thousand tokens remains bounded while fitting the declared packets
 // shipped by the first-party catalog.
 const MAX_TOKENS: u32 = 8192;
-const MANAGED_AGENT_SKILL: &str = "managed-agent";
 
 /// Calls a Messages endpoint to produce the model's next tool-use requests.
 pub struct AnthropicMessagesCaller<T> {
@@ -83,13 +85,6 @@ impl<T> AnthropicMessagesCaller<T> {
 /// fails to serialize; default to null rather than propagate an impossible error.
 fn to_wire(value: &JsonValue) -> WireValue {
     serde_json::to_value(value).unwrap_or(WireValue::Null)
-}
-
-fn failure(message: String) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: MANAGED_AGENT_SKILL.to_owned(),
-        message,
-    }
 }
 
 fn messages_json(transcript: &[AgentTurn]) -> Vec<WireValue> {
@@ -151,6 +146,7 @@ fn parse_tool_uses(body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
             id: id.to_owned(),
             name: name.to_owned(),
             input,
+            replay: None,
         });
     }
     Ok(uses)
@@ -178,12 +174,13 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
                 ],
                 body: Some(request_body),
             })
-            .map_err(|source| failure(format!("anthropic request failed: {source}")))?;
+            .map_err(|source| provider_failed(format!("anthropic request failed: {source}")))?;
         if !(200..300).contains(&response.status) {
-            return Err(failure(format!(
-                "anthropic returned status {}",
-                response.status
-            )));
+            return Err(provider_refused(
+                response.status,
+                &response.body,
+                Some(self.api_key.expose()),
+            ));
         }
         let mut uses = parse_tool_uses(&response.body)?;
         for use_ in &mut uses {
@@ -356,8 +353,25 @@ mod tests {
         };
         let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
         assert!(
-            matches!(&result, Err(RuntimeError::SkillFailed { message, .. }) if message.contains("429")),
+            matches!(&result, Err(RuntimeError::ModelProvider { detail }) if detail == "status 429"),
             "non-2xx should be an error; got: {result:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_refusal_names_the_providers_own_error() -> Result<(), String> {
+        let stub = StubTransport {
+            body: r#"{"type":"error","error":{"type":"not_found_error","message":"model: claude-retired"}}"#
+                .to_owned(),
+            status: 404,
+            requests: RefCell::new(Vec::new()),
+        };
+        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        assert!(
+            matches!(&result, Err(RuntimeError::ModelProvider { detail })
+                if detail == "status 404 not_found_error: model: claude-retired"),
+            "got: {result:?}"
         );
         Ok(())
     }

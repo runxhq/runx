@@ -102,6 +102,8 @@ pub enum ModelDialect {
     /// The chat completions format most providers and local servers speak.
     ChatCompletions,
     AnthropicMessages,
+    /// OpenAI's Responses API, which its current models take tools through.
+    OpenAiResponses,
 }
 
 impl ModelDialect {
@@ -110,6 +112,7 @@ impl ModelDialect {
         match value.trim() {
             "chat_completions" => Some(Self::ChatCompletions),
             "anthropic_messages" => Some(Self::AnthropicMessages),
+            "openai_responses" => Some(Self::OpenAiResponses),
             _ => None,
         }
     }
@@ -119,20 +122,20 @@ impl ModelDialect {
         match self {
             Self::ChatCompletions => "chat_completions",
             Self::AnthropicMessages => "anthropic_messages",
+            Self::OpenAiResponses => "openai_responses",
         }
     }
 }
 
-/// A provider runx knows: the dialect it speaks, where, the variable that
-/// holds its key, and the model a run uses when none is configured. Any other
-/// provider names its dialect, endpoint and model in config.
+/// A provider runx knows: the dialect it speaks, where, and the variable that
+/// holds its key. Every provider names its model in config; any other provider
+/// also names its dialect and endpoint.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModelProvider {
     pub id: &'static str,
     pub dialect: ModelDialect,
     pub endpoint: &'static str,
     pub key_env: &'static str,
-    pub default_model: &'static str,
 }
 
 pub const MODEL_PROVIDERS: &[ModelProvider] = &[
@@ -141,21 +144,18 @@ pub const MODEL_PROVIDERS: &[ModelProvider] = &[
         dialect: ModelDialect::AnthropicMessages,
         endpoint: "https://api.anthropic.com/v1/messages",
         key_env: "ANTHROPIC_API_KEY",
-        default_model: "claude-opus-5-5",
     },
     ModelProvider {
         id: "openai",
-        dialect: ModelDialect::ChatCompletions,
-        endpoint: "https://api.openai.com/v1/chat/completions",
+        dialect: ModelDialect::OpenAiResponses,
+        endpoint: "https://api.openai.com/v1/responses",
         key_env: "OPENAI_API_KEY",
-        default_model: "gpt-6-sol",
     },
     ModelProvider {
         id: "gemini",
         dialect: ModelDialect::ChatCompletions,
         endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         key_env: "GEMINI_API_KEY",
-        default_model: "gemini-3-pro-preview",
     },
 ];
 
@@ -322,7 +322,7 @@ pub fn update_runx_config_value(
         ConfigKey::AgentDialect => {
             ModelDialect::parse(value).ok_or(ConfigError::InvalidAgentSetting {
                 key: "agent.dialect",
-                message: "expected chat_completions or anthropic_messages",
+                message: "expected chat_completions, anthropic_messages or openai_responses",
             })?;
             let mut agent = config.agent.unwrap_or_default();
             agent.dialect = Some(value.trim().to_owned());
@@ -357,6 +357,13 @@ pub fn update_runx_config_value(
 pub fn clear_runx_agent_endpoint_url(mut config: RunxConfigFile) -> RunxConfigFile {
     if let Some(agent) = config.agent.as_mut() {
         agent.endpoint_url = None;
+    }
+    config
+}
+
+pub fn clear_runx_agent_dialect(mut config: RunxConfigFile) -> RunxConfigFile {
+    if let Some(agent) = config.agent.as_mut() {
+        agent.dialect = None;
     }
     config
 }
@@ -519,7 +526,7 @@ pub fn load_managed_agent_config(
     }) {
         Some(value) => ModelDialect::parse(value).ok_or(ConfigError::InvalidAgentSetting {
             key: "agent.dialect",
-            message: "expected chat_completions or anthropic_messages",
+            message: "expected chat_completions, anthropic_messages or openai_responses",
         })?,
         None => profile
             .map(|profile| profile.dialect)
@@ -539,24 +546,12 @@ pub fn load_managed_agent_config(
         .or_else(|| config.agent.as_ref().and_then(|agent| agent.model.as_ref()))
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
-        // A profile's default model is the model at its own endpoint; a
-        // configured endpoint serves whatever models it serves, so it names
-        // its own.
-        .or_else(|| {
-            profile
-                .filter(|_| endpoint_url.is_none())
-                .map(|profile| profile.default_model.to_owned())
-        })
-        .unwrap_or_default();
-    if model.is_empty() {
-        if auth_mode == ManagedAgentAuthMode::LocalNone {
-            return Err(ConfigError::InvalidAgentSetting {
-                key: "agent.model",
-                message: "local_none requires a model",
-            });
-        }
-        return Ok(None);
-    }
+        // runx names no model of its own: which models a provider still
+        // serves is the provider's to say.
+        .ok_or(ConfigError::InvalidAgentSetting {
+            key: "agent.model",
+            message: "a provider needs a model; set RUNX_AGENT_MODEL or run `runx config set model <name>`",
+        })?;
     // Every place the key can come from, and the one value they hold: two
     // that differ could be two accounts, and runx never picks one.
     let mut keys = Vec::new();

@@ -47,7 +47,8 @@ fn doctor_reports_explicit_keyless_local_model_and_invalid_endpoint()
     command
         .args(["doctor", "--json"])
         .env("RUNX_CWD", &workspace)
-        .env("RUNX_AGENT_PROVIDER", "openai")
+        .env("RUNX_AGENT_PROVIDER", "local")
+        .env("RUNX_AGENT_DIALECT", "chat_completions")
         .env("RUNX_AGENT_MODEL", "fixture-model")
         .env("RUNX_AGENT_AUTH_MODE", "local_none")
         .env(
@@ -100,6 +101,7 @@ fn doctor_says_keep_one_model_key_when_two_differ() -> Result<(), Box<dyn std::e
         .args(["doctor", "--json"])
         .env("RUNX_CWD", fixture.join("workspace"))
         .env("RUNX_AGENT_PROVIDER", "anthropic")
+        .env("RUNX_AGENT_MODEL", "claude-fixture")
         .env("RUNX_AGENT_API_KEY", "sk-one")
         .env("ANTHROPIC_API_KEY", "sk-two")
         .output()?;
@@ -134,7 +136,8 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
     let fixture = doctor_fixture("empty-success")?;
     let workspace = fixture.join("workspace");
     for (key, value) in [
-        ("agent.provider", "openai"),
+        ("agent.provider", "local"),
+        ("agent.dialect", "chat_completions"),
         ("agent.model", "fixture-local"),
         ("agent.auth_mode", "local_none"),
         (
@@ -151,14 +154,16 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
                 .success()
         );
     }
-    assert!(
-        runx_command()
-            .args(["config", "unset", "agent.endpoint_url"])
-            .env("RUNX_HOME", &home)
-            .output()?
-            .status
-            .success()
-    );
+    for key in ["agent.endpoint_url", "agent.dialect"] {
+        assert!(
+            runx_command()
+                .args(["config", "unset", key])
+                .env("RUNX_HOME", &home)
+                .output()?
+                .status
+                .success()
+        );
+    }
     for (key, value) in [
         ("agent.provider", "anthropic"),
         ("agent.model", "fixture-claude"),

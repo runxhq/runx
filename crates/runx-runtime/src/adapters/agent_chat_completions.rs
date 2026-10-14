@@ -4,7 +4,10 @@
 use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
-use super::agent_loop::{AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL};
+use super::agent_loop::{
+    AgentToolUse, AgentTurn, ModelCaller, UNRECOGNIZED_MODEL_TOOL, provider_failed,
+    provider_refused,
+};
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
 use crate::credentials::SecretString;
@@ -43,14 +46,20 @@ impl<T> ChatCompletionsCaller<T> {
             match turn {
                 AgentTurn::User(content) => messages.push(json!({"role":"user","content":content})),
                 AgentTurn::AssistantToolUses(uses) => {
-                    let tool_calls = uses.iter().map(|use_| json!({
-                        "id": use_.id,
-                        "type": "function",
-                        "function": {
-                            "name": wire_tool_name(&use_.name),
-                            "arguments": serde_json::to_string(&use_.input).unwrap_or_else(|_| "null".to_owned()),
+                    let tool_calls = uses.iter().map(|use_| {
+                        let mut call = json!({
+                            "id": use_.id,
+                            "type": "function",
+                            "function": {
+                                "name": wire_tool_name(&use_.name),
+                                "arguments": serde_json::to_string(&use_.input).unwrap_or_else(|_| "null".to_owned()),
+                            }
+                        });
+                        if let Some(extra) = &use_.replay {
+                            call["extra_content"] = extra.clone();
                         }
-                    })).collect::<Vec<_>>();
+                        call
+                    }).collect::<Vec<_>>();
                     messages
                         .push(json!({"role":"assistant","content":null,"tool_calls":tool_calls}));
                 }
@@ -86,39 +95,41 @@ impl<T> ChatCompletionsCaller<T> {
             .get("choices")
             .and_then(WireValue::as_array)
             .filter(|choices| choices.len() == 1)
-            .ok_or_else(|| failure("openai-compatible response must contain one choice"))?;
+            .ok_or_else(|| provider_failed("openai-compatible response must contain one choice"))?;
         let choice = &choices[0];
         if choice.get("finish_reason").and_then(WireValue::as_str) == Some("length") {
-            return Err(failure("openai-compatible response was truncated"));
+            return Err(provider_failed("openai-compatible response was truncated"));
         }
         let message = choice
             .get("message")
             .and_then(WireValue::as_object)
-            .ok_or_else(|| failure("openai-compatible response has no message"))?;
+            .ok_or_else(|| provider_failed("openai-compatible response has no message"))?;
         let Some(calls) = message.get("tool_calls").filter(|value| !value.is_null()) else {
             return Ok(Vec::new());
         };
         let calls = calls
             .as_array()
-            .ok_or_else(|| failure("openai-compatible tool calls must be an array"))?;
+            .ok_or_else(|| provider_failed("openai-compatible tool calls must be an array"))?;
         let mut uses = Vec::with_capacity(calls.len());
         for call in calls {
             let id = call
                 .get("id")
                 .and_then(WireValue::as_str)
                 .filter(|value| !value.is_empty())
-                .ok_or_else(|| failure("openai-compatible tool call has no id"))?;
+                .ok_or_else(|| provider_failed("openai-compatible tool call has no id"))?;
             if call.get("type").and_then(WireValue::as_str) != Some("function") {
-                return Err(failure("openai-compatible tool call is not a function"));
+                return Err(provider_failed(
+                    "openai-compatible tool call is not a function",
+                ));
             }
             let function = call
                 .get("function")
                 .and_then(WireValue::as_object)
-                .ok_or_else(|| failure("openai-compatible tool call has no function"))?;
+                .ok_or_else(|| provider_failed("openai-compatible tool call has no function"))?;
             let wire_name = function
                 .get("name")
                 .and_then(WireValue::as_str)
-                .ok_or_else(|| failure("openai-compatible tool call has no name"))?;
+                .ok_or_else(|| provider_failed("openai-compatible tool call has no name"))?;
             let input = function
                 .get("arguments")
                 .and_then(WireValue::as_str)
@@ -132,16 +143,11 @@ impl<T> ChatCompletionsCaller<T> {
                     .unwrap_or(UNRECOGNIZED_MODEL_TOOL)
                     .to_owned(),
                 input,
+                // Gemini signs each call and refuses a replay without it.
+                replay: call.get("extra_content").cloned(),
             });
         }
         Ok(uses)
-    }
-}
-
-fn failure(message: &str) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "managed-agent".to_owned(),
-        message: message.to_owned(),
     }
 }
 
@@ -152,7 +158,8 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
             "messages":self.messages_json(transcript),
             "tools":self.tools_json(),
             "tool_choice":"auto",
-            "max_tokens":MAX_TOKENS,
+            // The current name; OpenAI's newer models refuse `max_tokens`.
+            "max_completion_tokens":MAX_TOKENS,
         });
         let body = serde_json::to_string(&body)
             .map_err(|error| RuntimeError::json("serializing openai-compatible request", error))?;
@@ -171,12 +178,17 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
                 headers,
                 body: Some(body),
             })
-            .map_err(|_| failure("openai-compatible model endpoint is unavailable"))?;
+            .map_err(|error| {
+                provider_failed(format!(
+                    "openai-compatible model endpoint is unavailable: {error}"
+                ))
+            })?;
         if !(200..300).contains(&response.status) {
-            return Err(failure(&format!(
-                "openai-compatible model returned status {}",
-                response.status
-            )));
+            return Err(provider_refused(
+                response.status,
+                &response.body,
+                self.api_key.as_ref().map(SecretString::expose),
+            ));
         }
         self.parse_tool_uses(&response.body)
     }

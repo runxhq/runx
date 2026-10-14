@@ -113,6 +113,7 @@ export function checkHttpTransportOwnership(findings) {
     "crates/runx-runtime/src/registry/http.rs",
     "crates/runx-runtime/src/adapters/agent_anthropic_messages.rs",
     "crates/runx-runtime/src/adapters/agent_chat_completions.rs",
+    "crates/runx-runtime/src/adapters/agent_openai_responses.rs",
     "crates/runx-runtime/src/kernel/session.rs",
   ];
   const requestOwnerRoots = [

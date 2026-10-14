@@ -122,19 +122,19 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "config",
         top_level_usage: &[
-            "runx config set|get <provider|dialect|model|api-key|endpoint-url> [value] | list | unset endpoint-url [-j|--json]",
+            "runx config set|get <provider|dialect|model|api-key|endpoint-url> [value] | list | unset endpoint-url|dialect [-j|--json]",
         ],
         usage: &[
             "runx config set <key> <value> [-j|--json]",
             "runx config set api-key --from-stdin [-j|--json]",
             "runx config get <key> [-j|--json]",
             "runx config list [-j|--json]",
-            "runx config unset endpoint-url [-j|--json]",
+            "runx config unset endpoint-url|dialect [-j|--json]",
         ],
         notes: &[
             "Short keys: provider, dialect, model, api-key, endpoint-url and auth-mode. Fully qualified config keys are also accepted. Secret values are accepted only on stdin.",
             "A runx account credential is stored by runx login, never set here; RUNX_PUBLIC_API_TOKEN supplies one for a single process.",
-            "anthropic, openai and gemini are built-in providers. Any other provider also sets dialect (chat_completions or anthropic_messages) and endpoint-url.",
+            "anthropic, openai and gemini are built-in providers. Any other provider also sets dialect (chat_completions, anthropic_messages or openai_responses) and endpoint-url.",
         ],
         options: &["--from-stdin", "-j, --json"],
     },

@@ -18,6 +18,7 @@ use super::agent::ManagedAgentError;
 use super::agent_anthropic_messages::AnthropicMessagesCaller;
 use super::agent_chat_completions::ChatCompletionsCaller;
 use super::agent_loop::{AgentLoopConfig, ModelCaller, ToolExecutor, ToolOutcome, run_agent_loop};
+use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
 use crate::config::{ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect};
@@ -256,6 +257,14 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
                 ManagedAgentError::sanitized("the anthropic_messages dialect requires an API key")
             })?;
             Box::new(AnthropicMessagesCaller::new(
+                transport, endpoint, key, model, tools,
+            ))
+        }
+        ModelDialect::OpenAiResponses => {
+            let key = config.api_key.clone().ok_or_else(|| {
+                ManagedAgentError::sanitized("the openai_responses dialect requires an API key")
+            })?;
+            Box::new(OpenAiResponsesCaller::new(
                 transport, endpoint, key, model, tools,
             ))
         }

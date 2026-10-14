@@ -7,9 +7,9 @@ use std::path::Path;
 
 use crate::cli_args::{os_arg, split_flag};
 use runx_runtime::{
-    ConfigError, RunxConfigFile, RunxPaths, clear_runx_agent_endpoint_url, load_runx_config_file,
-    lookup_runx_config_value, mask_runx_config_file, parse_config_key, update_runx_config_value,
-    write_runx_config_file,
+    ConfigError, RunxConfigFile, RunxPaths, clear_runx_agent_dialect,
+    clear_runx_agent_endpoint_url, load_runx_config_file, lookup_runx_config_value,
+    mask_runx_config_file, parse_config_key, update_runx_config_value, write_runx_config_file,
 };
 use serde::Serialize;
 
@@ -176,8 +176,8 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 return Err("runx config unset requires exactly one key".to_owned());
             };
             let key = normalize_config_key(key);
-            if key != "agent.endpoint_url" {
-                return Err("runx config unset clears only endpoint-url; set another value with runx config set".to_owned());
+            if !matches!(key, "agent.endpoint_url" | "agent.dialect") {
+                return Err(UNSET_ONLY.to_owned());
             }
             Ok(ConfigPlan {
                 action,
@@ -290,12 +290,11 @@ fn execute_config_plan(
         }
         ConfigAction::Unset => {
             let key = required_key(plan)?;
-            if key != "agent.endpoint_url" {
-                return Err(ConfigCliError::InvalidArgs(
-                    "runx config unset clears only endpoint-url; set another value with runx config set".to_owned(),
-                ));
-            }
-            let next = clear_runx_agent_endpoint_url(config);
+            let next = match key {
+                "agent.endpoint_url" => clear_runx_agent_endpoint_url(config),
+                "agent.dialect" => clear_runx_agent_dialect(config),
+                _ => return Err(ConfigCliError::InvalidArgs(UNSET_ONLY.to_owned())),
+            };
             write_runx_config_file(&config_path, &next)?;
             Ok(ConfigResult::Unset {
                 action: ConfigAction::Unset,
@@ -305,6 +304,10 @@ fn execute_config_plan(
         }
     }
 }
+
+/// The settings whose absence means the provider's own profile.
+const UNSET_ONLY: &str =
+    "runx config unset clears only endpoint-url or dialect; set another value with runx config set";
 
 fn required_key(plan: &ConfigPlan) -> Result<&str, ConfigCliError> {
     plan.key
@@ -423,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn unset_is_limited_to_the_reversible_endpoint_setting() {
+    fn unset_is_limited_to_the_settings_a_profile_supplies() {
         assert_eq!(
             parse_config_plan(&["config".into(), "unset".into(), "endpoint-url".into()]),
             Ok(ConfigPlan {
@@ -434,6 +437,7 @@ mod tests {
                 json: false,
             })
         );
+        assert!(parse_config_plan(&["config".into(), "unset".into(), "dialect".into()]).is_ok());
         assert!(parse_config_plan(&["config".into(), "unset".into(), "api-key".into()]).is_err());
     }
 
