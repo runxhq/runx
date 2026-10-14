@@ -321,11 +321,10 @@ async fn execute_rmcp_tool_call(
             arguments,
             served,
         } => {
-            let result = tokio::task::spawn_blocking(move || {
+            let result = off_runtime(move || {
                 super::server_turn::execute_mcp_turn_tool(&tool, arguments, &served)
             })
-            .await
-            .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
+            .await?;
             rmcp_call_tool_result(result).map(Into::into)
         }
         PreparedMcpToolCall::Skill {
@@ -335,11 +334,10 @@ async fn execute_rmcp_tool_call(
             javascript,
             effects,
         } => {
-            let result = tokio::task::spawn_blocking(move || {
+            let result = off_runtime(move || {
                 execute_mcp_server_skill(&run_id, *execution, arguments, javascript, effects)
             })
-            .await
-            .map_err(|error| rmcp_internal_error(format!("MCP tool task failed: {error}")))?;
+            .await?;
             match result {
                 Ok(result) => rmcp_call_tool_result(result).map(Into::into),
                 Err(error) => Err(rmcp_internal_error(error.to_string())),
@@ -392,6 +390,22 @@ fn runx_json_object(value: rmcp::model::JsonObject) -> Result<JsonObject, serde_
 
 fn rmcp_invalid_params(error: impl std::fmt::Display) -> rmcp::ErrorData {
     rmcp::ErrorData::invalid_params(error.to_string(), None)
+}
+
+/// Run a tool call's kernel work on a thread of its own. The kernel blocks on
+/// runx's HTTP and MCP client runtimes, which refuse to block inside another
+/// runtime's context, and a blocking-pool task runs inside this server's. So
+/// a connector operation a turn or skill call makes would fail there.
+async fn off_runtime<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, rmcp::ErrorData> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    thread::spawn(move || {
+        let _closed = sender.send(work());
+    });
+    receiver
+        .await
+        .map_err(|_| rmcp_internal_error("MCP tool task failed"))
 }
 
 fn rmcp_internal_error(error: impl std::fmt::Display) -> rmcp::ErrorData {
@@ -575,6 +589,21 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     use super::*;
+
+    /// A tool call's kernel work runs outside the server's runtime, where
+    /// runx's own HTTP and MCP clients can block on theirs.
+    #[test]
+    fn tool_calls_run_outside_the_server_runtime() -> Result<(), Box<dyn std::error::Error>> {
+        let outside = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .build()?
+            .block_on(off_runtime(|| {
+                tokio::runtime::Handle::try_current().is_err()
+            }))
+            .map_err(|error| error.message.to_string())?;
+        assert!(outside);
+        Ok(())
+    }
 
     #[test]
     fn canonical_skill_calls_share_the_server_worker_without_sharing_javascript_state()
