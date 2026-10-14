@@ -15,7 +15,7 @@ caller:
     principal_id: operator-fixture
     grant:
         grant_id: calendar-events-fixture
-        provider: google-calendar
+        provider: google/calendar
         scopes: [events.read]
     operations:
       - operation: events.list

@@ -528,7 +528,7 @@ fn seed_harness_instances(
         let (Some(name), None) = (set.next(), set.next()) else {
             return Err(failed(format!(
                 "the case sets the variable of exactly one of connector {}'s credentials",
-                connector.connector_ref
+                connector.name
             ))
             .into());
         };

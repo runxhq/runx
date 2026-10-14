@@ -1,0 +1,68 @@
+name: webhook-handoff-default-delivers-n8n
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [message-send, content-pipeline]
+    request: Hand this governed Runx payload to the configured n8n workflow.
+    expected_outcome: Prepare, approve, and deliver one idempotent webhook request with the receiver response captured.
+  - mode: composed
+    request: Continue this completed Runx operation into the selected n8n workflow.
+    expected_outcome: Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.
+    prior_evidence:
+      - The validated Runx execution context, payload, workflow target, and event id supplied in the fixture.
+    must_not_repeat:
+      - Do not rerun the upstream Runx operation.
+      - Do not deliver the webhook again after its response is receipted.
+setup: { credentials: [n8n] }
+env: { N8N_WEBHOOK_URL: 'https://acme.app.n8n.cloud/webhook/runx-governed-effect' }
+inputs:
+  platform: n8n
+  webhook_host: acme.app.n8n.cloud
+  event_id: evt_n8n_demo_001
+  handoff_audience: n8n:workflow:runx-governed-effect
+  execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+  payload: { hello: workflow }
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://acme.app.n8n.cloud/webhook/runx-governed-effect
+        body:
+          json:
+            event_id: evt_n8n_demo_001
+            execution_context:
+              caller: runx-cli
+              event_id: evt_n8n_demo_001
+              handoff_audience: n8n:workflow:runx-governed-effect
+              handoff_scope: orchestrator.n8n.workflow.invoke
+              idempotency_key: evt_n8n_demo_001
+              platform: n8n
+              workflow_ref: n8n-cloud-demo
+            handoff_audience: n8n:workflow:runx-governed-effect
+            handoff_scope: orchestrator.n8n.workflow.invoke
+            idempotency_key: evt_n8n_demo_001
+            payload: { hello: workflow }
+            source: runx
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"message":"Workflow was started"}'
+  approvals:
+    "deliver": true
+expect:
+  status: sealed
+  steps: [terms, build-handoff-context, address, deliver]
+  step_outputs:
+    deliver:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: n8n
+            operation: handoff.deliver
+            finality: acknowledged
+            result:
+              acknowledgement: { message: Workflow was started }
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata: { public_skill: webhook-handoff, source_case: direct-default-success-n8n, source: skills-fixture }

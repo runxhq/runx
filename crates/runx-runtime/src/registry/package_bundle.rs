@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use runx_contracts::connector::{ConnectorRef, Digest};
+use runx_contracts::connector::{ConnectorName, Digest};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const PACKAGE_BUNDLE_FILE: &str = "runx.package.json";
@@ -34,12 +34,12 @@ struct PackageBundleDescriptor {
 }
 
 /// The exact connector snapshot owned by one package in the bundle. Its
-/// location is derived from the qualified identity, never a filesystem origin.
+/// location is derived from the connector's name, never a filesystem origin.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PackageBundleConnector {
     pub from: String,
-    pub connector: ConnectorRef,
+    pub connector: ConnectorName,
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
 }

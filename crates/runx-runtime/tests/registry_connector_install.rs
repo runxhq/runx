@@ -248,7 +248,7 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
         .content
         .replacen("description: ", "description: Newer. ", 1);
     let published = RegistryConnectorVersion {
-        connector_ref: runx_contracts::connector::ConnectorRef::new("runx/github").ok_or("ref")?,
+        name: runx_contracts::connector::ConnectorName::new("runx/github").ok_or("ref")?,
         version: "9.0.0".to_owned(),
         trust_tier: TrustTier::FirstParty,
         signed_manifest: sign(
@@ -306,12 +306,12 @@ fn published_version(
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
     let package = prepare_registry_connector_package(&connector)?;
     let published = RegistryConnectorVersion {
-        connector_ref: package.connector_ref.clone(),
+        name: package.name.clone(),
         version: "1.0.0".to_owned(),
         trust_tier: TrustTier::Community,
         signed_manifest: sign(
             RegistrySubjectKind::Connector,
-            package.connector_ref.as_str(),
+            package.name.as_str(),
             "1.0.0",
             &package.files,
         )?,

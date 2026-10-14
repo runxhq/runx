@@ -26,7 +26,7 @@ fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
     ConnectorInstance {
         schema: ConnectorInstanceSchema::V1,
         instance_id: InstanceId::new(id).expect("id"),
-        connector: connector.connector_ref.clone(),
+        connector: connector.name.clone(),
         manifest_digest: connector.manifest_digest.clone(),
         connector_digest: connector.connector_digest.clone(),
         placement: Placement::Hosted,
@@ -95,7 +95,7 @@ fn an_instance_id_cannot_move_to_another_connector() {
         .connector("github")
         .unwrap();
     let mut moved = hosted("shared-id", &github);
-    moved.connector = github.connector_ref.clone();
+    moved.connector = github.name.clone();
     assert!(matches!(
         instances.confirm(moved, false),
         Err(InstanceError::WrongConnector { .. })

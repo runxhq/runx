@@ -16,7 +16,7 @@ placements:
   local:
     auth: [credentials]
 operations:
-  hook.invoke:
+  handoff.deliver:
     description: Deliver one handoff to a Zapier Catch Hook; Zapier acknowledges it and offers no readback.
     verb: write
     scopes: [orchestrator.zapier.workflow.invoke]

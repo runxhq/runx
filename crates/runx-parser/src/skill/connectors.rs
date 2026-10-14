@@ -2,14 +2,17 @@
 //! skill needs.
 //!
 //! A key that names a connector is a fixed requirement. A key with
-//! `connector_from` is chosen at run time from a closed `allowed_connectors`
-//! list. Operation steps name a key and an operation on it; scopes, verbs,
-//! approval floors and credentials all come from the connector.
+//! `connector_from` is an alias chosen at run time from a closed
+//! `allowed_connectors` list. Operation steps name a key and an operation on
+//! it; scopes, verbs, approval floors and credentials all come from the
+//! connector. Whether a key must pin a `manifest_digest` depends on where it
+//! resolves (outside the skill's plugin, and not a runtime capability), so
+//! resolution enforces it, not this grammar.
 
 use std::collections::BTreeMap;
 
 use runx_contracts::JsonValue;
-use runx_contracts::connector::{Digest, OperationName, is_connector_id, is_connector_ref};
+use runx_contracts::connector::{Digest, OperationName, is_connector_name};
 use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
@@ -21,7 +24,8 @@ use super::SkillRunnerDefinition;
 #[serde(deny_unknown_fields)]
 pub struct ConnectorRequirement {
     pub operations: Vec<OperationName>,
-    /// The exact manifest required by a qualified fixed connector reference.
+    /// The exact manifest a connector outside the skill's own plugin must
+    /// match; runtime capabilities and plugin connectors take none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manifest_digest: Option<Digest>,
     /// `$input.<path>`: where a run-time choice of connector is read from.
@@ -55,10 +59,10 @@ pub(crate) fn validate_connector_requirements(
         .map_err(|error| invalid("connectors", format!("connectors is invalid: {error}")))?;
     for (key, requirement) in &requirements {
         let field = format!("connectors.{key}");
-        if !is_connector_id(key) && !is_connector_ref(key) {
+        if !is_connector_name(key) {
             return Err(invalid(
                 &field,
-                format!("{field} key must be a connector id, qualified reference or alias."),
+                format!("{field} key must be a connector name or an alias."),
             ));
         }
         if requirement.operations.is_empty() {
@@ -77,12 +81,6 @@ pub(crate) fn validate_connector_requirements(
         }
         match &requirement.connector_from {
             None => {
-                if is_connector_ref(key) && requirement.manifest_digest.is_none() {
-                    return Err(invalid(
-                        &field,
-                        format!("{field} needs manifest_digest for its qualified connector."),
-                    ));
-                }
                 if !requirement.allowed_connectors.is_empty() {
                     return Err(invalid(
                         &field,
@@ -93,11 +91,11 @@ pub(crate) fn validate_connector_requirements(
                 }
             }
             Some(from) => {
-                if is_connector_ref(key) || requirement.manifest_digest.is_some() {
+                if requirement.manifest_digest.is_some() {
                     return Err(invalid(
                         &field,
                         format!(
-                            "{field} chooses a connector at run time; its key must be an alias and cannot pin one manifest."
+                            "{field} chooses a connector at run time; its alias cannot pin one manifest."
                         ),
                     ));
                 }
@@ -119,14 +117,12 @@ pub(crate) fn validate_connector_requirements(
                     ));
                 }
                 for (index, reference) in requirement.allowed_connectors.iter().enumerate() {
-                    if (!is_connector_id(reference) && !is_connector_ref(reference))
+                    if !is_connector_name(reference)
                         || requirement.allowed_connectors[..index].contains(reference)
                     {
                         return Err(invalid(
                             &field,
-                            format!(
-                                "{field}.allowed_connectors must contain unique connector ids or qualified references."
-                            ),
+                            format!("{field}.allowed_connectors must contain unique connector names."),
                         ));
                     }
                 }

@@ -4,7 +4,7 @@
 
 use std::io;
 
-use runx_contracts::connector::{ConnectorRef, Digest};
+use runx_contracts::connector::{ConnectorName, Digest};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -17,7 +17,7 @@ use crate::services::WorkspaceEnv;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CredentialProfileSummary {
     pub name: String,
-    pub connector: ConnectorRef,
+    pub connector: ConnectorName,
     pub credential_declaration_digest: Digest,
     pub credential: String,
 }
@@ -35,7 +35,7 @@ pub enum CredentialProfileError {
     )]
     ProfileHeldByAnother {
         name: String,
-        connector: ConnectorRef,
+        connector: ConnectorName,
         credential: String,
     },
     #[error(transparent)]
@@ -50,7 +50,7 @@ pub enum CredentialProfileError {
 pub fn set_local_credential_profile(
     workspace: &WorkspaceEnv,
     name: &str,
-    connector: &ConnectorRef,
+    connector: &ConnectorName,
     credential_declaration_digest: &Digest,
     credential: &str,
     secret: &str,

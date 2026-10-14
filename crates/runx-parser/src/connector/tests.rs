@@ -23,7 +23,7 @@ name: Forge
 description: Issues and pull requests.
 runtime_capability: false
 auth:
-  delegated: {}
+  delegated: {principal: {url: "https://api.example.com/user", id: id, login: login}}
 placements:
   hosted: {auth: delegated}
 operations:
@@ -617,7 +617,7 @@ name: Example
 description: Example API.
 runtime_capability: false
 auth:
-  delegated: {}
+  delegated: {principal: {url: "https://api.example.com/user", id: id, login: login}}
   credentials:
     token:
       kind: api_key
@@ -647,6 +647,31 @@ operations:
         decode: [{op: auto_json}]
         result_paths: {item: acknowledgement}
 "#;
+
+/// A delegated grant names its account through a request its hosted
+/// operations could make: over https, to a host they reach.
+#[test]
+fn a_delegated_principal_is_read_where_the_hosted_operations_reach() {
+    validate(HOSTED_WRITE).expect("the principal is read from api.example.com");
+    assert_rejects(
+        &HOSTED_WRITE.replace(
+            "https://api.example.com/user",
+            "https://accounts.elsewhere.example/user",
+        ),
+        "host accounts.elsewhere.example is not one the connector's hosted operations reach",
+    );
+    assert_rejects(
+        &HOSTED_WRITE.replace("https://api.example.com/user", "http://api.example.com/user"),
+        "the principal URL must be https",
+    );
+    assert_rejects(
+        &HOSTED_WRITE.replace(
+            r#"delegated: {principal: {url: "https://api.example.com/user", id: id, login: login}}"#,
+            "delegated: {}",
+        ),
+        "principal",
+    );
+}
 
 #[test]
 fn hosted_declared_requests_bind_no_instance_parameter() {

@@ -5,8 +5,7 @@ catalog:
   kind: graph
   audience: public
   visibility: public
-  role: branded
-  canonical_skill: runx/weather-forecast
+  role: canonical
   provider: open-meteo
   execution: read
   completion: provider_readback

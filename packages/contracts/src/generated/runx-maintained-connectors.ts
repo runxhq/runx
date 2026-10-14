@@ -6,7 +6,7 @@ import type { RunxMaintainedConnector } from "../connector.js";
 export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   {
     "connector_binding": {
-      "connector": "runx/apollo",
+      "connector": "apollo",
       "connector_digest": "sha256:a0404d79bd796241d91013e68083598ea7dfa338f124cbbcfe40d28e416d90a6",
       "manifest_digest": "sha256:b85438a7e76360ee1dc21fbbd0873cc9361523fe6326514405944c3dbb8ec999"
     },
@@ -113,7 +113,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/artifact",
+      "connector": "artifact",
       "connector_digest": "sha256:6d4c7df113260ffa44fd690b059f914215a9535d4401a448f98cd5fbe6191ff8",
       "manifest_digest": "sha256:dd7fcd2f5ef1105a86c02f9efdbdbf98292d0e8d0f357892fee148ddd0936b9b"
     },
@@ -201,7 +201,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/aws",
+      "connector": "aws",
       "connector_digest": "sha256:32e29dd5c8eddfce3d1f3694840571f078b06bedb509f89335e503fd71d4cd2c",
       "manifest_digest": "sha256:06eb56ae4d3fa3bd5ba7353b0f446dde3309564745d53190a01b71b2e9acf2ce"
     },
@@ -470,31 +470,31 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/coinbase-cdp",
-      "connector_digest": "sha256:bcaa8e107946f6c5ed036cf1798f8de2425e8878f0f35cf23ad4ffeef934e3e4",
-      "manifest_digest": "sha256:1028a822f491f51b68844c1a4350e517cc453ab4bb20721917ecc6e2481b4601"
+      "connector": "coinbase/cdp",
+      "connector_digest": "sha256:a612d23431ca04a71d1aeb895ab42a02a83da64b8e1c6efc5070807aeb2ed9a9",
+      "manifest_digest": "sha256:84512bf75dcf037e27b0db1a843a09af353244f0f71fc6ebaad3bc9ee910f298"
     },
     "digests": {
       "payment.x402.merchant.lookup": {
-        "operation": "sha256:32222ff5ad5763642d04981e87d350cdb7c1baeb91fb565739ec828ff200b557"
+        "operation": "sha256:f1b7616f8f63397cced724caca23f58121e4c58c6831acb4af13f19c7d86ab6b"
       },
       "payment.x402.merchant.quote": {
-        "operation": "sha256:4ea3bcccc2858be5c407499022514c3b1c47545bf12484c7a9e7eef0a7399426"
+        "operation": "sha256:1bab12c46829185f8d754b2aeb0d8a0a47bfa170867ceb92745942475a2aad47"
       },
       "payment.x402.merchant.read": {
-        "operation": "sha256:ae9689f441f2218e998ca5b336a2479859a62a5ce094bceca82b7be78f6dbc21"
+        "operation": "sha256:6c82b15779e0b82982b9d4550b9e6d3f6caeb17d6731eab74b41f66a9cfccf87"
       },
       "payment.x402.merchant.recover": {
-        "operation": "sha256:4efecb88f439ad228f08e637e3c9ce3b4cfe240d18bb7c484765d3685e10c0a8"
+        "operation": "sha256:f940fed226addcee511700a80dbf631e90fde5576897ef27721d3b8eed1f0787"
       },
       "payment.x402.merchant.refund": {
-        "operation": "sha256:77311cd178214227bfa80959621b182c15a7f719e5bad567b4f4d8109e7e1642"
+        "operation": "sha256:647824403ebd24ddd80fa10e106a494ed6c18fbafaefff9c783632994c91f516"
       },
       "payment.x402.merchant.refund.read": {
-        "operation": "sha256:5ef6fa7585de6768ce6cdb01a3f2fab681d6de0f7dbb5b64b8ec2aff948e49ff"
+        "operation": "sha256:71525cc4dd2b1ce578933a787bf2de77eae9ec088f508065adced4c2d3678816"
       },
       "payment.x402.merchant.settle": {
-        "operation": "sha256:b1d7b5bc9d36f058caea1a0da6f41439338cac46d49b30123342a81cbb095e12"
+        "operation": "sha256:ddc8391d7303104d9826486777c7f5fdb788ec976da2917eb1314fca8ec4e582"
       }
     },
     "manifest": {
@@ -559,7 +559,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       },
       "category": "payments",
       "description": "Quote, settle and refund x402 payments as a merchant through Coinbase CDP.",
-      "id": "coinbase-cdp",
+      "id": "coinbase/cdp",
       "name": "Coinbase CDP",
       "operations": {
         "payment.x402.merchant.lookup": {
@@ -813,11 +813,11 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:1028a822f491f51b68844c1a4350e517cc453ab4bb20721917ecc6e2481b4601"
+    "manifest_digest": "sha256:84512bf75dcf037e27b0db1a843a09af353244f0f71fc6ebaad3bc9ee910f298"
   },
   {
     "connector_binding": {
-      "connector": "runx/exa",
+      "connector": "exa",
       "connector_digest": "sha256:48ea2cd6eee62d2b51331b15c3b585c9c6d8881d8fd9cfe2e8be2d20e99e516b",
       "manifest_digest": "sha256:1c71f4b2842f2d0df8ec4b33d0c05eae006f9f6aec39687726d618dbe8a4306c"
     },
@@ -973,17 +973,11 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/github",
-      "connector_digest": "sha256:b6710aac21fc812c4cc8f2abc6cc0352d69556c7dfc6cb785abb8be416c1dbe6",
-      "manifest_digest": "sha256:59d0944bcb91cfa044008ae53354e650a274dbbb3751fe427f279332e355b5df"
+      "connector": "github",
+      "connector_digest": "sha256:15dc7e9ea8ee0d4ae7bad55ca523cbb2f93f90c99e14035618636776b7c08165",
+      "manifest_digest": "sha256:41b5176f41f24e539590906bf475494089e929114575349e0bc3b05941b457c7"
     },
     "digests": {
-      "advisory.publish": {
-        "operation": "sha256:bc15aae57d3860631be347f1f58a2ae28561f784b5a8f64ea536dd007ecf6e78"
-      },
-      "advisory.read": {
-        "operation": "sha256:3d3eb8fbc3799c76d1c543aa50a7be1ec6af2e94d54c0a8ec5a4419f98490c0e"
-      },
       "branch.push": {
         "implementation": "sha256:c23ff4475a8dbf2df080d2a5a567fcdb7c67144a4dfe40bf6b430e3ee3d6777c",
         "operation": "sha256:37df8011852bd1c06681859197a52cae7a31be6f025e62f1ec7a7c459ea21c4e"
@@ -1076,7 +1070,13 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
             "kind": "api_key"
           }
         },
-        "delegated": {},
+        "delegated": {
+          "principal": {
+            "id": "id",
+            "login": "login",
+            "url": "https://api.github.com/user"
+          }
+        },
         "session": {
           "command": [
             "gh",
@@ -1099,94 +1099,6 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "id": "github",
       "name": "GitHub",
       "operations": {
-        "advisory.publish": {
-          "approval": "required",
-          "description": "Publish one evidence-bound security advisory for a repository. Declared only; no placement implements it yet.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "channel": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "evidence_binding": {
-                "type": "object"
-              },
-              "payload": {
-                "type": "object"
-              },
-              "payload_digest": {
-                "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "target": {
-                "properties": {
-                  "locator": {
-                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "locator"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "channel",
-              "target",
-              "payload",
-              "payload_digest",
-              "evidence_binding"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "advisory_ref",
-            "payload_digest"
-          ],
-          "scopes": [
-            "advisory.publish"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/target/locator"
-            }
-          },
-          "verb": "write"
-        },
-        "advisory.read": {
-          "description": "Read back one published security advisory. Declared only; no placement implements it yet.",
-          "input_schema": {
-            "properties": {
-              "advisory_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "payload_digest": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "advisory_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "advisory_ref",
-            "payload_digest",
-            "status"
-          ],
-          "scopes": [
-            "advisory.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/advisory_ref"
-            }
-          },
-          "verb": "read"
-        },
         "branch.push": {
           "credentials": [
             "token"
@@ -3552,35 +3464,41 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:59d0944bcb91cfa044008ae53354e650a274dbbb3751fe427f279332e355b5df"
+    "manifest_digest": "sha256:41b5176f41f24e539590906bf475494089e929114575349e0bc3b05941b457c7"
   },
   {
     "connector_binding": {
-      "connector": "runx/google-analytics",
-      "connector_digest": "sha256:dd96195a62f56b535c873d15194d401ef3b25200a17ce50b77ab109800693a41",
-      "manifest_digest": "sha256:a66652691973e67dda8fedbe19f58fa1bac1f9c36079e84931d24d3f1abac335"
+      "connector": "google/analytics",
+      "connector_digest": "sha256:3a98b68dcae1882ed6e35b768132eaa8bf9e3d0cc4950c4195acb8a72329aaa4",
+      "manifest_digest": "sha256:7da131c2a521f32275a0dfe2fd039d996d7172847e0cb8f51323f157e3865609"
     },
     "digests": {
       "metadata.get": {
-        "operation": "sha256:320b4d4dd86bdabd52e347c1154aa515b5fba4f413cb19284d84c9d5f0e9f7b4"
+        "operation": "sha256:0e4b45bd7eabcec12955f0afaad939dcfa470164180785e8673dd9aa0e04731e"
       },
       "properties.list": {
-        "operation": "sha256:bf87ad02c5126f44280a4bb3b5a81fbd906da2fea27c32858e779344385f8870"
+        "operation": "sha256:d39e42376c2bc253a96bd78a0a2b099f22526e26c3c8e7be05cd34ff5ef41e11"
       },
       "reports.run": {
-        "operation": "sha256:37885f3b32106dfd6aaed4d64a954ef3d5c8601f560ecbca1ec3c8f581f4f510"
+        "operation": "sha256:9ec0cf267528b4203324cf8463116bb38372f17628bb46a87f217980b84531b9"
       },
       "reports.run_realtime": {
-        "operation": "sha256:f63eeb77c3598aa594d98cbda18ce4ed28b1170e657374260c2e670fe28ba52f"
+        "operation": "sha256:f3f89e8235a67c73f169795577eb40855c410bf0ea5a91a6b18e5a4f73c02ae4"
       }
     },
     "manifest": {
       "auth": {
-        "delegated": {}
+        "delegated": {
+          "principal": {
+            "id": "sub",
+            "login": "sub",
+            "url": "https://openidconnect.googleapis.com/v1/userinfo"
+          }
+        }
       },
       "category": "analytics",
       "description": "Read Google Analytics 4 properties, metadata and reports.",
-      "id": "google-analytics",
+      "id": "google/analytics",
       "name": "Google Analytics",
       "operations": {
         "metadata.get": {
@@ -3695,29 +3613,35 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:a66652691973e67dda8fedbe19f58fa1bac1f9c36079e84931d24d3f1abac335"
+    "manifest_digest": "sha256:7da131c2a521f32275a0dfe2fd039d996d7172847e0cb8f51323f157e3865609"
   },
   {
     "connector_binding": {
-      "connector": "runx/google-calendar",
-      "connector_digest": "sha256:7eedd3105539f209bee56adc72d90ada60ab9b99667d04c00cbf6f61917cf658",
-      "manifest_digest": "sha256:79bd5bd04dd739156a01faa2031220cb4b4c9fabedadf8fa5439da50baaf298e"
+      "connector": "google/calendar",
+      "connector_digest": "sha256:5acfc124653c637be567d2112f8cfab14108d77fcb70e80401e6d772dd501ed4",
+      "manifest_digest": "sha256:2f9fe7729faa04c78f5b7866e412e5934d64512e19d3fbec9e79de9670741605"
     },
     "digests": {
       "events.list": {
-        "operation": "sha256:f7716e33647419d78c944534b884d7bf0ba8b1397ce1b6be5a12e0c9f0914015"
+        "operation": "sha256:08bd533871a993baaac8b54ab8c03b59d05f4f7b00857b43414664cd6c9d204f"
       },
       "freebusy.query": {
-        "operation": "sha256:ba4cf216eb98bd4aac201b87b7f373b20ff99f041f6a03945cb39ec9e9b82669"
+        "operation": "sha256:1f5d4778e4113c0a5e43b71b5d97baa67e394670f60f7942caf23e6b3d3627b5"
       }
     },
     "manifest": {
       "auth": {
-        "delegated": {}
+        "delegated": {
+          "principal": {
+            "id": "sub",
+            "login": "sub",
+            "url": "https://openidconnect.googleapis.com/v1/userinfo"
+          }
+        }
       },
       "category": "productivity",
       "description": "Read Google Calendar events and busy intervals.",
-      "id": "google-calendar",
+      "id": "google/calendar",
       "name": "Google Calendar",
       "operations": {
         "events.list": {
@@ -3783,41 +3707,47 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:79bd5bd04dd739156a01faa2031220cb4b4c9fabedadf8fa5439da50baaf298e"
+    "manifest_digest": "sha256:2f9fe7729faa04c78f5b7866e412e5934d64512e19d3fbec9e79de9670741605"
   },
   {
     "connector_binding": {
-      "connector": "runx/google-search-console",
-      "connector_digest": "sha256:57c8b17a20efbeeb7bac4bfebc67e4f4790fae75112a753284566bf3a8cd8161",
-      "manifest_digest": "sha256:dcd6673dc5a4a09a5d6567d33299f65988a4e2f9e96234d1d04d2e541bb10577"
+      "connector": "google/search-console",
+      "connector_digest": "sha256:9910842867e71fcab8d4bc731a1e0f23c99c0af0aeb1e3c52c85ca2592e1fa62",
+      "manifest_digest": "sha256:a33c174cfe3f740eba1364d7c893b3dfdd573d58339e9eee03ff9b5e3f96ed9f"
     },
     "digests": {
       "search.analytics.query": {
-        "operation": "sha256:702f06469c03ccf70b86bff75254c9be9e1bf9ad8f80ab7f4ea1a6a9a372e726"
+        "operation": "sha256:8bc060531df50bc0a6921ef5e94ec2eaeb548cc1a87561786fc83eee1d4981bb"
       },
       "sitemaps.get": {
-        "operation": "sha256:f0c3201f7566cc1e0b7ec4bd7aa351057f8472f6370b54cba888f3fc12d9a1c9"
+        "operation": "sha256:ddd22a633a9f62d564fc985b4153e1262f82c876014d73c30ff18d76b217019a"
       },
       "sitemaps.list": {
-        "operation": "sha256:54425d885373b83651bbe59a5d12fb70418e1c25addd1bef70ca774a4a2af311"
+        "operation": "sha256:d42130629f27df51fa46cca5750b5272528fa9a98c2ae695b41d3b48322b5da9"
       },
       "sitemaps.submit": {
-        "operation": "sha256:8128823869df585c323c5ff49ea06fe0f0839ee5328fe1e8cdd91f4e6f8155a8"
+        "operation": "sha256:a27894c79b25ff40ec2ced13c59177f6a21695a9a46309845716ea2deb8e17bb"
       },
       "sites.list": {
-        "operation": "sha256:5181e1edfccc2170c121172f331e3b26ce3d292d1e3e92ba6973f65a5442e7f9"
+        "operation": "sha256:a807904ef48609fbc25ea23a776305b3c7c7628a633cfddae05ba13c992d9141"
       },
       "url.inspect": {
-        "operation": "sha256:64d02b551f0f9e70aad6cd3bb42568c10db3c4009356822f8d98f25f421e578c"
+        "operation": "sha256:eb44039bdeb88e19a7f7cc987c4ba7b1a406b4f8a7df544d4716732627e0aefe"
       }
     },
     "manifest": {
       "auth": {
-        "delegated": {}
+        "delegated": {
+          "principal": {
+            "id": "sub",
+            "login": "sub",
+            "url": "https://openidconnect.googleapis.com/v1/userinfo"
+          }
+        }
       },
       "category": "analytics",
       "description": "Read Search Console performance, URL inspections and sitemaps, and submit sitemaps.",
-      "id": "google-search-console",
+      "id": "google/search-console",
       "name": "Google Search Console",
       "operations": {
         "search.analytics.query": {
@@ -3989,22 +3919,22 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:dcd6673dc5a4a09a5d6567d33299f65988a4e2f9e96234d1d04d2e541bb10577"
+    "manifest_digest": "sha256:a33c174cfe3f740eba1364d7c893b3dfdd573d58339e9eee03ff9b5e3f96ed9f"
   },
   {
     "connector_binding": {
-      "connector": "runx/google-sheets",
-      "connector_digest": "sha256:a56b38e97ec8dceedbdc056ba2cc14a31f76771c1dc6d0f4fbb54b340b5eb31c",
-      "manifest_digest": "sha256:7f9ec987faebf8fddc6087e9e4bc6a99f553fa35847b25c44c7eae2008cf98b9"
+      "connector": "google/sheets",
+      "connector_digest": "sha256:89be30f0c007ae0a0402e8e82c0a5896baaa9ec7d8a3c272edf47196227e3daf",
+      "manifest_digest": "sha256:f7d5186c3a16f43c2bf8d8eb4c83a1821040bb7f6875cb4787f5549dd207262a"
     },
     "digests": {
       "spreadsheet.read": {
         "implementation": "sha256:1cd665478e5bdc84a19827222111074515105cbd2641baf2c0ffd9a0dc50f57c",
-        "operation": "sha256:0a2a9cc0d81770dfa9b7b40070a75f5fd2508e547b8b16ce3fa45d287c44cbd1"
+        "operation": "sha256:0b13c541bd5ef8002a1c0268ff5ee58ae22af6207dacb6b63adf8cde02deb0af"
       },
       "values.read": {
         "implementation": "sha256:a648ba59e353da9198ce8cf90e66299f2060f2c494ad81ff89e6ffa7ffc8cd10",
-        "operation": "sha256:f37e52e1fde7f52e653cd0aff6c5855c46aedbfd3459be9b2bd8f406700503ad"
+        "operation": "sha256:40c3a752b1d6dcd257221463d238c0b46a967f1790250941b68b29e5376a4ff2"
       }
     },
     "manifest": {
@@ -4029,7 +3959,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       },
       "category": "productivity",
       "description": "Read selected spreadsheet metadata and one explicitly bounded cell range.",
-      "id": "google-sheets",
+      "id": "google/sheets",
       "name": "Google Sheets",
       "operations": {
         "spreadsheet.read": {
@@ -4225,11 +4155,11 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:7f9ec987faebf8fddc6087e9e4bc6a99f553fa35847b25c44c7eae2008cf98b9"
+    "manifest_digest": "sha256:f7d5186c3a16f43c2bf8d8eb4c83a1821040bb7f6875cb4787f5549dd207262a"
   },
   {
     "connector_binding": {
-      "connector": "runx/linear",
+      "connector": "linear",
       "connector_digest": "sha256:0621c9ab01bcf6b38668b03db1f335dcd7d1fc850a85801e9ead584148c3c8db",
       "manifest_digest": "sha256:c62b05a232e7ce6f0ec5926affa2a9ec5b901a24993549700fbcb064cc4a0892"
     },
@@ -4612,7 +4542,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/moltbook",
+      "connector": "moltbook",
       "connector_digest": "sha256:0eb70f80e7d45790036f3a42372cb1b4a4a80bca457b158294072d6eb50339e7",
       "manifest_digest": "sha256:78a17c6c54f5eabcdc1abf38aeda726a71442c630f31f39b250f28ac7de36512"
     },
@@ -4873,404 +4803,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/mpp",
-      "connector_digest": "sha256:ed4fbe1b5156ea90add27beb0e253540a330daf5f494004db63afa75a6a1dc10",
-      "manifest_digest": "sha256:722071aeff5f43e8ce1517874bb1b0740337e9dd01cfe2db2181969f1166868e"
-    },
-    "digests": {
-      "payment.charge": {
-        "operation": "sha256:08682bad68fee96a4b6c11c4b6f7d18f297ae050027272dd4d09b930bfd5a294"
-      },
-      "payment.charge.read": {
-        "operation": "sha256:a3b93e62796d3c9eeae6d6da3d2eb7f41c17077cdaac0a980e1d6ef19e87aafd"
-      },
-      "payment.invoice.read": {
-        "operation": "sha256:f5884fd5994893125a0d0b0b80c549327ca3cbab9754b38c44fc3e7818aedc8c"
-      },
-      "payment.invoice.settle": {
-        "operation": "sha256:91b948c08cbd290d7e56c2d507a155691648227f1e954e6d5cabb588a8738c0c"
-      },
-      "payment.refund": {
-        "operation": "sha256:17fc8cb817f87474ac93b0da0a5a2e250d611bb75a79be2cd80437d490ff22b7"
-      },
-      "payment.refund.read": {
-        "operation": "sha256:8c4305ac27c42f222e3e78f9115cf7bcd76927a0c49362ce7331c7dc8952388c"
-      },
-      "payment.spend": {
-        "operation": "sha256:24155284fff1ce5afff68b667a3b09cc199d274060a2f86491847478bf62538a"
-      },
-      "payment.spend.read": {
-        "operation": "sha256:6711cabf908c7e96e31a21a721508764b92cb7bf41d06a6322e8fa4f27771705"
-      }
-    },
-    "manifest": {
-      "auth": {
-        "delegated": {}
-      },
-      "category": "payments",
-      "description": "Charge, pay, refund and settle invoices on the Machine Payments Protocol rail. Declared only; no placement implements it yet.",
-      "id": "mpp",
-      "name": "Machine Payments Protocol",
-      "operations": {
-        "payment.charge": {
-          "amount": "required",
-          "approval": "required",
-          "description": "Charge one admitted paid call with the caller's settlement credential.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "credential_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "mcp_tool_call": {
-                "type": "object"
-              },
-              "provider_policy": {
-                "properties": {
-                  "counterparty": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "counterparty"
-                ],
-                "type": "object"
-              },
-              "verify_capability_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "mcp_tool_call",
-              "provider_policy",
-              "credential_ref",
-              "verify_capability_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "charge_ref",
-            "settlement_family",
-            "status",
-            "credential_ref"
-          ],
-          "scopes": [
-            "payment.charge"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/provider_policy/counterparty"
-            }
-          },
-          "verb": "write"
-        },
-        "payment.charge.read": {
-          "description": "Read back one charge.",
-          "input_schema": {
-            "properties": {
-              "charge_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "charge_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "charge_ref",
-            "settlement_family",
-            "status",
-            "credential_ref"
-          ],
-          "scopes": [
-            "payment.charge.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/charge_ref"
-            }
-          },
-          "verb": "read"
-        },
-        "payment.invoice.read": {
-          "description": "Read back one invoice settlement.",
-          "input_schema": {
-            "properties": {
-              "invoice_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "payment_ref": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "invoice_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "invoice_ref",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.invoice.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/invoice_ref"
-            }
-          },
-          "verb": "read"
-        },
-        "payment.invoice.settle": {
-          "amount": "required",
-          "approval": "required",
-          "description": "Settle one invoice to its payee under a parent payment authority.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "amount_minor": {
-                "minimum": 1,
-                "type": "integer"
-              },
-              "currency": {
-                "pattern": "^[A-Z]{3}$",
-                "type": "string"
-              },
-              "invoice_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "parent_payment_authority": {
-                "type": "object"
-              },
-              "payee": {
-                "type": "object"
-              },
-              "rail_profile_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "realm": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "invoice_ref",
-              "amount_minor",
-              "currency",
-              "payee",
-              "rail_profile_ref",
-              "parent_payment_authority"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "invoice_ref",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.invoice.settle"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/invoice_ref"
-            }
-          },
-          "verb": "write"
-        },
-        "payment.refund": {
-          "amount": "required",
-          "approval": "required",
-          "description": "Refund part or all of one settled payment under its parent authority.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "original_receipt_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "parent_payment_authority": {
-                "type": "object"
-              },
-              "refund_request": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "original_receipt_ref",
-              "refund_request",
-              "parent_payment_authority"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "refund_ref",
-            "original_receipt_ref",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.refund"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/original_receipt_ref"
-            }
-          },
-          "verb": "write"
-        },
-        "payment.refund.read": {
-          "description": "Read back one refund.",
-          "input_schema": {
-            "properties": {
-              "original_receipt_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "refund_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "refund_ref",
-              "original_receipt_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "refund_ref",
-            "original_receipt_ref",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.refund.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/original_receipt_ref"
-            }
-          },
-          "verb": "read"
-        },
-        "payment.spend": {
-          "amount": "required",
-          "approval": "required",
-          "description": "Pay one payment requirement under a parent spend authority.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "parent_payment_authority": {
-                "type": "object"
-              },
-              "payment_admission": {
-                "type": "object"
-              },
-              "payment_signal": {
-                "properties": {
-                  "counterparty": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "counterparty"
-                ],
-                "type": "object"
-              },
-              "rail_profile_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "realm": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "payment_signal",
-              "parent_payment_authority",
-              "rail_profile_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "rail",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.spend"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/payment_signal/counterparty"
-            }
-          },
-          "verb": "write"
-        },
-        "payment.spend.read": {
-          "description": "Read back one payment.",
-          "input_schema": {
-            "properties": {
-              "payment_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "payment_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "rail",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.spend.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/payment_ref"
-            }
-          },
-          "verb": "read"
-        }
-      },
-      "placements": {
-        "hosted": {
-          "auth": "delegated"
-        }
-      },
-      "runtime_capability": false,
-      "schema": "runx.connector.v1"
-    },
-    "manifest_digest": "sha256:722071aeff5f43e8ce1517874bb1b0740337e9dd01cfe2db2181969f1166868e"
-  },
-  {
-    "connector_binding": {
-      "connector": "runx/n8n",
+      "connector": "n8n",
       "connector_digest": "sha256:91d5125fdda3b4ce331b5fc03b9620a31ff7bb4437aeddd0ed619554e6164c6b",
       "manifest_digest": "sha256:d50a7b0c8f2c438dcc3e09b959f5ebc797a0863f040ffa053b900dd726d42b1f"
     },
@@ -5440,7 +4973,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/national-weather-service",
+      "connector": "national-weather-service",
       "connector_digest": "sha256:631af365b39c02bf9a1852709ae1c2808364ab29b8265ab358df5e8a8429477c",
       "manifest_digest": "sha256:a14f720ae8657c22f32e912480ef968125556652559e50676a40cf30360d589d"
     },
@@ -5624,7 +5157,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/notion",
+      "connector": "notion",
       "connector_digest": "sha256:410a42724fac48bcb47be3b30b92342def98f7ff69efc54c0809a5be1a978929",
       "manifest_digest": "sha256:acdab0e45c0a1a2651e57670bb93675cd5e04fc60a934d24f4a8ae9837857150"
     },
@@ -6034,7 +5567,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/open-meteo",
+      "connector": "open-meteo",
       "connector_digest": "sha256:4624e6618658c9c7e761850eee0906906a6a094cd93ae05e309d15dd87d35b94",
       "manifest_digest": "sha256:40ce93500c33c68c9f0cc5fd2f6778da06136f4a251f028da8fa36fd2d66cd9c"
     },
@@ -6277,7 +5810,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/osv",
+      "connector": "osv",
       "connector_digest": "sha256:9507a45be399150b420761221ff8ca9311807aa2e497c6e14308745ce6035b33",
       "manifest_digest": "sha256:a2a984dc55698fa143486ebbfefbf6ca34d95386838144dac8d01d5e9b2e31ba"
     },
@@ -6484,7 +6017,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/posthog",
+      "connector": "posthog",
       "connector_digest": "sha256:b244997174ad0da16fb9dc0489c07b80987fb5609e28e13c80092614b342d2b8",
       "manifest_digest": "sha256:22d948ef6426b10633cdc3a0c67aeaed3a486452ee4c2ea38b86415ba8ee4ef6"
     },
@@ -6754,7 +6287,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/reddit",
+      "connector": "reddit",
       "connector_digest": "sha256:d332e7691f4046a710c277814375f208d5548c5244f5c17ff16fc4b428ff5d17",
       "manifest_digest": "sha256:61642ac90f2f5b97b2626d85e72f822cfbe6559804950810f7c2c049c8881740"
     },
@@ -7243,7 +6776,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/scafld",
+      "connector": "scafld",
       "connector_digest": "sha256:cad382d429680c8b98efb0b7e62b9f3ac4d113d2940a3d0267e9011d8b1d3bec",
       "manifest_digest": "sha256:0af41990f6347b4bbed6ddd7a3a927e8e4b8bffe731e10aaa013a20cdc9cc7fd"
     },
@@ -7324,7 +6857,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/sentry",
+      "connector": "sentry",
       "connector_digest": "sha256:2789e7084acdc723aca3c03312827c47e7abfb4db72bf9e15d454043f2bb8cb0",
       "manifest_digest": "sha256:e21741e32aa497186dc5357b5a1f81687142f243a957e4d20968f6dfaa5eb41e"
     },
@@ -7683,9 +7216,9 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/slack",
-      "connector_digest": "sha256:1e115c4f2b00a4caa9e9930929b71772468c0f48f4f7750bf9038ca27f7e97a0",
-      "manifest_digest": "sha256:33bf52ad9c3f89f05379224ddb8b624086f993b15a79c54d82ea401d99ae6066"
+      "connector": "slack",
+      "connector_digest": "sha256:42936a483663c2c55b8be92105dcc37e0c49f30fbabc2af03bbf0abb8f80dd12",
+      "manifest_digest": "sha256:f7fcdf3675a38537590a42c52eb1ff9156a1883dacffe7817d833c7f66de2a39"
     },
     "digests": {
       "channel.post": {
@@ -7696,12 +7229,6 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       },
       "file.read": {
         "operation": "sha256:63226ad9963ab8c04dd9ea735d42b218b2bff6e16907888625e1d2572865ae7d"
-      },
-      "message.read": {
-        "operation": "sha256:6ad8396b17659c103cc220716c7ff5d556fabbd7a24dfd95a5723aa838de9473"
-      },
-      "message.send": {
-        "operation": "sha256:34ad99a8591fbf416cfe98e89250de178d4e660012843b361af4b21026831bb9"
       },
       "messages.search": {
         "operation": "sha256:9a36eaa8d822295afc925ce4be0b19b3c35be8cf13c90fd1b7d552e425aed1af"
@@ -7718,7 +7245,13 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
     },
     "manifest": {
       "auth": {
-        "delegated": {}
+        "delegated": {
+          "principal": {
+            "id": "user_id",
+            "login": "user",
+            "url": "https://slack.com/api/auth.test"
+          }
+        }
       },
       "category": "communication",
       "description": "Search, read and post messages in Slack workspaces.",
@@ -7819,97 +7352,6 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
             }
           },
           "verb": "read"
-        },
-        "message.read": {
-          "description": "Read back one sent message. Declared only; no placement implements it yet.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "message_id": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "target": {
-                "maxLength": 2048,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "target",
-              "message_id"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "message_id",
-            "principal_ref",
-            "audience_ref",
-            "content_digest",
-            "status",
-            "sent_at",
-            "idempotency_key"
-          ],
-          "scopes": [
-            "message.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/target"
-            }
-          },
-          "verb": "read"
-        },
-        "message.send": {
-          "approval": "required",
-          "description": "Send one digest-bound message as a principal to the target conversation. Declared only; no placement implements it yet.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "message": {
-                "properties": {
-                  "schema": {
-                    "const": "runx.message.send.v1"
-                  }
-                },
-                "required": [
-                  "schema",
-                  "principal",
-                  "audience",
-                  "content"
-                ],
-                "type": "object"
-              },
-              "target": {
-                "maxLength": 2048,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "target",
-              "message"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "message_id",
-            "principal_ref",
-            "audience_ref",
-            "content_digest",
-            "status",
-            "sent_at",
-            "idempotency_key"
-          ],
-          "scopes": [
-            "message.send"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/target"
-            }
-          },
-          "verb": "write"
         },
         "messages.search": {
           "description": "Search messages the connected member can see.",
@@ -8037,11 +7479,11 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:33bf52ad9c3f89f05379224ddb8b624086f993b15a79c54d82ea401d99ae6066"
+    "manifest_digest": "sha256:f7fcdf3675a38537590a42c52eb1ff9156a1883dacffe7817d833c7f66de2a39"
   },
   {
     "connector_binding": {
-      "connector": "runx/store",
+      "connector": "store",
       "connector_digest": "sha256:8e06db1f2833119991b98286ce45a7b43b22a9c4ccb7ffa17bb1a80871f72cab",
       "manifest_digest": "sha256:2cae906d1a6e30059f72655a1098235b4331a1da7db08fa4c30407ad0b9022d3"
     },
@@ -8430,241 +7872,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/stripe",
-      "connector_digest": "sha256:7f32bf1783e6605c0c26e1c52c1498a37dcbc9ecc6754f0e2df4af7363c79415",
-      "manifest_digest": "sha256:9aa14d5552a259d4d1e118781402da71c17f0a44aad33b8dc21f935123005b37"
-    },
-    "digests": {
-      "dispute.file": {
-        "operation": "sha256:156cfd328659ce8a7a0409b4934e380d3e1e13da037a3f13d4a4145507d5d3c0"
-      },
-      "dispute.read": {
-        "operation": "sha256:b2de6cc2ec7cd0db5e84825ac0842b4f47d11093a4ef13f11330bdb7e0d3decc"
-      }
-    },
-    "manifest": {
-      "auth": {
-        "delegated": {}
-      },
-      "category": "payments",
-      "description": "File and read payment dispute responses. Declared only; no placement implements it yet.",
-      "id": "stripe",
-      "name": "Stripe",
-      "operations": {
-        "dispute.file": {
-          "approval": "required",
-          "description": "File one evidence-bound response to a payment dispute.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "dispute_packet": {
-                "properties": {
-                  "dispute": {
-                    "properties": {
-                      "dispute_id": {
-                        "minLength": 1,
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "dispute_id"
-                    ],
-                    "type": "object"
-                  }
-                },
-                "required": [
-                  "dispute"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "dispute_packet"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "dispute_id",
-            "filing_ref",
-            "request_digest",
-            "status"
-          ],
-          "scopes": [
-            "dispute.file"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/dispute_packet/dispute/dispute_id"
-            }
-          },
-          "verb": "write"
-        },
-        "dispute.read": {
-          "description": "Read back one dispute filing.",
-          "input_schema": {
-            "properties": {
-              "dispute_id": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "dispute_id"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "dispute_id",
-            "filing_ref",
-            "request_digest",
-            "status"
-          ],
-          "scopes": [
-            "dispute.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/dispute_id"
-            }
-          },
-          "verb": "read"
-        }
-      },
-      "placements": {
-        "hosted": {
-          "auth": "delegated"
-        }
-      },
-      "runtime_capability": false,
-      "schema": "runx.connector.v1"
-    },
-    "manifest_digest": "sha256:9aa14d5552a259d4d1e118781402da71c17f0a44aad33b8dc21f935123005b37"
-  },
-  {
-    "connector_binding": {
-      "connector": "runx/stripe-spt",
-      "connector_digest": "sha256:7c2fa6d83dba410c9ab20b92693e4e785de39714b558a7bedf713c44a4510440",
-      "manifest_digest": "sha256:5ebed12c15603b5bbf37de207612f2f42642ca7700d32d952295f009e25a43d8"
-    },
-    "digests": {
-      "payment.spend": {
-        "operation": "sha256:b9e7674c9aef992806f7eeee0627995a06a058d86ed374d06d4868ad2bb2e74a"
-      },
-      "payment.spend.read": {
-        "operation": "sha256:57b2bec9f3162774bca857d3d28adf6e243f4672ac7b50b0ecd5e35c4f1bba2a"
-      }
-    },
-    "manifest": {
-      "auth": {
-        "delegated": {}
-      },
-      "category": "payments",
-      "description": "Pay a payment requirement with a Stripe shared payment token. Declared only; no placement implements it yet.",
-      "id": "stripe-spt",
-      "name": "Stripe shared payment tokens",
-      "operations": {
-        "payment.spend": {
-          "amount": "required",
-          "approval": "required",
-          "description": "Pay one payment requirement under a parent spend authority.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "parent_payment_authority": {
-                "type": "object"
-              },
-              "payment_admission": {
-                "type": "object"
-              },
-              "payment_signal": {
-                "properties": {
-                  "counterparty": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "counterparty"
-                ],
-                "type": "object"
-              },
-              "rail_profile_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "realm": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "payment_signal",
-              "parent_payment_authority",
-              "rail_profile_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "rail",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.spend"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/payment_signal/counterparty"
-            }
-          },
-          "verb": "write"
-        },
-        "payment.spend.read": {
-          "description": "Read back one payment.",
-          "input_schema": {
-            "properties": {
-              "payment_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "payment_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "payment_ref",
-            "rail",
-            "amount_minor",
-            "currency",
-            "status"
-          ],
-          "scopes": [
-            "payment.spend.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/payment_ref"
-            }
-          },
-          "verb": "read"
-        }
-      },
-      "placements": {
-        "hosted": {
-          "auth": "delegated"
-        }
-      },
-      "runtime_capability": false,
-      "schema": "runx.connector.v1"
-    },
-    "manifest_digest": "sha256:5ebed12c15603b5bbf37de207612f2f42642ca7700d32d952295f009e25a43d8"
-  },
-  {
-    "connector_binding": {
-      "connector": "runx/twitter",
+      "connector": "twitter",
       "connector_digest": "sha256:2223f46093fde3ba2ffedd272eb450733d3b53ef7d9a036717289db17035fedc",
       "manifest_digest": "sha256:c0acbfc53c5d26c786a02812ceef1fe8a50e2e169d5ce46141a6f0043ae8efac"
     },
@@ -10781,220 +9989,16 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
   },
   {
     "connector_binding": {
-      "connector": "runx/vault",
-      "connector_digest": "sha256:851d63e45eea1dae0e188f6e5870ab63cd7e032ab448b18b8feeb8497ff3d137",
-      "manifest_digest": "sha256:35bab0dab18d65514e45b7aa915383964555b066be3d1c3ccadf6e8337acd0b8"
-    },
-    "digests": {
-      "handle.read": {
-        "operation": "sha256:9bea38cfa2d5d71b437b036b44ced4be24b10533783d63ebf48a57d3272fc54d"
-      },
-      "secret.unseal": {
-        "operation": "sha256:62a87de1a189b2c7f6436ec399bd249d84a93a7ca3eeced534be3115ac4550f9"
-      }
-    },
-    "manifest": {
-      "auth": {
-        "delegated": {}
-      },
-      "category": "agent-tools",
-      "description": "Issue and read time-bounded handles to sealed secrets. Declared only; no placement implements it yet.",
-      "id": "vault",
-      "name": "Vault",
-      "operations": {
-        "handle.read": {
-          "description": "Read back one issued handle.",
-          "input_schema": {
-            "properties": {
-              "handle_ref": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "handle_ref"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "handle_ref",
-            "expires_at",
-            "status"
-          ],
-          "scopes": [
-            "handle.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/handle_ref"
-            }
-          },
-          "verb": "read"
-        },
-        "secret.unseal": {
-          "approval": "required",
-          "description": "Issue one time-bounded handle to a sealed secret for a stated purpose.",
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "principal": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "purpose": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "scope": {
-                "type": "object"
-              },
-              "secret_ref": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "ttl": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "secret_ref",
-              "purpose",
-              "ttl",
-              "scope",
-              "principal"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "handle_ref",
-            "expires_at",
-            "status"
-          ],
-          "scopes": [
-            "secret.unseal"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/secret_ref"
-            }
-          },
-          "verb": "write"
-        }
-      },
-      "placements": {
-        "hosted": {
-          "auth": "delegated"
-        }
-      },
-      "runtime_capability": true,
-      "schema": "runx.connector.v1"
-    },
-    "manifest_digest": "sha256:35bab0dab18d65514e45b7aa915383964555b066be3d1c3ccadf6e8337acd0b8"
-  },
-  {
-    "connector_binding": {
-      "connector": "runx/web",
-      "connector_digest": "sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599",
-      "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d"
-    },
-    "digests": {
-      "page.read": {
-        "implementation": "sha256:9922502703354e974352caf85c8bae4aba71b2d1eee76e1040856bcae3c60d17",
-        "operation": "sha256:0051e84de6dadaf517a201b382fbc9fff9a63538ce26883a06c826546c13fd54"
-      }
-    },
-    "manifest": {
-      "auth": {
-        "none": {}
-      },
-      "category": "search",
-      "description": "Read public web pages over HTTP(S).",
-      "id": "web",
-      "name": "Web",
-      "operations": {
-        "page.read": {
-          "description": "Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.",
-          "implementation": {
-            "web": {}
-          },
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "allowlist": {
-                "items": {
-                  "maxLength": 253,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "maxItems": 64,
-                "minItems": 1,
-                "type": "array",
-                "uniqueItems": true
-              },
-              "extract": {
-                "enum": [
-                  "text",
-                  "metadata",
-                  "links",
-                  "json"
-                ],
-                "type": "string"
-              },
-              "url": {
-                "format": "uri",
-                "pattern": "^https?://",
-                "type": "string"
-              }
-            },
-            "required": [
-              "url"
-            ],
-            "type": "object"
-          },
-          "result_fields": [
-            "final_url",
-            "status",
-            "content_digest",
-            "extract_mode",
-            "extracted",
-            "provenance"
-          ],
-          "scopes": [
-            "web.read"
-          ],
-          "target": {
-            "template": {
-              "$argument": "/url"
-            }
-          },
-          "verb": "read"
-        }
-      },
-      "placements": {
-        "local": {
-          "auth": [
-            "none"
-          ]
-        }
-      },
-      "runtime_capability": true,
-      "schema": "runx.connector.v1"
-    },
-    "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d"
-  },
-  {
-    "connector_binding": {
-      "connector": "runx/x402",
-      "connector_digest": "sha256:4a9add86f718f3c3cd88173fbe1228b3bd33aa01b7b024f0674ef4f3b17e80a3",
-      "manifest_digest": "sha256:a02f457743aeaab8c41c827277f925cbf493f5e2b06a58521ddb021aab2e79c5"
+      "connector": "wallet/evm",
+      "connector_digest": "sha256:0b859773acacc0aeaad42deaf972ec9edd207a6c62252cc280c8e0b78e261e40",
+      "manifest_digest": "sha256:af3eccd3ade48c158aae07ee70789f59fd86735b2ed998530583c15d46817f16"
     },
     "digests": {
       "payment.x402": {
-        "operation": "sha256:e1cb262eb7e15ef1544df04cfc5b7ca22910aa072b461c5f2f05ebfb2ef94212"
+        "operation": "sha256:fa4859561afac0c7b31a7ce95e1482533e513e0e66ca5e26feedeab2900d6001"
       },
       "payment.x402.read": {
-        "operation": "sha256:6f880e88f347e7ad0d9fbc04b8c95b2cbcb7641d6c020d7ef108077cbf4a47e5"
+        "operation": "sha256:8cecf49eabfdee9b237e71db1c2774629071015ec87ae15a5626e8bffe2d9cbd"
       }
     },
     "manifest": {
@@ -11024,7 +10028,7 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       },
       "category": "payments",
       "description": "Pay x402 challenges for HTTPS resources from an EVM wallet on Base and read the payments back.",
-      "id": "x402",
+      "id": "wallet/evm",
       "name": "x402",
       "operations": {
         "payment.x402": {
@@ -11130,11 +10134,102 @@ export const runxMaintainedConnectors: readonly RunxMaintainedConnector[] = [
       "runtime_capability": false,
       "schema": "runx.connector.v1"
     },
-    "manifest_digest": "sha256:a02f457743aeaab8c41c827277f925cbf493f5e2b06a58521ddb021aab2e79c5"
+    "manifest_digest": "sha256:af3eccd3ade48c158aae07ee70789f59fd86735b2ed998530583c15d46817f16"
   },
   {
     "connector_binding": {
-      "connector": "runx/zapier",
+      "connector": "web",
+      "connector_digest": "sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599",
+      "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d"
+    },
+    "digests": {
+      "page.read": {
+        "implementation": "sha256:9922502703354e974352caf85c8bae4aba71b2d1eee76e1040856bcae3c60d17",
+        "operation": "sha256:0051e84de6dadaf517a201b382fbc9fff9a63538ce26883a06c826546c13fd54"
+      }
+    },
+    "manifest": {
+      "auth": {
+        "none": {}
+      },
+      "category": "search",
+      "description": "Read public web pages over HTTP(S).",
+      "id": "web",
+      "name": "Web",
+      "operations": {
+        "page.read": {
+          "description": "Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.",
+          "implementation": {
+            "web": {}
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "allowlist": {
+                "items": {
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "extract": {
+                "enum": [
+                  "text",
+                  "metadata",
+                  "links",
+                  "json"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "pattern": "^https?://",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "type": "object"
+          },
+          "result_fields": [
+            "final_url",
+            "status",
+            "content_digest",
+            "extract_mode",
+            "extracted",
+            "provenance"
+          ],
+          "scopes": [
+            "web.read"
+          ],
+          "target": {
+            "template": {
+              "$argument": "/url"
+            }
+          },
+          "verb": "read"
+        }
+      },
+      "placements": {
+        "local": {
+          "auth": [
+            "none"
+          ]
+        }
+      },
+      "runtime_capability": true,
+      "schema": "runx.connector.v1"
+    },
+    "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d"
+  },
+  {
+    "connector_binding": {
+      "connector": "zapier",
       "connector_digest": "sha256:6c86ebace42790c22ce03889dadf05b4ba761db14f5438cc73fa1a5011da88b8",
       "manifest_digest": "sha256:084d8ac05e23574025d62870d5c8f587da6153b24e4206c92add21eb95376f08"
     },

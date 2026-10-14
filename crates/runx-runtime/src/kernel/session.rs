@@ -11,7 +11,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use runx_contracts::JsonValue;
-use runx_contracts::connector::{ConnectorManifest, CredentialName, SessionAuth, SessionPrincipal};
+use runx_contracts::connector::{ConnectorManifest, CredentialName, SessionAuth, PrincipalRequest};
 use runx_contracts::schema::NonEmptyString;
 
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};
@@ -26,7 +26,7 @@ pub(crate) struct CommandSession<'a> {
     connector: &'a str,
     command: &'a [NonEmptyString],
     pub credential: &'a CredentialName,
-    principal: &'a SessionPrincipal,
+    principal: &'a PrincipalRequest,
 }
 
 /// Who a token belongs to.

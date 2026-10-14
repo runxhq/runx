@@ -13,7 +13,7 @@ use runx_contracts::connector::{
     CredentialName, Digest, HostedAuth, HttpAuth, HttpImplementation, HttpMethod, HttpReadback,
     HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
     OperationVerb, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration,
-    SessionAuth, SessionPrincipal, Template, manifest_digest, operation_digest,
+    PrincipalRequest, SessionAuth, Template, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -354,6 +354,9 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
             "delegated auth needs a delegated hosted placement",
         );
     }
+    if let Some(delegated) = &auth.delegated {
+        validate_delegated_principal(manifest, &delegated.principal, errors);
+    }
     if auth.session.is_some()
         && manifest
             .placements
@@ -446,7 +449,7 @@ fn validate_command_session(
     auth: &ConnectorAuth,
     command: &[NonEmptyString],
     credential: &CredentialName,
-    principal: &SessionPrincipal,
+    principal: &PrincipalRequest,
     errors: &mut Errors,
 ) {
     if command
@@ -473,11 +476,7 @@ fn validate_command_session(
             ),
         );
     }
-    let host = url::Url::parse(principal.url.as_str())
-        .ok()
-        .filter(|url| url.scheme() == "https")
-        .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
-    match host {
+    match https_host(principal) {
         Some(host)
             if declaration
                 .audience
@@ -492,6 +491,45 @@ fn validate_command_session(
             "the principal URL must be https",
         ),
     }
+}
+
+/// A delegated grant's principal request goes where its hosted operations
+/// go: over https, to a host one of them declares. Operations a hosted driver
+/// implements declare no hosts here; Connect holds every request under a
+/// delegated grant, this one included, to its provider's host allowlist.
+fn validate_delegated_principal(
+    manifest: &ConnectorManifest,
+    principal: &PrincipalRequest,
+    errors: &mut Errors,
+) {
+    let declared: BTreeSet<&str> = manifest
+        .operations
+        .values()
+        .filter(|operation| operation.hosted.is_some())
+        .filter_map(|operation| match &operation.implementation {
+            Some(Implementation::Http(http)) => Some(http),
+            _ => None,
+        })
+        .flat_map(|http| http.allowed_hosts.iter().map(NonEmptyString::as_str))
+        .collect();
+    match https_host(principal) {
+        Some(host) if declared.is_empty() || declared.contains(host.as_str()) => {}
+        Some(host) => errors.push(
+            "auth.delegated.principal.url",
+            format!("host {host} is not one the connector's hosted operations reach"),
+        ),
+        None => errors.push(
+            "auth.delegated.principal.url",
+            "the principal URL must be https",
+        ),
+    }
+}
+
+fn https_host(principal: &PrincipalRequest) -> Option<String> {
+    url::Url::parse(principal.url.as_str())
+        .ok()
+        .filter(|url| url.scheme() == "https")
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
 }
 
 fn validate_operation(

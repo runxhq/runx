@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::connector::{is_connector_id, is_publisher_namespace};
+use crate::connector::{is_connector_name, is_publisher_namespace};
 use crate::{CanonicalJsonError, canonical_digest, is_registry_version, to_canonical_bytes};
 
 pub const REGISTRY_SIGNED_MANIFEST_SCHEMA: &str = "runx.registry.signed_manifest.v1";
@@ -37,8 +37,8 @@ impl RegistrySubjectKind {
     }
 }
 
-/// What a version belongs to: `publisher/name` for a skill, `publisher/id`
-/// for a connector.
+/// What a version belongs to: `publisher/name` for a skill, the connector's
+/// name for a connector.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegistrySubject {
@@ -159,18 +159,16 @@ impl RegistrySignedManifest {
     }
 }
 
-/// `publisher/name` of the given kind: a publisher namespace, then a skill
-/// name or a connector id.
+/// A subject of the given kind: a skill's `publisher/name`, or a connector's
+/// name.
 #[must_use]
 pub fn is_registry_subject_ref(kind: RegistrySubjectKind, value: &str) -> bool {
-    let Some((publisher, name)) = value.split_once('/') else {
-        return false;
-    };
-    is_publisher_namespace(publisher)
-        && match kind {
-            RegistrySubjectKind::Skill => is_skill_name(name),
-            RegistrySubjectKind::Connector => is_connector_id(name),
-        }
+    match kind {
+        RegistrySubjectKind::Skill => value
+            .split_once('/')
+            .is_some_and(|(publisher, name)| is_publisher_namespace(publisher) && is_skill_name(name)),
+        RegistrySubjectKind::Connector => is_connector_name(value),
+    }
 }
 
 /// A frontmatter skill name: at most 64 lowercase letters, digits and

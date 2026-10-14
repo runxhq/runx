@@ -754,12 +754,10 @@ fn validate_setup(setup: HarnessSetup) -> Result<HarnessSetup, HarnessFixtureErr
                 .map(|(index, connector)| (format!("setup.credentials[{index}]"), connector)),
         )
     {
-        if !runx_contracts::connector::is_connector_id(connector)
-            && !runx_contracts::connector::is_connector_ref(connector)
-        {
+        if !runx_contracts::connector::is_connector_name(connector) {
             return Err(HarnessFixtureError::Invalid {
                 field,
-                message: "must name a connector id or a qualified <publisher>/<id> ref".to_owned(),
+                message: "must name a connector".to_owned(),
             });
         }
         if !connectors.insert(connector) {

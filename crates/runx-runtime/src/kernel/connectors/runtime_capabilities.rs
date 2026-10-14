@@ -159,52 +159,6 @@ operations:
 "###,
     ),
     (
-        "vault",
-        r###"schema: runx.connector.v1
-id: vault
-name: Vault
-description: Issue and read time-bounded handles to sealed secrets. Declared only; no placement implements it yet.
-category: agent-tools
-runtime_capability: true
-auth:
-  delegated: {}
-placements:
-  hosted:
-    auth: delegated
-operations:
-  secret.unseal:
-    description: Issue one time-bounded handle to a sealed secret for a stated purpose.
-    verb: write
-    scopes: [secret.unseal]
-    target:
-      template: {"$argument": "/secret_ref"}
-    approval: required
-    input_schema:
-      type: object
-      required: [secret_ref, purpose, ttl, scope, principal]
-      additionalProperties: false
-      properties:
-        secret_ref: {type: string, minLength: 1}
-        purpose: {type: string, minLength: 1}
-        ttl: {type: string, minLength: 1}
-        scope: {type: object}
-        principal: {type: string, minLength: 1}
-    result_fields: [handle_ref, expires_at, status]
-  handle.read:
-    description: Read back one issued handle.
-    verb: read
-    scopes: [handle.read]
-    target:
-      template: {"$argument": "/handle_ref"}
-    input_schema:
-      type: object
-      required: [handle_ref]
-      properties:
-        handle_ref: {type: string, minLength: 1}
-    result_fields: [handle_ref, expires_at, status]
-"###,
-    ),
-    (
         "web",
         r###"schema: runx.connector.v1
 id: web
@@ -257,15 +211,6 @@ pub(super) const ASSETS: &[(&str, &str, &str)] = &[
     ),
     (
         "store",
-        "mark.svg",
-        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>
-  <path fill="#f56819" d="M10 47h14l4 11H7Z"/>
-</svg>
-"###,
-    ),
-    (
-        "vault",
         "mark.svg",
         r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
   <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>

@@ -7,7 +7,7 @@ use super::source_authority::{
     RegistryManifestSourceAuthority, registry_manifest_source_authority_from_env,
     registry_manifest_source_key,
 };
-use super::types::{RegistrySignedManifest, TrustTier};
+use super::types::{RegistrySignedManifest, RegistrySubjectKind, TrustTier};
 use runx_contracts::{REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX};
 
 pub use runx_contracts::REGISTRY_SIGNED_MANIFEST_SCHEMA;
@@ -198,14 +198,28 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
     Ok(trusted_keys)
 }
 
-/// Whether `key` may sign `subject_ref` (`publisher/name`, a skill or a
-/// connector) at `trust_tier` from `source_authority`.
+/// Whether `key` may sign `subject_ref` of `kind` (a skill's
+/// `publisher/name`, or a connector's name) at `trust_tier` from
+/// `source_authority`. A skill's namespace is its publisher; a connector's is
+/// its name's first segment. Which publisher holds a provider namespace is
+/// the registry's record, not something a name shows, so the official key
+/// grants `first_party` to runx's own skills only.
 pub fn registry_manifest_key_allows(
     key: &TrustedRegistryManifestKey,
+    kind: RegistrySubjectKind,
     subject_ref: &str,
     trust_tier: &TrustTier,
     source_authority: Option<&RegistryManifestSourceAuthority>,
 ) -> Result<(), String> {
+    let namespace = match kind {
+        RegistrySubjectKind::Skill => subject_ref
+            .split_once('/')
+            .map(|(owner, _)| owner)
+            .ok_or_else(|| "a skill ref must include its publisher".to_owned())?,
+        RegistrySubjectKind::Connector => subject_ref
+            .split_once('/')
+            .map_or(subject_ref, |(namespace, _)| namespace),
+    };
     match &key.scope {
         RegistryManifestTrustScope::OfficialRunx => {
             if !matches!(
@@ -217,8 +231,10 @@ pub fn registry_manifest_key_allows(
                         .to_owned(),
                 );
             }
-            if matches!(trust_tier, TrustTier::FirstParty) && !subject_ref.starts_with("runx/") {
-                return Err("official key may only grant first_party trust to runx/*".to_owned());
+            if matches!(trust_tier, TrustTier::FirstParty)
+                && (kind != RegistrySubjectKind::Skill || namespace != "runx")
+            {
+                return Err("official key may only grant first_party trust to runx/* skills".to_owned());
             }
             Ok(())
         }
@@ -237,14 +253,13 @@ pub fn registry_manifest_key_allows(
                     "third-party key may only sign from registry source {allowed_source}"
                 ));
             }
-            let Some((owner, _name)) = subject_ref.split_once('/') else {
-                return Err("registry ref must include a publisher namespace".to_owned());
-            };
-            if owner == "runx" {
+            if namespace == "runx" {
                 return Err("third-party keys may not sign runx/*".to_owned());
             }
-            if owner != allowed_owner {
-                return Err(format!("third-party key may only sign {allowed_owner}/*"));
+            if namespace != allowed_owner {
+                return Err(format!(
+                    "third-party key may only sign in the {allowed_owner} namespace"
+                ));
             }
             Ok(())
         }

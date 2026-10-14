@@ -1,0 +1,248 @@
+skill: webhook-handoff
+version: "0.1.0"
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: context
+  execution: execute
+  completion: provider_acknowledgement
+  approval: required
+  category: ops
+input_definitions:
+  platform:
+    type: string
+    required: true
+    description: The workflow platform that receives the handoff, and the connector that delivers it.
+    schema: { enum: [n8n, zapier] }
+  event_id:
+    type: string
+    required: true
+    description: Stable event id the receiver dedupes by, and Runx's mutation idempotency key.
+    schema: { pattern: '^[A-Za-z0-9._:-]{3,200}$' }
+  handoff_audience:
+    type: string
+    required: false
+    description: Exact receiver audience, n8n:workflow:<slug> or zapier:zap:<name>; defaults to the platform's runx-governed-effect receiver.
+    schema: { pattern: '^(n8n:workflow|zapier:zap):[^\s{}]+$' }
+  execution_context:
+    type: json
+    packet: runx.orchestrator.execution_context.v1
+    required: true
+    description: Caller, principal, workflow, or upstream-run context for the handoff.
+  payload:
+    type: json
+    required: true
+    description: Non-empty business payload delivered intact inside the canonical envelope.
+  source:
+    type: string
+    required: false
+    default: runx
+    description: Human-readable source label.
+    schema: { minLength: 1, maxLength: 256 }
+  receiver:
+    type: json
+    required: false
+    description: Optional receiver metadata; a supplied url must be public HTTPS.
+  webhook_host:
+    type: string
+    required: false
+    description: For n8n, the workspace's n8n Cloud host, such as acme.app.n8n.cloud, without scheme or path. Zapier takes none.
+    schema: { pattern: '^[a-z0-9][a-z0-9-]{0,62}\.app\.n8n\.cloud$' }
+harness:
+  files: [fixtures/support/composed.graph]
+  cases:
+    - name: webhook-handoff-preflight-ready-n8n
+      operator_journeys:
+        - mode: standalone
+          request: Hand this governed Runx payload to the configured n8n workflow.
+          expected_outcome: Validate context, bind scoped auth and idempotency, and return the exact provider-neutral webhook handoff contract.
+        - mode: composed
+          request: Continue this completed Runx operation into the selected n8n workflow.
+          expected_outcome: Reuse the supplied run context and payload without rebuilding upstream results or duplicating webhook delivery.
+          prior_evidence:
+            - The validated Runx execution context, payload, workflow target, and idempotency key supplied in the fixture.
+          must_not_repeat:
+            - Do not rerun the upstream Runx operation.
+            - Do not deliver the webhook again after stable receipt evidence exists.
+      runner: preflight
+      inputs:
+        platform: n8n
+        event_id: evt_n8n_demo_001
+        execution_context:
+          caller: runx-cli
+          workflow_ref: n8n-cloud-demo
+          environment: local-dogfood
+        payload:
+          hello: workflow
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+        steps:
+          - terms
+          - build-handoff-context
+        step_outputs:
+          build-handoff-context:
+            subset:
+              handoff_context:
+                data:
+                  platform: n8n
+                  event_id: evt_n8n_demo_001
+                  status: ready
+                  idempotency:
+                    key: evt_n8n_demo_001
+                    receiver_should_dedupe: true
+                  receiver_validation:
+                    require_scope: orchestrator.n8n.workflow.invoke
+                    require_audience: n8n:workflow:runx-governed-effect
+                  receipt_expectations:
+                    outbound_effect_must_be_receipted: true
+                    receiver_response_must_be_captured: true
+    - name: webhook-handoff-preflight-ready-zapier
+      operator_journeys:
+        - mode: standalone
+          request: Hand this governed Runx payload to the configured Zapier Catch Hook.
+          expected_outcome: Validate context, scoped auth, idempotency, and receipt expectations for the exact webhook handoff.
+      runner: preflight
+      inputs:
+        platform: zapier
+        event_id: evt_zapier_demo_001
+        handoff_audience: zapier:zap:runx-governed-effect
+        execution_context:
+          caller: runx-cli
+          workflow_ref: operator-zap-demo
+        payload:
+          hello: zap
+      expect:
+        status: sealed
+        steps:
+          - terms
+          - build-handoff-context
+        step_outputs:
+          build-handoff-context:
+            subset:
+              handoff_context:
+                data:
+                  platform: zapier
+                  event_id: evt_zapier_demo_001
+                  status: ready
+                  receiver_validation:
+                    require_scope: orchestrator.zapier.workflow.invoke
+                    require_audience: zapier:zap:runx-governed-effect
+connectors:
+  webhook:
+    connector_from: $input.platform
+    allowed_connectors: [n8n, zapier]
+    operations: [handoff.deliver]
+runners:
+  preflight:
+    default: false
+    inputs:
+      platform:
+        definition: platform
+      event_id:
+        definition: event_id
+      handoff_audience:
+        definition: handoff_audience
+      execution_context:
+        definition: execution_context
+      payload:
+        definition: payload
+      source:
+        definition: source
+      receiver:
+        definition: receiver
+    examples:
+      - platform: n8n
+        event_id: evt_n8n_demo_001
+        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+        payload: { hello: workflow }
+    result_from: [build-handoff-context]
+    steps:
+      - id: terms
+        inputs:
+          platform: $input.platform
+          handoff_audience: $input.handoff_audience
+        tool: { module: webhook-handoff.mjs, export: handoffTerms }
+        outputs:
+          handoff_terms: object
+      - id: build-handoff-context
+        tool: control.prepare_handoff
+        inputs:
+          platform: $input.platform
+          event_id: $input.event_id
+          handoff_scope: $steps.terms.handoff_terms.handoff_scope
+          handoff_audience: $steps.terms.handoff_terms.handoff_audience
+          execution_context: $input.execution_context
+          payload: $input.payload
+          source: $input.source
+          receiver: $input.receiver
+  send:
+    default: true
+    inputs:
+      platform:
+        definition: platform
+      webhook_host:
+        definition: webhook_host
+      event_id:
+        definition: event_id
+      handoff_audience:
+        definition: handoff_audience
+      execution_context:
+        definition: execution_context
+      payload:
+        definition: payload
+      source:
+        definition: source
+      receiver:
+        definition: receiver
+    examples:
+      - platform: n8n
+        webhook_host: acme.app.n8n.cloud
+        event_id: evt_n8n_demo_001
+        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+        payload: { hello: workflow }
+      - platform: zapier
+        event_id: evt_zapier_demo_001
+        execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+        payload: { hello: zap }
+    result_from: [deliver]
+    steps:
+      - id: terms
+        inputs:
+          platform: $input.platform
+          handoff_audience: $input.handoff_audience
+        tool: { module: webhook-handoff.mjs, export: handoffTerms }
+        outputs:
+          handoff_terms: object
+      - id: build-handoff-context
+        tool: control.prepare_handoff
+        inputs:
+          platform: $input.platform
+          event_id: $input.event_id
+          handoff_scope: $steps.terms.handoff_terms.handoff_scope
+          handoff_audience: $steps.terms.handoff_terms.handoff_audience
+          execution_context: $input.execution_context
+          payload: $input.payload
+          source: $input.source
+          receiver: $input.receiver
+      - id: address
+        inputs:
+          platform: $input.platform
+          webhook_host: $input.webhook_host
+          delivery: $steps.build-handoff-context.handoff_context.delivery
+        tool: { module: webhook-handoff.mjs, export: deliveryRequest }
+        outputs:
+          delivery_request: object
+
+      - id: deliver
+        operation: webhook/handoff.deliver
+        idempotency_key: $input.event_id
+        approval:
+          reason: Approve delivering this exact handoff to the workflow's webhook.
+          type: workflow_handoff
+        result_fields: [acknowledgement]
+        input: $steps.address.delivery_request

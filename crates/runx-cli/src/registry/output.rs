@@ -93,11 +93,11 @@ pub(super) fn render_search(
     for connector in connectors {
         output.push_str(&format!(
             "  - {}@{}  connector\n    {}\n    trust    {}\n    install  runx registry install {}@{}\n",
-            connector.connector_ref,
+            connector.name,
             connector.version,
             connector.name,
             trust_tier_label(&connector.trust_tier),
-            connector.connector_ref,
+            connector.name,
             connector.version,
         ));
     }
@@ -166,7 +166,7 @@ pub(super) fn render_connector_publish(
     format!(
         "\n  registry publish {}\n  connector        {}@{}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  install          {}\n  page             {}\n\n",
         published.status,
-        published.connector_ref,
+        published.name,
         published.version,
         published.content_digest,
         published.manifest_digest,
@@ -181,7 +181,7 @@ pub(super) fn render_connector_install(
 ) -> String {
     format!(
         "\n  registry install {}@{}\n  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
-        install.connector_ref,
+        install.name,
         install.version,
         install_status_label(&install.status),
         install.content_digest,

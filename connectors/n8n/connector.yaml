@@ -16,7 +16,7 @@ placements:
   local:
     auth: [credentials]
 operations:
-  workflow.invoke:
+  handoff.deliver:
     description: Deliver one handoff to an n8n Cloud workflow webhook; the workflow's answer is the acknowledgement and n8n offers no readback.
     verb: write
     scopes: [orchestrator.n8n.workflow.invoke]

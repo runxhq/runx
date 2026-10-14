@@ -7,7 +7,7 @@ catalog:
   visibility: public
   role: branded
   canonical_skill: runx/organic-growth
-  provider: google-search-console
+  provider: google/search-console
   execution: execute
   completion: provider_readback
   approval: none
@@ -438,7 +438,7 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 connectors:
-  google-search-console:
+  google/search-console:
     operations: [search.analytics.query, sites.list, url.inspect, sitemaps.list, sitemaps.submit, sitemaps.get]
 runners:
   performance:
@@ -478,7 +478,7 @@ runners:
     result_from: [finalize]
     steps:
       - id: read
-        operation: google-search-console/search.analytics.query
+        operation: google/search-console/search.analytics.query
         result_fields: [property, start_date, end_date, dimensions, search_type, data_state, rows, row_count, aggregation_type, metadata, pagination, fetched_at]
         input:
           property: $input.property
@@ -575,7 +575,7 @@ runners:
     result_from: [read]
     steps:
       - id: read
-        operation: google-search-console/sites.list
+        operation: google/search-console/sites.list
         result_fields: [sites]
         input: {}
 
@@ -599,7 +599,7 @@ runners:
     result_from: [finalize]
     steps:
       - id: read
-        operation: google-search-console/url.inspect
+        operation: google/search-console/url.inspect
         result_fields: [property, inspection_url, verdict, coverage_state, robots_txt_state, indexing_state, page_fetch_state, crawled_as, last_crawl_time, referring_urls, sitemap, amp, mobile_usability, rich_results, inspection_link, fetched_at]
         input:
           property: $input.property
@@ -638,7 +638,7 @@ runners:
     result_from: [read]
     steps:
       - id: read
-        operation: google-search-console/sitemaps.list
+        operation: google/search-console/sitemaps.list
         result_fields: [property, sitemaps]
         input: { property: $input.property }
 
@@ -719,7 +719,7 @@ runners:
         when:
           value: $steps.admit.submission_admission.decision
           equals: ready
-        operation: google-search-console/sitemaps.submit
+        operation: google/search-console/sitemaps.submit
         idempotency_key: $input.idempotency_key
         expected_result:
           property: $input.sitemap_plan.property
@@ -744,7 +744,7 @@ runners:
         when:
           value: $steps.admit.submission_admission.decision
           equals: ready
-        operation: google-search-console/sitemaps.get
+        operation: google/search-console/sitemaps.get
         result_fields: [property, sitemap_url, status, last_submitted, last_downloaded, error_count, warning_count]
         input:
           property: $input.sitemap_plan.property

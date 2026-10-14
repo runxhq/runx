@@ -1,0 +1,20 @@
+name: webhook-handoff-default-reaches-exact-approval
+kind: skill
+target: ..
+operator_journeys:
+  - mode: refusal
+    confusors: [message-send, content-pipeline]
+    request: Hand this governed Runx payload to the configured n8n workflow.
+    expected_outcome: Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.
+setup: { credentials: [n8n] }
+env: { N8N_WEBHOOK_URL: 'https://acme.app.n8n.cloud/webhook/runx-governed-effect' }
+inputs:
+  platform: n8n
+  webhook_host: acme.app.n8n.cloud
+  event_id: evt_n8n_demo_001
+  execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+  payload: { hello: workflow }
+expect:
+  status: needs_agent
+  steps: [terms, build-handoff-context, address]
+metadata: { public_skill: webhook-handoff, source_case: direct-default-approval-gate, source: skills-fixture }

@@ -1,0 +1,66 @@
+name: webhook-handoff-default-delivers-zapier
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [message-send, content-pipeline]
+    request: Hand this governed Runx payload to the configured Zapier Catch Hook.
+    expected_outcome: Prepare, approve, and deliver one idempotent hook request with the receiver response captured.
+  - mode: composed
+    request: Continue this completed Runx operation into the selected Zapier workflow.
+    expected_outcome: Reuse the supplied run context and payload without rebuilding upstream results or duplicating hook delivery.
+    prior_evidence:
+      - The validated Runx execution context, payload, hook target, and event id supplied in the fixture.
+    must_not_repeat:
+      - Do not rerun the upstream Runx operation.
+      - Do not deliver the hook again after its response is receipted.
+setup: { credentials: [zapier] }
+env: { ZAPIER_CATCH_HOOK_URL: 'https://hooks.zapier.com/hooks/catch/12345678/abcDEF123/' }
+inputs:
+  platform: zapier
+  event_id: evt_zapier_demo_001
+  execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+  payload: { hello: zap }
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://hooks.zapier.com/hooks/catch/12345678/abcDEF123/
+        body:
+          json:
+            event_id: evt_zapier_demo_001
+            execution_context:
+              caller: runx-cli
+              event_id: evt_zapier_demo_001
+              handoff_audience: zapier:zap:runx-governed-effect
+              handoff_scope: orchestrator.zapier.workflow.invoke
+              idempotency_key: evt_zapier_demo_001
+              platform: zapier
+              workflow_ref: operator-zap-demo
+            handoff_audience: zapier:zap:runx-governed-effect
+            handoff_scope: orchestrator.zapier.workflow.invoke
+            idempotency_key: evt_zapier_demo_001
+            payload: { hello: zap }
+            source: runx
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"attempt":"0192a1b2-0000-7000-8000-000000000001","id":"0192a1b2-0000-7000-8000-000000000002","request_id":"0192a1b2-0000-7000-8000-000000000003","status":"success"}'
+  approvals:
+    "deliver": true
+expect:
+  status: sealed
+  steps: [terms, build-handoff-context, address, deliver]
+  step_outputs:
+    deliver:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: zapier
+            operation: handoff.deliver
+            finality: acknowledged
+            result:
+              acknowledgement: { status: success, request_id: 0192a1b2-0000-7000-8000-000000000003 }
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata: { public_skill: webhook-handoff, source_case: direct-default-success-zapier, source: skills-fixture }

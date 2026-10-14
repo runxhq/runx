@@ -10,9 +10,9 @@ fn only_the_runtime_capabilities_are_embedded() {
     assert_eq!(
         connectors
             .iter()
-            .map(|connector| connector.manifest.id.as_str())
+            .map(|connector| connector.name.as_str())
             .collect::<Vec<_>>(),
-        ["artifact", "store", "vault", "web"]
+        ["artifact", "store", "web"]
     );
     assert!(connectors.iter().all(|connector| {
         connector.manifest.runtime_capability
@@ -30,10 +30,11 @@ fn only_the_runtime_capabilities_are_embedded() {
     ));
 }
 
-/// Outside a plugin, a runx-maintained connector that is not a runtime
-/// capability is installed, never embedded, and the refusal says how.
+/// Outside a plugin, a connector that is not a runtime capability is an
+/// installed version: an operator reaches its one version by name, and a
+/// skill reaches it only by pinning its manifest.
 #[test]
-fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
+fn a_connector_outside_a_plugin_is_an_installed_version_a_skill_pins() {
     let root = tempfile::tempdir().unwrap();
     // Not named connectors/, so the work directory is in no plugin.
     let home = root.path().join("installed");
@@ -41,33 +42,26 @@ fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
     std::fs::create_dir_all(&work).unwrap();
     let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
 
-    let bare = scope.connector("github").unwrap_err();
+    let missing = scope.connector("github").unwrap_err();
     assert!(
-        matches!(bare, ConnectorRegistryError::NoPlugin { .. })
-            && bare.to_string().contains("runx registry install"),
-        "{bare}"
-    );
-    let qualified = scope.connector("runx/github").unwrap_err();
-    assert!(
-        matches!(
-            qualified,
-            ConnectorRegistryError::NotInstalledConnector { .. }
-        ) && qualified
-            .to_string()
-            .contains("runx registry install runx/github"),
-        "{qualified}"
+        matches!(missing, ConnectorRegistryError::NotInstalledConnector { .. })
+            && missing
+                .to_string()
+                .contains("runx registry install github"),
+        "{missing}"
     );
 
-    install(&home, "runx", "github", "sha-000000000001", "Installed.");
-    let installed = scope.connector("runx/github").unwrap();
+    let first = load_installed(&install(&home, "github", "sha-000000000001", "Installed.")).unwrap();
+    let installed = scope.connector("github").unwrap();
     assert!(matches!(
         installed.origin,
         ConnectorOrigin::Installed { .. }
     ));
-    // An unpinned requirement names the one installed version too.
-    let required = scope
+    // A skill names it only by its manifest: without a pin, an installed
+    // version is out of reach.
+    let unpinned = scope
         .requirement(
-            "runx/github",
+            "github",
             &runx_parser::ConnectorRequirement {
                 operations: vec![OperationName::new("record.read").unwrap()],
                 manifest_digest: None,
@@ -75,12 +69,23 @@ fn a_published_connector_outside_a_plugin_is_reached_once_installed() {
                 allowed_connectors: Vec::new(),
             },
         )
-        .unwrap();
-    assert_eq!(required.connector_digest, installed.connector_digest);
+        .unwrap_err();
+    assert!(
+        matches!(unpinned, ConnectorRegistryError::NoPlugin { .. })
+            && unpinned.to_string().contains("pins its manifest_digest"),
+        "{unpinned}"
+    );
+    assert_eq!(
+        scope
+            .requirement("github", &pinned(&first.manifest_digest))
+            .unwrap()
+            .connector_digest,
+        installed.connector_digest
+    );
 
-    install(&home, "runx", "github", "sha-000000000002", "Newer.");
+    install(&home, "github", "sha-000000000002", "Newer.");
     assert!(matches!(
-        scope.connector("runx/github"),
+        scope.connector("github"),
         Err(ConnectorRegistryError::InstalledAmbiguous { .. })
     ));
 }
@@ -93,27 +98,21 @@ fn the_reachable_connectors_include_every_installed_version_once() {
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    install(&home, "acme", "ops-api", "1.0.0", "First.");
-    install(&home, "acme", "ops-api", "1.1.0", "Second.");
+    install(&home, "acme/ops", "1.0.0", "First.");
+    install(&home, "acme/ops", "1.1.0", "Second.");
+    install(&home, "stripe", "1.0.0", "Leaf.");
     let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
     // Resolving a runtime capability seeds its copy into the project.
     scope.connector("store").unwrap();
 
     let reachable = scope.reachable().unwrap();
-    let refs = reachable
+    let names = reachable
         .iter()
-        .map(|connector| connector.connector_ref.as_str())
+        .map(|connector| connector.name.as_str())
         .collect::<Vec<_>>();
     assert_eq!(
-        refs,
-        [
-            "runx/artifact",
-            "runx/store",
-            "runx/vault",
-            "runx/web",
-            "acme/ops-api",
-            "acme/ops-api"
-        ]
+        names,
+        ["artifact", "store", "web", "acme/ops", "acme/ops", "stripe"]
     );
     assert!(
         scope
@@ -126,7 +125,6 @@ fn the_reachable_connectors_include_every_installed_version_once() {
 #[test]
 fn a_plugin_connector_cannot_shadow_a_runtime_capability() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"runx"}"#).unwrap();
     let skill = root.path().join("skills/notify");
     std::fs::create_dir_all(&skill).unwrap();
     let connector = root.path().join("connectors/store");
@@ -158,27 +156,7 @@ operations:
 #[test]
 fn files_beside_a_plugins_connectors_are_not_connectors() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
-    let connector = root.path().join("connectors/acme-weather");
-    std::fs::create_dir_all(&connector).unwrap();
-    std::fs::write(
-        connector.join("connector.yaml"),
-        r#"schema: runx.connector.v1
-id: acme-weather
-name: Acme Weather
-description: Forecasts.
-runtime_capability: false
-auth: {none: {}}
-placements: {local: {auth: [none]}}
-operations:
-  forecast.read:
-    description: Read a forecast.
-    verb: read
-    scopes: [forecast.read]
-    target: {template: "acme://forecast"}
-"#,
-    )
-    .unwrap();
+    write_plugin_connector(&root.path().join("connectors"), "acme-weather");
     // A lock, a readme and a desktop file beside the connector directories.
     std::fs::write(
         root.path().join("connectors/runx-maintained.lock.json"),
@@ -187,7 +165,7 @@ operations:
     .unwrap();
     std::fs::write(root.path().join("connectors/README.md"), "# Connectors\n").unwrap();
     std::fs::write(root.path().join("connectors/.DS_Store"), [0u8; 8]).unwrap();
-    let scope = ConnectorScope::at(&connector).unwrap();
+    let scope = ConnectorScope::at(&root.path().join("connectors/acme-weather")).unwrap();
     assert!(matches!(
         scope.connector("acme-weather").unwrap().origin,
         ConnectorOrigin::Plugin { .. }
@@ -197,29 +175,9 @@ operations:
 #[test]
 fn plugin_connectors_are_visible_to_their_plugin_only() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/forecast");
     std::fs::create_dir_all(&skill).unwrap();
-    let connector = root.path().join("connectors/acme-weather");
-    std::fs::create_dir_all(&connector).unwrap();
-    std::fs::write(
-        connector.join("connector.yaml"),
-        r#"schema: runx.connector.v1
-id: acme-weather
-name: Acme Weather
-description: Forecasts.
-runtime_capability: false
-auth: {none: {}}
-placements: {local: {auth: [none]}}
-operations:
-  forecast.read:
-    description: Read a forecast.
-    verb: read
-    scopes: [forecast.read]
-    target: {template: "acme://forecast"}
-"#,
-    )
-    .unwrap();
+    write_plugin_connector(&root.path().join("connectors"), "acme-weather");
     let scope = ConnectorScope::at(&skill).unwrap();
     let loaded = scope.connector("acme-weather").unwrap();
     assert!(matches!(loaded.origin, ConnectorOrigin::Plugin { .. }));
@@ -231,18 +189,18 @@ operations:
     );
 }
 
+/// A parent namespace holds surfaces, each at `connectors/<namespace>/<surface>/`.
 #[test]
-fn a_plugin_connector_owns_its_reference_kinds() {
+fn a_plugin_reaches_the_surfaces_of_a_parent_namespace_by_name() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/track");
     std::fs::create_dir_all(&skill).unwrap();
-    let connector = root.path().join("connectors/acme-tracker");
+    let connector = root.path().join("connectors/acme/tracker");
     std::fs::create_dir_all(&connector).unwrap();
     std::fs::write(
         connector.join("connector.yaml"),
         r#"schema: runx.connector.v1
-id: acme-tracker
+id: acme/tracker
 name: Acme Tracker
 description: Tickets.
 runtime_capability: false
@@ -259,20 +217,87 @@ operations:
 "#,
     )
     .unwrap();
-    let loaded = ConnectorScope::at(&skill)
-        .unwrap()
-        .connector("acme/acme-tracker")
-        .unwrap();
+    write_plugin_connector(&root.path().join("connectors"), "acme/billing");
+    let scope = ConnectorScope::at(&skill).unwrap();
+    let loaded = scope.connector("acme/tracker").unwrap();
     assert_eq!(
         super::references::bound_reference_kind(&loaded.manifest, &[], "acme://tickets/7"),
         runx_contracts::ReferenceType::TrackingItem
     );
+    assert_eq!(
+        scope.connector("acme/billing").unwrap().name.as_str(),
+        "acme/billing"
+    );
+    // The namespace alone names no connector.
+    assert!(matches!(
+        scope.connector("acme"),
+        Err(ConnectorRegistryError::NotInPlugin { .. })
+    ));
+}
+
+/// A provider namespace is a connector or a parent of surfaces, never both.
+#[test]
+fn a_namespace_holding_a_connector_and_surfaces_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let skill = root.path().join("skills/work");
+    std::fs::create_dir_all(&skill).unwrap();
+    write_plugin_connector(&root.path().join("connectors"), "acme");
+    write_plugin_connector(&root.path().join("connectors"), "acme/billing");
+    assert!(matches!(
+        ConnectorScope::at(&skill),
+        Err(ConnectorRegistryError::LeafAndParent { namespace, .. }) if namespace == "acme"
+    ));
+}
+
+/// A project's own connectors and the versions installed into it share one
+/// directory; an installed version is never mistaken for a surface.
+#[test]
+fn installed_versions_and_a_plugins_own_connectors_share_the_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("connectors");
+    let skill = root.path().join("skills/work");
+    std::fs::create_dir_all(&skill).unwrap();
+    write_plugin_connector(&home, "acme/billing");
+    let leaf = load_installed(&install(&home, "stripe", "sha-000000000001", "Leaf.")).unwrap();
+    let surface =
+        load_installed(&install(&home, "acme/billing", "sha-000000000002", "Installed.")).unwrap();
+    let scope = ConnectorScope::at(&skill).unwrap().in_project(home.clone());
+
+    assert_eq!(
+        scope
+            .connectors()
+            .unwrap()
+            .iter()
+            .filter(|connector| matches!(connector.origin, ConnectorOrigin::Plugin { .. }))
+            .map(|connector| connector.name.as_str())
+            .collect::<Vec<_>>(),
+        ["acme/billing"]
+    );
+    assert_eq!(
+        scope
+            .requirement("stripe", &pinned(&leaf.manifest_digest))
+            .unwrap()
+            .manifest_digest,
+        leaf.manifest_digest
+    );
+    // The plugin's own `acme/billing` wins unpinned; the pin reaches the
+    // installed revision.
+    assert!(matches!(
+        scope.connector("acme/billing").unwrap().origin,
+        ConnectorOrigin::Plugin { .. }
+    ));
+    assert!(matches!(
+        scope
+            .requirement("acme/billing", &pinned(&surface.manifest_digest))
+            .unwrap()
+            .origin,
+        ConnectorOrigin::Installed { .. }
+    ));
 }
 
 #[test]
 fn a_missing_connector_says_where_it_was_looked_for() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let root = root.path().canonicalize().unwrap();
     let outside = root.join("elsewhere");
     std::fs::create_dir_all(&outside).unwrap();
@@ -302,7 +327,6 @@ fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/forecast");
     std::fs::create_dir_all(&skill).unwrap();
     let connectors = root.path().join("connectors");
@@ -317,13 +341,18 @@ fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
     );
 }
 
-fn write_plugin_connector(connectors: &Path, directory: &str, id: &str) {
+/// A plugin connector named `name`, at `connectors/<name>/`.
+fn write_plugin_connector(connectors: &Path, name: &str) {
+    write_connector(connectors, name, name);
+}
+
+fn write_connector(connectors: &Path, directory: &str, name: &str) {
     let dir = connectors.join(directory);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("connector.yaml"),
         format!(
-            "schema: runx.connector.v1\nid: {id}\nname: Acme\ndescription: Records.\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"acme://records\"}}\n"
+            "schema: runx.connector.v1\nid: {name}\nname: Acme\ndescription: Records.\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"acme://records\"}}\n"
         ),
     )
     .unwrap();
@@ -333,21 +362,19 @@ fn write_plugin_connector(connectors: &Path, directory: &str, id: &str) {
 fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
     let root = tempfile::tempdir().unwrap();
     let root = root.path().canonicalize().unwrap();
-    std::fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     // A source plugin above the bundle is never reached from inside it.
-    write_plugin_connector(&root.join("connectors"), "acme-above", "acme-above");
+    write_plugin_connector(&root.join("connectors"), "acme-above");
     let package = root.join("installed");
     let dependency = package.join("dependencies/beta");
     std::fs::create_dir_all(&dependency).unwrap();
     std::fs::write(package.join("SKILL.md"), "# Root\n").unwrap();
     std::fs::write(dependency.join("SKILL.md"), "# Beta\n").unwrap();
-    write_plugin_connector(&package.join("connectors/acme"), "acme", "acme");
+    write_plugin_connector(&package.join("connectors"), "acme/records");
     let snapshot = load_directory(
-        &package.join("connectors/acme/acme"),
+        &package.join("connectors/acme/records"),
         ConnectorOrigin::Plugin {
             root: package.clone(),
         },
-        &PublisherNamespace::new("acme").unwrap(),
         false,
     )
     .unwrap();
@@ -356,7 +383,7 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
         "dependencies": [],
         "connectors": [{
             "from": ".",
-            "connector": "acme/acme",
+            "connector": "acme/records",
             "manifest_digest": snapshot.manifest_digest,
             "connector_digest": snapshot.connector_digest,
         }],
@@ -365,7 +392,7 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
 
     let own = ConnectorScope::at(&package).unwrap();
     assert_eq!(
-        own.connector("acme/acme").unwrap().connector_digest,
+        own.connector("acme/records").unwrap().connector_digest,
         snapshot.connector_digest
     );
     assert!(matches!(
@@ -376,18 +403,17 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
     assert!(matches!(
         ConnectorScope::at(&dependency)
             .unwrap()
-            .connector("acme/acme"),
+            .connector("acme/records"),
         Err(ConnectorRegistryError::Unavailable { .. })
     ));
 }
 
 #[test]
-fn a_plugin_connector_lives_in_the_directory_its_id_names() {
+fn a_plugin_connector_lives_in_the_directory_its_name_names() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     let skill = root.path().join("skills/records");
     std::fs::create_dir_all(&skill).unwrap();
-    write_plugin_connector(&root.path().join("connectors"), "acme", "acme-records");
+    write_connector(&root.path().join("connectors"), "acme", "acme-records");
     assert!(matches!(
         ConnectorScope::at(&skill),
         Err(ConnectorRegistryError::InvalidManifest { message, .. })
@@ -395,8 +421,6 @@ fn a_plugin_connector_lives_in_the_directory_its_id_names() {
     ));
 }
 
-/// Leave `publisher/id` installed as `version` under `home`, as a registry
-/// install does: the package's own `plugin.json` names its publisher.
 /// A project install that does not load is skipped when the credential
 /// variables in reach are read: nothing can bind it, and a skill that only
 /// declares ordinary environment must not fail on it.
@@ -406,7 +430,7 @@ fn credential_variables_skip_an_install_that_does_not_load() {
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    install(&home, "acme", "ops-api", "1.0.0", "First.");
+    install(&home, "acme/ops", "1.0.0", "First.");
     let broken = home.join("acme").join("broken").join("1.0.0");
     std::fs::create_dir_all(&broken).unwrap();
     std::fs::write(broken.join("connector.yaml"), "not: [a connector").unwrap();
@@ -421,18 +445,18 @@ fn credential_variables_skip_an_install_that_does_not_load() {
     );
 }
 
-fn install(home: &Path, publisher: &str, id: &str, version: &str, description: &str) -> PathBuf {
-    let directory = home.join(publisher).join(id).join(version);
+/// Leave connector `name` installed as `version` under `home`, as a registry
+/// install does: at `<name>/<version>/`.
+fn install(home: &Path, name: &str, version: &str, description: &str) -> PathBuf {
+    let directory = name
+        .split('/')
+        .fold(home.to_path_buf(), |path, segment| path.join(segment))
+        .join(version);
     std::fs::create_dir_all(&directory).unwrap();
-    std::fs::write(
-        directory.join("plugin.json"),
-        format!(r#"{{"namespace":"{publisher}"}}"#),
-    )
-    .unwrap();
     std::fs::write(
         directory.join("connector.yaml"),
         format!(
-            "schema: runx.connector.v1\nid: {id}\nname: Ops\ndescription: {description}\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
+            "schema: runx.connector.v1\nid: {name}\nname: Ops\ndescription: {description}\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
         ),
     )
     .unwrap();
@@ -454,44 +478,45 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    let first = install(&home, "acme", "ops-api", "1.0.0", "First.");
-    install(&home, "acme", "ops-api", "1.1.0", "Second.");
+    let first = install(&home, "acme/ops", "1.0.0", "First.");
+    install(&home, "acme/ops", "1.1.0", "Second.");
     // An install in progress is never read.
-    std::fs::create_dir_all(home.join("acme/ops-api/.staging-1-2")).unwrap();
+    std::fs::create_dir_all(home.join("acme/ops/.staging-1-2")).unwrap();
     let first = load_installed(&first).unwrap();
     let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
 
     let resolved = scope
-        .requirement("acme/ops-api", &pinned(&first.manifest_digest))
+        .requirement("acme/ops", &pinned(&first.manifest_digest))
         .unwrap();
     assert_eq!(resolved.manifest_digest, first.manifest_digest);
     assert!(matches!(resolved.origin, ConnectorOrigin::Installed { .. }));
 
     let unpublished = Digest::new(format!("sha256:{}", "0".repeat(64))).unwrap();
     let refused = scope
-        .requirement("acme/ops-api", &pinned(&unpublished))
+        .requirement("acme/ops", &pinned(&unpublished))
         .unwrap_err();
     assert!(
         matches!(refused, ConnectorRegistryError::NotInstalled { .. })
             && refused
                 .to_string()
-                .contains("runx registry install acme/ops-api@<version>"),
+                .contains("runx registry install acme/ops@<version>"),
         "{refused}"
     );
 
-    // The installed versions are read only through a scope given them.
+    // The installed versions are read only through a scope given them; the
+    // directory holding them is no plugin connector.
     assert!(matches!(
         ConnectorScope::at(&work)
             .unwrap()
-            .requirement("acme/ops-api", &pinned(&first.manifest_digest)),
-        Err(ConnectorRegistryError::Unavailable { .. })
+            .requirement("acme/ops", &pinned(&first.manifest_digest)),
+        Err(ConnectorRegistryError::NotInPlugin { .. })
     ));
 
-    // An operator names one exact version; two installed versions of a
-    // bare ref are not chosen between.
+    // An operator names one exact version; two installed versions of one
+    // name are not chosen between.
     assert_eq!(
         scope
-            .named("acme/ops-api@1.1.0")
+            .named("acme/ops@1.1.0")
             .unwrap()
             .manifest
             .description
@@ -499,12 +524,12 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
         "Second."
     );
     assert!(matches!(
-        scope.named("acme/ops-api"),
+        scope.named("acme/ops"),
         Err(ConnectorRegistryError::InstalledAmbiguous { versions, .. })
             if versions == ["1.0.0", "1.1.0"]
     ));
     assert!(matches!(
-        scope.named("acme/ops-api@2.0.0"),
+        scope.named("acme/ops@2.0.0"),
         Err(ConnectorRegistryError::VersionNotInstalled { .. })
     ));
 }
@@ -515,7 +540,7 @@ fn an_installed_version_of_a_runtime_capability_is_its_own_revision() {
     let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    let installed = load_installed(&install(&home, "runx", "web", "9.0.0", "Next.")).unwrap();
+    let installed = load_installed(&install(&home, "web", "9.0.0", "Next.")).unwrap();
     let embedded = ConnectorScope::runtime_capabilities_only()
         .unwrap()
         .connector("web")
@@ -524,13 +549,13 @@ fn an_installed_version_of_a_runtime_capability_is_its_own_revision() {
 
     let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
     let resolved = scope
-        .requirement("runx/web", &pinned(&installed.manifest_digest))
+        .requirement("web", &pinned(&installed.manifest_digest))
         .unwrap();
     assert_eq!(resolved.manifest_digest, installed.manifest_digest);
     // A requirement pinned to the embedded revision still binds it.
     assert!(matches!(
         scope
-            .requirement("runx/web", &pinned(&embedded.manifest_digest))
+            .requirement("web", &pinned(&embedded.manifest_digest))
             .unwrap()
             .origin,
         ConnectorOrigin::RuntimeCapability

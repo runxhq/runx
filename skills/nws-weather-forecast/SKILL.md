@@ -7,8 +7,7 @@ description: Fetch National Weather Service forecast evidence through the govern
 
 Fetch public National Weather Service forecast evidence through runx HTTP.
 
-This is a branded provider skill for the canonical `weather-forecast` verb. It
-uses the governed HTTP front, not an ad hoc client: the receipt records the NWS
+It uses the governed HTTP front, not an ad hoc client: the receipt records the NWS
 endpoint, response status, graph step receipts, and the exact authority surface.
 No API key is required. The default runner fetches the actual NWS gridpoint
 forecast; the `locate` runner discovers the gridpoint for a latitude/longitude.
@@ -18,9 +17,8 @@ forecast; the `locate` runner discovers the gridpoint for a latitude/longitude.
 `nws-weather-forecast` makes read-only calls to `api.weather.gov`. The `locate`
 runner calls `/points/{lat},{lon}` to discover `gridId`, `gridX`, `gridY`, and
 forecast URLs. The default `forecast` runner calls
-`/gridpoints/{office}/{grid_x},{grid_y}/forecast` to fetch forecast periods. The
-output is provider evidence; use `weather-forecast` when an agent needs to
-normalize that evidence for a planning decision.
+`/gridpoints/{office}/{grid_x},{grid_y}/forecast` to fetch forecast periods and
+shapes them into the forecast it returns.
 
 ## When to use this skill
 

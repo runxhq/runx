@@ -6224,7 +6224,7 @@ export const runxSchemaArtifacts = {
     "properties": {
       "connector": {
         "maxLength": 129,
-        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "connector_digest": {
@@ -6438,7 +6438,7 @@ export const runxSchemaArtifacts = {
       },
       "connector": {
         "maxLength": 129,
-        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "connector_digest": {
@@ -6602,7 +6602,34 @@ export const runxSchemaArtifacts = {
           },
           "delegated": {
             "additionalProperties": false,
-            "properties": {},
+            "properties": {
+              "principal": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "login": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "url": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "id",
+                  "login"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "principal"
+            ],
             "type": "object"
           },
           "none": {
@@ -6691,8 +6718,8 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "id": {
-        "maxLength": 64,
-        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+        "maxLength": 129,
+        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "name": {
@@ -19596,7 +19623,7 @@ export const runxSchemaArtifacts = {
     "properties": {
       "connector": {
         "maxLength": 129,
-        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+        "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
       "instance_id": {
@@ -20160,7 +20187,7 @@ export const runxSchemaArtifacts = {
                 },
                 "connector": {
                   "maxLength": 129,
-                  "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+                  "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
                   "type": "string"
                 },
                 "connector_digest": {

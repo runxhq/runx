@@ -12,8 +12,8 @@ is the judgment layer of the security chain, not another scanner.
 
 Use `cve-audit` first to prove the exact dependency versions and OSV advisory
 identities. `vuln-triage` then reasons about operational exposure and priority
-without changing those facts. An advisory draft can later move to
-`vuln-disclosure`, which owns the publication boundary.
+without changing those facts. Its advisory packet is the end of the chain:
+publishing an advisory is the operator's step, outside runx.
 
 ## Runners
 

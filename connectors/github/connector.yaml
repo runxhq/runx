@@ -5,7 +5,7 @@ description: Read and update issues, pull requests and comments in GitHub reposi
 category: dev-tools
 runtime_capability: false
 auth:
-  delegated: {}
+  delegated: {principal: {url: "https://api.github.com/user", id: id, login: login}}
   credentials:
     token:
       kind: api_key
@@ -641,41 +641,6 @@ operations:
     target:
       template: {"$argument": "/repository"}
     approval: required
-  advisory.publish:
-    description: Publish one evidence-bound security advisory for a repository. Declared only; no placement implements it yet.
-    verb: write
-    scopes: [advisory.publish]
-    target:
-      template: {"$argument": "/target/locator"}
-    approval: required
-    input_schema:
-      type: object
-      required: [channel, target, payload, payload_digest, evidence_binding]
-      additionalProperties: false
-      properties:
-        channel: {type: string, minLength: 1}
-        target:
-          type: object
-          required: [locator]
-          properties:
-            locator: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
-        payload: {type: object}
-        payload_digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
-        evidence_binding: {type: object}
-    result_fields: [advisory_ref, payload_digest]
-  advisory.read:
-    description: Read back one published security advisory. Declared only; no placement implements it yet.
-    verb: read
-    scopes: [advisory.read]
-    target:
-      template: {"$argument": "/advisory_ref"}
-    input_schema:
-      type: object
-      required: [advisory_ref]
-      properties:
-        advisory_ref: {type: string, minLength: 1}
-        payload_digest: {type: string}
-    result_fields: [advisory_ref, payload_digest, status]
   commits.compare:
     description: Read the three-dot comparison of exact base and head commits; files are returned only on the first page and capped by GitHub at 300.
     verb: read

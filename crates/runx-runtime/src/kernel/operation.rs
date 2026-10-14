@@ -1105,7 +1105,7 @@ fn signed_in(
             manifest.id,
             login.as_deref().unwrap_or("another account"),
             instance.instance_id,
-            context.admitted.connector.connector_ref
+            context.admitted.connector.name
         ));
     }
     let field = manifest

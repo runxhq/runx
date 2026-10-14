@@ -38,18 +38,25 @@ const lockPath = path.join(workspaceRoot, "registry", "runx-maintained-connector
 const check = process.argv.includes("--check");
 const delimiter = "###";
 
+// Every connector by name: a leaf at connectors/<name>/, a surface at
+// connectors/<namespace>/<surface>/, as the runtime reads a plugin.
 function manifests() {
-  return readdirSync(connectorsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
+  const directories = (dir) => readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
     .map((entry) => entry.name)
-    .sort()
-    .map((id) => {
-      const file = path.join(connectorsRoot, id, "connector.yaml");
-      if (!existsSync(file)) {
-        throw new Error(`connectors/${id} has no connector.yaml`);
-      }
-      return { id, source: readFileSync(file, "utf8") };
-    });
+    .sort();
+  return directories(connectorsRoot).flatMap((namespace) => {
+    const leaf = path.join(connectorsRoot, namespace, "connector.yaml");
+    if (existsSync(leaf)) return [{ id: namespace, source: readFileSync(leaf, "utf8") }];
+    const surfaces = directories(path.join(connectorsRoot, namespace))
+      .filter((surface) => existsSync(path.join(connectorsRoot, namespace, surface, "connector.yaml")))
+      .map((surface) => ({
+        id: `${namespace}/${surface}`,
+        source: readFileSync(path.join(connectorsRoot, namespace, surface, "connector.yaml"), "utf8"),
+      }));
+    if (surfaces.length === 0) throw new Error(`connectors/${namespace} holds no connector.yaml`);
+    return surfaces;
+  });
 }
 
 function assetLiteral({ id, path: file, source }) {

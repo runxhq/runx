@@ -365,6 +365,7 @@ fn validate_manifest_trust_scope(
         .ok_or_else(|| InstallError::ManifestTrustTierMissing(candidate.r#ref.clone()))?;
     registry_manifest_key_allows(
         key,
+        super::types::RegistrySubjectKind::Skill,
         skill_id,
         trust_tier,
         candidate.manifest_source_authority.as_ref(),

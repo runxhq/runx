@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Reference;
 use crate::connector::{
-    ConnectorDigestError, ConnectorRef, Digest, InstanceId, OperationName, Placement, stable_digest,
+    ConnectorDigestError, ConnectorName, Digest, InstanceId, OperationName, Placement, stable_digest,
 };
 use crate::schema::{NonEmptyString, RunxSchema};
 
@@ -22,7 +22,7 @@ use crate::schema::{NonEmptyString, RunxSchema};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OperationIntent {
-    pub connector: ConnectorRef,
+    pub connector: ConnectorName,
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
     pub operation: OperationName,
@@ -113,7 +113,7 @@ pub struct Readiness {
     /// The skill requirement key.
     pub requirement: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub connector: Option<ConnectorRef>,
+    pub connector: Option<ConnectorName>,
     pub operation: OperationName,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<InstanceId>,

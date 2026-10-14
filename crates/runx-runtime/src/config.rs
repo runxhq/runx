@@ -42,7 +42,7 @@ pub struct RunxCredentialsConfig {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunxCredentialProfile {
-    pub connector: runx_contracts::connector::ConnectorRef,
+    pub connector: runx_contracts::connector::ConnectorName,
     pub credential_declaration_digest: runx_contracts::connector::Digest,
     pub credential: String,
     pub secret_ref: String,

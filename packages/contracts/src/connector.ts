@@ -144,8 +144,19 @@ export interface ConnectorOperation {
   };
 }
 
+/** The request that names whose authority a session or a delegated grant holds. */
+export interface PrincipalRequest {
+  /** An https URL the authority may be sent to. */
+  readonly url: string;
+  /** Where the answer carries the account's stable id. */
+  readonly id: string;
+  /** Where the answer carries the account's name. */
+  readonly login: string;
+}
+
 export interface ConnectorManifest {
   readonly schema: "runx.connector.v1";
+  /** The connector's whole name: `stripe`, `google/calendar`. */
   readonly id: string;
   readonly name: string;
   readonly description: string;
@@ -155,7 +166,8 @@ export interface ConnectorManifest {
   readonly runtime_capability: boolean;
   readonly auth: {
     readonly credentials?: { readonly [name: string]: CredentialDeclaration };
-    readonly delegated?: JsonObject;
+    /** A grant runx Connect brokers, naming its account by its principal request. */
+    readonly delegated?: { readonly principal: PrincipalRequest };
     readonly session?: JsonObject;
     readonly none?: JsonObject;
   };

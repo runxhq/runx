@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_contracts::connector::ConnectorRef;
+use runx_contracts::connector::ConnectorName;
 use runx_runtime::ConfigError;
 use runx_runtime::WorkspaceEnv;
 use runx_runtime::registry::{
@@ -248,7 +248,7 @@ fn run_install(
     let source_authority = target.manifest_source_authority();
     let fallback = target.clone();
     let Some((candidate, acquisition)) = install_candidate(&plan, target, env, cwd)? else {
-        return match (fallback, ConnectorRef::new(&plan.subject)) {
+        return match (fallback, ConnectorName::new(&plan.subject)) {
             // No skill is published under the name; a connector may be.
             (RegistryTarget::Remote { registry_url }, Some(connector_ref)) => {
                 connector::install(&plan, &connector_ref, &registry_url, env, cwd)

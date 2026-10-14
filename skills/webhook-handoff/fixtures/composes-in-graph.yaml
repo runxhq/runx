@@ -1,0 +1,7 @@
+name: webhook-handoff-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [webhook-handoff, digest]
+  receipt: { schema: runx.receipt.v1 }

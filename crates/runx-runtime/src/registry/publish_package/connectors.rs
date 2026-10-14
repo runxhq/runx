@@ -1,14 +1,14 @@
 //! A connector's package: its exact manifest, every tool its process
 //! operations run, and its README and mark when present. A skill package
-//! carries each connector it declares at `connectors/<publisher>/<id>/`, with
-//! its exact binding in the bundle descriptor. A connector published on its own is the same
-//! files at its package root.
+//! carries each connector it declares at `connectors/<name>/`, with its exact
+//! binding in the bundle descriptor. A connector published on its own is the
+//! same files at its package root.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{
-    ConnectorManifest, ConnectorRef, Digest, OperationName, PublisherNamespace,
+    ConnectorManifest, ConnectorName, Digest, OperationName,
 };
 use runx_parser::mark::{MARK_FILE, validate_mark_svg};
 use runx_parser::{parse_connector_manifest, validate_connector_manifest};
@@ -18,8 +18,8 @@ use super::RegistryPublishPackageError;
 use crate::LoadedSkillPackage;
 use crate::kernel::connectors::{
     ConnectorScope, ConnectorTool, LoadedConnector, MANIFEST_FILE, OperationDigests,
-    PLUGIN_METADATA_FILE, PluginMetadata, embedded_asset, embedded_manifest,
-    load_connector_directory, operation_digest_entries, plugin_root, read_bounded,
+    embedded_asset, embedded_manifest, load_connector_directory, operation_digest_entries,
+    plugin_root, read_bounded,
 };
 use crate::registry::RegistryPackageFile;
 use crate::registry::package_metadata::{RegistryConnectorMetadata, declared_connectors};
@@ -33,7 +33,7 @@ const README_FILE: &str = "README.md";
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistryConnectorPackage {
     #[serde(rename = "ref")]
-    pub connector_ref: ConnectorRef,
+    pub name: ConnectorName,
     pub version: String,
     /// The version's identity: the digest of every file it consists of,
     /// which the registry's signed manifest names.
@@ -63,17 +63,11 @@ pub fn prepare_registry_connector_package(
             directory.display()
         ))
     })?;
-    let root = if directory.join(PLUGIN_METADATA_FILE).is_file() {
-        directory.clone()
-    } else {
-        plugin_root(&directory)
-            .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
-            .ok_or_else(|| {
-                RegistryPublishPackageError::invalid(
-                    "connector needs a plugin.json declaring its namespace",
-                )
-            })?
-    };
+    // A connector names itself; it loads as its plugin's, or as its own
+    // package root when it is in none.
+    let root = plugin_root(&directory)
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
+        .unwrap_or_else(|| directory.clone());
     let connector = load_connector_directory(&directory, &root)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     connector_package(&connector, Some(&directory))
@@ -126,7 +120,7 @@ pub(super) fn package_connectors(
                     files,
                     &format!(
                         "{PACKAGE_CONNECTORS_DIR}/{}/{}",
-                        connector.connector_ref, file.path
+                        connector.name, file.path
                     ),
                     file.content.as_bytes(),
                 )?;
@@ -135,22 +129,22 @@ pub(super) fn package_connectors(
                 connector_digest: connector.connector_digest.clone(),
                 manifest_digest: connector.manifest_digest.clone(),
                 runtime_capability: connector.manifest.runtime_capability,
-                connector_ref: connector.connector_ref.clone(),
+                name: connector.name.clone(),
                 version: package.version,
                 operations,
             })
         })
         .collect::<Result<Vec<_>, RegistryPublishPackageError>>()?;
-    let mut canonical = BTreeMap::<ConnectorRef, RegistryConnectorMetadata>::new();
+    let mut canonical = BTreeMap::<ConnectorName, RegistryConnectorMetadata>::new();
     for metadata in projected {
-        if let Some(existing) = canonical.get_mut(&metadata.connector_ref) {
+        if let Some(existing) = canonical.get_mut(&metadata.name) {
             for operation in metadata.operations {
                 if !existing.operations.contains(&operation) {
                     existing.operations.push(operation);
                 }
             }
         } else {
-            canonical.insert(metadata.connector_ref.clone(), metadata);
+            canonical.insert(metadata.name.clone(), metadata);
         }
     }
     Ok(canonical.into_values().collect())
@@ -178,7 +172,7 @@ pub(crate) fn connector_package(
         RegistryPublishPackageError::invalid("connector package has no content digest")
     })?;
     Ok(RegistryConnectorPackage {
-        connector_ref: connector.connector_ref.clone(),
+        name: connector.name.clone(),
         version: format!("sha-{}", &content_digest.as_str()[7..19]),
         content_digest,
         connector_digest: connector.connector_digest.clone(),
@@ -225,11 +219,6 @@ fn ship_connector(
         ));
     }
     super::files::insert_source_file(files, MANIFEST_FILE, manifest.as_bytes())?;
-    let namespace = PublisherNamespace::new(connector.connector_ref.namespace())
-        .ok_or_else(|| invalid("connector namespace is invalid".to_owned()))?;
-    let metadata = serde_json::to_vec(&PluginMetadata { namespace })
-        .map_err(|error| invalid(error.to_string()))?;
-    super::files::insert_source_file(files, PLUGIN_METADATA_FILE, &metadata)?;
 
     for (name, tool) in &connector.tools {
         let tool_path = ConnectorTool::package_path(name);

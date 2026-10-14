@@ -85,13 +85,20 @@ export function registrySignedManifestSigns(manifest: RegistrySignedManifest, su
   return manifest.subject.kind === subject.kind && manifest.subject.ref === subject.ref && manifest.version === version;
 }
 
-/** `publisher/name` of the given kind: a publisher namespace, then a skill name or a connector id. */
+/** A subject of the given kind: a skill's `publisher/name`, or a connector's name. */
 export function isRegistrySubjectRef(kind: RegistrySubjectKind, value: string): boolean {
+  if (kind === "connector") return isConnectorName(value);
   const slash = value.indexOf("/");
   if (slash < 0) return false;
-  const publisher = value.slice(0, slash);
-  const name = value.slice(slash + 1);
-  return PUBLISHER_NAMESPACE.test(publisher) && (kind === "skill" ? SKILL_NAME.test(name) : CONNECTOR_ID.test(name));
+  return PUBLISHER_NAMESPACE.test(value.slice(0, slash)) && SKILL_NAME.test(value.slice(slash + 1));
+}
+
+/**
+ * A connector's name: a registry namespace (`stripe`), or a namespace and one
+ * surface (`google/calendar`); `versions` is reserved in either place.
+ */
+export function isConnectorName(value: string): boolean {
+  return CONNECTOR_NAME.test(value);
 }
 
 /** Checks the envelope's shape and every term; refuses any field the contract does not name. */
@@ -117,7 +124,7 @@ export function validateRegistrySignedManifest(value: unknown): RegistrySignedMa
 
 const PUBLISHER_NAMESPACE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 const SKILL_NAME = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const CONNECTOR_ID = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/u;
+const CONNECTOR_NAME = /^(?!versions(?:\/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:\/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$/u;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 
 function isSignerTerm(value: unknown): value is string {

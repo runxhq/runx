@@ -371,7 +371,7 @@ pub struct ResolvedRegistryRef {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorDetail {
     #[serde(rename = "ref")]
-    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub connector: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub name: String,
     pub description: String,
@@ -389,7 +389,7 @@ pub struct RegistryConnectorDetail {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistryConnectorSearchResult {
     #[serde(rename = "ref")]
-    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub connector: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub name: String,
     pub description: String,

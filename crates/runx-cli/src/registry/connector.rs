@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::connector::ConnectorRef;
+use runx_contracts::connector::ConnectorName;
 use runx_runtime::registry::{
     HostedConnectorPublishRequest, InstallRegistryConnectorOptions, install_registry_connector,
     prepare_registry_connector_package, publish_hosted_connector,
@@ -70,14 +70,14 @@ pub(super) fn publish(
     )
     .map_err(|error| internal_error(error.to_string()))?;
     // The registry reads the files natively; it must have recorded these.
-    if published.connector_ref != package.connector_ref
+    if published.name != package.name
         || published.content_digest != package.content_digest
     {
         return Err(internal_error(format!(
             "the registry recorded {} with content {}, but the package is {} with content {}",
-            published.connector_ref,
+            published.name,
             published.content_digest,
-            package.connector_ref,
+            package.name,
             package.content_digest
         )));
     }
@@ -94,10 +94,10 @@ pub(super) fn publish(
     )
 }
 
-/// Installs `connector_ref` at `version`, or its current version.
+/// Installs connector `name` at `version`, or its current version.
 pub(super) fn install(
     plan: &RegistryPlan,
-    connector_ref: &ConnectorRef,
+    name: &ConnectorName,
     registry_url: &str,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -111,18 +111,18 @@ pub(super) fn install(
         Some(version) => version.clone(),
         None => {
             client
-                .read_connector(connector_ref, None)?
+                .read_connector(name, None)?
                 .ok_or_else(|| not_found(&plan.requested_ref()))?
                 .version
         }
     };
     let published = client
-        .connector_package(connector_ref, &version)?
+        .connector_package(name, &version)?
         .ok_or_else(|| not_found(&plan.requested_ref()))?;
-    if &published.connector_ref != connector_ref || published.version != version {
+    if &published.name != name || published.version != version {
         return Err(internal_error(format!(
-            "the registry served {}@{} for {connector_ref}@{version}",
-            published.connector_ref, published.version
+            "the registry served {}@{} for {name}@{version}",
+            published.name, published.version
         )));
     }
     let installed = install_registry_connector(

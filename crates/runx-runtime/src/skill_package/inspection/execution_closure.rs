@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::connector::{ConnectorRef, Digest};
+use runx_contracts::connector::{ConnectorName, Digest};
 use runx_contracts::{EnvironmentRequirements, JsonValue, sha256_prefixed};
 use runx_parser::{GraphStep, StepKind, ToolTarget};
 use serde::Serialize;
@@ -94,7 +94,7 @@ struct ExecutionPackageBinding {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct ExecutionConnectorBinding {
-    connector: ConnectorRef,
+    connector: ConnectorName,
     manifest_digest: Digest,
     connector_digest: Digest,
 }
@@ -481,7 +481,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
                 walk.closure.connector_bindings.insert(
                     ExecutionConnectorBinding {
-                        connector: connector.connector_ref.clone(),
+                        connector: connector.name.clone(),
                         manifest_digest: connector.manifest_digest.clone(),
                         connector_digest: connector.connector_digest.clone(),
                     },

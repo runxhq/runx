@@ -262,7 +262,7 @@ fn connector_bindings(
         .iter()
         .map(|connector| PackageBundleConnector {
             from: from.to_owned(),
-            connector: connector.connector_ref.clone(),
+            connector: connector.name.clone(),
             manifest_digest: connector.manifest_digest.clone(),
             connector_digest: connector.connector_digest.clone(),
         })

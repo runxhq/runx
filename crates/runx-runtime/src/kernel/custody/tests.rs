@@ -12,7 +12,7 @@ fn digest(text: &str) -> Digest {
 /// The intent of a post with request key `key` on `target`.
 fn intent(target: &str, key: &str) -> OperationIntent {
     OperationIntent {
-        connector: runx_contracts::connector::ConnectorRef::new("runx/slack").unwrap(),
+        connector: runx_contracts::connector::ConnectorName::new("runx/slack").unwrap(),
         manifest_digest: digest("manifest"),
         connector_digest: digest("connector"),
         operation: runx_contracts::connector::OperationName::new("channel.post").unwrap(),

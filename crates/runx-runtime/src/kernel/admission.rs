@@ -350,7 +350,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         // the act's: a changed act is another call.
         let act_digest = call.act.as_ref().map(digest).transpose()?;
         let intent = OperationIntent {
-            connector: connector.connector_ref.clone(),
+            connector: connector.name.clone(),
             manifest_digest: connector.manifest_digest.clone(),
             connector_digest: connector.connector_digest.clone(),
             operation: operation_name.clone(),
@@ -384,7 +384,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let term_request = term_request(
         &instance,
         actor_ref.clone(),
-        connector.connector_ref.as_str(),
+        connector.name.as_str(),
         &operation_name,
         operation_spec,
         &target,
@@ -609,7 +609,7 @@ pub fn connector_readiness(
     };
     project(
         &scope,
-        &BTreeMap::from([(connector.connector_ref.as_str().to_owned(), requirement)]),
+        &BTreeMap::from([(connector.name.as_str().to_owned(), requirement)]),
         env,
         cwd,
     )
@@ -697,7 +697,7 @@ fn readiness(
             return finish(readiness, reasons);
         }
     };
-    readiness.connector = Some(connector.connector_ref.clone());
+    readiness.connector = Some(connector.name.clone());
     let Some((operation_name, spec, operation_digest)) = connector.operation(operation.as_str())
     else {
         reasons.push(
@@ -852,13 +852,13 @@ fn pins_current(
     instance: &ConnectorInstance,
 ) -> Result<(), String> {
     let instance = &instance;
-    if instance.connector != connector.connector_ref {
+    if instance.connector != connector.name {
         return Err(format!(
             "instance {} was confirmed for connector {}, not {}; confirm one for {}",
             instance.instance_id,
             instance.connector,
-            connector.connector_ref,
-            connector.connector_ref
+            connector.name,
+            connector.name
         ));
     }
     if instance.manifest_digest != connector.manifest_digest
@@ -866,7 +866,7 @@ fn pins_current(
     {
         return Err(format!(
             "connector {} changed since instance {} was confirmed; confirm its binding again",
-            connector.connector_ref, instance.instance_id
+            connector.name, instance.instance_id
         ));
     }
     if instance.operation_digests.get(operation) != Some(operation_digest) {

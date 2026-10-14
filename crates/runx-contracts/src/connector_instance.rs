@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::JsonObject;
 use crate::connector::{
-    ConnectorDigestError, ConnectorRef, CredentialName, Digest, EnvName, InstanceId, OperationName,
+    ConnectorDigestError, ConnectorName, CredentialName, Digest, EnvName, InstanceId, OperationName,
     Placement, SecretReference, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
@@ -32,7 +32,7 @@ pub enum ConnectorInstanceSchema {
 pub struct ConnectorInstance {
     pub schema: ConnectorInstanceSchema,
     pub instance_id: InstanceId,
-    pub connector: ConnectorRef,
+    pub connector: ConnectorName,
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
     pub placement: Placement,
@@ -80,7 +80,7 @@ impl ConnectorInstance {
 struct BindingIdentity<'a> {
     schema: ConnectorInstanceSchema,
     instance_id: &'a InstanceId,
-    connector: &'a ConnectorRef,
+    connector: &'a ConnectorName,
     manifest_digest: &'a Digest,
     connector_digest: &'a Digest,
     placement: Placement,

@@ -1,7 +1,7 @@
 use serde_json::json;
 use url::Url;
 
-use runx_contracts::connector::ConnectorRef;
+use runx_contracts::connector::ConnectorName;
 
 use super::connector_install::RegistryConnectorVersion;
 use super::payload::{
@@ -204,10 +204,10 @@ impl<T: Transport> RegistryClient<T> {
     /// A published connector: `version`, or its current version.
     pub fn read_connector(
         &self,
-        connector_ref: &ConnectorRef,
+        name: &ConnectorName,
         version: Option<&str>,
     ) -> Result<Option<RegistryConnectorDetail>, RegistryClientError> {
-        let mut route = connector_route(connector_ref);
+        let mut route = connector_route(name);
         if let Some(version) = version {
             route.push_str(&format!("/versions/{}", encode_segment(version)));
         }
@@ -217,12 +217,12 @@ impl<T: Transport> RegistryClient<T> {
     /// The files and signed manifest of one published connector version.
     pub fn connector_package(
         &self,
-        connector_ref: &ConnectorRef,
+        name: &ConnectorName,
         version: &str,
     ) -> Result<Option<RegistryConnectorVersion>, RegistryClientError> {
         let route = format!(
             "{}/versions/{}/package",
-            connector_route(connector_ref),
+            connector_route(name),
             encode_segment(version)
         );
         self.get(&route, parse_connector_package)
@@ -298,12 +298,15 @@ fn validated_skill_id(skill_id: &str) -> Result<(&str, &str), RegistryClientErro
         .map_err(|_| RegistryClientError::InvalidSkillId(skill_id.to_owned()))
 }
 
-fn connector_route(connector_ref: &ConnectorRef) -> String {
-    format!(
-        "/v1/connectors/{}/{}",
-        encode_segment(connector_ref.namespace()),
-        encode_segment(connector_ref.id())
-    )
+/// `/v1/connectors/<name>`: a name is one or two path segments.
+fn connector_route(name: &ConnectorName) -> String {
+    let segments = name
+        .as_str()
+        .split('/')
+        .map(encode_segment)
+        .collect::<Vec<_>>()
+        .join("/");
+    format!("/v1/connectors/{segments}")
 }
 
 fn encode_segment(value: &str) -> String {

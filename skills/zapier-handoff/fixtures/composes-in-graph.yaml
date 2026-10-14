@@ -1,7 +1,0 @@
-name: zapier-handoff-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [zapier-handoff, digest]
-  receipt: { schema: runx.receipt.v1 }

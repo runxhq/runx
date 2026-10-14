@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ConnectorRef, InstanceId, Placement, credential_declaration_digest,
+    ConnectorName, InstanceId, Placement, credential_declaration_digest,
 };
 use runx_contracts::connector_instance::ConnectorInstanceSchema;
 use runx_contracts::schema::IsoDateTime;
@@ -78,7 +78,7 @@ pub enum InstanceError {
     #[error(
         "no instance is selected for connector {connector}; `runx connector inspect {connector}` shows how to set one up"
     )]
-    NotSelected { connector: ConnectorRef },
+    NotSelected { connector: ConnectorName },
     #[error("instance {instance_id} does not exist")]
     Missing { instance_id: String },
     #[error("instance {instance_id} was revoked")]
@@ -86,15 +86,15 @@ pub enum InstanceError {
     #[error("instance {instance_id} belongs to connector {actual}, not {expected}")]
     WrongConnector {
         instance_id: String,
-        expected: ConnectorRef,
-        actual: ConnectorRef,
+        expected: ConnectorName,
+        actual: ConnectorName,
     },
     #[error(
         "instance {instance_id} uses the {placement} placement, which connector {connector} does not support"
     )]
     PlacementUnsupported {
         instance_id: String,
-        connector: ConnectorRef,
+        connector: ConnectorName,
         placement: &'static str,
     },
     #[error(
@@ -102,7 +102,7 @@ pub enum InstanceError {
     )]
     AuthorityUnsupported {
         instance_id: String,
-        connector: ConnectorRef,
+        connector: ConnectorName,
         placement: &'static str,
         authority: &'static str,
     },
@@ -240,9 +240,9 @@ impl Instances {
         &self,
         connector: &LoadedConnector,
     ) -> Result<ConnectorInstance, InstanceError> {
-        let Some(instance_id) = self.selected(connector.connector_ref.as_str())? else {
+        let Some(instance_id) = self.selected(connector.name.as_str())? else {
             return public(connector).ok_or_else(|| InstanceError::NotSelected {
-                connector: connector.connector_ref.clone(),
+                connector: connector.name.clone(),
             });
         };
         let record = self
@@ -261,7 +261,7 @@ impl Instances {
 
     fn selection_append(
         &self,
-        connector: &ConnectorRef,
+        connector: &ConnectorName,
         instance_id: &InstanceId,
     ) -> Result<Append, InstanceError> {
         let version = self.store.version::<SelectionEvent>(connector.as_str())?;
@@ -286,16 +286,16 @@ pub(crate) fn check_supported(
     instance: &ConnectorInstance,
 ) -> Result<(), InstanceError> {
     let manifest = &connector.manifest;
-    if instance.connector != connector.connector_ref {
+    if instance.connector != connector.name {
         return Err(InstanceError::WrongConnector {
             instance_id: instance.instance_id.as_str().to_owned(),
-            expected: connector.connector_ref.clone(),
+            expected: connector.name.clone(),
             actual: instance.connector.clone(),
         });
     }
     let unsupported_placement = || InstanceError::PlacementUnsupported {
         instance_id: instance.instance_id.as_str().to_owned(),
-        connector: connector.connector_ref.clone(),
+        connector: connector.name.clone(),
         placement: instance.placement.as_str(),
     };
     let accepted = match instance.placement {
@@ -346,7 +346,7 @@ pub(crate) fn check_supported(
     } else {
         Err(InstanceError::AuthorityUnsupported {
             instance_id: instance.instance_id.as_str().to_owned(),
-            connector: connector.connector_ref.clone(),
+            connector: connector.name.clone(),
             placement: instance.placement.as_str(),
             authority: instance.authority.kind(),
         })
@@ -367,7 +367,7 @@ fn public(connector: &LoadedConnector) -> Option<ConnectorInstance> {
     if !admits_none {
         return None;
     }
-    let instance_id = instance_id(&["public", connector.connector_ref.as_str()]).ok()?;
+    let instance_id = instance_id(&["public", connector.name.as_str()]).ok()?;
     let mut instance = pinned(
         connector,
         instance_id,
@@ -419,7 +419,7 @@ pub(crate) fn pinned(
     ConnectorInstance {
         schema: ConnectorInstanceSchema::V1,
         instance_id,
-        connector: connector.connector_ref.clone(),
+        connector: connector.name.clone(),
         manifest_digest: connector.manifest_digest.clone(),
         connector_digest: connector.connector_digest.clone(),
         placement,

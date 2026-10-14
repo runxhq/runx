@@ -1,0 +1,19 @@
+name: webhook-handoff-composed
+steps:
+  - id: webhook-handoff
+    skill: ../..
+    runner: preflight
+    inputs:
+      platform: n8n
+      event_id: evt_n8n_demo_001
+      handoff_audience: n8n:workflow:runx-governed-effect
+      execution_context:
+        caller: runx-cli
+        workflow_ref: n8n-cloud-demo
+        environment: local-dogfood
+      payload:
+        hello: workflow
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.webhook-handoff

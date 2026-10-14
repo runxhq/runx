@@ -120,7 +120,7 @@ impl AuthoritySources {
         self.instances.iter().find(|record| {
             record.selected
                 && !record.revoked
-                && record.instance.connector == connector.connector_ref
+                && record.instance.connector == connector.name
         })
     }
 }
@@ -179,7 +179,7 @@ impl SetupForm {
 #[must_use]
 pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
     let manifest = &connector.manifest;
-    let use_ = format!("runx connector use {}", connector.connector_ref);
+    let use_ = format!("runx connector use {}", connector.name);
     let credential = |name: &CredentialName| SetupForm {
         command: format!("{use_} --credential {name}"),
         variable: manifest
@@ -416,7 +416,7 @@ impl<'a> ConnectorSetup<'a> {
             .map_err(|error| error.to_string())?
             .into_iter()
             .filter(|record| {
-                !record.revoked && record.instance.connector == connector.connector_ref
+                !record.revoked && record.instance.connector == connector.name
             })
             .map(|record| record.instance.instance_id.as_str().to_owned())
             .collect::<Vec<_>>();
@@ -426,10 +426,10 @@ impl<'a> ConnectorSetup<'a> {
             several => {
                 return Err(format!(
                     "{} has several instances; name one: {}",
-                    connector.connector_ref,
+                    connector.name,
                     several
                         .iter()
-                        .map(|id| format!("`runx connector use {} {id}`", connector.connector_ref))
+                        .map(|id| format!("`runx connector use {} {id}`", connector.name))
                         .collect::<Vec<_>>()
                         .join(", ")
                 ));
@@ -488,7 +488,7 @@ impl<'a> ConnectorSetup<'a> {
             for profile in
                 list_local_credential_profiles(self.workspace).map_err(|error| error.to_string())?
             {
-                if profile.connector == connector.connector_ref {
+                if profile.connector == connector.name {
                     paths.push(Path::Profile(profile.name));
                 }
             }
@@ -538,7 +538,7 @@ impl<'a> ConnectorSetup<'a> {
             if profile.is_some() {
                 return Err(format!(
                     "{}'s {credential} credential is read from {variable}, which is set; --profile stores a credential only when its variable is not",
-                    connector.connector_ref
+                    connector.name
                 ));
             }
             return setup::bind_environment(
@@ -554,7 +554,7 @@ impl<'a> ConnectorSetup<'a> {
         setup::set_credential(
             self.instances,
             connector,
-            profile.unwrap_or(connector.connector_ref.as_str()),
+            profile.unwrap_or(connector.name.as_str()),
             credential,
             &secret,
             &options.scopes,
@@ -578,14 +578,14 @@ impl<'a> ConnectorSetup<'a> {
         let read = self.secrets.ok_or_else(|| {
             format!(
                 "{} needs its {credential} credential: set {variable}, or run `runx connector use` where it can ask for it",
-                connector.connector_ref
+                connector.name
             )
         })?;
         let wanted = match declaration.fields.as_slice() {
-            [_] => format!("{} {credential}", connector.connector_ref),
+            [_] => format!("{} {credential}", connector.name),
             fields => format!(
                 "{} {credential}, a JSON object of {}",
-                connector.connector_ref,
+                connector.name,
                 fields
                     .iter()
                     .map(|field| field.name.as_str())
@@ -634,7 +634,7 @@ impl<'a> ConnectorSetup<'a> {
     }
 
     fn choose_message(&self, connector: &LoadedConnector, paths: &[Path]) -> String {
-        let reference = connector.connector_ref.as_str();
+        let reference = connector.name.as_str();
         let mut forms = paths
             .iter()
             .filter_map(|path| match path {
@@ -683,10 +683,10 @@ impl<'a> ConnectorSetup<'a> {
                 "{name} is both an instance id and a credential profile; nothing was selected"
             )),
             (Some(record), None) => {
-                if record.instance.connector != connector.connector_ref {
+                if record.instance.connector != connector.name {
                     return Err(format!(
                         "instance {name} belongs to connector {}, not {}",
-                        record.instance.connector, connector.connector_ref
+                        record.instance.connector, connector.name
                     ));
                 }
                 fixed(options, &format!("instance {name}"))?;
@@ -742,7 +742,7 @@ impl<'a> ConnectorSetup<'a> {
             .map_err(|error| {
                 format!(
                     "{name} is no instance, profile, grant or pending Connect session for {}: {error}",
-                    connector.connector_ref
+                    connector.name
                 )
             })?;
         self.settle(connector, ConnectSession::from_response(session)?, options)
@@ -761,12 +761,12 @@ impl<'a> ConnectorSetup<'a> {
             .placements
             .hosted
             .as_ref()
-            .ok_or_else(|| format!("{} has no hosted placement", connector.connector_ref))?;
+            .ok_or_else(|| format!("{} has no hosted placement", connector.name))?;
         let credentials = match (hosted.auth, &hosted.credential) {
             (HostedAuth::Delegated, _) if from.is_some() => {
                 return Err(format!(
                     "{} signs in to its provider through Connect; --from seeds only a hosted credential",
-                    connector.connector_ref
+                    connector.name
                 ));
             }
             (HostedAuth::Delegated, _) => None,
@@ -776,7 +776,7 @@ impl<'a> ConnectorSetup<'a> {
             (HostedAuth::Credential, None) => {
                 return Err(format!(
                     "{}'s hosted placement names no credential",
-                    connector.connector_ref
+                    connector.name
                 ));
             }
         };
@@ -858,7 +858,7 @@ impl<'a> ConnectorSetup<'a> {
                     if authorization_url.is_none()
                         && let (Some(url), Some(show)) = (url.as_deref(), self.links)
                     {
-                        show(connector.connector_ref.as_str(), url);
+                        show(connector.name.as_str(), url);
                     }
                     authorization_url = url.or(authorization_url);
                     (session_id, poll_after_ms)
@@ -876,7 +876,7 @@ impl<'a> ConnectorSetup<'a> {
                 | ConnectSession::Unsupported { error } => {
                     return Err(format!(
                         "runx Connect could not grant {}: {}",
-                        connector.connector_ref,
+                        connector.name,
                         error.as_deref().unwrap_or("no reason given")
                     ));
                 }
@@ -885,7 +885,7 @@ impl<'a> ConnectorSetup<'a> {
                 return Ok(UseOutcome::Pending {
                     finish: format!(
                         "runx connector use {} {session_id}",
-                        connector.connector_ref
+                        connector.name
                     ),
                     session_id,
                     authorization_url,
@@ -988,7 +988,7 @@ fn declared<'a>(
         .ok_or_else(|| {
             format!(
                 "{} declares no credential {credential}",
-                connector.connector_ref
+                connector.name
             )
         })
 }
@@ -1013,7 +1013,7 @@ fn needs_credential(connector: &LoadedConnector) -> String {
         .collect::<Vec<_>>();
     format!(
         "{}'s Connect session waits for a credential; run {}",
-        connector.connector_ref,
+        connector.name,
         forms.join(" or ")
     )
 }
@@ -1041,11 +1041,11 @@ fn only_credential(connector: &LoadedConnector) -> Result<CredentialName, String
         [name] => Ok((*name).clone()),
         [] => Err(format!(
             "{} declares no credential",
-            connector.connector_ref
+            connector.name
         )),
         names => Err(format!(
             "{} declares {}; name one with --credential",
-            connector.connector_ref,
+            connector.name,
             names
                 .iter()
                 .map(|name| name.as_str())

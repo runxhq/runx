@@ -1,7 +1,0 @@
-name: vault-unseal-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [vault-unseal, digest]
-  receipt: { schema: runx.receipt.v1 }

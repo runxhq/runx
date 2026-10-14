@@ -43,7 +43,7 @@ requires the same id, title and body. Acceptance without that readback is not
 completion.
 
 The Moltbook connector holds the agent's API key, set once with
-`runx connector use runx/moltbook --credential api_key`, the key on stdin. The package
+`runx connector use moltbook --credential api_key`, the key on stdin. The package
 never sees the key or makes its own requests.
 
 ## Inputs and result

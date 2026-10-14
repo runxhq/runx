@@ -46,7 +46,7 @@ impl HostedGrant {
             )),
             Some(binding) if *binding != connector.binding() => Err(format!(
                 "hosted grant {} does not bind connector {} at its loaded revision",
-                self.grant_id, connector.connector_ref
+                self.grant_id, connector.name
             )),
             Some(_) => Ok(()),
         }

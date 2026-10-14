@@ -1,9 +1,0 @@
-name: vault-unseal-stops-on-missing-inputs
-kind: skill
-target: ..
-runner: vault-unseal
-inputs:
-  purpose: Need a key for the export job
-expect:
-  status: failure
-metadata: { public_skill: vault-unseal, source_case: missing-inputs, source: skills-fixture }

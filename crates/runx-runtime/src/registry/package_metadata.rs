@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::PaidSkillOfferTerms;
-use runx_contracts::connector::{ConnectorRef, Digest};
+use runx_contracts::connector::{ConnectorName, Digest};
 use runx_parser::{CatalogMetadata, SkillRunnerManifest, ValidatedSkill};
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +45,7 @@ pub struct RegistryPackageMetadata {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorMetadata {
     #[serde(rename = "ref")]
-    pub connector_ref: ConnectorRef,
+    pub name: ConnectorName,
     pub version: String,
     pub manifest_digest: Digest,
     /// The manifest and every tool its process operations run.

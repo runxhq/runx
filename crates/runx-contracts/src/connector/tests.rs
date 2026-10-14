@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use serde_json::json;
+
 use super::*;
 use crate::{JsonObject, JsonValue};
 
@@ -11,7 +13,7 @@ const SLACK: &str = r#"{
   "name": "Slack",
   "description": "Search, read and post messages in Slack workspaces.",
   "runtime_capability": false,
-  "auth": {"delegated": {}},
+  "auth": {"delegated": {"principal": {"url": "https://slack.com/api/auth.test", "id": "user_id", "login": "user"}}},
   "placements": {"hosted": {"auth": "delegated"}},
   "operations": {
     "channel.post": {
@@ -49,12 +51,48 @@ fn identifiers_follow_their_grammar() {
     assert!(!is_operation_name("_channel.post"));
     assert!(!is_operation_name(&format!("a.{}", "b".repeat(99))));
 
-    assert!(is_connector_id("slack"));
-    assert!(is_connector_id("google-calendar"));
-    assert!(!is_connector_id("s"));
-    assert!(!is_connector_id("slack-"));
-    assert!(!is_connector_id("-slack"));
-    assert!(!is_connector_id("Slack"));
+    // A connector name is a namespace, or a namespace and one surface; the
+    // published pattern and the check agree on every case.
+    let pattern = jsonschema::validator_for(&json!({
+        "type": "string",
+        "pattern": CONNECTOR_NAME_PATTERN,
+        "maxLength": 129
+    }))
+    .unwrap();
+    for (name, valid) in [
+        ("stripe", true),
+        ("github", true),
+        ("google/calendar", true),
+        ("google/search-console", true),
+        ("wallet/evm", true),
+        ("ausca/browser", true),
+        ("x", true),
+        ("4chan", true),
+        ("acme/notion", true),
+        ("national-weather-service", true),
+        ("google/4k", false),
+        ("google/c", false),
+        ("google/calendar/events", false),
+        ("google/", false),
+        ("/calendar", false),
+        ("versions", false),
+        ("versions/evm", false),
+        ("google/versions", false),
+        ("versioned", true),
+        ("google/versioning", true),
+        ("Slack", false),
+        ("slack-", false),
+        ("-slack", false),
+        ("slack_bot", false),
+        ("", false),
+    ] {
+        assert_eq!(is_connector_name(name), valid, "check: {name}");
+        assert_eq!(pattern.is_valid(&json!(name)), valid, "pattern: {name}");
+    }
+    let name = ConnectorName::new("google/calendar").unwrap();
+    assert_eq!((name.namespace(), name.surface()), ("google", Some("calendar")));
+    let leaf = ConnectorName::new("stripe").unwrap();
+    assert_eq!((leaf.namespace(), leaf.surface()), ("stripe", None));
 
     assert!(Digest::new(format!("sha256:{}", "a".repeat(64))).is_some());
     assert!(Digest::new(format!("sha256:{}", "A".repeat(64))).is_none());

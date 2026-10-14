@@ -5,7 +5,7 @@ description: Search, read and post messages in Slack workspaces.
 category: communication
 runtime_capability: false
 auth:
-  delegated: {}
+  delegated: {principal: {url: "https://slack.com/api/auth.test", id: user_id, login: user}}
 placements:
   hosted:
     auth: delegated
@@ -81,36 +81,3 @@ operations:
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
-  message.send:
-    description: Send one digest-bound message as a principal to the target conversation. Declared only; no placement implements it yet.
-    verb: write
-    scopes: [message.send]
-    target:
-      template: {"$argument": "/target"}
-    approval: required
-    input_schema:
-      type: object
-      required: [target, message]
-      additionalProperties: false
-      properties:
-        target: {type: string, minLength: 1, maxLength: 2048}
-        message:
-          type: object
-          required: [schema, principal, audience, content]
-          properties:
-            schema: {const: runx.message.send.v1}
-    result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]
-  message.read:
-    description: Read back one sent message. Declared only; no placement implements it yet.
-    verb: read
-    scopes: [message.read]
-    target:
-      template: {"$argument": "/target"}
-    input_schema:
-      type: object
-      required: [target, message_id]
-      additionalProperties: false
-      properties:
-        target: {type: string, minLength: 1, maxLength: 2048}
-        message_id: {type: string, minLength: 1}
-    result_fields: [message_id, principal_ref, audience_ref, content_digest, status, sent_at, idempotency_key]

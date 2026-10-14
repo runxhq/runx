@@ -245,7 +245,7 @@ fn capability(
         bounds: AuthorityBounds {
             operations: vec![NonEmptyString::from(format!(
                 "{}/*",
-                connector.connector_ref
+                connector.name
             ))],
             scopes: scopes
                 .iter()

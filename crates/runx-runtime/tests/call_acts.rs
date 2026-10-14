@@ -182,7 +182,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
             .unwrap()
             .connector("runx/slack")
             .unwrap();
-    assert_eq!(operation.connector, slack.connector_ref);
+    assert_eq!(operation.connector, slack.name);
     assert_eq!(operation.manifest_digest, slack.manifest_digest);
     assert_eq!(operation.connector_digest, slack.connector_digest);
     assert_eq!(operation.operation.as_str(), "channel.post");

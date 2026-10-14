@@ -24,7 +24,7 @@ use thiserror::Error;
 use crate::{JsonObject, to_canonical_bytes};
 
 use super::{
-    AmountRule, ApprovalFloor, ConnectorId, ConnectorManifest, ConnectorOperation,
+    AmountRule, ApprovalFloor, ConnectorName, ConnectorManifest, ConnectorOperation,
     CredentialDeclaration, CredentialName, Digest, IdempotencyKeyFormat, Implementation, McpServer,
     NonEmptyString, OperationGuarantees, OperationName, OperationTarget, OperationVerb,
 };
@@ -46,7 +46,7 @@ pub fn manifest_digest(manifest: &ConnectorManifest) -> Result<Digest, Connector
 
 #[derive(Serialize)]
 struct OperationAuthority<'a> {
-    connector: &'a ConnectorId,
+    connector: &'a ConnectorName,
     operation: &'a OperationName,
     verb: OperationVerb,
     scopes: &'a [NonEmptyString],
@@ -60,7 +60,7 @@ struct OperationAuthority<'a> {
 }
 
 pub fn operation_digest(
-    connector: &ConnectorId,
+    connector: &ConnectorName,
     name: &OperationName,
     operation: &ConnectorOperation,
 ) -> Result<Digest, ConnectorDigestError> {

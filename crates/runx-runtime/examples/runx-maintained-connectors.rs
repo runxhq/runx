@@ -15,12 +15,12 @@ use serde::Serialize;
 
 const USAGE: &str = "usage: runx-maintained-connectors [--lock] <connectors directory>";
 
-/// One runx-maintained connector as the registry records it: its ref, the
+/// One runx-maintained connector as the registry records it: its name, the
 /// content-derived version label it publishes under, and that content's digest.
 #[derive(Serialize)]
 struct LockEntry {
     #[serde(rename = "ref")]
-    connector_ref: String,
+    name: String,
     version: String,
     content_digest: String,
 }
@@ -53,20 +53,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Every connector directory below `root`, in name order, packaged as its
-/// publisher would publish it.
+/// Every connector below `root`, by name, packaged as its publisher would
+/// publish it.
 fn runx_maintained_lock(root: &Path) -> Result<Lock, Box<dyn std::error::Error>> {
-    let mut directories = std::fs::read_dir(root)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<Result<Vec<_>, _>>()?;
-    directories.retain(|path| path.is_dir());
-    directories.sort();
-    let connectors = directories
+    let connectors = runx_runtime::kernel::connectors::connector_directories(root)?
         .iter()
-        .map(|directory| {
+        .map(|(_, directory)| {
             let package = runx_runtime::registry::prepare_registry_connector_package(directory)?;
             Ok(LockEntry {
-                connector_ref: package.connector_ref.as_str().to_owned(),
+                name: package.name.as_str().to_owned(),
                 version: package.version,
                 content_digest: package.content_digest.as_str().to_owned(),
             })

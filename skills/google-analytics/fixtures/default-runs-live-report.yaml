@@ -16,7 +16,7 @@ caller:
     principal_id: operator-fixture
     grant:
         grant_id: ga-report-fixture
-        provider: google-analytics
+        provider: google/analytics
         scopes: [reports.read]
     operations:
       - operation: reports.run

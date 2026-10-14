@@ -854,7 +854,7 @@ operations:
             package.metadata.connectors,
             vec![
                 super::super::RegistryConnectorMetadata {
-                    connector_ref: acme.connector_ref.clone(),
+                    name: acme.name.clone(),
                     version: super::prepare_registry_connector_package(
                         &temp.path().join("connectors/acme-ops")
                     )?
@@ -865,12 +865,12 @@ operations:
                     operations: vec!["item.sync".to_owned()],
                 },
                 super::super::RegistryConnectorMetadata {
-                    connector_ref: web.connector_ref.clone(),
+                    name: web.name.clone(),
                     version: package
                         .metadata
                         .connectors
                         .iter()
-                        .find(|binding| binding.connector_ref == "runx/web")
+                        .find(|binding| binding.name == "runx/web")
                         .ok_or("web binding missing")?
                         .version
                         .clone(),
@@ -984,7 +984,7 @@ operations:
             .metadata
             .connectors
             .into_iter()
-            .find(|binding| binding.connector_ref.as_str() == "acme/acme-ops")
+            .find(|binding| binding.name.as_str() == "acme/acme-ops")
             .ok_or("binding missing")?;
         assert_eq!(connector.manifest_digest, binding.manifest_digest);
         assert_eq!(connector.connector_digest, binding.connector_digest);

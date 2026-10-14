@@ -118,7 +118,7 @@ pub(crate) fn one_value(
     if crate::services::env_file_differs(env, variable.as_str()) {
         return Err(format!(
             "{variable} is set in the environment and in the workspace .env with different values; unset one so {} reads one {credential}",
-            connector.connector_ref
+            connector.name
         ));
     }
     Ok(())
@@ -144,13 +144,13 @@ pub(crate) fn from_environment(
         .ok_or_else(|| {
             format!(
                 "{} reads its {credential} credential from {variable}, which is not set in the environment or the workspace .env",
-                connector.connector_ref
+                connector.name
             )
         })?;
     if crate::secret_refs::looks_like_reference(value) {
         return Err(format!(
             "{variable} holds a reference to a secret, not the secret; bind the reference with `runx connector use {} --from <reference>`, or run under the tool that resolves it",
-            connector.connector_ref
+            connector.name
         ));
     }
     let fields = fields(declaration, value).map_err(|reason| format!("{variable} {reason}"))?;
@@ -280,12 +280,12 @@ fn stored_profile(
         .profiles
         .remove(profile)
         .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.connector_ref
+    if stored.connector != connector.name
         || stored.credential != binding.credential.as_str()
     {
         return Err(format!(
             "credential profile {profile} holds {}'s {} credential, not {}'s {}",
-            stored.connector, stored.credential, connector.connector_ref, binding.credential
+            stored.connector, stored.credential, connector.name, binding.credential
         ));
     }
     let declaration = declaration(&connector.manifest, binding.credential)?;
@@ -301,7 +301,7 @@ fn stored_profile(
     if stored.secret_ref != binding.material_ref {
         return Err(format!(
             "credential profile {profile} was replaced after {} was bound to it; bind it again here with `runx connector use {} {profile}`",
-            connector.connector_ref, connector.connector_ref
+            connector.name, connector.name
         ));
     }
     Ok((paths, stored))

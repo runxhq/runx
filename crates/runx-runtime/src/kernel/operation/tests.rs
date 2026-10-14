@@ -1735,7 +1735,7 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
             "name": "Notes",
             "description": "Write and read notes.",
             "runtime_capability": false,
-            "auth": {"delegated": {}},
+            "auth": {"delegated": {"principal": {"url": "https://notes.example/api/me", "id": "id", "login": "login"}}},
             "placements": {"hosted": {"auth": "delegated"}},
             "operations": {
                 "note.read": {

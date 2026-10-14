@@ -104,15 +104,9 @@ fn granted_connector(
             reach(connector);
         }
     }
-    // A qualified name is one connector; a bare one is its id, as a
-    // plugin names its own.
-    let qualified = runx_contracts::connector::ConnectorRef::new(id);
+    // A connector has one name; the closure's revisions of it are reached.
     for connector in closure {
-        let named = match &qualified {
-            Some(reference) => &connector.connector_ref == reference,
-            None => connector.connector_ref.id() == id,
-        };
-        if named {
+        if connector.name.as_str() == id {
             reach(Arc::clone(connector));
         }
     }
@@ -125,7 +119,7 @@ fn granted_connector(
                 .iter()
                 .map(|connector| format!(
                     "{} at {}",
-                    connector.connector_ref, connector.manifest_digest
+                    connector.name, connector.manifest_digest
                 ))
                 .collect::<Vec<_>>()
                 .join(", ")

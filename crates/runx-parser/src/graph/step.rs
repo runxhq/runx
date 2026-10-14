@@ -15,7 +15,7 @@ use super::types::{
     StepAct, StepKind,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
-use runx_contracts::connector::{OperationName, is_connector_id, is_connector_ref};
+use runx_contracts::connector::{OperationName, is_connector_name, is_operation_name};
 
 /// The five step kinds; a step declares exactly one.
 const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill"];
@@ -286,18 +286,22 @@ fn operation_call(raw_step: &JsonObject) -> JsonObject {
 }
 
 /// `operation: <requirement>/<operation>`, or `operation: <requirement>` with
-/// the operation chosen at run time by the step's `operation_name`.
+/// the operation chosen at run time by the step's `operation_name`. An
+/// operation name always has a dot and a connector name never does, so the
+/// last slash splits off an operation only when one follows it:
+/// `google/calendar/events.list`, `github/issue.read`, `google/calendar`.
 fn parse_operation_target(
     value: Option<&JsonValue>,
     field: &str,
 ) -> Result<OperationStepTarget, ValidationError> {
     let value = non_empty(value, &format!("{field}.operation"))?;
     let (requirement, operation) = match value.rsplit_once('/') {
-        _ if is_connector_ref(&value) => (value.as_str(), None),
-        Some((requirement, operation)) => (requirement, Some(operation)),
-        None => (value.as_str(), None),
+        Some((requirement, operation)) if is_operation_name(operation) => {
+            (requirement, Some(operation))
+        }
+        _ => (value.as_str(), None),
     };
-    if !is_connector_id(requirement) && !is_connector_ref(requirement) {
+    if !is_connector_name(requirement) {
         return Err(validation_error(format!(
             "{field}.operation requirement '{requirement}' must be a connectors key."
         )));

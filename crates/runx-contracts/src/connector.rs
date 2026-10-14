@@ -73,21 +73,21 @@ pub use digest::{
     tool_package_digest,
 };
 pub use ids::{
-    CONNECTOR_ID_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorId, ConnectorRef, CredentialName,
+    CONNECTOR_NAME_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorName, CredentialName,
     DIGEST_PATTERN, Digest, ENV_NAME_PATTERN, EnvName, INSTANCE_ID_PATTERN, InstanceId,
-    OPERATION_NAME_MAX_LENGTH, OPERATION_NAME_PATTERN, OperationName, PublisherNamespace,
-    SECRET_REFERENCE_EXPECTED, SECRET_REFERENCE_PATTERN, SECRET_SCHEMES, SecretReference,
-    is_connector_id, is_connector_ref, is_operation_name, is_publisher_namespace,
-    is_secret_reference,
+    OPERATION_NAME_MAX_LENGTH, OPERATION_NAME_PATTERN, OperationName,
+    RESERVED_CONNECTOR_SEGMENT, SECRET_REFERENCE_EXPECTED, SECRET_REFERENCE_PATTERN,
+    SECRET_SCHEMES, SecretReference, is_connector_name, is_operation_name,
+    is_publisher_namespace, is_secret_reference,
 };
 
 /// An exact connector revision. Acquisition, grant delivery and hosted calls
-/// carry this same binding; a publisher label alone cannot substitute bytes.
+/// carry this same binding; a name alone cannot substitute bytes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.connector_binding.v1")]
 pub struct ConnectorBinding {
-    pub connector: ConnectorRef,
+    pub connector: ConnectorName,
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
 }
@@ -105,7 +105,8 @@ pub enum ConnectorSchema {
 #[runx_schema(id = "runx.connector.v1")]
 pub struct ConnectorManifest {
     pub schema: ConnectorSchema,
-    pub id: ConnectorId,
+    /// The connector's whole name: `stripe`, `google/calendar`.
+    pub id: ConnectorName,
     pub name: NonEmptyString,
     pub description: NonEmptyString,
     /// The connector category it declares from the registry taxonomy
@@ -176,9 +177,13 @@ impl ConnectorAuth {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// A grant runx Connect brokers. Its principal request names whose
+/// authorization it holds, so one provider account holds one binding.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DelegatedAuth {}
+pub struct DelegatedAuth {
+    pub principal: PrincipalRequest,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -244,7 +249,7 @@ pub enum SessionAuth {
         /// The one-field credential the token stands in for.
         credential: CredentialName,
         /// The request that names whose token it is.
-        principal: SessionPrincipal,
+        principal: PrincipalRequest,
     },
     /// A signed-in browser profile driven by a trusted host tool.
     HostBrowser {},
@@ -260,12 +265,14 @@ impl SessionAuth {
     }
 }
 
-/// The request that names a session's principal, sent with its token as a
-/// bearer credential.
+/// The request that names whose authority a session or a delegated grant
+/// holds, sent with that authority as a bearer credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SessionPrincipal {
-    /// An `https` URL whose host is in the credential's audience.
+pub struct PrincipalRequest {
+    /// An `https` URL the authority may be sent to: for a session, a host in
+    /// its credential's audience; for a delegated grant, a host its hosted
+    /// operations reach.
     pub url: NonEmptyString,
     /// Where the answer carries the account's stable id.
     pub id: NonEmptyString,

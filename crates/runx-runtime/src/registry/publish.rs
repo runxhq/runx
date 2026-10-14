@@ -96,7 +96,7 @@ pub struct HostedConnectorPublishResult {
     /// `published`, or `unchanged` for these exact files under this version.
     pub status: String,
     #[serde(rename = "ref")]
-    pub connector_ref: runx_contracts::connector::ConnectorRef,
+    pub name: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub content_digest: runx_contracts::connector::Digest,
     pub manifest_digest: runx_contracts::connector::Digest,

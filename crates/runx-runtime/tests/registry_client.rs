@@ -545,7 +545,7 @@ fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn st
     };
     let client = RegistryClient::with_transport("https://registry.example", &transport)?;
     let connector_ref =
-        runx_contracts::connector::ConnectorRef::new("acme/ops-api").ok_or("connector ref")?;
+        runx_contracts::connector::ConnectorName::new("acme/ops-api").ok_or("connector ref")?;
 
     let current = client
         .read_connector(&connector_ref, None)?
@@ -555,7 +555,7 @@ fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn st
         .ok_or("pinned version")?;
     let missing = client.read_connector(&connector_ref, Some("2.0.0"))?;
 
-    assert_eq!(current.connector_ref, connector_ref);
+    assert_eq!(current.connector, connector_ref);
     assert_eq!(pinned.operations[0].name.as_str(), "item.read");
     assert!(missing.is_none());
     let urls = transport
@@ -594,7 +594,7 @@ fn a_connector_package_is_exactly_its_files_and_signed_manifest()
     let transport = MockTransport::with(json!({ "status": "success", "package": package }));
     let client = RegistryClient::with_transport("https://registry.example", &transport)?;
     let connector_ref =
-        runx_contracts::connector::ConnectorRef::new("acme/ops-api").ok_or("connector ref")?;
+        runx_contracts::connector::ConnectorName::new("acme/ops-api").ok_or("connector ref")?;
 
     let published = client
         .connector_package(&connector_ref, "1.0.0")?

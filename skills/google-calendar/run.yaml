@@ -5,7 +5,7 @@ catalog:
   audience: public
   visibility: public
   role: canonical
-  provider: google-calendar
+  provider: google/calendar
   execution: read
   completion: provider_readback
   approval: none
@@ -102,7 +102,7 @@ harness:
         receipt: { schema: runx.receipt.v1 }
 
 connectors:
-  google-calendar:
+  google/calendar:
     operations: [events.list, freebusy.query]
 runners:
   assistant-brief:
@@ -153,7 +153,7 @@ runners:
     result_from: [normalize]
     steps:
       - id: read
-        operation: google-calendar/events.list
+        operation: google/calendar/events.list
         result_fields: [calendar_id, time_min, time_max, events, complete, fetched_at]
         input:
           calendar_id: $input.calendar_id
@@ -179,7 +179,7 @@ runners:
     result_from: [normalize]
     steps:
       - id: read
-        operation: google-calendar/freebusy.query
+        operation: google/calendar/freebusy.query
         result_fields: [calendar_id, time_min, time_max, complete, errors, busy, fetched_at]
         input:
           calendar_id: $input.calendar_id

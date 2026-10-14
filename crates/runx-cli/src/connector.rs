@@ -361,7 +361,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             )?;
             let records = records(&instances)?
                 .into_iter()
-                .filter(|record| record.instance.connector == connector.connector_ref)
+                .filter(|record| record.instance.connector == connector.name)
                 .collect::<Vec<_>>();
             if plan.json {
                 return render_json(&Output::Inspect {
@@ -448,7 +448,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     }
                     Ok(format!(
                         "{} uses {}\n",
-                        connector.connector_ref,
+                        connector.name,
                         instance_summary(&instance)
                     ))
                 }
@@ -463,7 +463,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     // The link was shown on stderr before the wait.
                     Ok(format!(
                         "{} is not authorized yet; once it is, run:\n  {finish}\n",
-                        connector.connector_ref
+                        connector.name
                     ))
                 }
             }
@@ -606,7 +606,7 @@ fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) ->
         let selected = sources.selected(connector);
         out.push_str(&format!(
             "{}  {}  [{}]  {} operations{}\n",
-            connector.connector_ref,
+            connector.name,
             manifest.name,
             placements(manifest).join(", "),
             manifest.operations.len(),

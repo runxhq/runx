@@ -67,7 +67,7 @@ pub(crate) fn confirm_session_over(
                 connector,
                 super::instances::instance_id(&[
                     "session",
-                    connector.connector_ref.as_str(),
+                    connector.name.as_str(),
                     &principal.login,
                 ])?,
                 Placement::Local,
@@ -110,7 +110,7 @@ pub(crate) fn set_credential(
     let material_ref = set_local_credential_profile(
         workspace,
         profile,
-        &connector.connector_ref,
+        &connector.name,
         &credential_declaration_digest(declaration).map_err(|error| error.to_string())?,
         credential.as_str(),
         secret,
@@ -151,7 +151,7 @@ pub(crate) fn bind_environment(
         connector,
         super::instances::instance_id(&[
             "environment",
-            connector.connector_ref.as_str(),
+            connector.name.as_str(),
             credential.as_str(),
             variable.as_str(),
         ])?,
@@ -200,7 +200,7 @@ pub(crate) fn bind_reference(
         connector,
         super::instances::instance_id(&[
             "reference",
-            connector.connector_ref.as_str(),
+            connector.name.as_str(),
             credential.as_str(),
             reference.as_str(),
         ])?,
@@ -248,10 +248,10 @@ pub(crate) fn confirm_credential_profile(
         .credentials
         .and_then(|credentials| credentials.profiles.get(profile).cloned())
         .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.connector_ref {
+    if stored.connector != connector.name {
         return Err(format!(
             "credential profile {profile} belongs to {}, not {}",
-            stored.connector, connector.connector_ref
+            stored.connector, connector.name
         ));
     }
     let credential = CredentialName::new(stored.credential.clone())
@@ -439,7 +439,7 @@ fn confirm_credential_instance(
     let manifest = &connector.manifest;
     let mut instance = pinned(
         connector,
-        super::instances::instance_id(&["credential", connector.connector_ref.as_str(), profile])?,
+        super::instances::instance_id(&["credential", connector.name.as_str(), profile])?,
         Placement::Local,
         format!("runx:principal:local-credential:{}:{profile}", manifest.id),
         None,
@@ -492,7 +492,7 @@ pub(crate) fn confirm_grant_from(
     }
     let instance = pinned(
         connector,
-        super::instances::instance_id(&["hosted", connector.connector_ref.as_str(), grant_id])?,
+        super::instances::instance_id(&["hosted", connector.name.as_str(), grant_id])?,
         Placement::Hosted,
         grant.principal_ref,
         None,

@@ -1,5 +1,5 @@
-//! Installs a published connector version into the local package cache,
-//! `<runx home>/connectors/<publisher>/<id>/<version>/`. The version's files
+//! Installs a published connector version into the project's connectors
+//! directory, `connectors/<name>/<version>/`. The version's files
 //! are the registry's exactly: its signed manifest must name this connector,
 //! version and content digest under a trusted key, and the runtime's own
 //! loader and packager must reproduce those files from the staged copy before
@@ -10,7 +10,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::connector::{ConnectorRef, Digest};
+use runx_contracts::connector::{ConnectorName, Digest};
 use runx_contracts::{RegistryContentFile, is_registry_version, registry_content_digest};
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +33,7 @@ use crate::kernel::connectors::load_installed;
 #[serde(deny_unknown_fields)]
 pub struct RegistryConnectorVersion {
     #[serde(rename = "ref")]
-    pub connector_ref: ConnectorRef,
+    pub name: ConnectorName,
     pub version: String,
     pub trust_tier: TrustTier,
     pub files: Vec<RegistryPackageFile>,
@@ -55,7 +55,7 @@ pub struct InstallRegistryConnectorOptions {
 pub struct InstalledRegistryConnector {
     pub status: InstallStatus,
     #[serde(rename = "ref")]
-    pub connector_ref: ConnectorRef,
+    pub name: ConnectorName,
     pub version: String,
     pub content_digest: Digest,
     pub manifest_digest: Digest,
@@ -66,46 +66,46 @@ pub struct InstalledRegistryConnector {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectorInstallError {
-    #[error("connector {connector_ref}: version {version:?} is not a registry version label")]
+    #[error("connector {name}: version {version:?} is not a registry version label")]
     InvalidVersion {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         version: String,
     },
-    #[error("connector {connector_ref}: {reason}")]
+    #[error("connector {name}: {reason}")]
     InvalidPackage {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         reason: String,
     },
-    #[error("connector {connector_ref}: content digest is {actual}, expected {expected}")]
+    #[error("connector {name}: content digest is {actual}, expected {expected}")]
     DigestMismatch {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         expected: String,
         actual: String,
     },
-    #[error("connector {connector_ref}: signed manifest key {key_id} is not trusted")]
+    #[error("connector {name}: signed manifest key {key_id} is not trusted")]
     UnknownManifestKey {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         key_id: String,
     },
-    #[error("connector {connector_ref}: signed manifest is invalid: {reason}")]
+    #[error("connector {name}: signed manifest is invalid: {reason}")]
     InvalidManifestSignature {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         reason: &'static str,
     },
-    #[error("connector {connector_ref}: signed manifest names {actual}, expected {expected}")]
+    #[error("connector {name}: signed manifest names {actual}, expected {expected}")]
     ManifestIdentityMismatch {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         expected: String,
         actual: String,
     },
-    #[error("connector {connector_ref}: signer is out of scope: {reason}")]
+    #[error("connector {name}: signer is out of scope: {reason}")]
     ManifestTrustScopeViolation {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         reason: String,
     },
-    #[error("connector {connector_ref}: {} already holds other files for this version", .destination.display())]
+    #[error("connector {name}: {} already holds other files for this version", .destination.display())]
     ConflictingVersion {
-        connector_ref: ConnectorRef,
+        name: ConnectorName,
         destination: PathBuf,
     },
     #[error("{}: {source}", .path.display())]
@@ -113,7 +113,7 @@ pub enum ConnectorInstallError {
 }
 
 /// Writes `connector` into a project's `connectors_root` at
-/// `<publisher>/<id>/<version>/`, once, packaged exactly as it publishes;
+/// `<name>/<version>/`, once, packaged exactly as it publishes;
 /// returns that directory. Its bytes come from `source` (the running release
 /// when `None`): a runtime capability the release embeds, or a connector an
 /// installed skill package carries. Either way they carry no registry
@@ -126,10 +126,7 @@ pub(crate) fn write_connector_version(
     source: Option<&Path>,
 ) -> Result<PathBuf, String> {
     let package = connector_package(connector, source).map_err(|error| error.to_string())?;
-    let reference = &package.connector_ref;
-    let versions = connectors_root
-        .join(reference.namespace())
-        .join(reference.id());
+    let versions = crate::kernel::connectors::name_directory(connectors_root, &package.name);
     let destination = versions.join(&package.version);
     if destination.exists() {
         return Ok(destination);
@@ -174,10 +171,10 @@ pub fn install_registry_connector(
     published: &RegistryConnectorVersion,
     options: &InstallRegistryConnectorOptions,
 ) -> Result<InstalledRegistryConnector, ConnectorInstallError> {
-    let connector_ref = &published.connector_ref;
+    let connector_ref = &published.name;
     if !is_registry_version(&published.version) {
         return Err(ConnectorInstallError::InvalidVersion {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             version: published.version.clone(),
         });
     }
@@ -190,17 +187,15 @@ pub fn install_registry_connector(
         && expected != content_digest.as_str()
     {
         return Err(ConnectorInstallError::DigestMismatch {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             expected: expected.clone(),
             actual: content_digest.into_string(),
         });
     }
     verify_signed_manifest(published, &content_digest, options)?;
 
-    let versions = options
-        .connectors_root
-        .join(connector_ref.namespace())
-        .join(connector_ref.id());
+    let versions =
+        crate::kernel::connectors::name_directory(&options.connectors_root, connector_ref);
     let destination = versions.join(&published.version);
     if destination.exists() {
         return existing_version(published, &content_digest, destination);
@@ -237,12 +232,12 @@ fn verify_signed_manifest(
     content_digest: &Digest,
     options: &InstallRegistryConnectorOptions,
 ) -> Result<(), ConnectorInstallError> {
-    let connector_ref = &published.connector_ref;
+    let connector_ref = &published.name;
     let manifest = &published.signed_manifest;
     let trusted_keys = if options.trusted_manifest_keys.is_empty() {
         default_trusted_registry_manifest_keys().map_err(|_| {
             ConnectorInstallError::InvalidManifestSignature {
-                connector_ref: connector_ref.clone(),
+                name: connector_ref.clone(),
                 reason: "the default registry trust anchor is malformed",
             }
         })?
@@ -257,7 +252,7 @@ fn verify_signed_manifest(
     };
     if !manifest.signs(&subject, &published.version) {
         return Err(ConnectorInstallError::ManifestIdentityMismatch {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             expected: format!("connector {connector_ref}@{}", published.version),
             actual: format!(
                 "{} {}@{}",
@@ -269,19 +264,20 @@ fn verify_signed_manifest(
     }
     registry_manifest_key_allows(
         key,
+        RegistrySubjectKind::Connector,
         connector_ref.as_str(),
         &published.trust_tier,
         Some(&options.manifest_source_authority),
     )
     .map_err(
         |reason| ConnectorInstallError::ManifestTrustScopeViolation {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             reason,
         },
     )?;
     if manifest.content_digest != content_digest.as_str() {
         return Err(ConnectorInstallError::DigestMismatch {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             expected: manifest.content_digest.clone(),
             actual: content_digest.as_str().to_owned(),
         });
@@ -325,7 +321,7 @@ fn existing_version(
             ConnectorInstallError::InvalidPackage { .. }
             | ConnectorInstallError::DigestMismatch { .. },
         ) => Err(ConnectorInstallError::ConflictingVersion {
-            connector_ref: published.connector_ref.clone(),
+            name: published.name.clone(),
             destination,
         }),
         Err(error) => Err(error),
@@ -342,22 +338,22 @@ fn load(
     content_digest: &Digest,
     directory: &Path,
 ) -> Result<Loaded, ConnectorInstallError> {
-    let connector_ref = &published.connector_ref;
+    let connector_ref = &published.name;
     // An installed version, not a source tree: a later runx/* version may
     // differ from the copy embedded in this binary.
     let connector = load_installed(directory)
         .map_err(|error| invalid_package(connector_ref, error.to_string()))?;
-    if connector.connector_ref != *connector_ref {
+    if connector.name != *connector_ref {
         return Err(invalid_package(
             connector_ref,
-            format!("the package loads as connector {}", connector.connector_ref),
+            format!("the package loads as connector {}", connector.name),
         ));
     }
     let package = connector_package(&connector, Some(directory))
         .map_err(|error| invalid_package(connector_ref, error.to_string()))?;
     if package.content_digest != *content_digest {
         return Err(ConnectorInstallError::DigestMismatch {
-            connector_ref: connector_ref.clone(),
+            name: connector_ref.clone(),
             expected: content_digest.as_str().to_owned(),
             actual: package.content_digest.into_string(),
         });
@@ -377,7 +373,7 @@ fn installed(
 ) -> InstalledRegistryConnector {
     InstalledRegistryConnector {
         status,
-        connector_ref: published.connector_ref.clone(),
+        name: published.name.clone(),
         version: published.version.clone(),
         content_digest,
         manifest_digest: loaded.manifest_digest,
@@ -388,28 +384,28 @@ fn installed(
 }
 
 fn content_digest_of(
-    connector_ref: &ConnectorRef,
+    name: &ConnectorName,
     files: &[RegistryPackageFile],
 ) -> Result<Digest, ConnectorInstallError> {
     registry_content_digest(files.iter().map(|file| RegistryContentFile {
         path: &file.path,
         content: &file.content,
     }))
-    .map_err(|error| invalid_package(connector_ref, error.to_string()))
+    .map_err(|error| invalid_package(name, error.to_string()))
     .and_then(|digest| {
-        Digest::new(digest).ok_or_else(|| invalid_package(connector_ref, "no content digest"))
+        Digest::new(digest).ok_or_else(|| invalid_package(name, "no content digest"))
     })
 }
 
 fn verification_error(
-    connector_ref: &ConnectorRef,
+    name: &ConnectorName,
     key_id: &str,
     failure: RegistryManifestVerificationFailure,
 ) -> ConnectorInstallError {
     let reason = match failure {
         RegistryManifestVerificationFailure::UnknownKey => {
             return ConnectorInstallError::UnknownManifestKey {
-                connector_ref: connector_ref.clone(),
+                name: name.clone(),
                 key_id: key_id.to_owned(),
             };
         }
@@ -421,17 +417,17 @@ fn verification_error(
         RegistryManifestVerificationFailure::SignatureMismatch => "signature mismatch",
     };
     ConnectorInstallError::InvalidManifestSignature {
-        connector_ref: connector_ref.clone(),
+        name: name.clone(),
         reason,
     }
 }
 
 fn invalid_package(
-    connector_ref: &ConnectorRef,
+    name: &ConnectorName,
     reason: impl Into<String>,
 ) -> ConnectorInstallError {
     ConnectorInstallError::InvalidPackage {
-        connector_ref: connector_ref.clone(),
+        name: name.clone(),
         reason: reason.into(),
     }
 }

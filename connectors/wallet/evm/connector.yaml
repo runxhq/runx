@@ -1,0 +1,47 @@
+schema: runx.connector.v1
+id: wallet/evm
+name: x402
+description: Pay x402 challenges for HTTPS resources from an EVM wallet on Base and read the payments back.
+category: payments
+runtime_capability: false
+auth:
+  credentials:
+    wallet:
+      kind: evm_private_key_v1
+      fields:
+        - {name: address, label: EVM wallet address, secret: false}
+        - {name: private_key, label: EVM wallet private key}
+      delivery:
+        env: X402_WALLET
+      audience: [mainnet.base.org]
+placements:
+  hosted:
+    auth: credential
+    credential: wallet
+operations:
+  payment.x402:
+    description: Pay the x402 challenge of one HTTPS resource and return the paid result.
+    verb: write
+    scopes: [payment.x402]
+    target:
+      template: {"$argument": "/payment_signal/resource/url"}
+    guarantees:
+      provider_idempotency: enforced
+    amount: required
+    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref, runx_composite]
+    hosted: {}
+  payment.x402.read:
+    description: Read back one x402 payment and its resource result.
+    verb: read
+    scopes: [payment.x402.read]
+    target:
+      template: {"$argument": "/resource_url"}
+    input_schema:
+      type: object
+      required: [payment_ref, resource_url]
+      additionalProperties: false
+      properties:
+        payment_ref: {type: string, minLength: 1, maxLength: 300}
+        resource_url: {type: string, format: uri, pattern: "^https://", maxLength: 2048}
+    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref, runx_composite, readback_status, resource_state]
+    hosted: {}

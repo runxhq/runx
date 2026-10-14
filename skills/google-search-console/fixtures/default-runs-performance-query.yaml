@@ -18,7 +18,7 @@ caller:
     principal_id: operator-fixture
     grant:
         grant_id: gsc-performance-fixture
-        provider: google-search-console
+        provider: google/search-console
         scopes: [search.analytics.read]
     operations:
       - operation: search.analytics.query

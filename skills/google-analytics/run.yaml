@@ -7,7 +7,7 @@ catalog:
   visibility: public
   role: branded
   canonical_skill: runx/organic-growth
-  provider: google-analytics
+  provider: google/analytics
   execution: read
   completion: provider_readback
   approval: none
@@ -254,7 +254,7 @@ harness:
         receipt: { schema: runx.receipt.v1 }
 
 connectors:
-  google-analytics:
+  google/analytics:
     operations: [reports.run, reports.run_realtime, properties.list, metadata.get]
 runners:
   report:
@@ -298,7 +298,7 @@ runners:
     result_from: [finalize]
     steps:
       - id: read
-        operation: google-analytics/reports.run
+        operation: google/analytics/reports.run
         result_fields: [property, request, dimension_headers, metric_headers, rows, row_count, pagination, metadata, property_quota, fetched_at]
         input:
           property: $input.property
@@ -416,7 +416,7 @@ runners:
     result_from: [finalize]
     steps:
       - id: read
-        operation: google-analytics/reports.run_realtime
+        operation: google/analytics/reports.run_realtime
         result_fields: [property, request, dimension_headers, metric_headers, rows, row_count, pagination, metadata, property_quota, fetched_at]
         input:
           property: $input.property
@@ -461,7 +461,7 @@ runners:
     result_from: [read]
     steps:
       - id: read
-        operation: google-analytics/properties.list
+        operation: google/analytics/properties.list
         result_fields: [properties]
         input: {}
 
@@ -476,6 +476,6 @@ runners:
     result_from: [read]
     steps:
       - id: read
-        operation: google-analytics/metadata.get
+        operation: google/analytics/metadata.get
         result_fields: [property, dimensions, metrics, fetched_at]
         input: { property: $input.property }

@@ -9,9 +9,14 @@ use serde_json::{Value, json};
 
 use crate::schema::{RunxSchema, SchemaMapKey};
 
-/// `^[a-z][a-z0-9-]{0,62}[a-z0-9]$`: equal to the provider slug grants and the
-/// catalog use.
-pub const CONNECTOR_ID_PATTERN: &str = "^[a-z][a-z0-9-]{0,62}[a-z0-9]$";
+/// A connector's whole name: `<namespace>` or `<namespace>/<surface>`. The
+/// namespace is a registry namespace, in the publisher slug grammar; a surface
+/// is lowercase, starts with a letter and is 2 to 64 characters. `versions` is
+/// reserved in either place, so `/v1/connectors/<name>/versions/<v>` reads one
+/// way.
+pub const CONNECTOR_NAME_PATTERN: &str = "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$";
+/// The word no namespace or surface may be: it names a connector's versions.
+pub const RESERVED_CONNECTOR_SEGMENT: &str = "versions";
 /// Dotted lowercase segments, underscores allowed, at least two segments.
 pub const OPERATION_NAME_PATTERN: &str = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$";
 pub const OPERATION_NAME_MAX_LENGTH: usize = 100;
@@ -29,8 +34,23 @@ pub const SECRET_REFERENCE_PATTERN: &str =
 /// What a refusal of a value that is not a reference names.
 pub const SECRET_REFERENCE_EXPECTED: &str = "--from takes a secret reference: op://, aws-sm://, aws-ps://, vault://, keychain:// or file://";
 
+/// Whether `value` is a connector name: a namespace, or a namespace and one
+/// surface, neither of them `versions`.
 #[must_use]
-pub fn is_connector_id(value: &str) -> bool {
+pub fn is_connector_name(value: &str) -> bool {
+    let (namespace, surface) = match value.split_once('/') {
+        Some((namespace, surface)) => (namespace, Some(surface)),
+        None => (value, None),
+    };
+    is_publisher_namespace(namespace)
+        && namespace != RESERVED_CONNECTOR_SEGMENT
+        && surface.is_none_or(|surface| {
+            is_connector_surface(surface) && surface != RESERVED_CONNECTOR_SEGMENT
+        })
+}
+
+/// A surface under a parent namespace, such as `calendar` in `google/calendar`.
+fn is_connector_surface(value: &str) -> bool {
     let bytes = value.as_bytes();
     let (Some(first), Some(last)) = (bytes.first(), bytes.last()) else {
         return false;
@@ -176,30 +196,19 @@ macro_rules! identifier {
 }
 
 identifier!(
-    /// A connector id.
-    ConnectorId,
-    CONNECTOR_ID_PATTERN,
-    64,
-    is_connector_id,
-    "connector id"
-);
-identifier!(
-    /// A declared publisher namespace; naming is independent of authority.
-    PublisherNamespace,
-    "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$",
-    64,
-    is_publisher_namespace,
-    "publisher namespace"
-);
-identifier!(
-    /// A connector's stable identity, `publisher/id`.
-    ConnectorRef,
-    "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$",
+    /// A connector's name and its identity everywhere: `stripe`,
+    /// `google/calendar`. Who published a version is provenance, never part
+    /// of the name.
+    ConnectorName,
+    CONNECTOR_NAME_PATTERN,
     129,
-    is_connector_ref,
-    "qualified connector reference"
+    is_connector_name,
+    "connector name"
 );
 
+/// The registry namespace grammar, which every publisher slug and every
+/// connector name's first segment uses.
+#[must_use]
 pub fn is_publisher_namespace(value: &str) -> bool {
     let bytes = value.as_bytes();
     (1..=64).contains(&bytes.len())
@@ -214,26 +223,18 @@ pub fn is_publisher_namespace(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
 }
 
-pub fn is_connector_ref(value: &str) -> bool {
-    value
-        .split_once('/')
-        .is_some_and(|(namespace, id)| is_publisher_namespace(namespace) && is_connector_id(id))
-}
-
-impl ConnectorRef {
-    #[must_use]
-    pub fn qualified(namespace: &PublisherNamespace, id: &ConnectorId) -> Self {
-        Self(format!("{namespace}/{id}"))
-    }
-
+impl ConnectorName {
+    /// The registry namespace: the whole name of a leaf (`stripe`), the
+    /// parent of a surface (`google` in `google/calendar`).
     #[must_use]
     pub fn namespace(&self) -> &str {
-        self.0.split('/').next().unwrap_or_default()
+        self.0.split_once('/').map_or(self.0.as_str(), |(namespace, _)| namespace)
     }
 
+    /// The surface under a parent namespace, when the name has one.
     #[must_use]
-    pub fn id(&self) -> &str {
-        self.0.rsplit('/').next().unwrap_or_default()
+    pub fn surface(&self) -> Option<&str> {
+        self.0.split_once('/').map(|(_, surface)| surface)
     }
 }
 identifier!(
