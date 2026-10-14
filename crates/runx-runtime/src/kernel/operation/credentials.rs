@@ -106,10 +106,30 @@ pub(crate) fn deliver(
     Ok(CredentialSecret::new(binding.credential.clone(), fields))
 }
 
+/// Refuse `variable` when the environment and the workspace `.env` set it to
+/// different values: either could be another account, and runx never picks
+/// one. Every read of a connector credential's variable goes through here.
+pub(crate) fn one_value(
+    env: &BTreeMap<String, String>,
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    variable: &EnvName,
+) -> Result<(), String> {
+    if crate::services::env_file_differs(env, variable.as_str()) {
+        return Err(format!(
+            "{variable} is set in the environment and in the workspace .env with different values; unset one so {} reads one {credential}",
+            connector.connector_ref
+        ));
+    }
+    Ok(())
+}
+
 /// The credential an environment instance holds, read now from `variable`
 /// in the command's environment: the process's, filled from the workspace
 /// `.env`. The instance pins the connector, so the variable is still the one
-/// its declaration delivers the credential in.
+/// its declaration delivers the credential in. A variable the environment
+/// and the `.env` set to different values is refused: either could be another
+/// account, and runx never picks one.
 pub(crate) fn from_environment(
     env: &BTreeMap<String, String>,
     connector: &LoadedConnector,
@@ -117,6 +137,7 @@ pub(crate) fn from_environment(
     variable: &EnvName,
 ) -> Result<CredentialSecret, String> {
     let declaration = declaration(&connector.manifest, credential)?;
+    one_value(env, connector, credential, variable)?;
     let value = env
         .get(variable.as_str())
         .filter(|value| !value.trim().is_empty())
@@ -278,6 +299,31 @@ mod tests {
         assert!(
             refused.contains("reads its api_key credential from EXA_API_KEY, which is not set"),
             "{refused}"
+        );
+    }
+
+    #[test]
+    fn a_variable_the_shell_and_the_env_file_disagree_on_is_refused() {
+        let connector = crate::kernel::connectors::source_scope()
+            .connector("exa")
+            .unwrap();
+        let credential = CredentialName::new("api_key").unwrap();
+        let variable = runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap();
+        let env = BTreeMap::from([
+            ("EXA_API_KEY".to_owned(), "from-shell".to_owned()),
+            (
+                "RUNX_ENV_FILE_DIFFERS".to_owned(),
+                "OTHER,EXA_API_KEY".to_owned(),
+            ),
+        ]);
+
+        let refused = super::from_environment(&env, &connector, &credential, &variable)
+            .err()
+            .unwrap();
+
+        assert_eq!(
+            refused,
+            "EXA_API_KEY is set in the environment and in the workspace .env with different values; unset one so runx/exa reads one api_key"
         );
     }
 

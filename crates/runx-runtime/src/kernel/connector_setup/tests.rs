@@ -272,6 +272,120 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
 }
 
 #[test]
+fn a_new_grant_shows_its_link_once_before_it_waits() {
+    let slack = source_scope().connector("runx/slack").unwrap();
+    let connect = Connect::new(awaiting_authorization(), &[pending(), pending()]);
+    let created = connect.issue("grant_slack_1", &slack);
+    connect.statuses.lock().unwrap().push_back(created);
+    let project = Project::new();
+    let shown = std::cell::RefCell::new(Vec::new());
+    let show = |connector: &str, url: &str| {
+        // The person is shown the link before anything waits on them: no
+        // status has been asked for, and nothing is bound.
+        assert!(connect.sent("/v1/connect/sessions/sess_1").is_empty());
+        assert!(project.instances.list().unwrap().is_empty());
+        shown.borrow_mut().push(format!("{connector} {url}"));
+    };
+
+    let outcome = project
+        .setup(&connect)
+        .showing_links(&show)
+        .use_connector(
+            &slack,
+            UseRequest::Hosted { target: None },
+            &options(Duration::from_secs(30)),
+        )
+        .unwrap();
+
+    assert_eq!(grant_of(outcome).unwrap(), "grant_slack_1");
+    assert_eq!(
+        *shown.borrow(),
+        vec!["runx/slack https://connect.runx.invalid/authorize/sess_1".to_owned()]
+    );
+}
+
+#[test]
+fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect() {
+    let aws = source_scope().connector("runx/aws").unwrap();
+    let connect = Connect::new(
+        json!({"status": "credential_required", "session_id": "sess_1"}),
+        &[],
+    );
+    let project = Project::with(&[
+        ("AWS_CREDENTIALS", "{}"),
+        ("RUNX_ENV_FILE_DIFFERS", "AWS_CREDENTIALS"),
+    ]);
+
+    let refused = project
+        .setup(&connect)
+        .reading_secrets(&never_asked)
+        .use_connector(
+            &aws,
+            UseRequest::Hosted { target: None },
+            &options(Duration::ZERO),
+        )
+        .err()
+        .unwrap();
+
+    assert!(
+        refused.starts_with("AWS_CREDENTIALS is set in the environment and in the workspace .env"),
+        "{refused}"
+    );
+    assert!(connect.sent("/v1/connect/sessions").is_empty());
+}
+
+#[test]
+fn a_plain_use_refuses_a_variable_the_env_file_disagrees_on_even_when_blank() {
+    let exa = source_scope().connector("runx/exa").unwrap();
+    let connect = Connect::new(Value::Null, &[]);
+    // A blank export over a `.env` value is still two values.
+    let project = Project::with(&[
+        ("EXA_API_KEY", ""),
+        ("RUNX_ENV_FILE_DIFFERS", "EXA_API_KEY"),
+    ]);
+
+    let refused = project
+        .setup(&connect)
+        .reading_secrets(&never_asked)
+        .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))
+        .err()
+        .unwrap();
+
+    assert!(
+        refused.starts_with("EXA_API_KEY is set in the environment and in the workspace .env"),
+        "{refused}"
+    );
+    assert!(project.instances.list().unwrap().is_empty());
+}
+
+#[test]
+fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
+    let aws = source_scope().connector("runx/aws").unwrap();
+    let connect = Connect::new(Value::Null, &[]);
+    let project = Project::new();
+    crate::hosted_api::store_authenticated_hosted_environment(
+        project.workspace.env(),
+        project.workspace.cwd(),
+        crate::hosted_api::HostedApiCredentialPurpose::Default,
+        BASE_URL,
+        "operator-1",
+        "rxk_stored_other",
+    )
+    .unwrap();
+
+    let refused = project
+        .setup(&connect)
+        .reading_secrets(&never_asked)
+        .use_connector(&aws, UseRequest::Default, &options(Duration::ZERO))
+        .err()
+        .unwrap();
+
+    assert!(refused.contains("differ"), "{refused}");
+    assert!(!refused.contains("runx login` first"), "{refused}");
+    assert!(connect.sent("/v1/connect/sessions").is_empty());
+}
+
+#[test]
 fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
     let aws = source_scope().connector("runx/aws").unwrap();
     let connect = Connect::new(

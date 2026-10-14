@@ -115,7 +115,7 @@ fn resolves_global_api_environment_precedence() -> Result<(), Box<dyn std::error
 }
 
 #[test]
-fn resolves_only_the_stored_publish_token_after_the_environment()
+fn resolves_the_one_publish_token_the_environment_and_login_hold()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile_dir()?;
     let env = BTreeMap::from([("RUNX_HOME".to_owned(), temp.to_string_lossy().to_string())]);
@@ -141,6 +141,27 @@ fn resolves_only_the_stored_publish_token_after_the_environment()
         &temp,
     )?;
     assert!(mismatched.require_token().is_err());
+
+    // The environment's token and the stored one are one token or none.
+    let mut same = env.clone();
+    same.insert(
+        "RUNX_PUBLIC_API_TOKEN".to_owned(),
+        "stored-token".to_owned(),
+    );
+    assert_eq!(
+        runx_runtime::HostedApiEnvironment::resolve_publish(None, &same, &temp)?.require_token()?,
+        "stored-token"
+    );
+    let mut differing = env.clone();
+    differing.insert("RUNX_PUBLIC_API_TOKEN".to_owned(), "other-token".to_owned());
+    assert_eq!(
+        runx_runtime::HostedApiEnvironment::resolve_publish(None, &differing, &temp)?
+            .require_token()
+            .err()
+            .ok_or("two differing tokens were accepted")?
+            .to_string(),
+        "RUNX_PUBLIC_API_TOKEN and the token `runx login` stored for https://api.runx.ai differ; unset RUNX_PUBLIC_API_TOKEN or sign in again"
+    );
     Ok(())
 }
 

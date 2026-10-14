@@ -94,6 +94,39 @@ fn doctor_reports_explicit_keyless_local_model_and_invalid_endpoint()
 }
 
 #[test]
+fn doctor_says_keep_one_model_key_when_two_differ() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = doctor_fixture("empty-success")?;
+    let output = runx_command()
+        .args(["doctor", "--json"])
+        .env("RUNX_CWD", fixture.join("workspace"))
+        .env("RUNX_AGENT_PROVIDER", "anthropic")
+        .env("RUNX_AGENT_API_KEY", "sk-one")
+        .env("ANTHROPIC_API_KEY", "sk-two")
+        .output()?;
+    assert!(output.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let diagnostic = report["diagnostics"]
+        .as_array()
+        .and_then(|diagnostics| {
+            diagnostics
+                .iter()
+                .find(|item| item["id"] == "runx.agent.config")
+        })
+        .ok_or("missing managed-agent diagnostic")?;
+    assert!(
+        diagnostic["message"]
+            .as_str()
+            .is_some_and(|message| message.contains(
+                "the model key is set by RUNX_AGENT_API_KEY and ANTHROPIC_API_KEY with different values"
+            )),
+        "{diagnostic}"
+    );
+    assert_eq!(diagnostic["repairs"][0]["id"], "runx.agent.config.one_key");
+    assert_eq!(diagnostic["repairs"].as_array().map(Vec::len), Some(1));
+    Ok(())
+}
+
+#[test]
 fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
 -> Result<(), Box<dyn std::error::Error>> {
     let home = temp_root("runx-config-provider-switch");

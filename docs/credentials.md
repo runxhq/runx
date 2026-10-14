@@ -134,25 +134,40 @@ runx connector use runx/twitter work
 
 # The account a local CLI is signed in to (for example `gh auth token`),
 # serving every scope its credential serves, or only those --scope names.
+# The command comes from the connector's manifest, so binding it takes
+# --session; each call through the bound instance runs it again for a token.
 runx connector use runx/github --session --scope repo.read
 
 # A new runx Connect grant: prints the authorization link, waits up to two
 # minutes, and binds the grant. If it is not authorized yet, use prints the
-# command that finishes it.
+# command that finishes it. With --json it returns at once with the link and
+# that command, for a program to hand on.
 runx connector use runx/github --hosted --scope repo.read --target acme/app
 ```
 
 With nothing named, `runx connector use <connector>` takes the one available
-path: an instance it already has, a signed-in session, a credential whose
-variable is set, a stored profile or a Connect grant. A connector that takes
-one credential and finds none of these asks for that credential. When there
-are several paths, it refuses with the exact form of each. It never picks
-between accounts for you. An instance bound to a variable acts as whichever
-account the variable holds: changing its value changes the account, as
-rotating a key does. `--credential <name>` picks among a connector's credentials; a
-credential whose variable is set is always bound to that variable, so
-`--profile` stores a secret only when the variable is unset. A session counts
-as a path only when its command is installed and signed in.
+path: an instance it already has, a credential whose variable is set, a stored
+profile or a Connect grant. A connector that takes one credential and finds
+none of these asks for that credential; one whose credential can only be held
+by Connect opens its grant once you are signed in. When there are several paths, it refuses with the
+exact form of each. It never picks between accounts for you. An instance bound
+to a variable acts as whichever account the variable holds: changing its value
+changes the account, as rotating a key does. `--credential <name>` picks among
+a connector's credentials; a credential whose variable is set is always bound
+to that variable, so `--profile` stores a secret only when the variable is
+unset.
+
+A connector that declares a sign-in command is never set up without a choice.
+Its manifest can come from the project, so runx neither runs the command to
+see whether you are signed in nor takes it by default: `use` lists
+`--session` with the command it would run, and only `--session` binds it.
+Each call through an instance bound that way runs the command again for a
+fresh token. `runx harness` runs the sessions its cases declare, as it runs
+the project's other programs.
+
+A variable that the environment and the workspace `.env` set to different
+values is refused, when it is bound and on every run: either value could be
+another account, and runx never picks one.
 
 A plugin's own connectors are bound from inside the plugin: run these
 commands in the plugin root or below it, and the instance is recorded in the
@@ -205,7 +220,10 @@ before any provider call.
 Every executing Runx CLI command discovers the workspace root and parses its
 exact `.env` file as data; help and version rendering do not depend on
 workspace state. Runx does not source a shell. Exported process values win;
-`.env` fills only missing names. One immutable snapshot is used for the whole
+`.env` fills only missing names. A name `.env` sets to a different value than
+the environment keeps the environment's value, and a connector credential or
+model key read from that name is refused until one of them is unset. One
+immutable snapshot is used for the whole
 command or MCP server session. Runx's own `RUNX_` variables never come from
 `.env`: a file that sets one is refused, so a workspace cannot redirect Runx's
 state, Connect or receipt signing, nor supply authority a host admits.
@@ -224,12 +242,14 @@ can, a workspace `.env` included.
 
 Profiles are recorded under the Runx home (`RUNX_HOME`, else `~/.runx`).
 Metadata lives in `config.json`; material is encrypted in private local key
-files.
+files, and the key that encrypts it is a private file in the same home.
 
 This protects against accidental disclosure through config output, repository
-files, command history, logs, and receipts. It is not a substitute for an OS
-account boundary or a managed secrets service on a compromised machine. Do not
-commit `.env`, Runx key files, or credential material.
+files, command history, logs, and receipts. It does not protect against a
+process running as you, and it is not a substitute for an OS account boundary
+or a secrets manager: to keep a key out of the Runx home entirely, inject it
+through the environment (see below). Do not commit `.env`, Runx key files, or
+credential material.
 
 Secrets never appear in:
 
@@ -243,6 +263,40 @@ A replaced profile has a new material reference. Its previous binding is refused
 until the profile is explicitly reconfirmed in that workspace. Reconfirmation
 does not authorize a paused or in-flight operation to change its pinned binding;
 normal admission and recovery checks still apply.
+
+## Secrets managers and CI
+
+Runx reads a credential from the variable its connector declares, so anything
+that injects variables into a process supplies it, and Runx holds nothing:
+
+```bash
+# 1Password: references such as EXA_API_KEY=op://dev/exa/credential live in a
+# file other than .env, which Runx reads as plain values.
+op run --env-file .env.op -- runx connector use runx/exa
+op run --env-file .env.op -- runx skill ...
+
+# Doppler, and any other injector, the same way.
+doppler run -- runx skill ...
+```
+
+Kubernetes and ECS inject variables into a container's environment, and
+GitHub Actions injects secrets into a job's; all of these work the same way. A
+fresh CI runner has no instances, so a job binds its source before it runs
+anything:
+
+```yaml
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+steps:
+  - run: runx connector use runx/github --credential token
+  - run: runx skill ...
+```
+
+`runx mcp` keeps the environment it started with for its whole session: a
+token that expires while it runs is not refreshed. Restart it under the
+injector, or use a Connect grant, which Cloud refreshes. Runx runs no OAuth
+client of its own: refresh belongs to the tool you are signed in to, through
+`--session`, or to Connect.
 
 ## Hosted provider grants
 
@@ -284,6 +338,11 @@ printf '%s' "$ANTHROPIC_API_KEY" |
   runx config set agent.api_key --from-stdin
 ```
 
+The key comes from `RUNX_AGENT_API_KEY`, the provider's own variable
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`), or the stored key.
+When more than one is set and they differ, runx refuses and names them.
+
 A runx account credential is stored by `runx login`, bound to its principal and
-API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. No Runx
-secret-setting command accepts raw material on argv.
+API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. When both are
+present for the same API and differ, runx refuses. No Runx secret-setting
+command accepts raw material on argv.

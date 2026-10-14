@@ -9,6 +9,7 @@ fn debug_output_never_exposes_hosted_api_tokens() {
         token: Some("rxk_super_secret".to_owned()),
         expected_principal_id: Some("operator:test".to_owned()),
         stored_credential_environment_mismatch: false,
+        conflicting_tokens: false,
     };
     let authenticated = AuthenticatedHostedApiEnvironment {
         base_url: "https://api.runx.test".to_owned(),

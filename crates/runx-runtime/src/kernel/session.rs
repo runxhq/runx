@@ -58,6 +58,15 @@ impl<'a> CommandSession<'a> {
         }
     }
 
+    /// The command as the operator would type it.
+    pub(crate) fn command_line(&self) -> String {
+        self.command
+            .iter()
+            .map(NonEmptyString::as_str)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     /// Run the tool for its token.
     pub(crate) fn token(
         &self,

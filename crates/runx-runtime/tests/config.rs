@@ -185,8 +185,8 @@ fn config_reports_corrupt_local_agent_key_with_stable_prefix()
 }
 
 #[test]
-fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
--> Result<(), Box<dyn std::error::Error>> {
+fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dyn std::error::Error>>
+{
     let temp = tempdir()?;
     let explicit_env = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
@@ -235,13 +235,86 @@ fn config_loads_managed_agent_env_precedence_and_local_key_fallback()
         })
     );
 
-    let provider_env = env_map([
+    // The provider's variable and the stored key are two places for one
+    // key: when they differ runx keeps neither.
+    let differing = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
+        ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
+    ]);
+    let refused = load_managed_agent_config(&differing, temp.path())
+        .err()
+        .ok_or("two differing keys were accepted")?;
+    assert_eq!(
+        refused.to_string(),
+        "the model key is set by ANTHROPIC_API_KEY and the stored key with different values; keep one"
+    );
+    let agreeing = env_map([
+        ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
+        ("ANTHROPIC_API_KEY", "local-secret"),
+    ]);
+    assert_eq!(
+        load_managed_agent_config(&agreeing, temp.path())?.and_then(|config| config.api_key),
+        Some(SecretString::new("local-secret"))
+    );
+
+    // A blank stored key is no key: the environment's is the one source.
+    let blank_home = tempdir()?;
+    let blank_config = update_runx_config_value(
+        RunxConfigFile::default(),
+        ConfigKey::AgentApiKey,
+        "   ",
+        &home_at(blank_home.path()),
+    )?;
+    write_runx_config_file(&blank_home.path().join("config.json"), &blank_config)?;
+    let over_blank = env_map([
+        ("RUNX_HOME", blank_home.path().to_str().unwrap_or_default()),
+        ("RUNX_AGENT_PROVIDER", "anthropic"),
+        ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
+    ]);
+    assert_eq!(
+        load_managed_agent_config(&over_blank, blank_home.path())?
+            .and_then(|config| config.api_key),
+        Some(SecretString::new("anthropic-env-secret"))
+    );
+
+    // A stored key that cannot be read cannot be shown to agree: refused,
+    // even with a key in the environment.
+    let mut unreadable = blank_config.clone();
+    if let Some(agent) = unreadable.agent.as_mut() {
+        agent.api_key_ref = Some("local_agent_key_missing".to_owned());
+    }
+    write_runx_config_file(&blank_home.path().join("config.json"), &unreadable)?;
+    assert!(
+        load_managed_agent_config(&over_blank, blank_home.path())
+            .err()
+            .ok_or("an unreadable stored key was ignored")?
+            .to_string()
+            .contains("runx local agent key corrupted or unreadable at")
+    );
+
+    let keyless_home = tempdir()?;
+    let provider_env = env_map([
+        (
+            "RUNX_HOME",
+            keyless_home.path().to_str().unwrap_or_default(),
+        ),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
         ("RUNX_AGENT_MODEL", "claude-env"),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
-    let provider_config = load_managed_agent_config(&provider_env, temp.path())?;
+    let provider_config = load_managed_agent_config(&provider_env, keyless_home.path())?;
+    let mut shadowed = provider_env.clone();
+    shadowed.insert(
+        "RUNX_ENV_FILE_DIFFERS".to_owned(),
+        "ANTHROPIC_API_KEY".to_owned(),
+    );
+    assert_eq!(
+        load_managed_agent_config(&shadowed, keyless_home.path())
+            .err()
+            .ok_or("a key the environment and .env disagree on was accepted")?
+            .to_string(),
+        "the model key is set in the environment and in the workspace .env as ANTHROPIC_API_KEY with different values; keep one"
+    );
     let debug = format!("{provider_config:?}");
     assert!(provider_config.is_some());
     assert!(!debug.contains("anthropic-env-secret"));
@@ -361,7 +434,6 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         ("RUNX_HOME", runx_home),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
         ("RUNX_AGENT_MODEL", ""),
-        ("RUNX_AGENT_API_KEY", "sk-explicit"),
     ]);
     assert_eq!(
         load_managed_agent_config(&blank_model, temp.path())?.map(|config| config.model),
@@ -375,10 +447,14 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         ("RUNX_AGENT_API_KEY", ""),
         ("ANTHROPIC_API_KEY", "provider-secret"),
     ]);
+    // A blank variable is no key; the provider's own variable and the stored
+    // key are then two that differ.
     assert_eq!(
-        load_managed_agent_config(&blank_generic_key, temp.path())?
-            .and_then(|config| config.api_key),
-        Some(SecretString::new("local-secret"))
+        load_managed_agent_config(&blank_generic_key, temp.path())
+            .err()
+            .ok_or("two differing keys were accepted")?
+            .to_string(),
+        "the model key is set by ANTHROPIC_API_KEY and the stored key with different values; keep one"
     );
     Ok(())
 }

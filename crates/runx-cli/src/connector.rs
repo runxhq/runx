@@ -382,17 +382,28 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     target: target.as_deref(),
                 },
             };
+            // A person is shown the link and waited for; a program asking
+            // for JSON gets the link and the command that finishes the grant
+            // at once, to hand on.
             let options = UseOptions {
                 scopes: scopes.clone(),
                 parameters: instance_parameters(parameters),
-                wait: HOSTED_GRANT_WAIT,
+                wait: if plan.json {
+                    std::time::Duration::ZERO
+                } else {
+                    HOSTED_GRANT_WAIT
+                },
             };
             // A credential whose variable is not set is asked for, never
             // taken from argv.
-            match ConnectorSetup::new(&instances, workspace)
-                .reading_secrets(&crate::cli_io::read_secret)
-                .use_connector(&connector, request, &options)?
-            {
+            let setup = ConnectorSetup::new(&instances, workspace)
+                .reading_secrets(&crate::cli_io::read_secret);
+            let setup = if plan.json {
+                setup
+            } else {
+                setup.showing_links(&crate::cli_io::show_link)
+            };
+            match setup.use_connector(&connector, request, &options)? {
                 UseOutcome::Selected(instance) => {
                     if plan.json {
                         return render_json(&Output::Use {
@@ -413,14 +424,10 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     if plan.json {
                         return render_pending(&session_id, authorization_url.as_deref(), &finish);
                     }
+                    // The link was shown on stderr before the wait.
                     Ok(format!(
-                        "{}the grant is not confirmed yet; once it is, run:\n  {finish}\n",
-                        authorization_url
-                            .map(|url| format!(
-                                "authorize {} at:\n  {url}\n",
-                                connector.connector_ref
-                            ))
-                            .unwrap_or_default()
+                        "{} is not authorized yet; once it is, run:\n  {finish}\n",
+                        connector.connector_ref
                     ))
                 }
             }

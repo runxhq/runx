@@ -13,6 +13,11 @@ const WORKSPACE_ENV_FILE: &str = ".env";
 /// trusts, how it signs, and what a host admits. They come only from the
 /// process a host or operator starts, never from a workspace's files.
 const RUNX_NAME_PREFIX: &str = "RUNX_";
+/// The names a workspace's `.env` sets to a value other than the process
+/// environment's, comma-separated, never their values. The process value is
+/// the one kept; a credential read refuses such a name instead of acting on
+/// whichever value happened to win.
+pub(crate) const RUNX_ENV_FILE_DIFFERS_ENV: &str = "RUNX_ENV_FILE_DIFFERS";
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WorkspaceEnv {
@@ -45,7 +50,12 @@ impl WorkspaceEnv {
         require_absolute_cwd(&cwd)?;
         let env_path = cwd.join(WORKSPACE_ENV_FILE);
         let mut env = ambient_env;
-        let env_file_loaded = merge_env_file(&mut env, &env_path)?;
+        let (env_file_loaded, differs) = merge_env_file(&mut env, &env_path)?;
+        // Recomputed for this workspace; never inherited from a parent.
+        env.remove(RUNX_ENV_FILE_DIFFERS_ENV);
+        if !differs.is_empty() {
+            env.insert(RUNX_ENV_FILE_DIFFERS_ENV.to_owned(), differs.join(","));
+        }
 
         // Freeze workspace identity after discovery. A value inside `.env`
         // cannot redirect Runx to a different workspace after the file was read.
@@ -174,18 +184,29 @@ fn require_absolute_cwd(cwd: &Path) -> Result<(), WorkspaceEnvError> {
     }
 }
 
+/// Whether the workspace's `.env` sets `name` to a value other than the
+/// process environment's.
+pub(crate) fn env_file_differs(env: &BTreeMap<String, String>, name: &str) -> bool {
+    env.get(RUNX_ENV_FILE_DIFFERS_ENV)
+        .is_some_and(|names| names.split(',').any(|differs| differs == name))
+}
+
+/// Fill the names `path` sets that `env` lacks, and return whether the file
+/// exists and the names it sets to a value other than `env`'s.
 fn merge_env_file(
     env: &mut BTreeMap<String, String>,
     path: &Path,
-) -> Result<bool, WorkspaceEnvError> {
+) -> Result<(bool, Vec<String>), WorkspaceEnvError> {
     let entries = match dotenvy::from_path_iter(path) {
         Ok(entries) => entries,
         Err(dotenvy::Error::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(false);
+            return Ok((false, Vec::new()));
         }
         Err(error) => return Err(workspace_env_error(path, error)),
     };
 
+    let mut filled = std::collections::BTreeSet::new();
+    let mut differs = Vec::new();
     for entry in entries {
         let (key, value) = entry.map_err(|error| workspace_env_error(path, error))?;
         if key.starts_with(RUNX_NAME_PREFIX) {
@@ -194,9 +215,20 @@ fn merge_env_file(
                 name: key,
             });
         }
-        env.entry(key).or_insert(value);
+        match env.get(&key) {
+            // The file's own first value stands, as it always has.
+            Some(_) if filled.contains(&key) => {}
+            Some(existing) if *existing != value => differs.push(key),
+            Some(_) => {}
+            None => {
+                filled.insert(key.clone());
+                env.insert(key, value);
+            }
+        }
     }
-    Ok(true)
+    differs.sort();
+    differs.dedup();
+    Ok((true, differs))
 }
 
 fn workspace_env_error(path: &Path, error: dotenvy::Error) -> WorkspaceEnvError {
@@ -285,6 +317,37 @@ mod tests {
             workspace.env().get("PROVIDER_TOKEN"),
             Some(&"from-process".to_owned())
         );
+        assert!(super::env_file_differs(workspace.env(), "PROVIDER_TOKEN"));
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_env_marks_only_the_names_the_file_sets_differently()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        fs::write(
+            temp.path().join(".env"),
+            "SAME=one\nDIFFERS=from-file\nFILE_ONLY=x\nFILE_ONLY=y\n",
+        )?;
+        let ambient = BTreeMap::from([
+            ("SAME".to_owned(), "one".to_owned()),
+            ("DIFFERS".to_owned(), "from-process".to_owned()),
+            (
+                super::RUNX_ENV_FILE_DIFFERS_ENV.to_owned(),
+                "SAME,FILE_ONLY".to_owned(),
+            ),
+        ]);
+
+        let workspace = WorkspaceEnv::load(ambient, temp.path().to_path_buf())?;
+
+        assert_eq!(
+            workspace.env().get(super::RUNX_ENV_FILE_DIFFERS_ENV),
+            Some(&"DIFFERS".to_owned()),
+            "recomputed here, never inherited, and never a value"
+        );
+        assert!(!super::env_file_differs(workspace.env(), "SAME"));
+        assert!(!super::env_file_differs(workspace.env(), "FILE_ONLY"));
+        assert_eq!(workspace.env().get("FILE_ONLY"), Some(&"x".to_owned()));
         Ok(())
     }
 

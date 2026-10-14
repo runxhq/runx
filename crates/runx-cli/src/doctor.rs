@@ -203,6 +203,14 @@ fn managed_agent_config_diagnostic(
         .as_ref()
         .and_then(|result| result.as_ref().err())
         .map(ToString::to_string);
+    // Two places hold different model keys: the config is fine, and the
+    // repair is keeping one.
+    let conflicting_keys = semantic_result.as_ref().is_some_and(|result| {
+        matches!(
+            result,
+            Err(runx_runtime::ConfigError::ConflictingAgentKeys { .. })
+        )
+    });
     if let Some(error) = semantic_error.as_ref() {
         evidence.insert(
             "semantic_error".to_owned(),
@@ -253,7 +261,22 @@ fn managed_agent_config_diagnostic(
             json_pointer: Some("/agent".to_owned()),
         },
         evidence: Some(evidence),
-        repairs: if partial {
+        repairs: if conflicting_keys {
+            vec![DoctorRepair {
+                id: "runx.agent.config.one_key".to_owned(),
+                kind: DoctorRepairKind::Manual,
+                confidence: DoctorRepairConfidence::High,
+                risk: DoctorRepairRisk::Low,
+                path: Some("runx config".to_owned()),
+                json_pointer: Some("/agent".to_owned()),
+                contents: Some(
+                    "Keep one model key: unset the variable runx should not read, or store the key you mean with runx config set agent.api_key --from-stdin.".to_owned(),
+                ),
+                patch: None,
+                command: None,
+                requires_human_review: false,
+            }]
+        } else if partial {
             vec![DoctorRepair {
                 id: "runx.agent.config.configure".to_owned(),
                 kind: DoctorRepairKind::Manual,

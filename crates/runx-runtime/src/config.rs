@@ -233,6 +233,8 @@ pub enum ConfigError {
     },
     #[error("runx local agent key corrupted or unreadable at {path}{suffix}")]
     LocalAgentKeyCorrupt { path: PathBuf, suffix: String },
+    #[error("the model key is set {sources} with different values; keep one")]
+    ConflictingAgentKeys { sources: String },
     #[error("config crypto failed: {0}")]
     Crypto(String),
     #[error("{path} {fault}")]
@@ -555,22 +557,53 @@ pub fn load_managed_agent_config(
         }
         return Ok(None);
     }
-    let provider_key = profile.and_then(|profile| env.get(profile.key_env));
-    let mut api_key = env
-        .get("RUNX_AGENT_API_KEY")
-        .or(provider_key)
-        .map(|value| value.trim().to_owned())
-        .unwrap_or_default();
+    // Every place the key can come from, and the one value they hold: two
+    // that differ could be two accounts, and runx never picks one.
+    let mut keys = Vec::new();
+    for name in std::iter::once("RUNX_AGENT_API_KEY").chain(profile.map(|profile| profile.key_env))
+    {
+        if crate::services::env_file_differs(env, name) {
+            return Err(ConfigError::ConflictingAgentKeys {
+                sources: format!("in the environment and in the workspace .env as {name}"),
+            });
+        }
+        if let Some(value) = env
+            .get(name)
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            keys.push((name.to_owned(), value.to_owned()));
+        }
+    }
     if auth_mode == ManagedAgentAuthMode::ApiKey
-        && api_key.is_empty()
         && let Some(key_ref) = config
             .agent
             .as_ref()
             .and_then(|agent| agent.api_key_ref.as_ref())
             .filter(|value| !value.is_empty())
     {
-        api_key = load_local_agent_api_key(&paths, key_ref)?.trim().to_owned();
+        // A blank stored key is no key, as a blank variable is.
+        let stored = load_local_agent_api_key(&paths, key_ref)?.trim().to_owned();
+        if !stored.is_empty() {
+            keys.push(("the stored key".to_owned(), stored));
+        }
     }
+    let api_key = match keys.as_slice() {
+        [] => String::new(),
+        [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => first.clone(),
+        several => {
+            return Err(ConfigError::ConflictingAgentKeys {
+                sources: format!(
+                    "by {}",
+                    several
+                        .iter()
+                        .map(|(source, _)| source.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" and ")
+                ),
+            });
+        }
+    };
     match auth_mode {
         ManagedAgentAuthMode::ApiKey => {
             if endpoint_url

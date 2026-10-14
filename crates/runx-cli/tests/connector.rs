@@ -184,6 +184,116 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
     result
 }
 
+/// A session command comes from the manifest, here a project's own: setup
+/// lists it and never runs it until the operator names `--session`.
+#[test]
+fn a_session_command_runs_only_once_the_operator_names_it() -> TestResult {
+    let root = temp_root("runx-connector-session-chosen");
+    plugin_with_source_connectors(&root, &["github"])?;
+    let bin = root.join("bin");
+    fs::create_dir_all(&bin)?;
+    let ran = root.join("gh-ran");
+    let gh = bin.join("gh");
+    fs::write(
+        &gh,
+        format!(
+            "#!/bin/sh\ntouch '{}'\necho 'You are not logged into any GitHub hosts.' >&2\nexit 1\n",
+            ran.display()
+        ),
+    )?;
+    fs::set_permissions(&gh, fs::Permissions::from_mode(0o755))?;
+    let result = (|| -> TestResult {
+        let (ok, refused) = connector(&root, &["use", "github"])?;
+        assert!(!ok);
+        let message = refused["error"]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains(
+                "`runx connector use runx/github --session` (runs `gh auth token --hostname github.com`)"
+            ),
+            "{refused}"
+        );
+        assert!(
+            message.contains(
+                "`runx connector use runx/github --credential token` (reads GITHUB_TOKEN, else asks for it)"
+            ),
+            "{refused}"
+        );
+        connector(&root, &["list"])?;
+        connector(&root, &["inspect", "github"])?;
+        assert!(!ran.exists(), "setup ran the session command unasked");
+
+        let (ok, _) = connector(&root, &["use", "github", "--session"])?;
+        assert!(!ok);
+        assert!(ran.exists(), "--session runs the command it names");
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+/// A workspace `.env` and the environment are two places for one variable:
+/// a differing or blank environment value is refused, the same one binds.
+#[test]
+fn a_credential_variable_the_env_file_disagrees_on_is_refused() -> TestResult {
+    let root = temp_root("runx-connector-env-file-differs");
+    plugin_with_source_connectors(&root, &["github"])?;
+    fs::write(root.join(".env"), "GITHUB_TOKEN=ghp_from_the_file\n")?;
+    let result = (|| -> TestResult {
+        let bind = |value: &str| {
+            unsigned_runx_command_at(&root)
+                .env("PATH", "/usr/bin:/bin")
+                .env("GITHUB_TOKEN", value)
+                .args(["connector", "use", "github", "--credential", "token"])
+                .stdin(Stdio::null())
+                .output()
+        };
+        for value in ["ghp_from_the_environment", ""] {
+            let refused = bind(value)?;
+            assert_eq!(refused.status.code(), Some(1));
+            let stderr = String::from_utf8_lossy(&refused.stderr);
+            assert!(
+                stderr.contains(
+                    "GITHUB_TOKEN is set in the environment and in the workspace .env with different values"
+                ),
+                "{stderr}"
+            );
+        }
+        let (_, listed) = connector(&root, &["list"])?;
+        assert_eq!(listed["instances"], serde_json::json!([]));
+
+        let bound = bind("ghp_from_the_file")?;
+        assert!(
+            bound.status.success(),
+            "{}",
+            String::from_utf8_lossy(&bound.stderr)
+        );
+        assert!(String::from_utf8_lossy(&bound.stdout).contains("from GITHUB_TOKEN"));
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+#[test]
+fn hosted_takes_no_credential_name() -> TestResult {
+    let root = temp_root("runx-connector-hosted-credential");
+    plugin_with_source_connectors(&root, &["github"])?;
+    let result = (|| -> TestResult {
+        let (ok, refused) = connector(
+            &root,
+            &["use", "github", "--hosted", "--credential", "token"],
+        )?;
+        assert!(!ok);
+        assert_eq!(
+            refused["error"]["message"],
+            "--hosted sends the one credential the connector's hosted placement names; --credential chooses a local one"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
 /// A profile name holds one connector's credential: binding another
 /// connector's under it is refused, so the instance pinned to it keeps working.
 #[test]

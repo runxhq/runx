@@ -28,6 +28,7 @@ pub struct HostedApiEnvironment {
     token: Option<String>,
     expected_principal_id: Option<String>,
     stored_credential_environment_mismatch: bool,
+    conflicting_tokens: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -152,7 +153,7 @@ impl HostedApiEnvironment {
             ),
             None => (None, None),
         };
-        let stored_token = if direct_token.is_none() && stored_token_allowed {
+        let stored_token = if stored_token_allowed {
             stored_token_ref
                 .map(|token_ref| load_local_public_api_token(&paths, token_ref))
                 .transpose()?
@@ -160,6 +161,11 @@ impl HostedApiEnvironment {
         } else {
             None
         };
+        // Two tokens for one API are two principals until shown otherwise.
+        let conflicting_tokens = matches!(
+            (&direct_token, &stored_token),
+            (Some(direct), Some(stored)) if direct != stored
+        );
         let using_stored_token = direct_token.is_none() && stored_token.is_some();
         let stored_credential_environment_mismatch = credential_purpose.is_some()
             && direct_token.is_none()
@@ -167,9 +173,12 @@ impl HostedApiEnvironment {
             && !stored_token_allowed;
         Ok(Self {
             base_url,
-            token: direct_token.or(stored_token),
+            token: (!conflicting_tokens)
+                .then(|| direct_token.or(stored_token))
+                .flatten(),
             expected_principal_id: using_stored_token.then_some(stored_principal_id).flatten(),
             stored_credential_environment_mismatch,
+            conflicting_tokens,
         })
     }
 
@@ -179,6 +188,11 @@ impl HostedApiEnvironment {
     }
 
     pub fn require_token(&self) -> Result<&str, HostedApiError> {
+        if self.conflicting_tokens {
+            return Err(HostedApiError::ConflictingTokens {
+                base_url: self.base_url.clone(),
+            });
+        }
         if let Some(token) = self.token.as_deref() {
             return Ok(token);
         }

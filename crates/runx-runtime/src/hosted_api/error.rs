@@ -12,10 +12,23 @@ pub enum HostedApiError {
     RuntimeHttp(RuntimeHttpError),
     InvalidBaseUrl(String),
     MissingToken,
-    StoredCredentialEnvironmentMismatch { base_url: String },
-    AuthenticationStatus { status: u16, detail: String },
+    /// The token in the environment and the one `runx login` stored for the
+    /// same API differ: either could be another principal.
+    ConflictingTokens {
+        base_url: String,
+    },
+    StoredCredentialEnvironmentMismatch {
+        base_url: String,
+    },
+    AuthenticationStatus {
+        status: u16,
+        detail: String,
+    },
     InvalidPrincipal(String),
-    PrincipalMismatch { expected: String, actual: String },
+    PrincipalMismatch {
+        expected: String,
+        actual: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -60,6 +73,10 @@ impl fmt::Display for HostedApiError {
             Self::MissingToken => write!(
                 formatter,
                 "missing public API token; run `runx login` or set {HOSTED_API_TOKEN_ENV}"
+            ),
+            Self::ConflictingTokens { base_url } => write!(
+                formatter,
+                "{HOSTED_API_TOKEN_ENV} and the token `runx login` stored for {base_url} differ; unset {HOSTED_API_TOKEN_ENV} or sign in again"
             ),
             Self::StoredCredentialEnvironmentMismatch { base_url } => write!(
                 formatter,

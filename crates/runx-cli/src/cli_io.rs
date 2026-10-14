@@ -49,6 +49,14 @@ pub(crate) fn read_secret(wanted: &str) -> Result<String, String> {
     Ok(secret.to_owned())
 }
 
+/// Where to authorize a new Connect grant, on stderr the moment it is known,
+/// so the person can authorize while `use` waits.
+pub(crate) fn show_link(connector: &str, url: &str) {
+    let _ignored = write_stderr(&format!(
+        "authorize {connector} at:\n  {url}\nwaiting for the grant...\n"
+    ));
+}
+
 /// A failure written to stderr, ending the command with its exit code.
 pub(crate) fn write_stderr_code(message: &str, exit_code: u8) -> ExitCode {
     let _ignored = write_stderr(message);
