@@ -248,7 +248,17 @@ and a skill call whose child act failed settles failed with it. A run whose host
 `max_child_depth` refuses a skill call that would start more child runs in one
 turn, or nest them deeper, than it allows. A host whose own agent works the run
 sets `agent_bounds`, which keeps the run's file, git, command and authoring
-tools inside its workspace and away from secrets (see Agent bounds, below). A run started with `--managed-agent` is worked by the
+tools inside its workspace and away from secrets (see Agent bounds, below).
+
+A run's authority may also set `max_cost_micro`, the most the run may spend in
+integer micro-USD (1 = $0.000001); `runx skill --max-cost <usd>` sets it for a
+local run. Every priced call's quote, and every amount a call moves in USD or
+USDC, is reserved against what is left before anything is sent, so a call over
+it is refused as `cost_limit_exceeded` and seals the run blocked. Child runs and
+turn calls spend from the same limit, and none can widen it. A call that
+proves nothing billable gives its reservation back. A payment in any other
+currency is refused under a limit, since it cannot be counted. With no limit,
+nothing is counted. A run started with `--managed-agent` is worked by the
 managed agent: `runx mcp --run` refuses it, and `--managed-agent` cannot take
 over a run its host drives.
 
@@ -772,7 +782,19 @@ sets remain `needs_agent`. Both resume the same sealed checkpoint through
 
 Payment capabilities also set the typed `amount: {units, unit}` input. It is
 part of the plan digest and appears in the operator summary; it is not copied
-into the provider payload or inferred from provider-specific JSON.
+into the provider payload or inferred from provider-specific JSON. Under a
+money limit, `USDC` units count as micro-USD and `USD` units as cents.
+
+An operation may declare what its provider charges per call:
+`cost: {usd_micro, per: request | success, source: docs | rate_card | observed,
+source_url}`. `per: request` is billable once the request may have left;
+`per: success` only when the provider answers as the operation accepts. The
+price and its basis are part of the operation digest, so a changed price is
+confirmed again before it runs; where it was read is not. A priced operation
+sends one request and cannot page. Absent, no charge is known and the call
+counts nothing; `usd_micro: 0` is an explicit free. `runx skill inspect` shows
+each priced operation's price, and a priced call's packet carries
+`cost: {quoted_usd_micro, settled_usd_micro, payer}`.
 
 `result_from` is not a list of graph leaves. It returns each selected successful
 step's complete declared contract, including packet envelopes. Approvals and

@@ -2,7 +2,7 @@
 //!
 //! - The manifest digest covers the whole parsed manifest.
 //! - The operation digest covers the fields that change what a grant
-//!   authorizes or what a person approves. Descriptions and implementations
+//!   authorizes, what a person approves or what a call costs. Descriptions and implementations
 //!   are excluded, so a copy edit or a fixed implementation is not an
 //!   authority change.
 //! - The implementation digest covers the implementation that ran, with
@@ -24,9 +24,10 @@ use thiserror::Error;
 use crate::{JsonObject, to_canonical_bytes};
 
 use super::{
-    AmountRule, ApprovalFloor, ConnectorManifest, ConnectorName, ConnectorOperation,
+    AmountRule, ApprovalFloor, ConnectorManifest, ConnectorName, ConnectorOperation, CostBasis,
     CredentialDeclaration, CredentialName, Digest, IdempotencyKeyFormat, Implementation, McpServer,
-    NonEmptyString, OperationGuarantees, OperationName, OperationTarget, OperationVerb,
+    NonEmptyString, OperationCost, OperationGuarantees, OperationName, OperationTarget,
+    OperationVerb,
 };
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
@@ -57,6 +58,17 @@ struct OperationAuthority<'a> {
     guarantees: &'a OperationGuarantees,
     amount: AmountRule,
     input_schema_digest: Option<Digest>,
+    /// A price is what the operation means: a changed price or basis is
+    /// confirmed again; where it was read is not. Absent, it leaves every
+    /// unpriced digest as it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost: Option<Price>,
+}
+
+#[derive(Serialize)]
+struct Price {
+    usd_micro: u64,
+    per: CostBasis,
 }
 
 pub fn operation_digest(
@@ -76,6 +88,10 @@ pub fn operation_digest(
         guarantees: &operation.guarantees,
         amount: operation.amount,
         input_schema_digest: input_schema_digest(operation.input_schema.as_ref())?,
+        cost: operation.cost.as_ref().map(|cost: &OperationCost| Price {
+            usd_micro: cost.usd_micro,
+            per: cost.per,
+        }),
     })
 }
 

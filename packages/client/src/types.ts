@@ -45,7 +45,8 @@ export interface SkillInspectOptions extends InvocationOptions {
  * reads it. The run record binds it; a resumed run keeps it.
  */
 export interface RunAuthority {
-  readonly actor_ref: ReferenceContract;
+  /** Who acts; absent, the authority only bounds the run. */
+  readonly actor_ref?: ReferenceContract;
   readonly mandate_ref?: ReferenceContract;
   /** Narrowing requests the kernel mints against live capability evidence. */
   readonly delegations?: readonly Readonly<Record<string, unknown>>[];
@@ -62,6 +63,11 @@ export interface RunAuthority {
    * floor holds; the person replaces them through `runx resume`.
    */
   readonly standing_approvals?: readonly StandingApprovalContract[];
+  /**
+   * The most the run, child runs included, may spend, in integer micro-USD
+   * (1 = $0.000001). A call over what is left is refused before it is sent.
+   */
+  readonly max_cost_micro?: number;
 }
 
 export interface SkillRunOptions extends SkillInspectOptions {

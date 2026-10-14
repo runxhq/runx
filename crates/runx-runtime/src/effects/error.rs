@@ -15,6 +15,9 @@ pub enum RuntimeEffectError {
         verb: AuthorityVerb,
         message: String,
     },
+    /// The call would spend more than is left of the run's money limit.
+    #[error("effect family {family} refused a call over the run's money limit: {message}")]
+    CostLimitExceeded { family: String, message: String },
     #[error("effect family {family} failed during {operation}: {message}")]
     Failed {
         family: String,

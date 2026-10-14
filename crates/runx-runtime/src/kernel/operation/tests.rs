@@ -220,6 +220,18 @@ impl crate::http::RuntimeHttpTransport for Provider {
             let answer = serde_json::json!({"status": 200, "body": issue.to_string()});
             return Ok(RuntimeHttpResponse::new(200, answer.to_string()));
         }
+        if let Some(id) = request.url.strip_prefix("https://api.osv.dev/v1/vulns/") {
+            if *self.answer.lock().unwrap() == Answer::Reject {
+                return Ok(RuntimeHttpResponse::new(
+                    404,
+                    r#"{"code":5,"message":"Bug not found"}"#,
+                ));
+            }
+            return Ok(RuntimeHttpResponse::new(
+                200,
+                serde_json::json!({"id": id, "summary": "advisory"}).to_string(),
+            ));
+        }
         if request.url.starts_with("https://acme.app.n8n.cloud/") {
             // An n8n webhook acknowledges with whatever the workflow answers.
             return Ok(RuntimeHttpResponse::new(
@@ -670,13 +682,14 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
     .unwrap();
     let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
     let mut authority = crate::RunAuthority {
-        actor_ref: actor_ref.clone(),
+        actor_ref: Some(actor_ref.clone()),
         mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
         agent_bounds: false,
         standing_approvals: Vec::new(),
+        max_cost_micro: None,
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -725,7 +738,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
             .as_ref()
             .unwrap()
             .principal_ref,
-        authority.actor_ref
+        authority.actor_ref.clone().unwrap()
     );
     assert!(
         fixture
@@ -859,6 +872,131 @@ fn input_outside_the_operation_schema_is_refused_before_anything_is_sent() {
         "the refusal names the path, never the value: {error}"
     );
     assert_eq!(fixture.provider.calls(), 0);
+}
+
+/// Price OSV's advisory read in the fixture's plugin, as a provider that
+/// bills per request declares it.
+fn price_advisories(fixture: &Fixture, usd_micro: u64) {
+    price_advisories_per(fixture, usd_micro, "request");
+}
+
+fn price_advisories_per(fixture: &Fixture, usd_micro: u64, per: &str) {
+    let path = fixture.root.path().join("connectors/osv/connector.yaml");
+    let yaml = std::fs::read_to_string(&path).unwrap().replace(
+        "    result_fields: [advisories]\n",
+        &format!(
+            "    result_fields: [advisories]\n    cost: {{usd_micro: {usd_micro}, per: {per}, source: docs}}\n"
+        ),
+    );
+    std::fs::write(path, yaml).unwrap();
+}
+
+fn advisories(id: &str) -> JsonObject {
+    serde_json::from_value(serde_json::json!({"input": {"ids": [id]}})).unwrap()
+}
+
+/// A run bounded only by what it may spend.
+fn limited(max_cost_micro: u64) -> crate::RunAuthority {
+    crate::RunAuthority {
+        actor_ref: None,
+        mandate_ref: None,
+        delegations: Vec::new(),
+        max_fanout: None,
+        max_child_depth: None,
+        agent_bounds: false,
+        standing_approvals: Vec::new(),
+        max_cost_micro: Some(max_cost_micro),
+    }
+}
+
+#[test]
+fn a_priced_call_spends_from_the_runs_limit_and_one_over_it_sends_nothing() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories(&fixture, 5_000);
+    let authority = limited(8_000);
+    let (admission, outcome, _) = fixture
+        .run_under("advisories", &advisories("OSV-1"), None, Some(&authority))
+        .unwrap();
+    let context = admission.context::<OperationAdmission>().unwrap();
+    assert!(
+        context
+            .admitted
+            .admission
+            .reasons
+            .iter()
+            .any(
+                |reason| reason.check == runx_contracts::AdmissionCheck::Cost
+                    && reason.outcome == runx_contracts::CheckOutcome::Pass
+            )
+    );
+    assert_eq!(
+        packet(&outcome)["cost"],
+        serde_json::from_value::<JsonValue>(serde_json::json!({
+            "quoted_usd_micro": 5000,
+            "settled_usd_micro": 5000,
+            "payer": "provider_account",
+        }))
+        .unwrap()
+    );
+    let sent = fixture.provider.calls();
+    assert_eq!(sent, 1);
+
+    // 3,000 is left: another 5,000 call is refused before anything is sent.
+    let refused = fixture
+        .admit_as("advisories", &advisories("OSV-2"), Some(&authority))
+        .expect_err("over the limit");
+    assert!(
+        matches!(refused, RuntimeEffectError::CostLimitExceeded { .. }),
+        "{refused}"
+    );
+    assert!(
+        refused.to_string().contains("cost_limit_exceeded"),
+        "{refused}"
+    );
+    assert_eq!(fixture.provider.calls(), sent);
+}
+
+#[test]
+fn a_call_billed_on_success_gives_its_spend_back_when_refused() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories_per(&fixture, 5_000, "success");
+    let authority = limited(5_000);
+    fixture.provider.answer(Answer::Reject);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("OSV-1"), None, Some(&authority))
+            .is_err()
+    );
+    // Nothing was billable, so the whole limit is left for the next call.
+    fixture.provider.answer(Answer::Succeed);
+    fixture
+        .run_under("advisories", &advisories("OSV-2"), None, Some(&authority))
+        .expect("the refused call spent nothing");
+}
+
+#[test]
+fn a_run_without_a_limit_spends_as_it_always_has() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories(&fixture, 5_000);
+    let (admission, outcome, _) = fixture
+        .run_under("advisories", &advisories("OSV-1"), None, None)
+        .unwrap();
+    let context = admission.context::<OperationAdmission>().unwrap();
+    assert!(
+        !context
+            .admitted
+            .admission
+            .reasons
+            .iter()
+            .any(|reason| reason.check == runx_contracts::AdmissionCheck::Cost),
+        "an unlimited run records no cost check"
+    );
+    assert!(context.admitted.spend.is_none());
+    // The packet still says what the call cost.
+    assert_eq!(
+        packet(&outcome)["cost"].as_object().unwrap()["quoted_usd_micro"],
+        JsonValue::Number(runx_contracts::JsonNumber::U64(5000))
+    );
 }
 
 #[test]

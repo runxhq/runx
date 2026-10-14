@@ -174,6 +174,8 @@ pub enum SealReason {
     GraphBlocked,
     /// A call's authority did not admit it.
     AuthorityDenied,
+    /// A call would spend more than is left of the run's money limit.
+    CostLimitExceeded,
     /// The graph waits on a step's request its host has not yet answered.
     ResolutionPending,
     /// The managed agent's provider request failed.
@@ -201,6 +203,7 @@ impl SealReason {
             Self::GraphStepFailed => "graph_step_failed",
             Self::GraphBlocked => "graph_blocked",
             Self::AuthorityDenied => "authority_denied",
+            Self::CostLimitExceeded => "cost_limit_exceeded",
             Self::ResolutionPending => "resolution_pending",
             Self::ManagedAgentProviderFailed => "managed_agent_provider_failed",
             Self::ManagedAgentResolutionFailed => "managed_agent_resolution_failed",

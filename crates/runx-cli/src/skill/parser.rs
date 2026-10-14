@@ -44,13 +44,15 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     } else {
         SkillAction::Run
     };
-    if action == SkillAction::Inspect && (state.run_authority.is_some() || state.context.is_some())
+    if action == SkillAction::Inspect
+        && (state.run_authority.is_some() || state.context.is_some() || state.max_cost.is_some())
     {
         return Err(
-            "runx skill --run-authority and --context bind a run and are not accepted by inspect"
+            "runx skill --run-authority, --context and --max-cost bind a run and are not accepted by inspect"
                 .to_owned(),
         );
     }
+    let run_authority = limit_run(state.run_authority, state.max_cost)?;
     if action == SkillAction::Inspect
         && (state.expected_package_digest.is_some()
             || state.expected_execution_closure_digest.is_some())
@@ -87,10 +89,72 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         inputs: state.inputs,
         input_document: state.input_document,
         act: state.act,
-        run_authority: state.run_authority,
+        run_authority,
         context: state.context,
         managed_agent,
     })
+}
+
+/// `--max-cost <usd>`: the most the run, its child runs included, may spend.
+/// It sets the run authority's money limit, so a direct run gets an authority
+/// that only bounds it.
+fn limit_run(
+    authority: Option<Box<runx_runtime::RunAuthority>>,
+    max_cost_micro: Option<u64>,
+) -> Result<Option<Box<runx_runtime::RunAuthority>>, String> {
+    let Some(limit) = max_cost_micro else {
+        return Ok(authority);
+    };
+    let mut authority = authority.unwrap_or_else(|| {
+        Box::new(runx_runtime::RunAuthority {
+            actor_ref: None,
+            mandate_ref: None,
+            delegations: Vec::new(),
+            max_fanout: None,
+            max_child_depth: None,
+            agent_bounds: false,
+            standing_approvals: Vec::new(),
+            max_cost_micro: None,
+        })
+    });
+    if authority
+        .max_cost_micro
+        .is_some_and(|stated| stated != limit)
+    {
+        return Err(
+            "runx skill --max-cost and the --run-authority money limit differ; state the limit once"
+                .to_owned(),
+        );
+    }
+    authority.max_cost_micro = Some(limit);
+    Ok(Some(authority))
+}
+
+/// Dollars as integer micro-USD: `2`, `0.5`, `0.005`. A limit is never a
+/// float, so more than six decimals, a sign or an exponent is refused.
+fn parse_max_cost(value: &str) -> Result<u64, String> {
+    let refuse = || {
+        format!(
+            "runx skill --max-cost takes dollars with at most six decimals, such as 0.50: {value:?}"
+        )
+    };
+    let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
+    if whole.is_empty()
+        || fraction.len() > 6
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+        || (value.contains('.') && fraction.is_empty())
+    {
+        return Err(refuse());
+    }
+    let whole = whole.parse::<u64>().map_err(|_| refuse())?;
+    let fraction = format!("{fraction:0<6}")
+        .parse::<u64>()
+        .map_err(|_| refuse())?;
+    whole
+        .checked_mul(1_000_000)
+        .and_then(|micro| micro.checked_add(fraction))
+        .ok_or_else(refuse)
 }
 
 /// `--context <json>`: the caller's context for the run, as the
@@ -142,6 +206,7 @@ struct SkillParseState {
     input_document: Option<crate::document_input::DocumentInputSource>,
     act: Option<runx_contracts::CallAct>,
     run_authority: Option<Box<runx_runtime::RunAuthority>>,
+    max_cost: Option<u64>,
     context: Option<Box<CallerContext>>,
     managed_agent: bool,
     managed_agent_rounds: Option<u32>,
@@ -310,6 +375,13 @@ fn parse_skill_arg(
             index += 1;
             state.run_id = Some(string_arg(args, index)?);
         }
+        value if value.starts_with("--max-cost=") => {
+            state.max_cost = Some(parse_max_cost(value.trim_start_matches("--max-cost="))?);
+        }
+        "--max-cost" => {
+            index += 1;
+            state.max_cost = Some(parse_max_cost(&string_arg(args, index)?)?);
+        }
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
         value if value.starts_with("--managed-agent=") => {
@@ -408,6 +480,81 @@ mod tests {
             return Err("round budget without consent unexpectedly parsed".to_owned());
         };
         assert!(error.contains("requires --managed-agent"));
+        Ok(())
+    }
+
+    fn plan(args: &[&str]) -> Result<super::SkillPlan, String> {
+        super::parse_skill_plan(
+            &args
+                .iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn max_cost_bounds_a_direct_run_in_micro_usd() -> Result<(), String> {
+        let limited = plan(&["skill", "skills/research", "--max-cost", "0.25"])?;
+        let authority = limited.run_authority.ok_or("no run authority")?;
+        assert_eq!(authority.max_cost_micro, Some(250_000));
+        assert_eq!(authority.actor_ref, None, "a limit names no actor");
+        assert_eq!(
+            plan(&["skill", "skills/research", "--max-cost=2"])?
+                .run_authority
+                .and_then(|authority| authority.max_cost_micro),
+            Some(2_000_000)
+        );
+        assert_eq!(
+            plan(&["skill", "skills/research", "--max-cost=0.000001"])?
+                .run_authority
+                .and_then(|authority| authority.max_cost_micro),
+            Some(1)
+        );
+        for refused in ["-1", "0.0000001", "1e3", "", ".5", "5.", "$2", "0.5x"] {
+            let Err(error) = plan(&["skill", "skills/research", "--max-cost", refused]) else {
+                return Err(format!("--max-cost {refused:?} parsed"));
+            };
+            assert!(error.contains("--max-cost takes dollars"), "{error}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn max_cost_joins_a_host_authority_and_never_contradicts_it() -> Result<(), String> {
+        let host =
+            r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_fanout":2}"#;
+        let joined = plan(&[
+            "skill",
+            "skills/research",
+            "--run-authority",
+            host,
+            "--max-cost",
+            "1",
+        ])?
+        .run_authority
+        .ok_or("no run authority")?;
+        assert_eq!(
+            (joined.max_fanout, joined.max_cost_micro),
+            (Some(2), Some(1_000_000))
+        );
+        assert!(joined.actor_ref.is_some());
+
+        let stated = r#"{"actor_ref":{"type":"principal","uri":"runx:principal:assistant"},"max_cost_micro":500000}"#;
+        let Err(error) = plan(&[
+            "skill",
+            "skills/research",
+            "--run-authority",
+            stated,
+            "--max-cost",
+            "1",
+        ]) else {
+            return Err("two different limits parsed".to_owned());
+        };
+        assert!(error.contains("state the limit once"), "{error}");
+        let Err(error) = plan(&["skill", "inspect", "skills/research", "--max-cost", "1"]) else {
+            return Err("inspect took a money limit".to_owned());
+        };
+        assert!(error.contains("bind a run"), "{error}");
         Ok(())
     }
 

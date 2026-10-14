@@ -263,7 +263,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
             "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
@@ -271,7 +271,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "-i, --input name=value   Set an input, read by the type its runner declares: a string as written, any other type as JSON; repeat for each input",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
-            "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations and child-run bounds",
+            "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and money limit",
+            "--max-cost usd           The most the run, child runs included, may spend: each priced call's quote and each USD or USDC amount a call moves; a call over what is left is refused before it is sent (cost_limit_exceeded)",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--managed-agent          Explicitly allow an in-process model loop for this run",

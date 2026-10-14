@@ -807,9 +807,10 @@ where
         Ok(match result {
             Ok(run) => Ran::Settled(CallOutcome::Completed(Box::new(run))),
             Err(RuntimeError::ResolutionPending { request, .. }) => Ran::Waiting(request),
-            Err(RuntimeError::AuthorityDenied { reason, .. }) => {
-                Ran::Settled(CallOutcome::Refused(reason))
-            }
+            Err(
+                RuntimeError::AuthorityDenied { reason, .. }
+                | RuntimeError::CostLimitExceeded { reason, .. },
+            ) => Ran::Settled(CallOutcome::Refused(reason)),
             // The act may have reached its provider: its custody holds it, and
             // the call stays claimed until a retry with the same input
             // reconciles it.

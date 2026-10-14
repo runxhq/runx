@@ -6742,6 +6742,40 @@ export const runxSchemaArtifacts = {
               ],
               "type": "string"
             },
+            "cost": {
+              "additionalProperties": false,
+              "properties": {
+                "per": {
+                  "enum": [
+                    "request",
+                    "success"
+                  ],
+                  "type": "string"
+                },
+                "source": {
+                  "enum": [
+                    "docs",
+                    "rate_card",
+                    "observed"
+                  ],
+                  "type": "string"
+                },
+                "source_url": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "usd_micro": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "usd_micro",
+                "per",
+                "source"
+              ],
+              "type": "object"
+            },
             "credentials": {
               "items": {
                 "maxLength": 64,
@@ -18100,6 +18134,30 @@ export const runxSchemaArtifacts = {
       "account_ref": {
         "type": "string"
       },
+      "cost": {
+        "additionalProperties": false,
+        "properties": {
+          "payer": {
+            "enum": [
+              "provider_account"
+            ],
+            "type": "string"
+          },
+          "quoted_usd_micro": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "settled_usd_micro": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quoted_usd_micro",
+          "payer"
+        ],
+        "type": "object"
+      },
       "finality": {
         "type": "string"
       },
@@ -19626,6 +19684,40 @@ export const runxSchemaArtifacts = {
         "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
         "type": "string"
       },
+      "cost": {
+        "additionalProperties": false,
+        "properties": {
+          "per": {
+            "enum": [
+              "request",
+              "success"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "docs",
+              "rate_card",
+              "observed"
+            ],
+            "type": "string"
+          },
+          "source_url": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "usd_micro": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "usd_micro",
+          "per",
+          "source"
+        ],
+        "type": "object"
+      },
       "instance_id": {
         "maxLength": 128,
         "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
@@ -19656,6 +19748,7 @@ export const runxSchemaArtifacts = {
                 "instance",
                 "capability",
                 "delegation",
+                "cost",
                 "approval",
                 "implementation",
                 "tolerance"
@@ -22586,6 +22679,7 @@ export const runxSchemaArtifacts = {
               "graph_step_failed",
               "graph_blocked",
               "authority_denied",
+              "cost_limit_exceeded",
               "resolution_pending",
               "managed_agent_provider_failed",
               "managed_agent_resolution_failed",

@@ -63,10 +63,12 @@ macro_rules! single_key_enum {
     };
 }
 
+mod cost;
 mod digest;
 mod ids;
 mod template;
 
+pub use cost::{CallCost, CostBasis, CostPayer, CostSource, OperationCost};
 pub use digest::{
     ConnectorDigestError, connector_digest, credential_declaration_digest, implementation_digest,
     input_schema_digest, manifest_digest, mcp_tool_digest, operation_digest, stable_digest,
@@ -497,6 +499,9 @@ pub struct ConnectorOperation {
     pub guarantees: OperationGuarantees,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub amount: AmountRule,
+    /// What the provider charges per call; absent when no charge is known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<OperationCost>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

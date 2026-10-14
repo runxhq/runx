@@ -77,6 +77,9 @@ pub enum AdmissionCheck {
     Capability,
     /// Every delegation link from principal to actor covers the intent.
     Delegation,
+    /// The call fits what is left of the run's money limit. Checked only when
+    /// the run sets one.
+    Cost,
     /// Approval evidence satisfies the operation's approval floor.
     Approval,
     /// The instance's placement implements the operation.
@@ -123,4 +126,7 @@ pub struct Readiness {
     /// True when no check failed. Approval may still be owed at call time.
     pub ready: bool,
     pub reasons: Vec<AdmissionReason>,
+    /// What the provider charges per call, when the operation declares it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<crate::connector::OperationCost>,
 }

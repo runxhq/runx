@@ -13,21 +13,25 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    IdempotencyKeyFormat, Implementation, OperationAccess, Placement, ProviderIdempotency,
-    implementation_digest,
+    CallCost, CostPayer, IdempotencyKeyFormat, Implementation, OperationAccess, Placement,
+    ProviderIdempotency, implementation_digest,
 };
 use runx_contracts::schema::IsoDateTime;
 use runx_contracts::{
-    ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind, InstanceAuthority,
-    JsonObject, JsonValue, ProofKind, Reference, ReferenceType, ResolutionRequest,
+    AdmissionCheck, ApprovalGate, AuthorityApproval, AuthorityVerb, ExecutionBoundaryKind,
+    InstanceAuthority, JsonObject, JsonValue, ProofKind, Reference, ReferenceType,
+    ResolutionRequest,
 };
 use runx_core::state_machine::AuthorityAdmissionWitness;
 use runx_parser::{DuplicatePolicy, GraphStep};
 
 use super::admission::{self, AdmissionDisposition, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
-use super::custody::{Acknowledgement, ApprovalActor, ApprovalRecord, Attempt};
+use super::custody::{
+    Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, CustodyError, EffectCustody,
+};
 use super::instances::Instances;
+use super::spend;
 use super::store::KernelStore;
 use crate::approval::ApprovalResolution;
 use crate::drivers::http::Egress;
@@ -494,6 +498,12 @@ impl RuntimeEffect for OperationEffect {
             },
         })
         .map_err(|error| match error {
+            AdmitError::Refused(refusal) if refusal.check == AdmissionCheck::Cost => {
+                RuntimeEffectError::CostLimitExceeded {
+                    family: OPERATION_EFFECT_FAMILY.to_owned(),
+                    message: refusal.message(),
+                }
+            }
             AdmitError::Refused(refusal) => RuntimeEffectError::Denied {
                 family: OPERATION_EFFECT_FAMILY.to_owned(),
                 message: refusal.message(),
@@ -694,10 +704,17 @@ impl RuntimeEffect for OperationEffect {
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
-        Ok(Some(custody.settlement(
-            request.receipt.id.as_str().to_owned(),
-            &context.admitted.usage_covers,
-        )))
+        Ok(Some(
+            custody.settlement(
+                request.receipt.id.as_str().to_owned(),
+                &context.admitted.usage_covers,
+                context
+                    .admitted
+                    .spend
+                    .as_ref()
+                    .map(|spending| (spending.run_id.clone(), spending.spend_key.clone())),
+            ),
+        ))
     }
 
     fn authority(
@@ -883,24 +900,22 @@ pub(crate) fn execute(
     let session = prepare(context, env, cwd).map_err(preflight)?;
     let tool = context.process_tool(env, cwd).map_err(preflight)?;
     if let Some(custody) = &context.admitted.custody {
-        custody
-            .attempt(
-                &Attempt {
-                    intent_digest: &intent_digest,
-                    authority_term_id,
-                    mandate_ref: admitted.mandate_ref.as_ref(),
-                    idempotency_key: provider_key.as_deref().unwrap_or_default(),
-                    instance_binding: instance_binding.as_str(),
-                    attempt: plan.number,
-                    approval: plan.approval.as_ref(),
-                    implementation_digest: implementation_digest.as_deref(),
-                    admitted_at: admitted.custody_head,
-                },
-                &admitted.usage_covers,
-            )
-            .map_err(|error| {
-                RuntimeError::effect_state("recording the attempt", error.to_string())
-            })?;
+        record_attempt(
+            custody,
+            &Attempt {
+                intent_digest: &intent_digest,
+                authority_term_id,
+                mandate_ref: admitted.mandate_ref.as_ref(),
+                idempotency_key: provider_key.as_deref().unwrap_or_default(),
+                instance_binding: instance_binding.as_str(),
+                attempt: plan.number,
+                approval: plan.approval.as_ref(),
+                implementation_digest: implementation_digest.as_deref(),
+                admitted_at: admitted.custody_head,
+            },
+            admitted,
+            step_id,
+        )?;
     }
 
     // An answer the connector cannot describe as it declares, its effect
@@ -956,8 +971,26 @@ pub(crate) fn execute(
                     })?;
                     return Err(unknown(held.to_owned()));
                 }
+                // A definitive rejection proved nothing billable when the
+                // provider shows no execution, or when the operation is
+                // billed only on success.
+                let spend = admitted
+                    .spend
+                    .as_ref()
+                    .map(|spending| {
+                        if release || spending.charge.on_success {
+                            spend::release(custody.store(), &spending.run_id, &spending.spend_key)
+                        } else {
+                            spend::settle(custody.store(), &spending.run_id, &spending.spend_key)
+                        }
+                    })
+                    .transpose()
+                    .map_err(|error| {
+                        RuntimeError::effect_state("recording the rejection", error.to_string())
+                    })?
+                    .flatten();
                 custody
-                    .rejected(code.clone(), &admitted.usage_covers, release)
+                    .rejected(code.clone(), &admitted.usage_covers, release, spend)
                     .map_err(|error| {
                         RuntimeError::effect_state("recording the rejection", error.to_string())
                     })?;
@@ -1813,6 +1846,56 @@ fn applied(outcomes: Vec<JsonValue>) -> Result<Vec<JsonValue>, String> {
         .collect()
 }
 
+/// How many times a call's attempt is recorded again when another call of the
+/// same run spent first.
+const SPEND_RETRIES: usize = 8;
+
+/// Record the call's attempt, reserving what it spends against the run's
+/// limit in the same commit. When another call of the run spent first, the
+/// limit is checked again against the ledger as it now stands.
+fn record_attempt(
+    custody: &EffectCustody,
+    attempt: &Attempt<'_>,
+    admitted: &Admitted,
+    step_id: &str,
+) -> Result<(), RuntimeError> {
+    let recording = |error: CustodyError| {
+        RuntimeError::effect_state("recording the attempt", error.to_string())
+    };
+    let Some(spending) = &admitted.spend else {
+        return custody
+            .attempt(attempt, &admitted.usage_covers, None)
+            .map_err(recording);
+    };
+    for _ in 0..SPEND_RETRIES {
+        let cover = match spend::cover(
+            custody.store(),
+            &spending.run_id,
+            spending.limit,
+            &spending.spend_key,
+            attempt.intent_digest,
+            spending.charge.usd_micro,
+        ) {
+            Ok(cover) => cover,
+            Err(error @ spend::SpendError::Exceeded { .. }) => {
+                return Err(RuntimeError::CostLimitExceeded {
+                    step_id: step_id.to_owned(),
+                    reason: error.to_string(),
+                });
+            }
+            Err(error) => return Err(recording(error.into())),
+        };
+        match custody.attempt(attempt, &admitted.usage_covers, Some(&cover)) {
+            Err(CustodyError::Store(error)) if spend::moved(&error) => {}
+            recorded => return recorded.map_err(recording),
+        }
+    }
+    Err(RuntimeError::effect_state(
+        "recording the attempt",
+        "the run's other calls kept spending; run the step again",
+    ))
+}
+
 fn finish(
     context: &OperationAdmission,
     readback: Readback,
@@ -1837,6 +1920,12 @@ fn finish(
                 intent_digest: admitted.intent_digest().as_str(),
                 operation_digest: admitted.intent().operation_digest.as_str(),
                 implementation_digest,
+                // An answer the operation accepts is billable on either basis.
+                cost: operation.cost.as_ref().map(|cost| CallCost {
+                    quoted_usd_micro: cost.usd_micro,
+                    settled_usd_micro: Some(cost.usd_micro),
+                    payer: CostPayer::ProviderAccount,
+                }),
             },
         )
         .map_err(|reason| failed(context, reason))?;

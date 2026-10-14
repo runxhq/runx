@@ -649,6 +649,28 @@ fn validate_operation(
         (None, _) => {}
     }
 
+    if let Some(cost) = &operation.cost {
+        if cost
+            .source_url
+            .as_ref()
+            .is_some_and(|url| !url.as_str().starts_with("https://"))
+        {
+            errors.push(
+                &format!("{field}.cost.source_url"),
+                "a price's source is an https page",
+            );
+        }
+        // One call is one priced request; a paged read has no fixed count.
+        if let Some(Implementation::Http(http)) = &operation.implementation
+            && http.requests.iter().any(|request| request.pages.is_some())
+        {
+            errors.push(
+                &format!("{field}.cost"),
+                "a priced operation sends one request and cannot page",
+            );
+        }
+    }
+
     let Some(implementation) = &operation.implementation else {
         return;
     };

@@ -138,6 +138,10 @@ fn effect_receipt_request<'a>(
 fn runtime_effect_error(step: &GraphStep, source: RuntimeEffectError) -> RuntimeError {
     match source {
         RuntimeEffectError::Denied { verb, message, .. } => authority_denied(step, verb, message),
+        RuntimeEffectError::CostLimitExceeded { message, .. } => RuntimeError::CostLimitExceeded {
+            step_id: step.id.clone(),
+            reason: message,
+        },
         RuntimeEffectError::Failed {
             operation, message, ..
         } if operation.contains("state") => RuntimeError::effect_state(operation, message),

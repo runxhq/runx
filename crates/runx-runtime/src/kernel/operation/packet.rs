@@ -48,6 +48,8 @@ pub(crate) struct Seal<'a> {
     pub intent_digest: &'a str,
     pub operation_digest: &'a str,
     pub implementation_digest: Option<&'a str>,
+    /// What a priced call cost.
+    pub cost: Option<runx_contracts::connector::CallCost>,
 }
 
 impl Readback {
@@ -140,6 +142,7 @@ impl Readback {
             account_ref: seal.account_ref.map(str::to_owned),
             operation_digest: Some(seal.operation_digest.to_owned()),
             implementation_digest: seal.implementation_digest.map(str::to_owned),
+            cost: seal.cost.clone(),
         })
     }
 }

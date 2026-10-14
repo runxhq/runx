@@ -49,4 +49,7 @@ pub struct ProviderOperationPacket {
     /// The local implementation that ran; absent for hosted calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation_digest: Option<String>,
+    /// What a priced call cost; absent when the operation declares no cost.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<crate::connector::CallCost>,
 }

@@ -528,6 +528,11 @@ fn sealing_stop(
             Some(SealReason::AuthorityDenied),
             StopKind::Blocked,
         ),
+        RuntimeError::CostLimitExceeded { step_id, .. } => (
+            step_id.clone(),
+            Some(SealReason::CostLimitExceeded),
+            StopKind::Blocked,
+        ),
         #[cfg(feature = "agent")]
         RuntimeError::ManagedAgentResolution {
             step_id, source, ..
@@ -560,6 +565,11 @@ pub(crate) fn graph_stop_closure(
             step_id,
             ClosureDisposition::Blocked,
             Some(SealReason::AuthorityDenied),
+        ),
+        RuntimeError::CostLimitExceeded { step_id, .. } => (
+            step_id,
+            ClosureDisposition::Blocked,
+            Some(SealReason::CostLimitExceeded),
         ),
         RuntimeError::ResolutionPending { step_id, .. } => (
             step_id,

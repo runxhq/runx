@@ -21,7 +21,8 @@ pub use search::{ToolSearchOptions, search_tools, search_tools_with_effects};
 pub(crate) struct ToolCall {
     /// `<run id>#<step id>@<attempt>`.
     pub(crate) key: String,
-    /// The run authority's actor; none for an operator's run.
+    /// The run authority's actor; none for an operator's run, or for one
+    /// whose authority only bounds it.
     pub(crate) actor: Option<String>,
 }
 
@@ -36,7 +37,9 @@ impl ToolCall {
     ) -> Self {
         Self {
             key: format!("{run_id}#{step_id}@{attempt}"),
-            actor: authority.map(|authority| authority.actor_ref.uri.as_str().to_owned()),
+            actor: authority
+                .and_then(|authority| authority.actor_ref.as_ref())
+                .map(|actor| actor.uri.as_str().to_owned()),
         }
     }
 }

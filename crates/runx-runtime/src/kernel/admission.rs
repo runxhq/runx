@@ -35,6 +35,7 @@ use super::custody::{EffectCustody, Pending};
 use super::instances::Instances;
 use super::operation::call::{ApprovalText, OperationCall};
 use super::operation::hosted::HostedClient;
+use super::spend::{self, Charge, SpendError};
 use super::store::KernelStore;
 use super::usage::{UsageError, UsageLedger, UseCover};
 
@@ -109,6 +110,8 @@ pub(crate) struct Admitted {
     /// appends onto exactly that.
     pub custody_head: u64,
     pub usage_covers: Vec<UseCover>,
+    /// What the call spends against its run's money limit.
+    pub spend: Option<Spending>,
     pub target: String,
     pub request_key: Option<String>,
     /// What a person is shown, when the call is gated.
@@ -168,6 +171,19 @@ impl Admitted {
         self.admission.derivation = Some(derivation);
         Ok(())
     }
+}
+
+/// What an admitted call spends against its run's money limit. The limit
+/// is checked again, and the spend reserved, in the commit that records the
+/// call's attempt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Spending {
+    pub limit: u64,
+    pub charge: Charge,
+    /// The run the call belongs to; it spends from its root's ledger.
+    pub run_id: String,
+    /// The attempt the spend is reserved for.
+    pub spend_key: String,
 }
 
 /// Why an exact call cannot run.
@@ -288,6 +304,14 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
     let approval = approval_text(call, operation_spec);
+    // What the call spends, counted only under a money limit.
+    let limit = evaluation
+        .run_authority
+        .and_then(|authority| authority.max_cost_micro);
+    let charge = limit
+        .map(|_| spend::charge(operation_spec, call.amount.as_ref()))
+        .transpose()
+        .map(|charge| charge.filter(|charge| charge.usd_micro > 0));
 
     // Capability: what the principal can do at the provider.
     let capability = match capability::evidence(&CapabilityRequest {
@@ -300,13 +324,19 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Ok(capability) => capability,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Capability, detail)),
     };
-    let actor_ref = evaluation.run_authority.map_or_else(
-        || capability.term.principal_ref.clone(),
-        |authority| authority.actor_ref.clone(),
-    );
+    let actor_ref = evaluation
+        .run_authority
+        .and_then(|authority| authority.actor_ref.clone())
+        .unwrap_or_else(|| capability.term.principal_ref.clone());
     let instance_ref = capability::instance_reference(&instance);
     let mut delegations = Vec::new();
     if let Some(authority) = evaluation.run_authority {
+        if authority.actor_ref.is_none() && !authority.delegations.is_empty() {
+            return Err(reasons.refuse(
+                AdmissionCheck::Delegation,
+                "the run's delegations name no actor to delegate to",
+            ));
+        }
         let mut preceding = capability.term.clone();
         for request in authority.delegations.iter().filter(|request| {
             request.resource_ref.reference_type == instance_ref.reference_type
@@ -414,14 +444,16 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // Custody: the act's attempts, from any run. A call recovers an
     // unsettled attempt of its own intent and is held by any other; a
     // bounded call takes the use of the attempt sequence it joins.
-    let custody = (access == OperationAccess::Mutate || !parent_limits.is_empty()).then(|| {
-        EffectCustody::for_act(
-            Arc::clone(evaluation.store),
-            &intent,
-            &intent_digest,
-            evaluation.run_id,
-        )
-    });
+    let spends = matches!(charge, Ok(Some(_)));
+    let custody =
+        (access == OperationAccess::Mutate || !parent_limits.is_empty() || spends).then(|| {
+            EffectCustody::for_act(
+                Arc::clone(evaluation.store),
+                &intent,
+                &intent_digest,
+                evaluation.run_id,
+            )
+        });
     let (pending, use_key, custody_head) = match &custody {
         Some(custody) => match custody.custody() {
             Ok(state) => (
@@ -484,6 +516,54 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             "each delegation link was minted from its predecessor and covers the call"
         },
     );
+
+    // Cost: the call fits what is left of the run's money limit. A run with
+    // no limit spends unbounded, as it always has, and records no check.
+    let spend = match (limit, charge) {
+        (None, _) => None,
+        (Some(_), Err(detail)) => return Err(reasons.refuse(AdmissionCheck::Cost, detail)),
+        (Some(_), Ok(None)) => {
+            reasons.pass(
+                AdmissionCheck::Cost,
+                "the call spends nothing against the run's limit",
+            );
+            None
+        }
+        (Some(limit), Ok(Some(charge))) => {
+            let Some(spend_key) = use_key.clone() else {
+                return Err(AdmitError::State(
+                    "a call that spends is not in custody".to_owned(),
+                ));
+            };
+            match spend::cover(
+                evaluation.store,
+                evaluation.run_id,
+                limit,
+                &spend_key,
+                intent_digest.as_str(),
+                charge.usd_micro,
+            ) {
+                Ok(_) => {}
+                Err(error @ SpendError::Exceeded { .. }) => {
+                    return Err(reasons.refuse(AdmissionCheck::Cost, error.to_string()));
+                }
+                Err(error) => return Err(AdmitError::State(error.to_string())),
+            }
+            reasons.pass(
+                AdmissionCheck::Cost,
+                format!(
+                    "{} micro-USD within the run's limit of {limit}",
+                    charge.usd_micro
+                ),
+            );
+            Some(Spending {
+                limit,
+                charge,
+                run_id: evaluation.run_id.to_owned(),
+                spend_key,
+            })
+        }
+    };
 
     // Approval: the operation's floor or the step's gate.
     let disposition = match &approval {
@@ -550,6 +630,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         pending,
         custody_head,
         usage_covers,
+        spend,
         target,
         request_key,
         approval,
@@ -669,6 +750,7 @@ fn readiness(
         placement: None,
         ready: false,
         reasons: Vec::new(),
+        cost: None,
     };
     let finish = |mut readiness: Readiness, reasons: Reasons| {
         readiness.ready = !reasons
@@ -714,6 +796,7 @@ fn readiness(
         AdmissionCheck::Requirement,
         format!("{}/{operation_name}", connector.manifest.id),
     );
+    readiness.cost.clone_from(&spec.cost);
     let instance = match instances.resolve(&connector) {
         Ok(instance) => instance,
         Err(error) => {

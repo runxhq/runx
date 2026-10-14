@@ -1,8 +1,9 @@
 //! Authority supplied by a trusted run host, separate from skill inputs and
-//! context. A direct run has none; an acting host names its actor, the
-//! attenuation requests to mint against live capability evidence, and how
-//! far the run's child runs may spread. The run record binds it: a resumed
-//! run keeps the authority it started with.
+//! context. A direct run has none, unless its operator bounds what it spends;
+//! an acting host names its actor, the attenuation requests to mint against
+//! live capability evidence, how far the run's child runs may spread and what
+//! the run may spend. The run record binds it: a resumed run keeps the
+//! authority it started with.
 
 use runx_contracts::Reference;
 use runx_core::policy::AttenuationRequest;
@@ -11,7 +12,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunAuthority {
-    pub actor_ref: Reference,
+    /// Who acts. Absent, each call is made by its instance's principal, and
+    /// the authority only bounds the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor_ref: Option<Reference>,
     /// The trusted host's operator-authored mandate binding. Delegated calls
     /// require it, and their receipts cite it rather than the connector
     /// instance as if the instance had delegated authority.
@@ -39,4 +43,9 @@ pub struct RunAuthority {
     /// starts the run, and the person replaces it through `runx resume`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub standing_approvals: Vec<runx_contracts::StandingApproval>,
+    /// The most the run, child runs included, may spend, in integer micro-USD
+    /// (1 = $0.000001): every priced call's quote and every USD or USDC
+    /// amount a call moves. Absent, the run is unbounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_cost_micro: Option<u64>,
 }

@@ -826,13 +826,17 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
 fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthority {
     use runx_contracts::{Reference, ReferenceType};
     runx_runtime::RunAuthority {
-        actor_ref: Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant"),
+        actor_ref: Some(Reference::with_uri(
+            ReferenceType::Principal,
+            "runx:principal:assistant",
+        )),
         mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
         delegations: Vec::new(),
         max_fanout: fanout,
         max_child_depth: depth,
         agent_bounds: false,
         standing_approvals: Vec::new(),
+        max_cost_micro: None,
     }
 }
 

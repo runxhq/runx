@@ -662,6 +662,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
                 admitted_at: 0,
             },
             &[],
+            None,
         )
         .unwrap();
     let first = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
@@ -670,7 +671,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
     first.record_skipped(vec!["other".to_owned()]).unwrap();
 
     let mut run = step("run_triage_9", "deliver");
-    run.settlement = Some(custody.settlement(run.receipt.id.to_string(), &[]));
+    run.settlement = Some(custody.settlement(run.receipt.id.to_string(), &[], None));
     assert!(matches!(
         stale.record_step(&run, &[]),
         Err(RunRecordError::Contended { .. })

@@ -81,6 +81,10 @@ pub enum RuntimeError {
         step_id: String,
         reason: String,
     },
+    /// A call would spend more than is left of the run's money limit;
+    /// nothing was sent.
+    #[error("graph step '{step_id}' exceeds the run's money limit: {reason}")]
+    CostLimitExceeded { step_id: String, reason: String },
     #[error("graph step '{step_id}' failed planning: {reason}")]
     GraphPlanningFailed { step_id: String, reason: String },
     #[cfg(feature = "agent")]
@@ -204,6 +208,7 @@ impl RuntimeError {
         // provable denial into an anonymous engine fault.
         match source {
             source @ (Self::AuthorityDenied { .. }
+            | Self::CostLimitExceeded { .. }
             | Self::GraphBlocked { .. }
             | Self::ResolutionPending { .. }
             | Self::ProviderReadbackPending { .. }) => source,
@@ -244,6 +249,7 @@ impl RuntimeError {
             | Self::StepClosed { .. }
             | Self::ContextEdgeUnresolved(_)
             | Self::AuthorityDenied { .. }
+            | Self::CostLimitExceeded { .. }
             | Self::UnsupportedAdapter { .. }
             | Self::UnsupportedExecutable { .. }
             | Self::UnsupportedRunnerSelection { .. }
@@ -353,6 +359,15 @@ impl RuntimeError {
                 }
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
+            Self::CostLimitExceeded { step_id, reason } => {
+                projection.insert(
+                    "code".to_owned(),
+                    JsonValue::String("cost_limit_exceeded".to_owned()),
+                );
+                projection.insert("step_id".to_owned(), JsonValue::String(step_id.clone()));
+                projection.insert("retryable".to_owned(), JsonValue::Bool(false));
+                projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
+            }
             Self::ProviderReadbackPending { step_id, reason } => {
                 projection.insert(
                     "code".to_owned(),
@@ -384,6 +399,7 @@ impl RuntimeError {
             | Self::ResolutionPending { step_id, .. }
             | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
+            | Self::CostLimitExceeded { step_id, .. }
             | Self::GraphPlanningFailed { step_id, .. }
             | Self::ProviderReadbackPending { step_id, .. } => Some(step_id),
             Self::InputContract { step_id, .. } => step_id.as_deref(),
@@ -432,6 +448,10 @@ impl RuntimeError {
             },
             Self::AuthorityDenied { verb, reason, .. } => Self::AuthorityDenied {
                 verb,
+                step_id: step_id.to_owned(),
+                reason,
+            },
+            Self::CostLimitExceeded { reason, .. } => Self::CostLimitExceeded {
                 step_id: step_id.to_owned(),
                 reason,
             },

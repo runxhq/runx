@@ -175,6 +175,8 @@ pub(crate) enum CustodyError {
     Mismatch(&'static str),
     #[error(transparent)]
     Store(#[from] KernelStoreError),
+    #[error(transparent)]
+    Spend(#[from] super::spend::SpendError),
 }
 
 /// The act's custody as last recorded: its unsettled attempt, if any, the
@@ -319,11 +321,13 @@ impl EffectCustody {
         })
     }
 
-    /// Record an attempt and every evidence use it takes in one commit.
+    /// Record an attempt, every evidence use it takes and what it spends in
+    /// one commit.
     pub(crate) fn attempt(
         &self,
         attempt: &Attempt<'_>,
         bounded: &[UseCover],
+        spend: Option<&super::spend::SpendCover>,
     ) -> Result<(), CustodyError> {
         if let Some(pending) = self.pending()? {
             if pending.intent_digest != attempt.intent_digest
@@ -342,11 +346,18 @@ impl EffectCustody {
                 ));
             }
         }
-        let mut batch = Vec::with_capacity(1 + bounded.len());
+        let mut batch = Vec::with_capacity(2 + bounded.len());
         for cover in bounded {
             if let Some(append) = cover.reservation()? {
                 batch.push(append);
             }
+        }
+        if let Some(append) = spend
+            .map(super::spend::SpendCover::reservation)
+            .transpose()?
+            .flatten()
+        {
+            batch.push(append);
         }
         batch.push(Self::append_at(
             &self.key,
@@ -390,13 +401,15 @@ impl EffectCustody {
 
     /// A definitive rejection settles the attempt. Release its evidence use
     /// only when the provider proves no execution; otherwise the use is kept.
+    /// `spend` closes what the attempt reserved against the run's limit.
     pub(crate) fn rejected(
         &self,
         code: String,
         bounded: &[UseCover],
         release: bool,
+        spend: Option<Append>,
     ) -> Result<(), CustodyError> {
-        let mut batch = Vec::with_capacity(1 + bounded.len());
+        let mut batch = Vec::with_capacity(2 + bounded.len());
         for cover in bounded {
             batch.push(if release {
                 cover.release(&self.store)?
@@ -404,19 +417,32 @@ impl EffectCustody {
                 cover.consume(&self.store)?
             });
         }
+        batch.extend(spend);
         batch.push(self.append(&EffectEvent::Rejected { code })?);
         self.store.append(batch)?;
         Ok(())
     }
 
     /// What settles the act once the step that consumed it is recorded: the
-    /// receipt that sealed it and the evidence uses it consumes.
-    pub(crate) fn settlement(&self, receipt_id: String, bounded: &[UseCover]) -> Settlement {
+    /// receipt that sealed it, the evidence uses it consumes and the spend
+    /// `(run, attempt)` it reserved.
+    pub(crate) fn settlement(
+        &self,
+        receipt_id: String,
+        bounded: &[UseCover],
+        spend: Option<(String, String)>,
+    ) -> Settlement {
         Settlement {
             custody: self.clone(),
             receipt_id,
             bounded: bounded.to_vec(),
+            spend,
         }
+    }
+
+    /// The store the act's custody is kept in.
+    pub(crate) fn store(&self) -> &KernelStore {
+        &self.store
     }
 
     fn commit(&self, event: &EffectEvent) -> Result<(), CustodyError> {
@@ -454,6 +480,7 @@ pub struct Settlement {
     custody: EffectCustody,
     receipt_id: String,
     bounded: Vec<UseCover>,
+    spend: Option<(String, String)>,
 }
 
 impl Settlement {
@@ -471,9 +498,12 @@ impl Settlement {
         {
             return Ok(Vec::new());
         }
-        let mut batch = Vec::with_capacity(1 + self.bounded.len());
+        let mut batch = Vec::with_capacity(2 + self.bounded.len());
         for cover in &self.bounded {
             batch.push(cover.consume(store)?);
+        }
+        if let Some((run_id, spend_key)) = &self.spend {
+            batch.extend(super::spend::settle(store, run_id, spend_key)?);
         }
         batch.push(self.custody.append(&EffectEvent::Finalized {
             receipt_id: self.receipt_id.clone(),

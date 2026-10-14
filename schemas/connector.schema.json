@@ -230,6 +230,40 @@
             ],
             "type": "string"
           },
+          "cost": {
+            "additionalProperties": false,
+            "properties": {
+              "per": {
+                "enum": [
+                  "request",
+                  "success"
+                ],
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "docs",
+                  "rate_card",
+                  "observed"
+                ],
+                "type": "string"
+              },
+              "source_url": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "usd_micro": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "usd_micro",
+              "per",
+              "source"
+            ],
+            "type": "object"
+          },
           "credentials": {
             "items": {
               "maxLength": 64,

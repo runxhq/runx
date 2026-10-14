@@ -63,7 +63,7 @@ fn attempt(custody: &EffectCustody, number: u32) -> Attempt<'static> {
 fn finalize(custody: &EffectCustody, receipt_id: &str) {
     let store = &custody.store;
     let appends = custody
-        .settlement(receipt_id.to_owned(), &[])
+        .settlement(receipt_id.to_owned(), &[], None)
         .appends(store)
         .unwrap();
     store.append(appends).unwrap();
@@ -85,13 +85,13 @@ fn readback() -> Readback {
 fn an_attempt_stays_pending_until_it_settles() {
     let (_root, custody) = custody();
     assert!(custody.pending().unwrap().is_none());
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     custody.unknown("timed out".to_owned()).unwrap();
     let pending = custody.pending().unwrap().expect("pending");
     assert!(pending.unknown);
     assert_eq!(pending.attempt, 1);
 
-    custody.attempt(&attempt(&custody, 2), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 2), &[], None).unwrap();
     custody.read_back(readback()).unwrap();
     let pending = custody.pending().unwrap().expect("pending");
     assert_eq!(pending.attempt, 2);
@@ -107,9 +107,9 @@ fn a_sequence_runs_from_its_first_attempt_to_its_settlement() {
     let (_root, custody) = custody();
     assert!(!attempted(&custody));
     assert_eq!(custody.custody().unwrap().sequence, 0);
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     custody.unknown("timed out".to_owned()).unwrap();
-    custody.attempt(&attempt(&custody, 2), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 2), &[], None).unwrap();
     assert!(attempted(&custody));
     assert_eq!(custody.custody().unwrap().sequence, 0);
     finalize(&custody, "receipt-1");
@@ -120,7 +120,7 @@ fn a_sequence_runs_from_its_first_attempt_to_its_settlement() {
         custody.use_key(0, "sha256:intent"),
         custody.use_key(settled.sequence, "sha256:intent")
     );
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     assert_eq!(custody.custody().unwrap().sequence, 4);
 }
 
@@ -144,14 +144,14 @@ fn an_act_is_named_by_its_request_key_on_its_target() {
 #[test]
 fn an_acknowledgement_survives_a_retry() {
     let (_root, custody) = custody();
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     custody
         .acknowledged(Acknowledgement {
             response: JsonObject::new(),
             write_result: JsonValue::String("m-1".to_owned()),
         })
         .unwrap();
-    custody.attempt(&attempt(&custody, 2), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 2), &[], None).unwrap();
     assert!(
         custody
             .pending()
@@ -165,24 +165,24 @@ fn an_acknowledgement_survives_a_retry() {
 #[test]
 fn a_rejection_settles_and_a_different_intent_is_refused_while_pending() {
     let (_root, custody) = custody();
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     let other = Attempt {
         intent_digest: "sha256:other",
         ..attempt(&custody, 2)
     };
     assert!(matches!(
-        custody.attempt(&other, &[]),
+        custody.attempt(&other, &[], None),
         Err(CustodyError::Mismatch(_))
     ));
     custody
-        .rejected("invalid_input".to_owned(), &[], false)
+        .rejected("invalid_input".to_owned(), &[], false, None)
         .unwrap();
     assert!(custody.pending().unwrap().is_none());
     let other = Attempt {
         intent_digest: "sha256:other",
         ..attempt(&custody, 2)
     };
-    custody.attempt(&other, &[]).unwrap();
+    custody.attempt(&other, &[], None).unwrap();
 }
 
 #[test]
@@ -200,6 +200,7 @@ fn a_recovered_attempt_keeps_its_approval() {
                 ..attempt(&custody, 1)
             },
             &[],
+            None,
         )
         .unwrap();
     let swapped = ApprovalRecord {
@@ -215,6 +216,7 @@ fn a_recovered_attempt_keeps_its_approval() {
                     ..attempt(&custody, 2)
                 },
                 &[],
+                None,
             )
             .is_err()
     );
@@ -223,13 +225,13 @@ fn a_recovered_attempt_keeps_its_approval() {
 #[test]
 fn a_recovered_attempt_keeps_its_execution_term() {
     let (_root, custody) = custody();
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     let changed = Attempt {
         authority_term_id: "term-2",
         ..attempt(&custody, 2)
     };
     assert!(matches!(
-        custody.attempt(&changed, &[]),
+        custody.attempt(&changed, &[], None),
         Err(CustodyError::Mismatch(_))
     ));
 }
@@ -241,9 +243,9 @@ fn a_call_admitted_before_another_attempt_is_refused() {
     let (_root, custody) = custody();
     let first = attempt(&custody, 1);
     let second = attempt(&custody, 1);
-    custody.attempt(&first, &[]).unwrap();
+    custody.attempt(&first, &[], None).unwrap();
     assert!(matches!(
-        custody.attempt(&second, &[]),
+        custody.attempt(&second, &[], None),
         Err(CustodyError::Mismatch(reason)) if reason.contains("after this one was admitted")
     ));
     assert_eq!(custody.custody().unwrap().head, 1);
@@ -254,12 +256,12 @@ fn a_call_admitted_before_another_attempt_is_refused() {
 #[test]
 fn a_settlement_commits_once() {
     let (_root, custody) = custody();
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     finalize(&custody, "receipt-1");
     let settled = custody.custody().unwrap();
     assert!(
         custody
-            .settlement("receipt-1".to_owned(), &[])
+            .settlement("receipt-1".to_owned(), &[], None)
             .appends(&custody.store)
             .unwrap()
             .is_empty()
@@ -272,14 +274,14 @@ fn a_settlement_commits_once() {
 #[test]
 fn a_recovered_attempt_keeps_its_instance_binding() {
     let (_root, custody) = custody();
-    custody.attempt(&attempt(&custody, 1), &[]).unwrap();
+    custody.attempt(&attempt(&custody, 1), &[], None).unwrap();
     custody.unknown("timed out".to_owned()).unwrap();
     let rebound = Attempt {
         instance_binding: "sha256:rebound",
         ..attempt(&custody, 2)
     };
     assert!(matches!(
-        custody.attempt(&rebound, &[]),
+        custody.attempt(&rebound, &[], None),
         Err(CustodyError::Mismatch(_))
     ));
 }

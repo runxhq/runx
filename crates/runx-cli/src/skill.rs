@@ -745,15 +745,30 @@ fn skill_json_failure_output(
         .unwrap_or_else(|_| crate::router::json_failure_output(message, code))
 }
 
-/// One required operation: where it would run and what it still needs.
+/// Integer micro-USD as dollars: 5000 is `$0.005`.
+fn usd(micro: u64) -> String {
+    let cents = format!("{:06}", micro % 1_000_000);
+    let cents = cents.trim_end_matches('0');
+    if cents.is_empty() {
+        format!("${}", micro / 1_000_000)
+    } else {
+        format!("${}.{cents:0<2}", micro / 1_000_000)
+    }
+}
+
+/// One required operation: where it would run, what it costs and what it
+/// still needs.
 pub(crate) fn readiness_line(readiness: &Readiness) -> String {
     let blocker = readiness
         .reasons
         .iter()
         .find(|reason| reason.outcome == CheckOutcome::Fail)
         .map(|reason| reason.detail.as_str());
+    let price = readiness.cost.as_ref().map_or_else(String::new, |cost| {
+        format!(", {} per {}", usd(cost.usd_micro), cost.per.as_str())
+    });
     format!(
-        "connector: {}/{} ({}{})\n",
+        "connector: {}/{} ({}{price}{})\n",
         readiness
             .connector
             .as_ref()
@@ -770,4 +785,22 @@ pub(crate) fn readiness_line(readiness: &Readiness) -> String {
             (false, None) => ", not ready".to_owned(),
         }
     )
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_price_reads_as_dollars() {
+        for (micro, dollars) in [
+            (5_000, "$0.005"),
+            (26_000, "$0.026"),
+            (10, "$0.00001"),
+            (0, "$0"),
+            (1_000_000, "$1"),
+            (1_500_000, "$1.50"),
+            (2_010_000, "$2.01"),
+        ] {
+            assert_eq!(super::usd(micro), dollars, "{micro}");
+        }
+    }
 }

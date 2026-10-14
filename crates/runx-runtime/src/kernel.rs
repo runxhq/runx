@@ -23,5 +23,6 @@ pub mod instances;
 pub mod operation;
 pub(crate) mod session;
 pub mod setup;
+pub(crate) mod spend;
 pub mod store;
 pub(crate) mod usage;

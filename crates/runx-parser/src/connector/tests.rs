@@ -507,6 +507,66 @@ fn only_a_reads_single_get_pages_and_its_limit_comes_from_the_call() {
     );
 }
 
+fn priced(usd_micro: u64) -> String {
+    PLAIN_READ.replace(
+        "    result_fields: [item]",
+        &format!(
+            "    result_fields: [item]\n    cost: {{usd_micro: {usd_micro}, per: request, source: docs, source_url: \"https://example.com/pricing\"}}"
+        ),
+    )
+}
+
+fn item_read_digest(yaml: &str) -> Digest {
+    let validated = validate(yaml).expect("the manifest validates");
+    let name = OperationName::new("item.read").expect("name");
+    runx_contracts::connector::operation_digest(
+        &validated.manifest.id,
+        &name,
+        &validated.manifest.operations[&name],
+    )
+    .expect("digest")
+}
+
+#[test]
+fn a_price_is_part_of_what_an_operation_means() {
+    let unpriced = item_read_digest(PLAIN_READ);
+    let priced_at_5000 = item_read_digest(&priced(5000));
+    assert_ne!(
+        unpriced, priced_at_5000,
+        "declaring a price changes the operation"
+    );
+    assert_ne!(
+        priced_at_5000,
+        item_read_digest(&priced(6000)),
+        "a changed price is confirmed again"
+    );
+    assert_ne!(
+        priced_at_5000,
+        item_read_digest(&priced(5000).replace("per: request", "per: success")),
+        "a changed basis is confirmed again"
+    );
+    assert_eq!(
+        priced_at_5000,
+        item_read_digest(&priced(5000).replace("source: docs", "source: observed")),
+        "where the price was read is not what the operation means"
+    );
+}
+
+#[test]
+fn a_price_names_an_https_source_and_one_request() {
+    assert_rejects(
+        &priced(5000).replace("https://example.com/pricing", "http://example.com/pricing"),
+        "a price's source is an https page",
+    );
+    assert_rejects(
+        &SOCIAL.replace(
+            "    target: {template: \"https://api.social.example\"}",
+            "    target: {template: \"https://api.social.example\"}\n    cost: {usd_micro: 10, per: request, source: docs}",
+        ),
+        "a priced operation sends one request and cannot page",
+    );
+}
+
 #[test]
 fn a_target_pattern_must_be_a_regular_expression() {
     assert_rejects(

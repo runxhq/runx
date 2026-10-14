@@ -9,6 +9,30 @@
     "account_ref": {
       "type": "string"
     },
+    "cost": {
+      "additionalProperties": false,
+      "properties": {
+        "payer": {
+          "enum": [
+            "provider_account"
+          ],
+          "type": "string"
+        },
+        "quoted_usd_micro": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "settled_usd_micro": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "quoted_usd_micro",
+        "payer"
+      ],
+      "type": "object"
+    },
     "finality": {
       "type": "string"
     },
