@@ -108,6 +108,8 @@ const agentContextEnvelopeTypeSchema = Type.Object(
     voice_profile: Type.Optional(contextDocumentSchema),
     execution_location: Type.Optional(executionLocationSchema),
     output: Type.Optional(outputSchema),
+    /** The exact JSON Schema the act's result must match; `output` is its field index. */
+    output_schema: Type.Optional(Type.Unknown()),
     trust_boundary: Type.String({ minLength: 1 }),
   },
   {
