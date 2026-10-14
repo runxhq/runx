@@ -2745,6 +2745,7 @@ dependencies = [
  "criterion",
  "dotenvy",
  "fs2",
+ "hmac",
  "http",
  "http-body-util",
  "httpdate",

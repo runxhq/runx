@@ -49,6 +49,7 @@ pub mod process_invocation;
 mod provider_operations;
 pub mod receipts;
 pub mod registry;
+mod secret_refs;
 mod services;
 mod skill_package;
 mod time;
@@ -83,8 +84,8 @@ pub use config::{
     clear_runx_agent_endpoint_url, load_local_agent_api_key, load_local_credential_secret,
     load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
     lookup_runx_config_value, mask_runx_config_file, model_provider, parse_config_key,
-    remove_local_credential_secret, store_local_credential_secret, update_runx_config_value,
-    write_runx_config_file,
+    remove_local_agent_api_key, remove_local_credential_secret, set_runx_agent_api_key_reference,
+    store_local_credential_secret, update_runx_config_value, write_runx_config_file,
 };
 pub use credential_profiles::{
     CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,

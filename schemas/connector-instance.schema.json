@@ -100,6 +100,48 @@
         {
           "additionalProperties": false,
           "properties": {
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "reference",
+              "type": "string"
+            },
+            "pinned": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "proof": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "reference": {
+              "maxLength": 1024,
+              "pattern": "^(aws-sm|aws-ps|vault|keychain|file)://[^\\s#]+(#[^\\s#]+)?$",
+              "type": "string"
+            },
+            "scopes": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "credential",
+            "reference",
+            "proof",
+            "scopes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
             "kind": {
               "const": "session",
               "type": "string"

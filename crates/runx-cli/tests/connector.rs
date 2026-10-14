@@ -590,3 +590,186 @@ fn connector_list_reads_the_signed_in_accounts_grants() -> Result<(), Box<dyn st
     );
     Ok(())
 }
+
+/// Run runx in `root` with `path` as its `PATH`.
+fn runx_with_path(
+    root: &Path,
+    path: &str,
+    args: &[&str],
+) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
+    let output = unsigned_runx_command_at(root)
+        .env("PATH", path)
+        .args(args)
+        .arg("--json")
+        .stdin(Stdio::null())
+        .output()?;
+    Ok((
+        output.status.success(),
+        serde_json::from_slice(&output.stdout)
+            .map_err(|error| format!("{error}: {}", String::from_utf8_lossy(&output.stderr)))?,
+    ))
+}
+
+/// An `aws` that records each call's arguments, one per line, and prints a
+/// Secrets Manager secret holding `APOLLO_API_KEY`.
+fn recording_aws(bin: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    fs::create_dir_all(bin)?;
+    let log = bin.join("aws.argv");
+    let aws = bin.join("aws");
+    fs::write(
+        &aws,
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf\",\"SecretString\":\"{{\\\"APOLLO_API_KEY\\\":\\\"apollo-from-aws\\\"}}\"}}\nJSON\n",
+            log.display()
+        ),
+    )?;
+    fs::set_permissions(&aws, fs::Permissions::from_mode(0o755))?;
+    Ok(log)
+}
+
+/// A reference binds through the manager's own CLI, with fixed arguments,
+/// and records the reference and the ARN it reached, never the value;
+/// listing and inspecting read nothing.
+#[test]
+fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> TestResult {
+    let root = temp_root("runx-connector-reference");
+    plugin_with_source_connectors(&root, &["apollo"])?;
+    // The manager lives outside the workspace: one inside it is never run.
+    let tools = temp_root("runx-connector-reference-tools");
+    let log = recording_aws(&tools.join("bin"))?;
+    let path = format!("{}:/usr/bin:/bin", tools.join("bin").display());
+    let result = (|| -> TestResult {
+        let (ok, used) = runx_with_path(
+            &root,
+            &path,
+            &[
+                "connector",
+                "use",
+                "apollo",
+                "--from",
+                "aws-sm://team/keys#APOLLO_API_KEY",
+            ],
+        )?;
+        assert!(ok, "{used}");
+        assert_eq!(
+            fs::read_to_string(&log)?.lines().collect::<Vec<_>>(),
+            [
+                "secretsmanager",
+                "get-secret-value",
+                "--secret-id",
+                "team/keys",
+                "--output",
+                "json"
+            ]
+        );
+        let (_, listed) = runx_with_path(&root, &path, &["connector", "list"])?;
+        let mut authority = listed["instances"][0]["authority"].clone();
+        let proof = authority
+            .as_object_mut()
+            .and_then(|authority| authority.remove("proof"))
+            .ok_or("the binding carries no proof")?;
+        assert!(
+            proof
+                .as_str()
+                .is_some_and(|proof| proof.starts_with("hmac-sha256:"))
+        );
+        assert_eq!(
+            authority,
+            serde_json::json!({
+                "kind": "reference",
+                "credential": "api_key",
+                "reference": "aws-sm://team/keys#APOLLO_API_KEY",
+                "pinned": "arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf",
+                "scopes": ["auth.read"],
+            })
+        );
+        runx_with_path(&root, &path, &["connector", "inspect", "apollo"])?;
+        assert_eq!(
+            fs::read_to_string(&log)?.lines().count(),
+            6,
+            "listing read the secret"
+        );
+        assert!(
+            !fs::read_to_string(root.join(".runx/kernel.sqlite"))
+                .unwrap_or_default()
+                .contains("apollo-from-aws"),
+            "the value was stored"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    fs::remove_dir_all(&tools)?;
+    result
+}
+
+/// `--from` takes only a reference, and never echoes what it was given: a
+/// secret passed by mistake must not reach the terminal.
+#[test]
+fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
+    let root = temp_root("runx-connector-reference-refused");
+    plugin_with_source_connectors(&root, &["apollo"])?;
+    let result = (|| -> TestResult {
+        let (ok, refused) =
+            connector(&root, &["use", "apollo", "--from", "sk-live-pasted-secret"])?;
+        assert!(!ok);
+        let message = refused["error"]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains("--from takes a secret reference"),
+            "{refused}"
+        );
+        assert!(
+            !refused.to_string().contains("sk-live-pasted-secret"),
+            "{refused}"
+        );
+
+        let (ok, refused) = connector(
+            &root,
+            &[
+                "use",
+                "apollo",
+                "--from",
+                "aws-sm://team/keys",
+                "--credential",
+                "api_key",
+                "--profile",
+                "copy",
+            ],
+        )?;
+        assert!(!ok);
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("--profile stores a copy")),
+            "{refused}"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+/// A variable holding a reference rather than a secret is refused, not sent
+/// to the provider as a key.
+#[test]
+fn a_variable_holding_a_reference_is_refused_not_sent() -> TestResult {
+    let root = temp_root("runx-connector-env-reference");
+    plugin_with_source_connectors(&root, &["apollo"])?;
+    fs::write(
+        root.join(".env"),
+        "APOLLO_API_KEY=op://dev/apollo/credential\n",
+    )?;
+    let result = (|| -> TestResult {
+        let (ok, refused) = connector(&root, &["use", "apollo", "--credential", "api_key"])?;
+        assert!(!ok);
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message
+                    .contains("APOLLO_API_KEY holds a reference to a secret, not the secret")),
+            "{refused}"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}

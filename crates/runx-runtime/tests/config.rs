@@ -621,3 +621,80 @@ fn assert_private_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 fn assert_private_file(_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
+
+#[test]
+fn a_model_key_reference_is_one_source_among_the_others() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp = tempdir()?;
+    let held = temp.path().join("anthropic.key");
+    fs::write(&held, "key-from-the-manager\n")?;
+    let reference = format!("file://{}", held.display());
+    let home = temp.path().to_str().unwrap_or_default();
+    let config = runx_runtime::set_runx_agent_api_key_reference(
+        RunxConfigFile::default(),
+        &reference,
+        &env_map([("RUNX_HOME", home)]),
+        temp.path(),
+    )?;
+    write_runx_config_file(&temp.path().join("config.json"), &config)?;
+    let with = |key: &str| {
+        env_map([
+            ("RUNX_HOME", home),
+            ("RUNX_AGENT_PROVIDER", "anthropic"),
+            ("RUNX_AGENT_MODEL", "claude-test"),
+            ("ANTHROPIC_API_KEY", key),
+        ])
+    };
+
+    assert_eq!(
+        load_managed_agent_config(&with(""), temp.path())?.and_then(|config| config.api_key),
+        Some(SecretString::new("key-from-the-manager"))
+    );
+    assert_eq!(
+        load_managed_agent_config(&with("key-from-the-manager"), temp.path())?
+            .and_then(|config| config.api_key),
+        Some(SecretString::new("key-from-the-manager"))
+    );
+    assert_eq!(
+        load_managed_agent_config(&with("another-key"), temp.path())
+            .err()
+            .ok_or("two differing keys were accepted")?
+            .to_string(),
+        format!(
+            "the model key is set by ANTHROPIC_API_KEY and {reference} with different values; keep one"
+        )
+    );
+    fs::remove_file(&held)?;
+    assert!(
+        load_managed_agent_config(&with(""), temp.path())
+            .err()
+            .is_some_and(|error| error
+                .to_string()
+                .starts_with(&format!("model key: {reference} cannot be read")))
+    );
+    Ok(())
+}
+
+#[test]
+fn a_model_key_variable_holding_a_reference_is_refused_not_sent()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let refused = load_managed_agent_config(
+        &env_map([
+            ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
+            ("RUNX_AGENT_PROVIDER", "anthropic"),
+            ("RUNX_AGENT_MODEL", "claude-test"),
+            ("ANTHROPIC_API_KEY", "op://dev/anthropic/credential"),
+        ]),
+        temp.path(),
+    )
+    .err()
+    .ok_or("a reference was taken as the key")?;
+    assert!(
+        refused
+            .to_string()
+            .contains("ANTHROPIC_API_KEY holds a reference to a secret, not the key"),
+        "{refused}"
+    );
+    Ok(())
+}

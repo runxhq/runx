@@ -5,11 +5,12 @@ use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
 
-use crate::cli_args::{os_arg, split_flag};
+use crate::cli_args::{flag_value, os_arg, split_flag};
 use runx_runtime::{
     ConfigError, RunxConfigFile, RunxPaths, clear_runx_agent_dialect,
     clear_runx_agent_endpoint_url, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, parse_config_key, update_runx_config_value, write_runx_config_file,
+    mask_runx_config_file, parse_config_key, remove_local_agent_api_key,
+    set_runx_agent_api_key_reference, update_runx_config_value, write_runx_config_file,
 };
 use serde::Serialize;
 
@@ -28,6 +29,8 @@ pub struct ConfigPlan {
     pub key: Option<String>,
     pub value: Option<String>,
     pub value_from_stdin: bool,
+    /// The value is a secret reference to read the key from, not the key.
+    pub value_from_reference: bool,
     pub json: bool,
 }
 
@@ -107,6 +110,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
 
     let mut json = false;
     let mut value_from_stdin = false;
+    let mut reference = None;
     let mut positionals = Vec::new();
     let mut index = 2;
     while index < args.len() {
@@ -133,10 +137,20 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 value_from_stdin = true;
                 index += 1;
             }
+            "--from" => {
+                let (value, next) = flag_value(args, index, flag, inline_value, "config")?;
+                if reference.replace(value).is_some() {
+                    return Err("runx config set takes --from once".to_owned());
+                }
+                index = next;
+            }
             _ => return Err(format!("unknown config flag {flag}")),
         }
     }
 
+    if reference.is_some() && (action != ConfigAction::Set || value_from_stdin) {
+        return Err("--from sets api-key from a secret reference: runx config set api-key --from <reference>".to_owned());
+    }
     match action {
         ConfigAction::List => {
             if value_from_stdin {
@@ -150,6 +164,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 key: None,
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json,
             })
         }
@@ -165,6 +180,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 key: Some(normalize_config_key(key).to_owned()),
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json,
             })
         }
@@ -184,6 +200,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 key: Some(key.to_owned()),
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json,
             })
         }
@@ -195,12 +212,27 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
             if is_secret_config_key(key) {
                 if !values.is_empty() {
                     return Err(
-                        "secret config values must be provided through --from-stdin".to_owned()
+                        "secret config values must be provided through --from-stdin or --from <reference>".to_owned()
                     );
                 }
-                if !value_from_stdin {
-                    return Err("secret config values require --from-stdin".to_owned());
+                if let Some(reference) = reference {
+                    return Ok(ConfigPlan {
+                        action,
+                        key: Some(key.to_owned()),
+                        value: Some(reference),
+                        value_from_stdin: false,
+                        value_from_reference: true,
+                        json,
+                    });
                 }
+                if !value_from_stdin {
+                    return Err(
+                        "secret config values require --from-stdin or --from <reference>"
+                            .to_owned(),
+                    );
+                }
+            } else if reference.is_some() {
+                return Err("--from is only valid for api-key".to_owned());
             } else if value_from_stdin {
                 return Err("--from-stdin is only valid for secret config values".to_owned());
             } else if values.is_empty() {
@@ -211,6 +243,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 key: Some(key.to_owned()),
                 value: (!values.is_empty()).then(|| values.join(" ")),
                 value_from_stdin,
+                value_from_reference: false,
                 json,
             })
         }
@@ -280,8 +313,23 @@ fn execute_config_plan(
                 ConfigCliError::InvalidArgs("config value is required.".to_owned())
             })?;
             let parsed_key = parse_config_key(key)?;
-            let next = update_runx_config_value(config, parsed_key, value, &paths)?;
+            let replaced = config
+                .agent
+                .as_ref()
+                .and_then(|agent| agent.api_key_ref.clone());
+            let next = if plan.value_from_reference {
+                set_runx_agent_api_key_reference(config, value, env, cwd)?
+            } else {
+                update_runx_config_value(config, parsed_key, value, &paths)?
+            };
             write_runx_config_file(&config_path, &next)?;
+            // The key a reference replaced leaves the home once the config
+            // no longer names it.
+            if plan.value_from_reference
+                && let Some(replaced) = replaced
+            {
+                remove_local_agent_api_key(&paths, &replaced)?;
+            }
             Ok(ConfigResult::Set {
                 action: ConfigAction::Set,
                 key: key.to_owned(),
@@ -420,6 +468,7 @@ mod tests {
                 key: Some("agent.model".to_owned()),
                 value: Some("gpt test".to_owned()),
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: true,
             })
         );
@@ -434,6 +483,7 @@ mod tests {
                 key: Some("agent.endpoint_url".to_owned()),
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             })
         );
@@ -450,7 +500,27 @@ mod tests {
                 "api-key".into(),
                 "secret-on-argv".into(),
             ]),
-            Err("secret config values must be provided through --from-stdin".to_owned())
+            Err(
+                "secret config values must be provided through --from-stdin or --from <reference>"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_config_plan(&[
+                "config".into(),
+                "set".into(),
+                "api-key".into(),
+                "--from".into(),
+                "aws-sm://team/env#KEY".into(),
+            ]),
+            Ok(ConfigPlan {
+                action: ConfigAction::Set,
+                key: Some("agent.api_key".to_owned()),
+                value: Some("aws-sm://team/env#KEY".to_owned()),
+                value_from_stdin: false,
+                value_from_reference: true,
+                json: false,
+            })
         );
         assert_eq!(
             parse_config_plan(&[
@@ -464,6 +534,7 @@ mod tests {
                 key: Some("agent.api_key".to_owned()),
                 value: None,
                 value_from_stdin: true,
+                value_from_reference: false,
                 json: false,
             })
         );
@@ -485,6 +556,7 @@ mod tests {
             key: Some("agent.provider".to_owned()),
             value: Some("openai".to_owned()),
             value_from_stdin: false,
+            value_from_reference: false,
             json: true,
         };
         let set_key = ConfigPlan {
@@ -492,6 +564,7 @@ mod tests {
             key: Some("agent.api_key".to_owned()),
             value: Some("sk-secret-test".to_owned()),
             value_from_stdin: true,
+            value_from_reference: false,
             json: true,
         };
         run_config_command(&set_provider, &env, &temp)?;
@@ -505,6 +578,7 @@ mod tests {
                 key: Some("agent.api_key".to_owned()),
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             },
             &env,
@@ -520,6 +594,7 @@ mod tests {
                 key: None,
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             },
             &env,
@@ -562,6 +637,7 @@ mod tests {
                     key: Some(key.to_owned()),
                     value: Some(value.to_owned()),
                     value_from_stdin: false,
+                    value_from_reference: false,
                     json: false,
                 },
                 &env,
@@ -574,6 +650,7 @@ mod tests {
                 key: None,
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: true,
             },
             &env,
@@ -604,6 +681,7 @@ mod tests {
                 key: Some("agent.auth_mode".to_owned()),
                 value: None,
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             },
             &env,
@@ -616,6 +694,7 @@ mod tests {
                 key: Some("agent.auth_mode".to_owned()),
                 value: Some("bad_mode".to_owned()),
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             },
             &env,
@@ -628,6 +707,7 @@ mod tests {
                 key: Some("agent.auth_mode".to_owned()),
                 value: Some("local_none".to_owned()),
                 value_from_stdin: false,
+                value_from_reference: false,
                 json: false,
             },
             &env,

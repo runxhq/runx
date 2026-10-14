@@ -190,7 +190,10 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
         .setup(&connect)
         .use_connector(
             &slack,
-            UseRequest::Hosted { target: None },
+            UseRequest::Hosted {
+                target: None,
+                from: None,
+            },
             &options(Duration::from_secs(30)),
         )
         .unwrap();
@@ -233,6 +236,7 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
             &slack,
             UseRequest::Hosted {
                 target: Some("C0123"),
+                from: None,
             },
             &options(Duration::ZERO),
         )
@@ -292,7 +296,10 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
         .showing_links(&show)
         .use_connector(
             &slack,
-            UseRequest::Hosted { target: None },
+            UseRequest::Hosted {
+                target: None,
+                from: None,
+            },
             &options(Duration::from_secs(30)),
         )
         .unwrap();
@@ -321,7 +328,10 @@ fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect()
         .reading_secrets(&never_asked)
         .use_connector(
             &aws,
-            UseRequest::Hosted { target: None },
+            UseRequest::Hosted {
+                target: None,
+                from: None,
+            },
             &options(Duration::ZERO),
         )
         .err()
@@ -415,7 +425,10 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
         .reading_secrets(&asked)
         .use_connector(
             &aws,
-            UseRequest::Hosted { target: None },
+            UseRequest::Hosted {
+                target: None,
+                from: None,
+            },
             &options(Duration::ZERO),
         )
         .unwrap();
@@ -509,7 +522,10 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         .setup(&connect)
         .use_connector(
             &slack,
-            UseRequest::Hosted { target: None },
+            UseRequest::Hosted {
+                target: None,
+                from: None,
+            },
             &options(Duration::from_secs(30)),
         )
         .err()
@@ -684,4 +700,107 @@ fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
         refused.contains("is read from EXA_API_KEY, which is set"),
         "{refused}"
     );
+}
+
+#[test]
+fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
+    let aws = source_scope().connector("runx/aws").unwrap();
+    let connect = Connect::new(
+        json!({"status": "credential_required", "session_id": "sess_1"}),
+        &[],
+    );
+    let created = connect.issue("grant_aws_1", &aws);
+    connect.statuses.lock().unwrap().push_back(created);
+    let project = Project::new();
+    let held = tempfile::tempdir().unwrap();
+    let secret = held.path().join("aws.json");
+    std::fs::write(
+        &secret,
+        json!({
+            "region": "us-east-1",
+            "account_id": "123456789012",
+            "access_key_id": "AKIAFROMVAULT",
+            "secret_access_key": "secret-from-vault",
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let reference =
+        runx_contracts::connector::SecretReference::new(format!("file://{}", secret.display()))
+            .unwrap();
+
+    let outcome = project
+        .setup(&connect)
+        .reading_secrets(&|_: &str| Err("asked for what the reference holds".to_owned()))
+        .use_connector(
+            &aws,
+            UseRequest::Hosted {
+                target: None,
+                from: Some(&reference),
+            },
+            &options(Duration::ZERO),
+        )
+        .unwrap();
+
+    assert_eq!(grant_of(outcome).unwrap(), "grant_aws_1");
+    let sent = &connect.sent("/v1/connect/sessions/sess_1/credentials")[0]["credentials"];
+    assert_eq!(sent["access_key_id"], "AKIAFROMVAULT");
+    assert_eq!(sent["secret_access_key"], "secret-from-vault");
+}
+
+#[test]
+fn a_reference_cannot_seed_a_delegated_sign_in() {
+    let github = source_scope().connector("runx/github").unwrap();
+    let connect = Connect::new(awaiting_authorization(), &[]);
+    let project = Project::new();
+    let reference =
+        runx_contracts::connector::SecretReference::new("aws-sm://team/github").unwrap();
+
+    let refused = project
+        .setup(&connect)
+        .use_connector(
+            &github,
+            UseRequest::Hosted {
+                target: None,
+                from: Some(&reference),
+            },
+            &options(Duration::ZERO),
+        )
+        .err()
+        .unwrap();
+
+    assert!(
+        refused.contains("--from seeds only a hosted credential"),
+        "{refused}"
+    );
+    assert!(connect.sent("/v1/connect/sessions").is_empty());
+}
+
+#[test]
+fn a_reference_that_cannot_be_read_sends_nothing_to_connect() {
+    let aws = source_scope().connector("runx/aws").unwrap();
+    let connect = Connect::new(
+        json!({"status": "credential_required", "session_id": "sess_1"}),
+        &[],
+    );
+    let project = Project::new();
+    let reference =
+        runx_contracts::connector::SecretReference::new("file:///nonexistent/runx/aws.json")
+            .unwrap();
+
+    let refused = project
+        .setup(&connect)
+        .use_connector(
+            &aws,
+            UseRequest::Hosted {
+                target: None,
+                from: Some(&reference),
+            },
+            &options(Duration::ZERO),
+        )
+        .err()
+        .unwrap();
+
+    assert!(refused.contains("cannot be read"), "{refused}");
+    assert!(connect.sent("/v1/connect/sessions").is_empty());
 }

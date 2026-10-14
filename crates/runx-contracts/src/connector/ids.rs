@@ -19,6 +19,11 @@ pub const CREDENTIAL_NAME_PATTERN: &str = "^[a-z][a-z0-9_]{0,63}$";
 pub const ENV_NAME_PATTERN: &str = "^[A-Z][A-Z0-9_]{0,127}$";
 pub const INSTANCE_ID_PATTERN: &str = "^[a-z0-9][a-z0-9._-]{0,127}$";
 pub const DIGEST_PATTERN: &str = "^sha256:[0-9a-f]{64}$";
+/// The secrets managers a [`SecretReference`] may name.
+pub const SECRET_SCHEMES: [&str; 5] = ["aws-sm", "aws-ps", "vault", "keychain", "file"];
+/// `<scheme>://<locator>[#<field>]`, a scheme from [`SECRET_SCHEMES`].
+pub const SECRET_REFERENCE_PATTERN: &str =
+    r"^(aws-sm|aws-ps|vault|keychain|file)://[^\s#]+(#[^\s#]+)?$";
 
 #[must_use]
 pub fn is_connector_id(value: &str) -> bool {
@@ -252,6 +257,15 @@ identifier!(
     "environment variable name"
 );
 identifier!(
+    /// Where a secrets manager holds a secret: `<scheme>://<locator>`, and
+    /// `#<field>` for one field of a JSON secret. Never the secret itself.
+    SecretReference,
+    SECRET_REFERENCE_PATTERN,
+    1024,
+    is_secret_reference,
+    "secret reference"
+);
+identifier!(
     /// A connector instance id.
     InstanceId,
     INSTANCE_ID_PATTERN,
@@ -273,6 +287,44 @@ impl CredentialName {
     #[must_use]
     pub fn token() -> Self {
         Self("token".to_owned())
+    }
+}
+
+#[must_use]
+pub fn is_secret_reference(value: &str) -> bool {
+    value.len() <= 1024 && secret_reference_parts(value).is_some()
+}
+
+fn secret_reference_parts(value: &str) -> Option<(&str, &str, Option<&str>)> {
+    let (scheme, rest) = value.split_once("://")?;
+    if !SECRET_SCHEMES.contains(&scheme) || rest.chars().any(char::is_whitespace) {
+        return None;
+    }
+    let (locator, field) = match rest.split_once('#') {
+        Some((locator, field)) => (locator, Some(field)),
+        None => (rest, None),
+    };
+    (!locator.is_empty() && field.is_none_or(|field| !field.is_empty() && !field.contains('#')))
+        .then_some((scheme, locator, field))
+}
+
+impl SecretReference {
+    /// The manager: one of [`SECRET_SCHEMES`].
+    #[must_use]
+    pub fn scheme(&self) -> &str {
+        secret_reference_parts(&self.0).map_or("", |(scheme, _, _)| scheme)
+    }
+
+    /// Where in the manager, as the manager names it.
+    #[must_use]
+    pub fn locator(&self) -> &str {
+        secret_reference_parts(&self.0).map_or("", |(_, locator, _)| locator)
+    }
+
+    /// The field of a JSON secret, when the reference selects one.
+    #[must_use]
+    pub fn field(&self) -> Option<&str> {
+        secret_reference_parts(&self.0).and_then(|(_, _, field)| field)
     }
 }
 

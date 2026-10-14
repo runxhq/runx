@@ -14,7 +14,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName,
+    ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName, SecretReference,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, JsonValue, Readiness};
@@ -92,12 +92,21 @@ pub enum UseChoice {
         credential: CredentialName,
         profile: Option<String>,
     },
+    /// The named credential, or the connector's only one, read on every call
+    /// from a secrets manager by reference.
+    Reference {
+        credential: Option<CredentialName>,
+        reference: SecretReference,
+    },
     /// A new runx Connect grant; the credential its placement names, if any,
-    /// comes from its variable or is asked for.
-    Hosted { target: Option<String> },
+    /// comes from the reference, its variable or is asked for.
+    Hosted {
+        target: Option<String>,
+        from: Option<SecretReference>,
+    },
 }
 
-const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | --hosted [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
+const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | [--credential <name>] --from <reference> | --hosted [--from <reference>] [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
 
 pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> {
     let subcommand = args
@@ -113,6 +122,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
     let mut credential = None;
     let mut profile = None;
     let mut target = None;
+    let mut from = None;
     let mut scopes = Vec::new();
     let mut parameters = BTreeMap::new();
     let mut json = false;
@@ -155,6 +165,10 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
                 value(&mut target)?;
                 continue;
             }
+            "--from" => {
+                value(&mut from)?;
+                continue;
+            }
             "--parameter" => {
                 let mut raw = None;
                 value(&mut raw)?;
@@ -185,6 +199,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
         || credential.is_some()
         || profile.is_some()
         || target.is_some()
+        || from.is_some()
         || !scopes.is_empty()
         || !parameters.is_empty();
     let only_json = |action: ConnectorAction, count: usize| {
@@ -244,19 +259,32 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             if hosted && credential.is_some() {
                 return Err("--hosted sends the one credential the connector's hosted placement names; --credential chooses a local one".to_owned());
             }
+            if from.is_some() && profile.is_some() {
+                return Err("--from binds a reference the secrets manager keeps; --profile stores a copy".to_owned());
+            }
             let credential = credential
                 .map(|name| {
                     CredentialName::new(name.as_str())
                         .ok_or_else(|| format!("{name} is not a credential name"))
                 })
                 .transpose()?;
+            // Never echoed: a secret passed by mistake must not reach the
+            // terminal or a log.
+            let from = from
+                .map(|value| {
+                    SecretReference::new(value).ok_or_else(|| {
+                        "--from takes a secret reference: aws-sm://, aws-ps://, vault://, keychain:// or file://".to_owned()
+                    })
+                })
+                .transpose()?;
             let choice = match (positionals.as_slice(), session, hosted) {
-                ([_, existing], false, false) if credential.is_none() => UseChoice::Existing(existing.clone()),
-                ([_], true, false) if credential.is_none() && parameters.is_empty() => UseChoice::Session,
-                ([_], false, true) if profile.is_none() => UseChoice::Hosted { target },
-                ([_], false, false) => match credential {
-                    Some(credential) => UseChoice::Credential { credential, profile },
-                    None => UseChoice::Default,
+                ([_, existing], false, false) if credential.is_none() && from.is_none() => UseChoice::Existing(existing.clone()),
+                ([_], true, false) if credential.is_none() && from.is_none() && parameters.is_empty() => UseChoice::Session,
+                ([_], false, true) if profile.is_none() => UseChoice::Hosted { target, from },
+                ([_], false, false) => match (credential, from) {
+                    (credential, Some(reference)) => UseChoice::Reference { credential, reference },
+                    (Some(credential), None) => UseChoice::Credential { credential, profile },
+                    (None, None) => UseChoice::Default,
                 },
                 _ => return Err(format!("usage: {USE_USAGE}")),
             };
@@ -378,8 +406,16 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     credential,
                     profile: profile.as_deref(),
                 },
-                UseChoice::Hosted { target } => UseRequest::Hosted {
+                UseChoice::Reference {
+                    credential,
+                    reference,
+                } => UseRequest::Reference {
+                    credential: credential.as_ref(),
+                    reference,
+                },
+                UseChoice::Hosted { target, from } => UseRequest::Hosted {
                     target: target.as_deref(),
+                    from: from.as_ref(),
                 },
             };
             // A person is shown the link and waited for; a program asking
@@ -622,6 +658,7 @@ fn instance_line(record: &InstanceRecord) -> String {
 fn instance_summary(instance: &ConnectorInstance) -> String {
     let source = match &instance.authority {
         InstanceAuthority::Environment { variable, .. } => format!(" from {variable}"),
+        InstanceAuthority::Reference { reference, .. } => format!(" from {reference}"),
         _ => instance
             .account_ref
             .as_ref()

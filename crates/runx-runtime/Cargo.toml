@@ -70,7 +70,7 @@ jsonschema = { version = "0.56.0", default-features = false }
 # compiled in. ring is then the single, unambiguous process-default provider.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-root-certs = "1.0.9"
-rustix = { version = "1.1.4", features = ["process"] }
+rustix = { version = "1.1.4", features = ["fs", "process"] }
 rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
 # Parse a remote MCP server's bounded SSE body into rmcp's event stream; the same
 # version rmcp's client uses.
@@ -85,6 +85,7 @@ serde.workspace = true
 serde_json.workspace = true
 serde_path_to_error.workspace = true
 sha2.workspace = true
+hmac = "0.13.0"
 subtle.workspace = true
 thiserror.workspace = true
 tempfile = "3.23.0"

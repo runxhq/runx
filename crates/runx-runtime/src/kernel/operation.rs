@@ -1010,6 +1010,10 @@ fn prepare(
                 ..
             } => credentials::from_environment(env, &admitted.connector, credential, variable)
                 .map(|secret| Session::Local(Some(secret))),
+            InstanceAuthority::Reference { .. } => {
+                credentials::from_reference(env, cwd, &admitted.connector, instance)
+                    .map(|secret| Session::Local(Some(secret)))
+            }
             InstanceAuthority::Session {
                 session: runx_contracts::connector::SessionKind::Command,
                 ..

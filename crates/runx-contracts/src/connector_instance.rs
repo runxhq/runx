@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::JsonObject;
 use crate::connector::{
     ConnectorDigestError, ConnectorRef, CredentialName, Digest, EnvName, InstanceId, OperationName,
-    Placement, SessionKind, stable_digest,
+    Placement, SecretReference, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
@@ -119,6 +119,24 @@ pub enum InstanceAuthority {
         variable: EnvName,
         scopes: Vec<NonEmptyString>,
     },
+    /// The named connector credential, read on every call from a secrets
+    /// manager through that manager's own CLI and the operator's sign-in to
+    /// it. The instance holds the reference, never the value, so a secret
+    /// rotated there serves without binding again. `pinned` is what binding
+    /// proved, the exact resource or server later reads go to (an AWS ARN, a
+    /// Vault address), so a switched profile cannot serve another account's
+    /// secret. `proof` is an HMAC keyed by the binding operator's runx home
+    /// over the connector revision, the reference and its pin: a project
+    /// store cannot supply a reference the operator did not bind. `scopes`
+    /// is what the operator grants it.
+    Reference {
+        credential: CredentialName,
+        reference: SecretReference,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pinned: Option<NonEmptyString>,
+        proof: NonEmptyString,
+        scopes: Vec<NonEmptyString>,
+    },
     /// A local session the runtime can identify. A command session pins its
     /// account in the instance's `account_ref`. `scopes` is what the operator
     /// grants it: every scope its credential serves unless narrowed when it
@@ -138,6 +156,7 @@ impl InstanceAuthority {
             Self::HostedGrant { .. } => "hosted_grant",
             Self::Credential { .. } => "credential",
             Self::Environment { .. } => "environment",
+            Self::Reference { .. } => "reference",
             Self::Session { .. } => "session",
             Self::Public => "public",
         }

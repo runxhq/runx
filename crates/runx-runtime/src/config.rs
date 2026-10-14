@@ -60,6 +60,14 @@ pub struct RunxAgentConfig {
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key_ref: Option<String>,
+    /// A secret reference the key is read from on every run, set by
+    /// `runx config set api-key --from`; it replaces a stored key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_from: Option<String>,
+    /// What reading `api_key_from` reached when it was set (an AWS ARN, a
+    /// Vault address); later reads go only there.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_pinned: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -235,6 +243,8 @@ pub enum ConfigError {
     LocalAgentKeyCorrupt { path: PathBuf, suffix: String },
     #[error("the model key is set {sources} with different values; keep one")]
     ConflictingAgentKeys { sources: String },
+    #[error("model key: {message}")]
+    AgentKeyRead { message: String },
     #[error("config crypto failed: {0}")]
     Crypto(String),
     #[error("{path} {fault}")]
@@ -336,6 +346,9 @@ pub fn update_runx_config_value(
         ConfigKey::AgentApiKey => {
             let mut agent = config.agent.unwrap_or_default();
             agent.api_key_ref = Some(store_local_agent_api_key(paths, value)?);
+            // One place holds the key: a stored key replaces a reference.
+            agent.api_key_from = None;
+            agent.api_key_pinned = None;
             config.agent = Some(agent);
         }
         ConfigKey::AgentEndpointUrl => {
@@ -375,13 +388,46 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
         ConfigKey::AgentModel => config.agent.as_ref()?.model.clone(),
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
-        ConfigKey::AgentApiKey => config
-            .agent
-            .as_ref()?
-            .api_key_ref
-            .as_ref()
-            .map(|_| "[encrypted]".to_owned()),
+        ConfigKey::AgentApiKey => {
+            let agent = config.agent.as_ref()?;
+            match &agent.api_key_from {
+                Some(reference) => Some(format!("from {reference}")),
+                None => agent.api_key_ref.as_ref().map(|_| "[encrypted]".to_owned()),
+            }
+        }
     }
+}
+
+/// Point the model key at a secret a secrets manager holds. It is read once
+/// now, to prove access and to pin what it reached; the config keeps the
+/// reference, never the value, and every run reads it again. A stored key is
+/// dropped: one place holds the key.
+pub fn set_runx_agent_api_key_reference(
+    mut config: RunxConfigFile,
+    reference: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RunxConfigFile, ConfigError> {
+    let reference = runx_contracts::connector::SecretReference::new(reference).ok_or(
+        ConfigError::InvalidAgentSetting {
+            key: "agent.api_key",
+            message: "--from takes a secret reference: aws-sm://, aws-ps://, vault://, keychain:// or file://",
+        },
+    )?;
+    let read = crate::secret_refs::read(
+        env,
+        cwd,
+        &reference,
+        None,
+        crate::secret_refs::Purpose::Bind,
+    )
+    .map_err(|message| ConfigError::AgentKeyRead { message })?;
+    let mut agent = config.agent.unwrap_or_default();
+    agent.api_key_ref = None;
+    agent.api_key_from = Some(reference.into_string());
+    agent.api_key_pinned = read.pinned;
+    config.agent = Some(agent);
+    Ok(config)
 }
 
 pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
@@ -432,6 +478,11 @@ pub fn load_local_credential_secret(
     secret_ref: &str,
 ) -> Result<String, ConfigError> {
     load_local_config_secret_value(paths, secret_ref)
+}
+
+/// Remove a stored model key's material, once nothing names it.
+pub fn remove_local_agent_api_key(paths: &RunxPaths, key_ref: &str) -> Result<(), ConfigError> {
+    remove_local_credential_secret(paths, key_ref)
 }
 
 pub fn remove_local_credential_secret(
@@ -567,6 +618,13 @@ pub fn load_managed_agent_config(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty())
         {
+            if crate::secret_refs::looks_like_reference(value) {
+                return Err(ConfigError::AgentKeyRead {
+                    message: format!(
+                        "{name} holds a reference to a secret, not the key; set it with `runx config set api-key --from <reference>`, or run under the tool that resolves it"
+                    ),
+                });
+            }
             keys.push((name.to_owned(), value.to_owned()));
         }
     }
@@ -582,6 +640,26 @@ pub fn load_managed_agent_config(
         if !stored.is_empty() {
             keys.push(("the stored key".to_owned(), stored));
         }
+    }
+    if auth_mode == ManagedAgentAuthMode::ApiKey
+        && let Some(agent) = config.agent.as_ref()
+        && let Some(reference) = agent.api_key_from.as_ref()
+    {
+        let reference = runx_contracts::connector::SecretReference::new(reference.as_str()).ok_or(
+            ConfigError::InvalidAgentSetting {
+                key: "agent.api_key_from",
+                message: "is not a secret reference",
+            },
+        )?;
+        let read = crate::secret_refs::read(
+            env,
+            cwd,
+            &reference,
+            agent.api_key_pinned.as_deref(),
+            crate::secret_refs::Purpose::Call,
+        )
+        .map_err(|message| ConfigError::AgentKeyRead { message })?;
+        keys.push((reference.into_string(), read.value.trim().to_owned()));
     }
     let api_key = match keys.as_slice() {
         [] => String::new(),
@@ -737,6 +815,27 @@ fn store_local_config_secret_value(
     private_file::replace_private(&key_path, format!("{contents}\n").as_bytes())
         .map_err(private(&key_path))?;
     Ok(key_ref)
+}
+
+/// An HMAC, keyed by this home's config secret, over `message`: proof that
+/// this home made a binding, which a project store cannot forge.
+pub(crate) fn local_binding_proof(
+    paths: &RunxPaths,
+    message: &[u8],
+) -> Result<String, ConfigError> {
+    use hmac::{Hmac, KeyInit, Mac};
+    let secret = load_or_create_local_config_secret(&paths.keys())?;
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .map_err(|error| ConfigError::Crypto(error.to_string()))?;
+    mac.update(message);
+    Ok(format!(
+        "hmac-sha256:{}",
+        mac.finalize()
+            .into_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    ))
 }
 
 /// A sealed config value or its secret is a few hundred bytes.

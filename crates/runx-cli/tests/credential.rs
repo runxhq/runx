@@ -500,3 +500,90 @@ fn walk_files(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, std::io
     }
     Ok(files)
 }
+
+/// The model key can come from a secrets manager: the config keeps the
+/// reference and the ARN it reached, never the key, and a stored key
+/// replaces it.
+#[test]
+fn the_model_key_from_a_reference_keeps_only_the_reference()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+    let root = crate::support::temp_root("runx-config-key-reference");
+    let home = root.join("home");
+    // The manager lives outside the workspace: one inside it is never run.
+    let tools = crate::support::temp_root("runx-config-key-reference-tools");
+    let bin = tools.join("bin");
+    fs::create_dir_all(&root)?;
+    fs::create_dir_all(&bin)?;
+    let aws = bin.join("aws");
+    fs::write(
+        &aws,
+        format!(
+            "#!/bin/sh\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf\",\"SecretString\":\"{{\\\"ANTHROPIC_API_KEY\\\":\\\"{SECRET}\\\"}}\"}}\nJSON\n"
+        ),
+    )?;
+    fs::set_permissions(&aws, fs::Permissions::from_mode(0o755))?;
+    let path = format!("{}:/usr/bin:/bin", bin.display());
+
+    // A key stored first leaves the home when a reference replaces it.
+    let mut stored_first = command(&root, &home)?;
+    stored_first.args(["config", "set", "api-key", "--from-stdin", "--json"]);
+    assert_success_without_secret(&run_with_stdin(stored_first, "a-key-replaced-later")?)?;
+    let stored_ref =
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(home.join("config.json"))?)?
+            ["agent"]["api_key_ref"]
+            .as_str()
+            .ok_or("no stored key")?
+            .to_owned();
+    assert!(
+        home.join("keys")
+            .join(format!("{stored_ref}.json"))
+            .exists()
+    );
+
+    let set = command(&root, &home)?
+        .env("PATH", &path)
+        .args([
+            "config",
+            "set",
+            "api-key",
+            "--from",
+            "aws-sm://team/env#ANTHROPIC_API_KEY",
+            "--json",
+        ])
+        .output()?;
+    assert_success_without_secret(&set)?;
+    assert!(String::from_utf8(set.stdout)?.contains("from aws-sm://team/env#ANTHROPIC_API_KEY"));
+    for entry in walk_files(&home)? {
+        assert!(
+            !fs::read_to_string(&entry)
+                .unwrap_or_default()
+                .contains(SECRET),
+            "the key was stored in {}",
+            entry.display()
+        );
+    }
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(home.join("config.json"))?)?;
+    assert_eq!(
+        config["agent"]["api_key_pinned"],
+        "arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf"
+    );
+    assert!(
+        !home
+            .join("keys")
+            .join(format!("{stored_ref}.json"))
+            .exists(),
+        "the replaced key's material stayed in the home"
+    );
+
+    let mut stored = command(&root, &home)?;
+    stored.args(["config", "set", "api-key", "--from-stdin", "--json"]);
+    assert_success_without_secret(&run_with_stdin(stored, "a-stored-key")?)?;
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(home.join("config.json"))?)?;
+    assert!(config["agent"].get("api_key_from").is_none(), "{config}");
+    fs::remove_dir_all(&root)?;
+    fs::remove_dir_all(&tools)?;
+    Ok(())
+}

@@ -11,7 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use runx_contracts::connector::credential_declaration_digest;
-use runx_contracts::connector::{CredentialName, LocalAuth, Placement, SessionKind};
+use runx_contracts::connector::{
+    CredentialName, LocalAuth, Placement, SecretReference, SessionKind,
+};
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_prefixed};
 
 use super::connectors::LoadedConnector;
@@ -166,6 +168,65 @@ pub(crate) fn bind_environment(
         },
     );
     instance.parameters = parameters;
+    confirm(instances, connector, instance)
+}
+
+/// Bind the connector's `credential` to a secret a secrets manager holds. The
+/// secret is read now, through the manager's CLI and the operator's sign-in,
+/// to prove access and to check it against the declaration; the instance
+/// records the reference and what the read reached, never the value. Every
+/// call reads it again, at what binding pinned.
+pub(crate) fn bind_reference(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    reference: &SecretReference,
+    scopes: &[String],
+    parameters: JsonObject,
+    workspace: &WorkspaceEnv,
+) -> Result<ConnectorInstance, String> {
+    let parameters = instance_parameters(connector, parameters)?;
+    let declaration = credential_declaration(connector, credential)?;
+    let read = crate::secret_refs::read(
+        workspace.env(),
+        workspace.cwd(),
+        reference,
+        None,
+        crate::secret_refs::Purpose::Bind,
+    )?;
+    credentials::reference_fields(declaration, reference, &read.value)?;
+    let scopes = credential_scopes(connector, credential, scopes)?;
+    let mut instance = pinned(
+        connector,
+        super::instances::instance_id(&[
+            "reference",
+            connector.connector_ref.as_str(),
+            credential.as_str(),
+            reference.as_str(),
+        ])?,
+        Placement::Local,
+        format!(
+            "runx:principal:local-reference:{}:{reference}",
+            connector.manifest.id
+        ),
+        None,
+        InstanceAuthority::Reference {
+            credential: credential.clone(),
+            reference: reference.clone(),
+            pinned: read
+                .pinned
+                .and_then(runx_contracts::schema::NonEmptyString::new),
+            proof: runx_contracts::schema::NonEmptyString::new(credentials::UNPROVEN_REFERENCE)
+                .ok_or("an empty proof")?,
+            scopes: scopes.into_iter().map(Into::into).collect(),
+        },
+    );
+    instance.parameters = parameters;
+    // The proof covers the binding as it is confirmed, parameters included.
+    let proof = credentials::reference_proof(workspace.env(), workspace.cwd(), &instance)?;
+    if let InstanceAuthority::Reference { proof: held, .. } = &mut instance.authority {
+        *held = runx_contracts::schema::NonEmptyString::new(proof).ok_or("an empty proof")?;
+    }
     confirm(instances, connector, instance)
 }
 

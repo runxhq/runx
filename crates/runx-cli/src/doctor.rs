@@ -112,10 +112,16 @@ fn managed_agent_config_diagnostic(
                 .as_ref()
                 .and_then(|agent| agent.model.as_deref())
                 .map(str::to_owned),
+            // A stored key or a reference the key is read from.
             config
                 .agent
                 .as_ref()
-                .and_then(|agent| agent.api_key_ref.as_deref())
+                .and_then(|agent| {
+                    agent
+                        .api_key_ref
+                        .as_deref()
+                        .or(agent.api_key_from.as_deref())
+                })
                 .map(str::to_owned),
             config
                 .agent

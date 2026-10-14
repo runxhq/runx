@@ -122,6 +122,25 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 Vec::new(),
             ))
         }
+        // A secret reference is read before each call, never to admit one;
+        // admission takes only a binding this runx home made, as it stands.
+        InstanceAuthority::Reference { scopes, .. } => {
+            super::operation::credentials::check_reference_proof(
+                request.env,
+                request.cwd,
+                instance,
+            )?;
+            Ok(capability(
+                instance,
+                request.connector,
+                None,
+                scopes
+                    .iter()
+                    .map(|scope| scope.as_str().to_owned())
+                    .collect(),
+                Vec::new(),
+            ))
+        }
         // A local session's account is checked where its authority is read:
         // the command session's token before each call, the browser by the
         // host tool that drives it.

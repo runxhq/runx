@@ -169,7 +169,7 @@ pub enum WorkspaceEnvError {
     #[error("workspace environment file {path} could not be parsed")]
     Parse { path: PathBuf },
     #[error(
-        "workspace environment file {path} sets {name}; Runx's own variables come only from the process environment or `runx config`"
+        "workspace environment file {path} sets {name}; Runx's own variables, and the HOME and USERPROFILE that locate its home, come only from the process environment or `runx config`"
     )]
     ReservedName { path: PathBuf, name: String },
 }
@@ -209,7 +209,9 @@ fn merge_env_file(
     let mut differs = Vec::new();
     for entry in entries {
         let (key, value) = entry.map_err(|error| workspace_env_error(path, error))?;
-        if key.starts_with(RUNX_NAME_PREFIX) {
+        // HOME and USERPROFILE locate the runx home when RUNX_HOME is unset,
+        // so a workspace may no more set them than runx's own names.
+        if key.starts_with(RUNX_NAME_PREFIX) || matches!(key.as_str(), "HOME" | "USERPROFILE") {
             return Err(WorkspaceEnvError::ReservedName {
                 path: path.to_path_buf(),
                 name: key,
@@ -361,6 +363,8 @@ mod tests {
             "RUNX_HOME",
             "RUNX_PUBLIC_API_BASE_URL",
             "RUNX_RECEIPT_SIGN_KID",
+            "HOME",
+            "USERPROFILE",
         ] {
             fs::write(temp.path().join(".env"), format!("{name}=from-file\n"))?;
             let refused = WorkspaceEnv::load(BTreeMap::new(), temp.path().to_path_buf())

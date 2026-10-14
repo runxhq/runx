@@ -147,9 +147,115 @@ pub(crate) fn from_environment(
                 connector.connector_ref
             )
         })?;
+    if crate::secret_refs::looks_like_reference(value) {
+        return Err(format!(
+            "{variable} holds a reference to a secret, not the secret; bind the reference with `runx connector use {} --from <reference>`, or run under the tool that resolves it",
+            connector.connector_ref
+        ));
+    }
     let fields = fields(declaration, value).map_err(|reason| format!("{variable} {reason}"))?;
     Ok(CredentialSecret::new(credential.clone(), fields))
 }
+
+/// Stands in for the proof while the proof is made: it covers the whole
+/// binding except itself.
+const UNPROVEN: &str = "unproven";
+
+/// The proof a reference instance carries: an HMAC, keyed by this runx home,
+/// over the whole binding as its binding digest sees it (connector revision,
+/// placement, principal, reference, pin, scopes, parameters, operations),
+/// with the proof itself left out. Only a home that bound it can make it, so
+/// a project store cannot supply or widen one.
+pub(crate) fn reference_proof(
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    instance: &runx_contracts::ConnectorInstance,
+) -> Result<String, String> {
+    // A home the project could supply would let it supply the key too.
+    if ["RUNX_HOME", "HOME", "USERPROFILE"]
+        .iter()
+        .all(|name| env.get(*name).is_none_or(|value| value.trim().is_empty()))
+    {
+        return Err(
+            "secret references need a runx home the operator owns; set RUNX_HOME or HOME"
+                .to_owned(),
+        );
+    }
+    let mut covered = instance.clone();
+    let runx_contracts::InstanceAuthority::Reference { proof, .. } = &mut covered.authority else {
+        return Err(format!(
+            "{} is not a reference binding",
+            instance.instance_id
+        ));
+    };
+    *proof = runx_contracts::schema::NonEmptyString::new(UNPROVEN).ok_or("an empty proof")?;
+    let digest = covered
+        .binding_digest()
+        .map_err(|error| error.to_string())?;
+    crate::config::local_binding_proof(
+        &RunxPaths::resolve(env, cwd),
+        format!("runx.reference_binding.v1:{digest}").as_bytes(),
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Whether this runx home made `instance`'s reference binding, exactly as it
+/// stands. Checked at admission and again before every read.
+pub(crate) fn check_reference_proof(
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    instance: &runx_contracts::ConnectorInstance,
+) -> Result<(), String> {
+    let runx_contracts::InstanceAuthority::Reference {
+        reference, proof, ..
+    } = &instance.authority
+    else {
+        return Ok(());
+    };
+    if reference_proof(env, cwd, instance)? == proof.as_str() {
+        return Ok(());
+    }
+    Err(format!(
+        "{} reads {reference} through a binding this runx home did not make, or that changed since; bind it with `runx connector use {} --from {reference}`",
+        instance.connector, instance.connector
+    ))
+}
+
+/// The credential a reference instance holds, read now from its secrets
+/// manager at what binding pinned, once its proof shows this runx home bound
+/// it as it stands. Nothing is kept: every call reads again.
+pub(crate) fn from_reference(
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    connector: &LoadedConnector,
+    instance: &runx_contracts::ConnectorInstance,
+) -> Result<CredentialSecret, String> {
+    check_reference_proof(env, cwd, instance)?;
+    let runx_contracts::InstanceAuthority::Reference {
+        credential,
+        reference,
+        pinned,
+        ..
+    } = &instance.authority
+    else {
+        return Err(format!(
+            "{} is not a reference binding",
+            instance.instance_id
+        ));
+    };
+    let declaration = declaration(&connector.manifest, credential)?;
+    let read = crate::secret_refs::read(
+        env,
+        cwd,
+        reference,
+        pinned.as_ref().map(|pinned| pinned.as_str()),
+        crate::secret_refs::Purpose::Call,
+    )?;
+    let fields = reference_fields(declaration, reference, &read.value)?;
+    Ok(CredentialSecret::new(credential.clone(), fields))
+}
+
+pub(crate) const UNPROVEN_REFERENCE: &str = UNPROVEN;
 
 /// What an instance's credential authority names: the profile, the
 /// connector credential it holds, and the stored material it was bound to.
@@ -202,6 +308,27 @@ fn stored_profile(
 }
 
 /// The stored value as the declaration's fields.
+/// The fields a secret read through `reference` fills. A whole JSON object
+/// bound to a one-field credential that names that field is a missing
+/// `#field`, refused rather than sent whole as the key.
+pub(crate) fn reference_fields(
+    declaration: &CredentialDeclaration,
+    reference: &runx_contracts::connector::SecretReference,
+    value: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    if let ([only], None) = (declaration.fields.as_slice(), reference.field())
+        && serde_json::from_str::<serde_json::Value>(value)
+            .ok()
+            .is_some_and(|value| value.get(only.name.as_str()).is_some())
+    {
+        return Err(format!(
+            "{reference} holds a JSON object with {name}; bind {reference}#{name}",
+            name = only.name
+        ));
+    }
+    fields(declaration, value).map_err(|reason| format!("{reference} {reason}"))
+}
+
 pub(crate) fn fields(
     declaration: &CredentialDeclaration,
     value: &str,
@@ -272,6 +399,97 @@ mod tests {
     use runx_contracts::connector::CredentialName;
 
     use super::{ProfileBinding, deliver};
+
+    #[test]
+    fn a_reference_this_home_bound_is_read_on_every_call_and_a_planted_one_never() {
+        use runx_contracts::schema::NonEmptyString;
+        let connector = crate::kernel::connectors::source_scope()
+            .connector("exa")
+            .unwrap();
+        let held = tempfile::tempdir().unwrap();
+        let secret = held.path().join("exa.key");
+        std::fs::write(&secret, "key-from-the-manager\n").unwrap();
+        let reference =
+            runx_contracts::connector::SecretReference::new(format!("file://{}", secret.display()))
+                .unwrap();
+        let home_env = |home: &std::path::Path| {
+            BTreeMap::from([("RUNX_HOME".to_owned(), home.display().to_string())])
+        };
+        let unproven = || {
+            crate::kernel::instances::pinned(
+                &connector,
+                runx_contracts::connector::InstanceId::new("reference.exa").unwrap(),
+                runx_contracts::connector::Placement::Local,
+                "runx:principal:local-reference:exa".to_owned(),
+                None,
+                InstanceAuthority::Reference {
+                    credential: CredentialName::new("api_key").unwrap(),
+                    reference: reference.clone(),
+                    pinned: None,
+                    proof: NonEmptyString::new(super::UNPROVEN_REFERENCE).unwrap(),
+                    scopes: vec![NonEmptyString::new("search.read").unwrap()],
+                },
+            )
+        };
+        let proven = |env: &BTreeMap<String, String>, cwd: &std::path::Path| {
+            let mut instance = unproven();
+            let made = super::reference_proof(env, cwd, &instance).unwrap();
+            if let InstanceAuthority::Reference { proof, .. } = &mut instance.authority {
+                *proof = NonEmptyString::new(made).unwrap();
+            }
+            instance
+        };
+        let home = tempfile::tempdir().unwrap();
+        let env = home_env(home.path());
+        let call = |instance: &runx_contracts::ConnectorInstance| {
+            super::from_reference(&env, home.path(), &connector, instance)
+        };
+        let bound = proven(&env, home.path());
+        assert_eq!(
+            call(&bound).unwrap().field("api_key").unwrap(),
+            "key-from-the-manager"
+        );
+        // A secret rotated in the manager serves without binding again.
+        std::fs::write(&secret, "rotated\n").unwrap();
+        assert_eq!(call(&bound).unwrap().field("api_key").unwrap(), "rotated");
+
+        // A project store carrying a binding another home made is refused.
+        let other = tempfile::tempdir().unwrap();
+        let planted = proven(&home_env(other.path()), other.path());
+        assert!(
+            call(&planted)
+                .unwrap_err()
+                .contains("through a binding this runx home did not make")
+        );
+        // So is this home's binding with its grant widened in the store.
+        let mut widened = bound.clone();
+        if let InstanceAuthority::Reference { scopes, .. } = &mut widened.authority {
+            scopes.push(NonEmptyString::new("crawl.write").unwrap());
+        }
+        assert!(
+            call(&widened)
+                .unwrap_err()
+                .contains("or that changed since")
+        );
+        // With no home the operator owns, there is no key to prove with.
+        assert!(
+            super::reference_proof(&BTreeMap::new(), home.path(), &unproven())
+                .unwrap_err()
+                .contains("need a runx home the operator owns")
+        );
+
+        // A whole JSON object for a one-field credential is a missing #field.
+        std::fs::write(&secret, r#"{"api_key":"inside"}"#).unwrap();
+        assert!(
+            call(&bound)
+                .unwrap_err()
+                .contains("holds a JSON object with api_key; bind file://")
+        );
+
+        // A failed read at call time refuses the call.
+        std::fs::remove_file(&secret).unwrap();
+        assert!(call(&bound).unwrap_err().contains("cannot be read"));
+    }
 
     #[test]
     fn an_environment_credential_is_read_from_its_variable_on_every_call() {

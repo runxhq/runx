@@ -12,7 +12,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use runx_contracts::connector::{CredentialName, EnvName, HostedAuth, LocalAuth};
+use runx_contracts::connector::{CredentialName, EnvName, HostedAuth, LocalAuth, SecretReference};
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject};
 use serde_json::Value;
 
@@ -53,10 +53,19 @@ pub enum UseRequest<'a> {
         credential: &'a CredentialName,
         profile: Option<&'a str>,
     },
+    /// The connector's `credential`, or its only one, read on every call
+    /// from the secret `reference` names in a secrets manager.
+    Reference {
+        credential: Option<&'a CredentialName>,
+        reference: &'a SecretReference,
+    },
     /// A new runx Connect grant: delegated, or holding the one credential the
-    /// connector's hosted placement names, read from its variable when that
-    /// is set, else from the operator.
-    Hosted { target: Option<&'a str> },
+    /// connector's hosted placement names, read from `from` when given, else
+    /// from its variable when that is set, else from the operator.
+    Hosted {
+        target: Option<&'a str>,
+        from: Option<&'a SecretReference>,
+    },
 }
 
 /// Asks the operator for a credential whose variable is not set, given what
@@ -319,7 +328,28 @@ impl<'a> ConnectorSetup<'a> {
             } => self
                 .credential(connector, credential, profile, options)
                 .map(selected),
-            UseRequest::Hosted { target } => self.hosted_grant(connector, target, options),
+            UseRequest::Reference {
+                credential,
+                reference,
+            } => {
+                let credential = match credential {
+                    Some(credential) => credential.clone(),
+                    None => only_credential(connector)?,
+                };
+                setup::bind_reference(
+                    self.instances,
+                    connector,
+                    &credential,
+                    reference,
+                    &options.scopes,
+                    options.parameters.clone(),
+                    self.workspace,
+                )
+                .map(selected)
+            }
+            UseRequest::Hosted { target, from } => {
+                self.hosted_grant(connector, target, from, options)
+            }
         }
     }
 
@@ -415,9 +445,14 @@ impl<'a> ConnectorSetup<'a> {
                 .credential(connector, credential, None, options)
                 .map(|instance| UseOutcome::Selected(Box::new(instance))),
             [Path::Profile(name)] => self.existing(connector, name, options),
-            [Path::Hosted] => {
-                self.use_connector(connector, UseRequest::Hosted { target: None }, options)
-            }
+            [Path::Hosted] => self.use_connector(
+                connector,
+                UseRequest::Hosted {
+                    target: None,
+                    from: None,
+                },
+                options,
+            ),
             _ => Err(self.choose_message(connector, &paths)),
         }
     }
@@ -717,6 +752,7 @@ impl<'a> ConnectorSetup<'a> {
         &self,
         connector: &LoadedConnector,
         target: Option<&str>,
+        from: Option<&SecretReference>,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
         no_parameters(options, "a hosted grant")?;
@@ -727,8 +763,16 @@ impl<'a> ConnectorSetup<'a> {
             .as_ref()
             .ok_or_else(|| format!("{} has no hosted placement", connector.connector_ref))?;
         let credentials = match (hosted.auth, &hosted.credential) {
+            (HostedAuth::Delegated, _) if from.is_some() => {
+                return Err(format!(
+                    "{} signs in to its provider through Connect; --from seeds only a hosted credential",
+                    connector.connector_ref
+                ));
+            }
             (HostedAuth::Delegated, _) => None,
-            (HostedAuth::Credential, Some(name)) => Some(self.credential_fields(connector, name)?),
+            (HostedAuth::Credential, Some(name)) => {
+                Some(self.credential_fields(connector, name, from)?)
+            }
             (HostedAuth::Credential, None) => {
                 return Err(format!(
                     "{}'s hosted placement names no credential",
@@ -866,11 +910,29 @@ impl<'a> ConnectorSetup<'a> {
         &self,
         connector: &LoadedConnector,
         name: &CredentialName,
+        from: Option<&SecretReference>,
     ) -> Result<Value, String> {
         let declaration = declared(connector, name)?;
-        let secret = self.secret(connector, name)?;
-        let fields = super::operation::credentials::fields(declaration, &secret)
-            .map_err(|reason| format!("the credential {reason}"))?;
+        let fields = match from {
+            Some(reference) => {
+                let read = crate::secret_refs::read(
+                    self.workspace.env(),
+                    self.workspace.cwd(),
+                    reference,
+                    None,
+                    crate::secret_refs::Purpose::Bind,
+                )?;
+                super::operation::credentials::reference_fields(
+                    declaration,
+                    reference,
+                    &read.value,
+                )?
+            }
+            None => {
+                super::operation::credentials::fields(declaration, &self.secret(connector, name)?)
+                    .map_err(|reason| format!("the credential {reason}"))?
+            }
+        };
         Ok(Value::Object(
             fields
                 .into_iter()
@@ -965,6 +1027,32 @@ fn fixed(options: &UseOptions, what: &str) -> Result<(), String> {
     Err(format!(
         "{what} keeps the scopes and parameters it was confirmed with; --scope and --parameter apply to a new instance"
     ))
+}
+
+/// The connector's one credential, for a reference that names none.
+fn only_credential(connector: &LoadedConnector) -> Result<CredentialName, String> {
+    let names = connector
+        .manifest
+        .auth
+        .credentials
+        .keys()
+        .collect::<Vec<_>>();
+    match names.as_slice() {
+        [name] => Ok((*name).clone()),
+        [] => Err(format!(
+            "{} declares no credential",
+            connector.connector_ref
+        )),
+        names => Err(format!(
+            "{} declares {}; name one with --credential",
+            connector.connector_ref,
+            names
+                .iter()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>()
+                .join(" and ")
+        )),
+    }
 }
 
 fn no_parameters(options: &UseOptions, what: &str) -> Result<(), String> {

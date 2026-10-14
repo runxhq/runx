@@ -64,6 +64,33 @@ fn identifiers_follow_their_grammar() {
 }
 
 #[test]
+fn a_secret_reference_names_a_manager_runx_reads_and_never_a_value() {
+    let reference = SecretReference::new("aws-sm://team/keys#TOKEN").unwrap();
+    assert_eq!(
+        (reference.scheme(), reference.locator(), reference.field()),
+        ("aws-sm", "team/keys", Some("TOKEN"))
+    );
+    let arn = SecretReference::new("aws-ps://arn:aws:ssm:us-east-1:1:parameter/x").unwrap();
+    assert_eq!(
+        (arn.locator(), arn.field()),
+        ("arn:aws:ssm:us-east-1:1:parameter/x", None)
+    );
+    for refused in [
+        "sk-live-123",
+        "op://dev/exa/credential",
+        "aws-sm://",
+        "aws-sm://name#",
+        "aws-sm://name#a#b",
+        "vault://secret/x y",
+        "keychain://",
+    ] {
+        assert!(SecretReference::new(refused).is_none(), "{refused}");
+    }
+    // The schema's pattern admits exactly the schemes the parser does.
+    assert!(SECRET_REFERENCE_PATTERN.starts_with(&format!("^({})://", SECRET_SCHEMES.join("|"))));
+}
+
+#[test]
 fn manifest_round_trips_and_rejects_unknown_fields() {
     let manifest = slack();
     let operation = manifest.operation("channel.post").expect("operation");

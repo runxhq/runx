@@ -327,7 +327,8 @@ pub(crate) fn check_supported(
                     (&instance.authority, auth),
                     (
                         InstanceAuthority::Credential { .. }
-                            | InstanceAuthority::Environment { .. },
+                            | InstanceAuthority::Environment { .. }
+                            | InstanceAuthority::Reference { .. },
                         runx_contracts::connector::LocalAuth::Credentials
                     ) | (
                         InstanceAuthority::Session { .. },
@@ -383,15 +384,16 @@ fn public(connector: &LoadedConnector) -> Option<ConnectorInstance> {
 /// declaration of the credential it holds, are pinned. Confirming it again
 /// after the connector changes re-pins them.
 /// The credential an instance delivers to implementations: its stored
-/// profile's or environment variable's, or the one its command session's
-/// token stands in for.
+/// profile's, environment variable's or secret reference's, or the one its
+/// command session's token stands in for.
 pub(crate) fn delivered_credential<'a>(
     manifest: &'a runx_contracts::connector::ConnectorManifest,
     authority: &'a InstanceAuthority,
 ) -> Option<&'a runx_contracts::connector::CredentialName> {
     match authority {
         InstanceAuthority::Credential { credential, .. }
-        | InstanceAuthority::Environment { credential, .. } => Some(credential),
+        | InstanceAuthority::Environment { credential, .. }
+        | InstanceAuthority::Reference { credential, .. } => Some(credential),
         InstanceAuthority::Session {
             session: runx_contracts::connector::SessionKind::Command,
             ..

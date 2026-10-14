@@ -4,13 +4,20 @@
 
 runx keeps local execution state and receipts on your machine. It makes no
 telemetry call. Network access occurs only through an explicit surface: registry
-fetch/publish, a declared network-capable skill adapter, or an opted-in hosted
-connector. The receipt crate itself has no network access by design.
+fetch/publish, a declared network-capable skill adapter, an opted-in hosted
+connector, or a secrets manager CLI reading a reference the operator bound. The
+receipt crate itself has no network access by design.
 
 Connectors declare the credentials they accept and the variable each is read
 from; operators bind an account to a connector as an instance, from that
-variable, a stored profile, a signed-in local session, or a runx Connect grant.
-An instance bound to a variable records its name, never its value. A secret
+variable, a secrets manager reference, a stored profile, a signed-in local
+session, or a runx Connect grant. An instance bound to a variable records its
+name, never its value; one bound to a reference records the reference and the
+resource it was pinned to, never the value, and a proof keyed by the operator's
+runx home over the whole binding, so a project store cannot supply or widen
+one; runx reads it through the
+manager's own CLI, found outside the workspace, with fixed arguments, only for
+a reference the operator bound with `--from`. A secret
 given to `runx connector use` is read without echo at a terminal or from stdin,
 never from argv; encrypted local material is never written to manifests, argv,
 receipts, or resume checkpoints. A connector's sign-in command comes from its

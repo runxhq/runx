@@ -113,7 +113,7 @@ and the operation's implementation digest in the receipt includes it.
 ## Binding an account
 
 An instance binds a connector to one account, and `runx connector use` is the
-one place it is made. Five sources can back it:
+one place it is made. Six sources can back it:
 
 ```bash
 # The credential's variable, as the connector declares it, set in the
@@ -122,6 +122,11 @@ one place it is made. Five sources can back it:
 # no new binding.
 export EXA_API_KEY=...
 runx connector use runx/exa
+
+# A secret a secrets manager keeps, read through the manager's own CLI and
+# your sign-in to it before every call. The instance records the reference
+# and where the read landed, never the value (see Secrets managers and CI).
+runx connector use runx/exa --from "aws-sm://team/keys#EXA_API_KEY"
 
 # A secret you give: with its variable unset, use asks for it without
 # echoing on a terminal, or reads it from stdin when piped. It is stored as
@@ -225,8 +230,9 @@ the environment keeps the environment's value, and a connector credential or
 model key read from that name is refused until one of them is unset. One
 immutable snapshot is used for the whole
 command or MCP server session. Runx's own `RUNX_` variables never come from
-`.env`: a file that sets one is refused, so a workspace cannot redirect Runx's
-state, Connect or receipt signing, nor supply authority a host admits.
+`.env`, nor do `HOME` and `USERPROFILE`, which locate the runx home: a file
+that sets one is refused, so a workspace cannot redirect Runx's state, Connect
+or receipt signing, nor supply authority a host admits.
 
 The snapshot supplies a runner's declared `environment.required` and
 `environment.optional` names: ordinary, non-secret configuration. It also
@@ -266,23 +272,60 @@ normal admission and recovery checks still apply.
 
 ## Secrets managers and CI
 
-Runx reads a credential from the variable its connector declares, so anything
-that injects variables into a process supplies it, and Runx holds nothing:
+runx reads a secret from where you already keep it. A reference names the
+manager and where the secret is; runx keeps the reference, never the value:
 
 ```bash
-# 1Password: references such as EXA_API_KEY=op://dev/exa/credential live in a
-# file other than .env, which Runx reads as plain values.
-op run --env-file .env.op -- runx connector use runx/exa
-op run --env-file .env.op -- runx skill ...
-
-# Doppler, and any other injector, the same way.
-doppler run -- runx skill ...
+runx connector use runx/exa --from "aws-sm://team/keys#EXA_API_KEY"
+runx connector use runx/exa --from "aws-ps:///team/exa-api-key"
+runx connector use runx/exa --from "vault://secret/team/exa#key"
+runx connector use runx/exa --from "keychain://exa/work"
+runx connector use runx/exa --from "file:///run/secrets/exa_api_key"
+runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 ```
 
-Kubernetes and ECS inject variables into a container's environment, and
-GitHub Actions injects secrets into a job's; all of these work the same way. A
-fresh CI runner has no instances, so a job binds its source before it runs
-anything:
+| Reference | Read with | Pinned at bind |
+| --- | --- | --- |
+| `aws-sm://<name or ARN>[#field]` | `aws secretsmanager get-secret-value` | the secret's ARN (account and region) |
+| `aws-ps://<parameter>[#field]` | `aws ssm get-parameter --with-decryption` | the parameter's ARN |
+| `vault://<mount>/<path>[#field]` | `vault kv get` (KV version 1 or 2) | the Vault address and namespace |
+| `keychain://<service>/<account>` | macOS `security`; Linux `secret-tool` | nothing: one machine |
+| `file:///<path>[#field]` | read directly: Docker, Kubernetes and systemd secret mounts | nothing: the path |
+
+- runx runs the manager's own CLI with fixed arguments that no shell
+  interprets, found on an absolute `PATH` entry outside the workspace (a
+  project cannot stand in for `aws` and receive its sign-in), and gives it
+  only the baseline environment plus its own variables (`AWS_*`, `VAULT_*`).
+  Whatever sign-in that CLI supports works: profiles, SSO, instance and
+  workload roles, GitHub OIDC, Vault tokens. No part of a reference a CLI
+  reads may begin with `-`, so none reaches the CLI as a flag.
+- Binding reads once, checks the value against the connector's declaration,
+  and pins where it landed. Every call reads again, at exactly that resource
+  or server, so a rotated secret needs no new binding and a switched profile
+  cannot serve another account's secret. Nothing is cached, so a `runx mcp`
+  session never serves an expired value.
+- `#field` selects one field of a JSON secret. A JSON secret without `#field`
+  fills a credential of several fields (aws's region, account and keys).
+- A failed read refuses. Binding quotes the manager's own message to you; a
+  call, whose refusal is recorded, keeps only a form from a fixed list (an AWS
+  error code such as `AccessDeniedException`, a Vault HTTP status), never the
+  manager's words.
+  `connector list` prints the reference; `list` and `inspect` read nothing.
+- runx writes nothing to a manager. Only the operator binds a reference:
+  `--from` on the command line. The instance carries a proof made with your
+  runx home's key over the whole binding (connector revision, reference, pin,
+  scopes, parameters); a project store that names a reference you did not
+  bind, or widens one you did, is refused at admission, before anything is
+  read. References therefore need a runx home you own: `RUNX_HOME` or `HOME`. A variable or `.env` value that holds a reference
+  (`op://...`, `aws-sm://...`), for a connector or the model key, is refused
+  rather than sent to a provider as a key.
+- `--hosted --from <reference>` seeds a Connect credential grant from the
+  manager; Connect then holds it (custody moves to Cloud).
+
+Platforms that inject variables still work through the environment binding:
+GitHub Actions secrets, ECS and Kubernetes environment, `op run`, `doppler
+run`. A fresh CI runner has no instances, so a job binds its source before it
+runs anything, by reference or by variable:
 
 ```yaml
 env:
@@ -292,11 +335,10 @@ steps:
   - run: runx skill ...
 ```
 
-`runx mcp` keeps the environment it started with for its whole session: a
-token that expires while it runs is not refreshed. Restart it under the
-injector, or use a Connect grant, which Cloud refreshes. Runx runs no OAuth
-client of its own: refresh belongs to the tool you are signed in to, through
-`--session`, or to Connect.
+An injected variable is read from the environment `runx mcp` started with, so
+it is not refreshed during the session; a reference is read again on every
+call. Runx runs no OAuth client of its own: refresh belongs to the tool you are
+signed in to, through `--session`, or to Connect.
 
 ## Hosted provider grants
 
@@ -339,8 +381,10 @@ printf '%s' "$ANTHROPIC_API_KEY" |
 ```
 
 The key comes from `RUNX_AGENT_API_KEY`, the provider's own variable
-(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`), or the stored key.
-When more than one is set and they differ, runx refuses and names them.
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`), the stored key, or
+a reference set with `runx config set api-key --from <reference>`, read on
+every run. When more than one is set and they differ, runx refuses and names
+them.
 
 A runx account credential is stored by `runx login`, bound to its principal and
 API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. When both are
