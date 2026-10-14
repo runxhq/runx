@@ -28565,6 +28565,10 @@ export const runxSchemaArtifacts = {
         "minimum": 0,
         "type": "integer"
       },
+      "input_digest": {
+        "minLength": 1,
+        "type": "string"
+      },
       "outcome": {
         "anyOf": [
           {
@@ -29697,6 +29701,7 @@ export const runxSchemaArtifacts = {
     "required": [
       "index",
       "target",
+      "input_digest",
       "outcome"
     ],
     "type": "object",
@@ -29716,6 +29721,10 @@ export const runxSchemaArtifacts = {
             "index": {
               "minimum": 0,
               "type": "integer"
+            },
+            "input_digest": {
+              "minLength": 1,
+              "type": "string"
             },
             "outcome": {
               "anyOf": [
@@ -30849,6 +30858,7 @@ export const runxSchemaArtifacts = {
           "required": [
             "index",
             "target",
+            "input_digest",
             "outcome"
           ],
           "type": "object",

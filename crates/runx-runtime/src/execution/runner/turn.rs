@@ -314,13 +314,13 @@ where
             }
             // The child run holds what it waits on; its link stands.
             (Ran::Waiting(_) | Ran::Unconfirmed, Some(claim @ CallOutcome::Child(_))) => {
-                self.result(index, &target, &claim)
+                self.result(index, &target, &input, &claim)
             }
             (Ran::Waiting(request), _) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
                 self.settled(index, target, input, pending, &host.answers)
             }
-            (Ran::Unconfirmed, Some(claim)) => self.result(index, &target, &claim),
+            (Ran::Unconfirmed, Some(claim)) => self.result(index, &target, &input, &claim),
             (Ran::Unconfirmed, None) => Err(RuntimeError::EngineInvariant {
                 context: "running a turn call",
                 message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
@@ -348,7 +348,7 @@ where
                 self.settled(call.index, call.target, call.input, outcome, &answers)
             }
             Ran::Waiting(_) | Ran::Unconfirmed => {
-                self.result(call.index, &call.target, &call.outcome)
+                self.result(call.index, &call.target, &call.input, &call.outcome)
             }
         }
     }
@@ -380,7 +380,7 @@ where
         outcome: CallOutcome,
         answers: &[Answer],
     ) -> Result<TurnCallResult, RuntimeError> {
-        let result = self.result(index, &target, &outcome)?;
+        let result = self.result(index, &target, &input, &outcome)?;
         self.record(
             RecordedCall {
                 step_id: self.scope.step_id.to_owned(),
@@ -421,6 +421,7 @@ where
         &self,
         index: u32,
         target: &TurnTarget,
+        input: &JsonObject,
         outcome: &CallOutcome,
     ) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
@@ -454,6 +455,7 @@ where
         Ok(TurnCallResult {
             index,
             target: target.clone(),
+            input_digest: input_digest(input)?,
             outcome,
         })
     }
@@ -833,7 +835,7 @@ where
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
         self.recorded()?
             .iter()
-            .map(|call| self.result(call.index, &call.target, &call.outcome))
+            .map(|call| self.result(call.index, &call.target, &call.input, &call.outcome))
             .collect()
     }
 
@@ -888,9 +890,20 @@ where
                 }
                 self.run(answering, index, call.target, call.input)
             }
-            settled => self.result(index, &call.target, &settled),
+            settled => self.result(index, &call.target, &call.input, &settled),
         }
     }
+}
+
+/// The digest a host recomputes from the input it sent: `sha256:` over its
+/// canonical JSON.
+fn input_digest(input: &JsonObject) -> Result<NonEmptyString, RuntimeError> {
+    runx_contracts::canonical_digest(input)
+        .map(NonEmptyString::from)
+        .map_err(|error| RuntimeError::EngineInvariant {
+            context: "digesting a turn call's input",
+            message: error.to_string(),
+        })
 }
 
 /// A recorded request as the host protocol carries it.

@@ -26,10 +26,15 @@ export type TurnCallOutcomeContract = DeepReadonly<
   | { status: "pending"; waiting: readonly ResolutionRequestContract[] }
 >;
 
-/** One call an agent made in its turn, and how it ended. */
+/**
+ * One call an agent made in its turn, and how it ended. `input_digest` is
+ * `sha256:` over the canonical JSON of the call's input, so a host that
+ * recorded a call before making it can prove which call sits at an index.
+ */
 export type TurnCallContract = DeepReadonly<{
   index: number;
   target: TurnTargetContract;
+  input_digest: string;
   outcome: TurnCallOutcomeContract;
 }>;
 

@@ -427,6 +427,7 @@ mod tests {
         let call = runx_contracts::TurnCallResult {
             index: 0,
             target: runx_contracts::TurnTarget::Ask,
+            input_digest: "sha256:ask".into(),
             outcome: runx_contracts::TurnCallOutcome::Refused {
                 reason: "no reason given".into(),
             },

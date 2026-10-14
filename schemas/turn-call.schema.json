@@ -7,6 +7,10 @@
       "minimum": 0,
       "type": "integer"
     },
+    "input_digest": {
+      "minLength": 1,
+      "type": "string"
+    },
     "outcome": {
       "anyOf": [
         {
@@ -1139,6 +1143,7 @@
   "required": [
     "index",
     "target",
+    "input_digest",
     "outcome"
   ],
   "type": "object",

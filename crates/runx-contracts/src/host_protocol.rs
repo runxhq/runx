@@ -194,6 +194,10 @@ pub struct TurnCallResult {
     /// The call's place in the turn, from 0.
     pub index: u32,
     pub target: TurnTarget,
+    /// `sha256:` over the canonical JSON of the call's input
+    /// (`runx.stable-json.v1`), so a host that recorded a call before making
+    /// it can prove which call sits at this index.
+    pub input_digest: NonEmptyString,
     pub outcome: TurnCallOutcome,
 }
 
