@@ -5,7 +5,7 @@ import { createRunxLangChainTool } from "./index.js";
 
 function makeTool(result: SkillRunOutput) {
   const run = vi.fn(async () => result);
-  const client: Pick<RunxClient, "skills"> = { skills: { run, inspect: vi.fn() } };
+  const client: Pick<RunxClient, "skills"> = { skills: { run, inspect: vi.fn(), list: vi.fn() } };
   const wrapped = createRunxLangChainTool({
     name: "docs_pr", description: "Run governed docs work.", schema: z.object({ repo: z.string() }),
     client, runOptions: { skillPath: "/skills/docs", receiptDir: "/receipts" },

@@ -1,5 +1,6 @@
 import path from "node:path";
-import { validateRunReadContract } from "@runxhq/contracts";
+import { validateRunReadContract, validateRunxListReportContract } from "@runxhq/contracts";
+import { readProjectArtifact } from "./artifacts.js";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
 import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
@@ -38,6 +39,10 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   };
   return {
     skills: {
+      list: async (options = {}) => {
+        const output = parseJson(await execute(["list", "skills", "--json"], options), [0]);
+        try { return validateRunxListReportContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill listing.", { cause: error }); }
+      },
       inspect: async (options) => {
         const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...runnerArgs(options.runner), "--json"], options), [0]);
         if (output.schema !== "runx.skill.inspect.v1" || output.status !== "ok" || typeof output.name !== "string" || !output.name.trim() || typeof output.package_digest !== "string" || !output.package_digest.trim() || (output.runner !== undefined && !record(output.runner))) throw new RunxClientError("contract", "Invalid native skill inspection.");
@@ -98,6 +103,9 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.graph_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || ![output.assertion_errors, output.case_names, output.receipt_ids].every((value) => Array.isArray(value) && value.every((item) => typeof item === "string"))) throw new RunxClientError("contract", "Invalid native harness summary.");
         return output as unknown as NativeHarnessOutput;
       },
+    },
+    artifacts: {
+      read: async (reference, options = {}) => await readProjectArtifact(reference, config.projectDir, positive(options.maxBytes ?? maxArtifactBytes, "maxBytes")),
     },
     receipts: {
       verify: async (options) => {

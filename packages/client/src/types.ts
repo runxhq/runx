@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, RunReadContract, SkillOutputContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResolutionRequestContract, RunReadContract, RunxListReportContract, SkillOutputContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -170,6 +170,8 @@ export interface ReceiptVerifyOutput extends Readonly<Record<string, unknown>> {
 
 export interface RunxClient {
   readonly skills: {
+    /** `runx list skills --json`: the skills this project can run. */
+    list(options?: InvocationOptions): Promise<RunxListReportContract>;
     inspect(options: SkillInspectOptions): Promise<SkillInspection>;
     run(options: SkillRunOptions): Promise<SkillRunOutput>;
   };
@@ -184,6 +186,10 @@ export interface RunxClient {
     materializeConnector(options: InvocationOptions & { readonly connectorPath: string }): Promise<NativeConnectorPackageOutput>;
   };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
+  readonly artifacts: {
+    /** A project artifact by its reference, confined to the project and checked against its digest. */
+    read(reference: ProjectArtifactRefContract, options?: { readonly maxBytes?: number }): Promise<unknown>;
+  };
   readonly receipts: {
     /**
      * `trust: "home"` (the default) verifies against the selected runx home's

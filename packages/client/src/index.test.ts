@@ -8,6 +8,7 @@ import { createRunxClient, executionBindingFromInspection, RunxClientError } fro
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
 import { receiptCommitments } from "./receipt-tree.js";
+import type { ProjectArtifactRefContract } from "@runxhq/contracts";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -76,6 +77,15 @@ describe("native invocation and decoding", () => {
     await expect(client.runs.read({ runId: "run_test", after: "bad" })).rejects.toMatchObject({ reason: "contract" });
     await expect(client.runs.read({ runId: "run_test", after: "a b" })).rejects.toThrow("cursor");
     await expect(client.runs.read({ runId: "run_test", after: "stale" })).rejects.toMatchObject({ reason: "exit", code: "invalid_cursor" });
+  });
+  it("lists the project's skills and reads an artifact by its digest-bound reference", async () => {
+    const { config } = await setup(`process.stdout.write(JSON.stringify(process.argv[2] === 'list' ? { schema: 'runx.list.v1', root: '/w', requested_kind: 'skills', items: [{ kind: 'skill', name: 'runx/run-history', source: 'built-in', path: 'runx/run-history', status: 'ok', emits: [] }] } : {}));`);
+    const client = createRunxClient(config);
+    await expect(client.skills.list()).resolves.toMatchObject({ schema: "runx.list.v1", items: [{ name: "runx/run-history" }] });
+    const reference = await artifact(config.projectDir, { verdict: "ok" }) as ProjectArtifactRefContract;
+    await expect(client.artifacts.read(reference)).resolves.toEqual({ verdict: "ok" });
+    await expect(client.artifacts.read(reference, { maxBytes: 4 })).rejects.toMatchObject({ reason: "artifact" });
+    await expect(client.artifacts.read({ ...reference, digest: `sha256:${"0".repeat(64)}`, ref: `runx:project-artifact:sha256:${"0".repeat(64)}` })).rejects.toMatchObject({ reason: "artifact" });
   });
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();
