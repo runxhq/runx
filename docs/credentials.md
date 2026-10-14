@@ -276,6 +276,7 @@ runx reads a secret from where you already keep it. A reference names the
 manager and where the secret is; runx keeps the reference, never the value:
 
 ```bash
+runx connector use runx/exa --from "op://Private/Exa API/credential"
 runx connector use runx/exa --from "aws-sm://team/keys#EXA_API_KEY"
 runx connector use runx/exa --from "aws-ps:///team/exa-api-key"
 runx connector use runx/exa --from "vault://secret/team/exa#key"
@@ -286,6 +287,7 @@ runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 
 | Reference | Read with | Pinned at bind |
 | --- | --- | --- |
+| `op://<vault>/<item>[/<section>]/<field>[#field]` | `op read`, 1Password's CLI | the 1Password account (`OP_ACCOUNT`, else `op`'s default) |
 | `aws-sm://<name or ARN>[#field]` | `aws secretsmanager get-secret-value` | the secret's ARN (account and region) |
 | `aws-ps://<parameter>[#field]` | `aws ssm get-parameter --with-decryption` | the parameter's ARN |
 | `vault://<mount>/<path>[#field]` | `vault kv get` (KV version 1 or 2) | the Vault address and namespace |
@@ -295,10 +297,15 @@ runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 - runx runs the manager's own CLI with fixed arguments that no shell
   interprets, found on an absolute `PATH` entry outside the workspace (a
   project cannot stand in for `aws` and receive its sign-in), and gives it
-  only the baseline environment plus its own variables (`AWS_*`, `VAULT_*`).
-  Whatever sign-in that CLI supports works: profiles, SSO, instance and
-  workload roles, GitHub OIDC, Vault tokens. No part of a reference a CLI
-  reads may begin with `-`, so none reaches the CLI as a flag.
+  only the baseline environment plus its own variables (`OP_*`, `AWS_*`,
+  `VAULT_*`). Whatever sign-in that CLI supports works: the 1Password app's
+  unlock, profiles, SSO, instance and workload roles, GitHub OIDC, Vault
+  tokens. No part of a reference a CLI reads may begin with `-`, so none
+  reaches the CLI as a flag; `op` takes the whole reference as one argument.
+- A reference may hold spaces, as 1Password names items; quote it.
+- With the 1Password app's CLI integration, 1Password asks you to approve each
+  new terminal session. A runx started without a terminal, as an agent host
+  starts it, is asked on each run.
 - Binding reads once, checks the value against the connector's declaration,
   and pins where it landed. Every call reads again, at exactly that resource
   or server, so a rotated secret needs no new binding and a switched profile
@@ -308,8 +315,8 @@ runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
   fills a credential of several fields (aws's region, account and keys).
 - A failed read refuses. Binding quotes the manager's own message to you; a
   call, whose refusal is recorded, keeps only a form from a fixed list (an AWS
-  error code such as `AccessDeniedException`, a Vault HTTP status), never the
-  manager's words.
+  error code such as `AccessDeniedException`, a Vault HTTP status, a 1Password
+  form such as `isn't an item`), never the manager's words.
   `connector list` prints the reference; `list` and `inspect` read nothing.
 - runx writes nothing to a manager. Only the operator binds a reference:
   `--from` on the command line. The instance carries a proof made with your

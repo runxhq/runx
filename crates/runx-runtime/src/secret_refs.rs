@@ -62,8 +62,9 @@ pub(crate) fn read(
 ) -> Result<Read, String> {
     // Every part of a reference a manager's CLI reads becomes one of its
     // arguments; none may read as a flag (`vault://secret/-address=...`).
-    // A file is read directly, so its path may hold any name.
-    if reference.scheme() != "file"
+    // A file is read directly, and `op` takes the whole reference as one
+    // argument, so their parts may hold any name.
+    if !matches!(reference.scheme(), "file" | "op")
         && reference
             .locator()
             .split('/')
@@ -77,7 +78,7 @@ pub(crate) fn read(
     // A call reads only where binding proved access.
     if purpose == Purpose::Call
         && pinned.is_none()
-        && matches!(reference.scheme(), "aws-sm" | "aws-ps" | "vault")
+        && matches!(reference.scheme(), "op" | "aws-sm" | "aws-ps" | "vault")
     {
         return Err(format!(
             "{reference} was bound without a pin; bind it again with --from"
@@ -90,6 +91,7 @@ pub(crate) fn read(
         purpose,
     };
     let raw = match reference.scheme() {
+        "op" => manager.one_password(pinned)?,
         "aws-sm" => manager.aws_secrets_manager(pinned)?,
         "aws-ps" => manager.aws_parameter_store(pinned)?,
         "vault" => manager.vault(pinned)?,
@@ -111,11 +113,11 @@ pub(crate) fn read(
 }
 
 /// Whether a value is a reference to a secret rather than the secret: one
-/// runx reads, or one another tool resolves (`op://` for `op run`).
+/// runx reads, or one another manager's tool resolves.
 pub(crate) fn looks_like_reference(value: &str) -> bool {
     value.trim().split_once("://").is_some_and(|(scheme, _)| {
         runx_contracts::connector::SECRET_SCHEMES.contains(&scheme)
-            || ["op", "gcp-sm", "azure-kv", "doppler", "infisical", "bws"].contains(&scheme)
+            || ["gcp-sm", "azure-kv", "doppler", "infisical", "bws"].contains(&scheme)
     })
 }
 
@@ -140,6 +142,11 @@ fn select(reference: &SecretReference, raw: &str, field: &str) -> Result<String,
     }
 }
 
+const OP_INSTALL: &str =
+    "install the 1Password CLI and sign in (turn on its integration in the 1Password app)";
+/// What `op` signs in and finds its accounts with.
+const OP_VARIABLES: &[&str] = &["OP_", "XDG_CONFIG_HOME"];
+
 const AWS_INSTALL: &str = "install the AWS CLI and sign in (aws configure, or aws sso login)";
 
 /// The region an ARN names, as the AWS CLI's `--region`: an ARN read from
@@ -161,6 +168,58 @@ struct Manager<'a> {
 }
 
 impl Manager<'_> {
+    /// `op://<vault>/<item>[/<section>]/<field>[#field]`: 1Password's own
+    /// reference, read by `op` with the operator's sign-in (the desktop app's
+    /// unlock, or a service account token). Binding pins the account `op`
+    /// signs in to (`OP_ACCOUNT`, else its default), and every read, the
+    /// first included, names that account.
+    fn one_password(&self, pinned: Option<&str>) -> Result<Raw, String> {
+        let reference = self.reference;
+        let path = reference.locator().split('?').next().unwrap_or_default();
+        if !(3..=4).contains(&path.split('/').count()) || path.split('/').any(str::is_empty) {
+            return Err(format!(
+                "{reference}: write op://<vault>/<item>[/<section>]/<field>"
+            ));
+        }
+        let account = match pinned {
+            Some(account) => account.to_owned(),
+            None => {
+                let account = json(
+                    reference,
+                    &self.run(
+                        "op",
+                        vec![
+                            "account".to_owned(),
+                            "get".to_owned(),
+                            "--format=json".to_owned(),
+                        ],
+                        OP_VARIABLES,
+                        OP_INSTALL,
+                    )?,
+                )?;
+                string(&account, "/id")
+                    .ok_or_else(|| format!("{reference}: 1Password named no account"))?
+            }
+        };
+        let value = self.run(
+            "op",
+            vec![
+                "read".to_owned(),
+                "--account".to_owned(),
+                account.clone(),
+                "--no-newline".to_owned(),
+                format!("op://{}", reference.locator()),
+            ],
+            OP_VARIABLES,
+            OP_INSTALL,
+        )?;
+        Ok(Raw {
+            value,
+            selected: false,
+            pinned: Some(account),
+        })
+    }
+
     /// `aws-sm://<name or ARN>[#field]`: the secret's ARN pins the account
     /// and region.
     fn aws_secrets_manager(&self, pinned: Option<&str>) -> Result<Raw, String> {
@@ -460,6 +519,14 @@ fn recognized(said: &str) -> Option<String> {
         "Vault is sealed",
         "permission denied",
         "could not be found in the keychain",
+        // 1Password: "[ERROR] <time> could not read secret '...': \"x\" isn't
+        // an item in the \"v\" vault. ...".
+        "isn't a vault",
+        "isn't an item",
+        "does not have a field",
+        "account is not signed in",
+        "no account found",
+        "authorization prompt dismissed",
     ]
     .into_iter()
     .find(|phrase| said.contains(phrase))
@@ -1209,6 +1276,124 @@ mod tests {
                 .ok_or("a bad field passed")?;
             assert!(refused.contains(says), "{refused}");
         }
+        Ok(())
+    }
+
+    /// An `op` that records its arguments, answers `account get` for one
+    /// account, and reads `secret` as `op read --no-newline` prints it.
+    fn fake_op(bin: &Path, secret: &str) -> TestResult {
+        fs::create_dir_all(bin)?;
+        let path = bin.join("op");
+        fs::write(
+            &path,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\nif [ \"$1\" = account ]; then\n/bin/cat <<'JSON'\n{{\"id\":\"ACCOUNT1\",\"name\":\"Team\",\"domain\":\"team\",\"type\":\"BUSINESS\",\"state\":\"ACTIVE\"}}\nJSON\nelse\nprintf '%s' '{secret}'\nfi\n",
+                bin.join("op.argv").display()
+            ),
+        )?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+        Ok(())
+    }
+
+    #[test]
+    fn one_password_pins_the_signed_in_account_and_names_it_to_every_read() -> TestResult {
+        let m = machine()?;
+        fake_op(&m.bin, "from-1password")?;
+        let env = env(&m.bin, &[("OP_ACCOUNT", "team")]);
+        let reference = reference("op://Private/Apollo API/credential")?;
+
+        let bound = read(&env, &m.workspace, &reference, None, Purpose::Bind)?;
+        assert_eq!(bound.value, "from-1password");
+        assert_eq!(bound.pinned.as_deref(), Some("ACCOUNT1"));
+        assert_eq!(
+            argv(&m.bin, "op")?,
+            [
+                "account",
+                "get",
+                "--format=json",
+                "read",
+                "--account",
+                "ACCOUNT1",
+                "--no-newline",
+                "op://Private/Apollo API/credential"
+            ]
+        );
+
+        // A later read names the pinned account, whatever OP_ACCOUNT says now.
+        fs::remove_file(m.bin.join("op.argv"))?;
+        let mut moved = env.clone();
+        moved.insert("OP_ACCOUNT".to_owned(), "elsewhere".to_owned());
+        read(
+            &moved,
+            &m.workspace,
+            &reference,
+            Some("ACCOUNT1"),
+            Purpose::Call,
+        )?;
+        assert_eq!(
+            argv(&m.bin, "op")?,
+            [
+                "read",
+                "--account",
+                "ACCOUNT1",
+                "--no-newline",
+                "op://Private/Apollo API/credential"
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_one_password_reference_names_a_field_and_a_call_needs_its_account() -> TestResult {
+        let m = machine()?;
+        fake_op(&m.bin, "never-read")?;
+        let env = env(&m.bin, &[]);
+        for value in [
+            "op://Private/Apollo API",
+            "op://Private//credential",
+            "op://Private/Apollo/section/sub/credential",
+        ] {
+            let refused = read(&env, &m.workspace, &reference(value)?, None, Purpose::Bind)
+                .err()
+                .ok_or("a reference naming no field was read")?;
+            assert!(refused.contains("write op://<vault>/<item>"), "{refused}");
+        }
+        let refused = read(
+            &env,
+            &m.workspace,
+            &reference("op://Private/Apollo API/credential")?,
+            None,
+            Purpose::Call,
+        )
+        .err()
+        .ok_or("an unpinned call was read")?;
+        assert!(refused.contains("was bound without a pin"), "{refused}");
+        assert!(!m.bin.join("op.argv").exists(), "op ran");
+        Ok(())
+    }
+
+    #[test]
+    fn a_recorded_one_password_refusal_names_only_a_known_form() -> TestResult {
+        let m = machine()?;
+        let said = "[ERROR] 2026/10/14 20:00:00 \"leaked-sentinel\" isn't an item in the \"Private\" vault.";
+        fs::create_dir_all(&m.bin)?;
+        let op = m.bin.join("op");
+        fs::write(
+            &op,
+            format!("#!/bin/sh\n/bin/cat >&2 <<'ERR'\n{said}\nERR\nexit 1\n"),
+        )?;
+        fs::set_permissions(&op, fs::Permissions::from_mode(0o755))?;
+        let called = read(
+            &env(&m.bin, &[]),
+            &m.workspace,
+            &reference("op://Private/leaked-sentinel/credential")?,
+            Some("ACCOUNT1"),
+            Purpose::Call,
+        )
+        .err()
+        .ok_or("a failed call passed")?;
+        assert!(called.contains("(op: isn't an item)"), "{called}");
+        assert!(!called.contains("[ERROR]"), "{called}");
         Ok(())
     }
 

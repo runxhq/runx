@@ -20,10 +20,14 @@ pub const ENV_NAME_PATTERN: &str = "^[A-Z][A-Z0-9_]{0,127}$";
 pub const INSTANCE_ID_PATTERN: &str = "^[a-z0-9][a-z0-9._-]{0,127}$";
 pub const DIGEST_PATTERN: &str = "^sha256:[0-9a-f]{64}$";
 /// The secrets managers a [`SecretReference`] may name.
-pub const SECRET_SCHEMES: [&str; 5] = ["aws-sm", "aws-ps", "vault", "keychain", "file"];
-/// `<scheme>://<locator>[#<field>]`, a scheme from [`SECRET_SCHEMES`].
+pub const SECRET_SCHEMES: [&str; 6] = ["op", "aws-sm", "aws-ps", "vault", "keychain", "file"];
+/// `<scheme>://<locator>[#<field>]`, a scheme from [`SECRET_SCHEMES`]. A
+/// locator may hold spaces between other characters, as 1Password items and
+/// keychain services are named; no other whitespace.
 pub const SECRET_REFERENCE_PATTERN: &str =
-    r"^(aws-sm|aws-ps|vault|keychain|file)://[^\s#]+(#[^\s#]+)?$";
+    r"^(op|aws-sm|aws-ps|vault|keychain|file)://[^\s#](([^\s#]| )*[^\s#])?(#[^\s#]+)?$";
+/// What a refusal of a value that is not a reference names.
+pub const SECRET_REFERENCE_EXPECTED: &str = "--from takes a secret reference: op://, aws-sm://, aws-ps://, vault://, keychain:// or file://";
 
 #[must_use]
 pub fn is_connector_id(value: &str) -> bool {
@@ -297,15 +301,21 @@ pub fn is_secret_reference(value: &str) -> bool {
 
 fn secret_reference_parts(value: &str) -> Option<(&str, &str, Option<&str>)> {
     let (scheme, rest) = value.split_once("://")?;
-    if !SECRET_SCHEMES.contains(&scheme) || rest.chars().any(char::is_whitespace) {
+    if !SECRET_SCHEMES.contains(&scheme) {
         return None;
     }
     let (locator, field) = match rest.split_once('#') {
         Some((locator, field)) => (locator, Some(field)),
         None => (rest, None),
     };
-    (!locator.is_empty() && field.is_none_or(|field| !field.is_empty() && !field.contains('#')))
-        .then_some((scheme, locator, field))
+    let locator_ok = !locator.is_empty()
+        && !locator.starts_with(' ')
+        && !locator.ends_with(' ')
+        && !locator.chars().any(|c| c.is_whitespace() && c != ' ');
+    let field_ok = field.is_none_or(|field| {
+        !field.is_empty() && !field.contains('#') && !field.chars().any(char::is_whitespace)
+    });
+    (locator_ok && field_ok).then_some((scheme, locator, field))
 }
 
 impl SecretReference {

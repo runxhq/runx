@@ -273,7 +273,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             let from = from
                 .map(|value| {
                     SecretReference::new(value).ok_or_else(|| {
-                        "--from takes a secret reference: aws-sm://, aws-ps://, vault://, keychain:// or file://".to_owned()
+                        runx_contracts::connector::SECRET_REFERENCE_EXPECTED.to_owned()
                     })
                 })
                 .transpose()?;

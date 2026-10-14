@@ -411,7 +411,7 @@ pub fn set_runx_agent_api_key_reference(
     let reference = runx_contracts::connector::SecretReference::new(reference).ok_or(
         ConfigError::InvalidAgentSetting {
             key: "agent.api_key",
-            message: "--from takes a secret reference: aws-sm://, aws-ps://, vault://, keychain:// or file://",
+            message: runx_contracts::connector::SECRET_REFERENCE_EXPECTED,
         },
     )?;
     let read = crate::secret_refs::read(

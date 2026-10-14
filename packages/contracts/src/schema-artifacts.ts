@@ -6257,7 +6257,7 @@ export const runxSchemaArtifacts = {
               },
               "reference": {
                 "maxLength": 1024,
-                "pattern": "^(aws-sm|aws-ps|vault|keychain|file)://[^\\s#]+(#[^\\s#]+)?$",
+                "pattern": "^(op|aws-sm|aws-ps|vault|keychain|file)://[^\\s#](([^\\s#]| )*[^\\s#])?(#[^\\s#]+)?$",
                 "type": "string"
               },
               "scopes": {

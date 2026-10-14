@@ -75,18 +75,35 @@ fn a_secret_reference_names_a_manager_runx_reads_and_never_a_value() {
         (arn.locator(), arn.field()),
         ("arn:aws:ssm:us-east-1:1:parameter/x", None)
     );
+    // 1Password's own references name items as people do, spaces and all.
+    let item = SecretReference::new("op://Private/Apollo API/credential").unwrap();
+    assert_eq!(
+        (item.scheme(), item.locator(), item.field()),
+        ("op", "Private/Apollo API/credential", None)
+    );
     for refused in [
         "sk-live-123",
-        "op://dev/exa/credential",
+        "gcp-sm://projects/p/secrets/s",
         "aws-sm://",
         "aws-sm://name#",
         "aws-sm://name#a#b",
-        "vault://secret/x y",
+        "aws-sm://name#a b",
+        "vault://secret/x\ty",
+        "vault://secret/x\ny",
+        "op:// Private/item/field",
+        "op://Private/item/field ",
         "keychain://",
     ] {
         assert!(SecretReference::new(refused).is_none(), "{refused}");
     }
-    // The schema's pattern admits exactly the schemes the parser does.
+    // The schema's pattern admits exactly the schemes the parser does, and a
+    // refusal names each.
+    for scheme in SECRET_SCHEMES {
+        assert!(
+            SECRET_REFERENCE_EXPECTED.contains(&format!("{scheme}://")),
+            "{scheme}"
+        );
+    }
     assert!(SECRET_REFERENCE_PATTERN.starts_with(&format!("^({})://", SECRET_SCHEMES.join("|"))));
 }
 
