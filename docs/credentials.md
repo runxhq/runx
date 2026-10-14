@@ -250,8 +250,9 @@ A Connect grant keeps provider material in Cloud. An operation on the hosted
 placement sends the call to runx Connect, which renders the connector's own
 declared request for it and presents the grant's token; it renders nothing a
 manifest does not declare. `runx connector use <connector> --hosted` opens a
-grant (with `--credential <name>` when the hosted placement takes your own
-key), `runx connector use <connector> <grant-id>` makes an active grant an
+grant (sending the key its hosted placement names, from that key's variable
+or asked for, when the placement takes your own), `runx connector use
+<connector> <grant-id>` makes an active grant an
 instance, `runx connector list` shows the account's grants, and
 `runx connector revoke <grant-id>` removes one. Delegated OAuth uses the
 configured gateway;

@@ -92,15 +92,12 @@ pub enum UseChoice {
         credential: CredentialName,
         profile: Option<String>,
     },
-    /// A new runx Connect grant; a credential, when named, comes from its
-    /// variable or is asked for.
-    Hosted {
-        credential: Option<CredentialName>,
-        target: Option<String>,
-    },
+    /// A new runx Connect grant; the credential its placement names, if any,
+    /// comes from its variable or is asked for.
+    Hosted { target: Option<String> },
 }
 
-const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | --hosted [--credential <name>] [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
+const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | --hosted [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
 
 pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> {
     let subcommand = args
@@ -244,6 +241,9 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             if target.is_some() && !hosted {
                 return Err("--target narrows a new hosted grant; it needs --hosted".to_owned());
             }
+            if hosted && credential.is_some() {
+                return Err("--hosted sends the one credential the connector's hosted placement names; --credential chooses a local one".to_owned());
+            }
             let credential = credential
                 .map(|name| {
                     CredentialName::new(name.as_str())
@@ -253,7 +253,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             let choice = match (positionals.as_slice(), session, hosted) {
                 ([_, existing], false, false) if credential.is_none() => UseChoice::Existing(existing.clone()),
                 ([_], true, false) if credential.is_none() && parameters.is_empty() => UseChoice::Session,
-                ([_], false, true) if profile.is_none() => UseChoice::Hosted { credential, target },
+                ([_], false, true) if profile.is_none() => UseChoice::Hosted { target },
                 ([_], false, false) => match credential {
                     Some(credential) => UseChoice::Credential { credential, profile },
                     None => UseChoice::Default,
@@ -378,8 +378,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                     credential,
                     profile: profile.as_deref(),
                 },
-                UseChoice::Hosted { credential, target } => UseRequest::Hosted {
-                    credential: credential.as_ref(),
+                UseChoice::Hosted { target } => UseRequest::Hosted {
                     target: target.as_deref(),
                 },
             };

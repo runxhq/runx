@@ -190,10 +190,7 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
         .setup(&connect)
         .use_connector(
             &slack,
-            UseRequest::Hosted {
-                credential: None,
-                target: None,
-            },
+            UseRequest::Hosted { target: None },
             &options(Duration::from_secs(30)),
         )
         .unwrap();
@@ -235,7 +232,6 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
         .use_connector(
             &slack,
             UseRequest::Hosted {
-                credential: None,
                 target: Some("C0123"),
             },
             &options(Duration::ZERO),
@@ -305,10 +301,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
         .reading_secrets(&asked)
         .use_connector(
             &aws,
-            UseRequest::Hosted {
-                credential: Some(&CredentialName::new("access_key").unwrap()),
-                target: None,
-            },
+            UseRequest::Hosted { target: None },
             &options(Duration::ZERO),
         )
         .unwrap();
@@ -323,11 +316,46 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
 }
 
 #[test]
-fn a_hosted_credential_session_without_a_credential_names_the_form_that_sends_one() {
+fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() {
     let aws = source_scope().connector("runx/aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
+    );
+    let created = connect.issue("grant_aws_1", &aws);
+    connect.statuses.lock().unwrap().push_back(created);
+    let project = Project::new();
+    let secret = json!({
+        "region": "us-east-1",
+        "account_id": "123456789012",
+        "access_key_id": "AKIAFIXTURE",
+        "secret_access_key": "fixture-secret",
+    })
+    .to_string();
+
+    let outcome = project
+        .setup(&connect)
+        .reading_secrets(&|_: &str| Ok(secret.clone()))
+        .use_connector(&aws, UseRequest::Default, &options(Duration::ZERO))
+        .unwrap();
+
+    assert_eq!(grant_of(outcome).unwrap(), "grant_aws_1");
+    assert_eq!(
+        connect.sent("/v1/connect/sessions")[0]["connector_binding"],
+        serde_json::to_value(aws.binding()).unwrap()
+    );
+    assert_eq!(
+        connect.sent("/v1/connect/sessions/sess_1/credentials")[0]["credentials"]["access_key_id"],
+        "AKIAFIXTURE"
+    );
+}
+
+#[test]
+fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
+    let aws = source_scope().connector("runx/aws").unwrap();
+    let connect = Connect::new(
+        awaiting_authorization(),
+        &[json!({"status": "credential_required", "session_id": "sess_1"})],
     );
     let project = Project::new();
 
@@ -335,10 +363,7 @@ fn a_hosted_credential_session_without_a_credential_names_the_form_that_sends_on
         .setup(&connect)
         .use_connector(
             &aws,
-            UseRequest::Hosted {
-                credential: None,
-                target: None,
-            },
+            UseRequest::Existing("sess_1"),
             &options(Duration::ZERO),
         )
         .err()
@@ -346,7 +371,7 @@ fn a_hosted_credential_session_without_a_credential_names_the_form_that_sends_on
 
     assert!(
         refused.contains(
-            "`runx connector use runx/aws --hosted --credential access_key (reads AWS_CREDENTIALS, else asks for it)`"
+            "run `runx connector use runx/aws --hosted` (reads AWS_CREDENTIALS, else asks for it)"
         ),
         "{refused}"
     );
@@ -370,10 +395,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         .setup(&connect)
         .use_connector(
             &slack,
-            UseRequest::Hosted {
-                credential: None,
-                target: None,
-            },
+            UseRequest::Hosted { target: None },
             &options(Duration::from_secs(30)),
         )
         .err()
@@ -457,6 +479,28 @@ fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() ->
         ));
     };
     assert_eq!(profile.as_str(), "runx/exa");
+    Ok(())
+}
+
+#[test]
+fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> Result<(), String> {
+    let apollo = source_scope().connector("runx/apollo").unwrap();
+    let project = Project::new();
+    let connect = Connect::new(Value::Null, &[]);
+
+    let instance = selected(
+        project
+            .setup(&connect)
+            .reading_secrets(&|_: &str| Ok("apollo-typed-key".to_owned()))
+            .use_connector(&apollo, UseRequest::Default, &options(Duration::ZERO))?,
+    )?;
+
+    assert!(
+        matches!(instance.authority, InstanceAuthority::Credential { .. }),
+        "{:?}",
+        instance.authority
+    );
+    assert!(connect.sent("/v1/connect/sessions").is_empty());
     Ok(())
 }
 

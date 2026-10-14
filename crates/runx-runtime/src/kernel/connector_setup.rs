@@ -53,13 +53,10 @@ pub enum UseRequest<'a> {
         credential: &'a CredentialName,
         profile: Option<&'a str>,
     },
-    /// A new runx Connect grant: delegated, or holding `credential` when the
-    /// connector's hosted placement takes the user's own, read from its
-    /// variable when that is set, else from the operator.
-    Hosted {
-        credential: Option<&'a CredentialName>,
-        target: Option<&'a str>,
-    },
+    /// A new runx Connect grant: delegated, or holding the one credential the
+    /// connector's hosted placement names, read from its variable when that
+    /// is set, else from the operator.
+    Hosted { target: Option<&'a str> },
 }
 
 /// Asks the operator for a credential whose variable is not set, given what
@@ -141,6 +138,16 @@ impl fmt::Display for SetupForm {
     }
 }
 
+impl SetupForm {
+    /// The form in a refusal: the command quoted so it can be run as given.
+    fn quoted(&self) -> String {
+        match &self.variable {
+            Some(variable) => format!("`{}` (reads {variable}, else asks for it)", self.command),
+            None => format!("`{}`", self.command),
+        }
+    }
+}
+
 /// The commands that set `connector` up, one per way each placement it
 /// declares authorizes it: what `runx connector inspect` lists and what an
 /// ambiguous `runx connector use` offers. A public API needs none: it runs
@@ -153,8 +160,8 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
         command: format!("{use_}{suffix}"),
         variable: None,
     };
-    let credential = |prefix: &str, name: &CredentialName| SetupForm {
-        command: format!("{use_}{prefix} --credential {name}"),
+    let credential = |name: &CredentialName| SetupForm {
+        command: format!("{use_} --credential {name}"),
         variable: manifest
             .auth
             .credentials
@@ -170,28 +177,21 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
                     forms.push(form(" --session".to_owned()));
                 }
                 LocalAuth::Session => {}
-                LocalAuth::Credentials => forms.extend(
-                    manifest
-                        .auth
-                        .credentials
-                        .keys()
-                        .map(|name| credential("", name)),
-                ),
+                LocalAuth::Credentials => {
+                    forms.extend(manifest.auth.credentials.keys().map(credential))
+                }
             }
         }
     }
     if let Some(hosted) = &manifest.placements.hosted {
-        match (hosted.auth, &hosted.credential) {
-            (HostedAuth::Delegated, _) => forms.push(form(" --hosted".to_owned())),
-            (HostedAuth::Credential, Some(name)) => forms.push(credential(" --hosted", name)),
-            (HostedAuth::Credential, None) => forms.extend(
-                manifest
-                    .auth
-                    .credentials
-                    .keys()
-                    .map(|name| credential(" --hosted", name)),
-            ),
-        }
+        forms.push(SetupForm {
+            command: format!("{use_} --hosted"),
+            variable: hosted
+                .credential
+                .as_ref()
+                .and_then(|name| manifest.auth.credentials.get(name))
+                .map(|declaration| declaration.delivery.env.clone()),
+        });
     }
     forms
 }
@@ -285,9 +285,7 @@ impl<'a> ConnectorSetup<'a> {
             } => self
                 .credential(connector, credential, profile, options)
                 .map(selected),
-            UseRequest::Hosted { credential, target } => {
-                self.hosted_grant(connector, credential, target, options)
-            }
+            UseRequest::Hosted { target } => self.hosted_grant(connector, target, options),
         }
     }
 
@@ -384,14 +382,9 @@ impl<'a> ConnectorSetup<'a> {
                 .credential(connector, credential, None, options)
                 .map(|instance| UseOutcome::Selected(Box::new(instance))),
             [Path::Profile(name)] => self.existing(connector, name, options),
-            [Path::Hosted] => self.use_connector(
-                connector,
-                UseRequest::Hosted {
-                    credential: None,
-                    target: None,
-                },
-                options,
-            ),
+            [Path::Hosted] => {
+                self.use_connector(connector, UseRequest::Hosted { target: None }, options)
+            }
             _ => Err(self.choose_message(connector, &paths)),
         }
     }
@@ -427,12 +420,18 @@ impl<'a> ConnectorSetup<'a> {
                 }
             }
         }
-        let delegated = manifest
+        // A delegated grant is the account holder's to authorize; the
+        // operator's own credential goes to Connect only when it has no local
+        // home.
+        let hosted = manifest
             .placements
             .hosted
             .as_ref()
-            .is_some_and(|hosted| hosted.auth == HostedAuth::Delegated);
-        if delegated && self.signed_in() {
+            .is_some_and(|hosted| match hosted.auth {
+                HostedAuth::Delegated => true,
+                HostedAuth::Credential => !local.contains(&LocalAuth::Credentials),
+            });
+        if hosted && self.signed_in() {
             paths.push(Path::Hosted);
         }
         if paths.is_empty() && local.contains(&LocalAuth::None) {
@@ -557,16 +556,7 @@ impl<'a> ConnectorSetup<'a> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        forms.extend(
-            setup_forms(connector)
-                .into_iter()
-                .map(|form| match &form.variable {
-                    Some(variable) => {
-                        format!("`{}` (reads {variable}, else asks for it)", form.command)
-                    }
-                    None => format!("`{}`", form.command),
-                }),
-        );
+        forms.extend(setup_forms(connector).iter().map(SetupForm::quoted));
         let login = match connector.manifest.placements.hosted.is_some() && !self.signed_in() {
             true => "; a hosted form needs `runx login` first",
             false => "",
@@ -668,7 +658,6 @@ impl<'a> ConnectorSetup<'a> {
     fn hosted_grant(
         &self,
         connector: &LoadedConnector,
-        credential: Option<&CredentialName>,
         target: Option<&str>,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
@@ -679,17 +668,14 @@ impl<'a> ConnectorSetup<'a> {
             .hosted
             .as_ref()
             .ok_or_else(|| format!("{} has no hosted placement", connector.connector_ref))?;
-        let credentials = match (hosted.auth, credential) {
-            (HostedAuth::Delegated, None) => None,
-            (HostedAuth::Delegated, Some(_)) => {
+        let credentials = match (hosted.auth, &hosted.credential) {
+            (HostedAuth::Delegated, _) => None,
+            (HostedAuth::Credential, Some(name)) => Some(self.credential_fields(connector, name)?),
+            (HostedAuth::Credential, None) => {
                 return Err(format!(
-                    "{}'s hosted placement is delegated: the account holder authorizes it, so it takes no credential",
+                    "{}'s hosted placement names no credential",
                     connector.connector_ref
                 ));
-            }
-            (HostedAuth::Credential, None) => return Err(needs_credential(connector)),
-            (HostedAuth::Credential, Some(name)) => {
-                Some(self.credential_fields(connector, name, hosted)?)
             }
         };
         let scopes = if options.scopes.is_empty() {
@@ -815,18 +801,7 @@ impl<'a> ConnectorSetup<'a> {
         &self,
         connector: &LoadedConnector,
         name: &CredentialName,
-        hosted: &runx_contracts::connector::HostedPlacement,
     ) -> Result<Value, String> {
-        if let Some(declared) = hosted
-            .credential
-            .as_ref()
-            .filter(|declared| *declared != name)
-        {
-            return Err(format!(
-                "{}'s hosted placement takes credential {declared}, not {name}",
-                connector.connector_ref
-            ));
-        }
         let declaration = declared(connector, name)?;
         let secret = self.secret(connector, name)?;
         let fields = super::operation::credentials::fields(declaration, &secret)
@@ -901,14 +876,15 @@ fn command_session(connector: &LoadedConnector) -> bool {
         .is_some_and(|session| session.kind() == runx_contracts::connector::SessionKind::Command)
 }
 
+/// A Connect session left waiting for a credential: a new one sends it.
 fn needs_credential(connector: &LoadedConnector) -> String {
     let forms = setup_forms(connector)
-        .into_iter()
-        .filter(|form| form.command.contains(" --hosted --credential "))
-        .map(|form| format!("`{form}`"))
+        .iter()
+        .filter(|form| form.command.ends_with(" --hosted"))
+        .map(SetupForm::quoted)
         .collect::<Vec<_>>();
     format!(
-        "{}'s hosted placement takes your own credential; run {}",
+        "{}'s Connect session waits for a credential; run {}",
         connector.connector_ref,
         forms.join(" or ")
     )
