@@ -266,6 +266,7 @@ export {
   type InputResolutionRequestContract,
   type ApprovalResolutionRequestContract,
   type AgentActResolutionRequestContract,
+  type RetryResolutionRequestContract,
   type ResolutionRequestContract,
   type ResolutionResponseContract,
   type ActResultTerminalStatusContract,

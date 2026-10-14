@@ -25,10 +25,22 @@ export type AgentActResolutionRequestContract = DeepReadonly<{
   kind: "agent_act";
   invocation: AgentActInvocationContract;
 }>;
+/**
+ * A step that may have run and whose effect runx could not confirm. Only
+ * `{"retry": true}` under `answers` runs it again with the same input; a
+ * close ends the run with the effect still unconfirmed.
+ */
+export type RetryResolutionRequestContract = DeepReadonly<{
+  id: string;
+  kind: "retry";
+  reason: string;
+  retry_after_seconds: number;
+}>;
 export type ResolutionRequestContract =
   | InputResolutionRequestContract
   | ApprovalResolutionRequestContract
-  | AgentActResolutionRequestContract;
+  | AgentActResolutionRequestContract
+  | RetryResolutionRequestContract;
 
 export const resolutionResponseSchema = generatedSchema("resolution-response.schema.json");
 export type ResolutionResponseContract = DeepReadonly<{
