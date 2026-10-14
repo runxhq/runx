@@ -7,6 +7,9 @@
       "items": {
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "type": "string"
+          },
           "diagnostics": {
             "items": {
               "type": "string"
@@ -80,6 +83,13 @@
           "steps": {
             "minimum": 0,
             "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "internal"
+            ],
+            "type": "string"
           },
           "wraps": {
             "type": "string"

@@ -156,7 +156,7 @@ pub use ledger::{
 pub use links::{DuplicateCandidate, Links};
 pub use list::{
     RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
-    RunxListSchema, RunxListSource, RunxListStatus,
+    RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 pub use native_packets::{
     ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,

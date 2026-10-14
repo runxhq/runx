@@ -14057,6 +14057,9 @@ export const runxSchemaArtifacts = {
         "items": {
           "additionalProperties": false,
           "properties": {
+            "description": {
+              "type": "string"
+            },
             "diagnostics": {
               "items": {
                 "type": "string"
@@ -14130,6 +14133,13 @@ export const runxSchemaArtifacts = {
             "steps": {
               "minimum": 0,
               "type": "integer"
+            },
+            "visibility": {
+              "enum": [
+                "public",
+                "internal"
+              ],
+              "type": "string"
             },
             "wraps": {
               "type": "string"

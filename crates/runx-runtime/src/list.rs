@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 pub use runx_contracts::{
     RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
-    RunxListSchema, RunxListSource, RunxListStatus,
+    RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 use serde::Deserialize;
 
@@ -123,6 +123,8 @@ fn discover_tool_list_items(
                     source: RunxListSource::Local,
                     path: relative_path,
                     status: RunxListStatus::Ok,
+                    visibility: None,
+                    description: None,
                     diagnostics: None,
                     scopes: Some(tool.scopes),
                     emits: tool
@@ -185,6 +187,7 @@ fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>,
         if let Some(manifest) = package.root_manifest() {
             let mut item = skill_profile_list_item(
                 manifest,
+                package.skill.description.clone(),
                 skill.skill_id.clone(),
                 RunxListSource::BuiltIn,
                 package.harness_fixtures.len() as u64,
@@ -220,6 +223,7 @@ fn skill_list_items(
             let profile_path = loaded.package_root.join(profile_relative);
             skill_profile_list_item(
                 manifest,
+                profile_description(&loaded.package, profile_relative),
                 project_path(root, &profile_path),
                 RunxListSource::Local,
                 loaded.package.harness_fixtures.len() as u64,
@@ -228,8 +232,25 @@ fn skill_list_items(
         .collect()
 }
 
+/// The description in a profile's own manual: the package's `SKILL.md` for
+/// the root profile, and the `SKILL.md` beside a nested stage's profile.
+fn profile_description(
+    package: &runx_parser::ValidatedSkillPackage,
+    profile: &str,
+) -> Option<String> {
+    let directory = runx_parser::profile_directory(profile)?;
+    if directory.is_empty() {
+        return package.skill.description.clone();
+    }
+    let manual = package.file_text(&format!("{directory}/SKILL.md"))?;
+    runx_parser::validate_skill(runx_parser::parse_skill_markdown(manual).ok()?)
+        .ok()?
+        .description
+}
+
 fn skill_profile_list_item(
     manifest: &runx_parser::SkillRunnerManifest,
+    description: Option<String>,
     path: String,
     source: RunxListSource,
     fixtures: u64,
@@ -240,6 +261,18 @@ fn skill_profile_list_item(
         source,
         path,
         status: RunxListStatus::Ok,
+        visibility: Some(
+            match manifest
+                .catalog
+                .as_ref()
+                .map_or(runx_parser::CatalogVisibility::Public, |catalog| {
+                    catalog.visibility
+                }) {
+                runx_parser::CatalogVisibility::Public => RunxListVisibility::Public,
+                runx_parser::CatalogVisibility::Internal => RunxListVisibility::Internal,
+            },
+        ),
+        description,
         diagnostics: None,
         scopes: skill_scopes(manifest),
         emits: skill_emits(manifest),
@@ -371,6 +404,8 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 source: RunxListSource::Local,
                 path: relative_path,
                 status: RunxListStatus::Ok,
+                visibility: None,
+                description: None,
                 diagnostics: None,
                 scopes: None,
                 emits: None,
@@ -406,6 +441,8 @@ fn discover_overlay_list_items(root: &Path) -> Result<Vec<RunxListItem>, Runtime
                 source: RunxListSource::Local,
                 path: project_path(root, &profile_path),
                 status: RunxListStatus::Ok,
+                visibility: None,
+                description: None,
                 diagnostics: None,
                 scopes: None,
                 emits: None,
@@ -431,6 +468,8 @@ fn invalid_item(
         source: RunxListSource::Local,
         path,
         status: RunxListStatus::Invalid,
+        visibility: None,
+        description: None,
         diagnostics: Some(vec![diagnostic.to_owned()]),
         scopes: None,
         emits: None,
@@ -611,6 +650,8 @@ mod tests {
             source: RunxListSource::Local,
             path: ".".to_owned(),
             status: RunxListStatus::Ok,
+            visibility: None,
+            description: None,
             diagnostics: None,
             scopes: None,
             emits: None,

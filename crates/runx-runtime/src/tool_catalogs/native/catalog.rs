@@ -191,6 +191,8 @@ fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> R
         source: RunxListSource::BuiltIn,
         path: format!("native:{name}"),
         status: RunxListStatus::Ok,
+        visibility: None,
+        description: None,
         diagnostics: None,
         scopes: (!scopes.is_empty())
             .then(|| scopes.iter().map(|scope| (*scope).to_owned()).collect()),

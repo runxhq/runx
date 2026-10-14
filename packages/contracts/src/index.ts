@@ -309,6 +309,7 @@ export {
   type RunxListRequestedKindContract,
   type RunxListItemKindContract,
   type RunxListSourceContract,
+  type RunxListVisibilityContract,
   type RunxListEmitContract,
   type RunxListItemContract,
   type RunxListReportContract,

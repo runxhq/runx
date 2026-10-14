@@ -16,6 +16,8 @@ export type RunxListRequestedKindContract =
 export type RunxListItemKindContract = "tool" | "skill" | "graph" | "packet" | "overlay";
 export type RunxListSourceContract = "local" | "workspace" | "dependencies" | "built-in";
 export type RunxListStatusContract = "ok" | "invalid";
+/** Whether a host may offer a skill; an internal one, such as a graph stage, runs only within its owner. */
+export type RunxListVisibilityContract = "public" | "internal";
 
 export type RunxListEmitContract = DeepReadonly<{
   name: string;
@@ -28,6 +30,8 @@ export type RunxListItemContract = DeepReadonly<{
   source: RunxListSourceContract;
   path: string;
   status: RunxListStatusContract;
+  visibility?: RunxListVisibilityContract;
+  description?: string;
   diagnostics?: readonly string[];
   scopes?: readonly string[];
   emits?: readonly RunxListEmitContract[];

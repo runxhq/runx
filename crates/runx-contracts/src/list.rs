@@ -52,6 +52,15 @@ pub enum RunxListStatus {
     Invalid,
 }
 
+/// Whether a host may offer a skill to a person or an agent. An internal
+/// skill, such as a graph stage, runs only as part of the skill that owns it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum RunxListVisibility {
+    Public,
+    Internal,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunxListEmit {
@@ -68,6 +77,12 @@ pub struct RunxListItem {
     pub source: RunxListSource,
     pub path: String,
     pub status: RunxListStatus,
+    /// A skill's catalog visibility; public when its manifest declares none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<RunxListVisibility>,
+    /// A skill's description, from the frontmatter of its own `SKILL.md`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
