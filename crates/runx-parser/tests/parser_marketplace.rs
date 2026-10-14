@@ -73,55 +73,54 @@ fn missing_marketplace_keeps_all_runners_free() -> Result<(), String> {
     Ok(())
 }
 
-#[test]
-fn marketplace_accepts_rail_neutral_mediated_endpoint_terms() -> Result<(), String> {
-    let parsed = validate(&manifest(&format!(
+fn prepared(quote: &str) -> String {
+    format!(
         r#"marketplace:
   offers:
     transcribe:
-      amount_minor: 125
       currency: USD
       accepted_settlement_families: [x402]
+      quote: {quote}
+      amount_range: {{minimum_minor: 5, maximum_minor: 20}}
       input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}
-      executor:
-        skill: marketplace-invoke
-        runner: invoke
-        package_digest: {DIGEST_A}
-        execution_closure_digest: {DIGEST_B}
-      mediation:
-        endpoint_url: https://vendor.example/v1/invocations
-        vendor_offer_revision:
-          offer_id: vendor/transcribe
-          revision: vendor-r1
-          revision_digest: {DIGEST_A}
-          input_schema_digest: {DIGEST_A}
-          output_schema_digest: {DIGEST_B}
-        vendor_package_digest: {DIGEST_A}
-        vendor_amount_minor: 100
-        platform_fee_minor: 25
-        currency: USD
-        settlement_family: x402
-        expected_receipt_class: executed"#
-    )))?;
+      output_schema_digest: {DIGEST_B}"#
+    )
+}
+
+#[test]
+fn a_prepared_offer_is_priced_by_a_free_runner_of_the_skill() -> Result<(), String> {
+    let parsed = validate(&manifest(&prepared("preview")))?;
     let offer = &parsed
         .marketplace
         .ok_or_else(|| "missing marketplace".to_owned())?
         .offers["transcribe"];
-    let PaidSkillOfferTerms::Fixed(offer) = offer else {
-        return Err("fixed offer decoded as prepared pricing".to_owned());
+    let PaidSkillOfferTerms::Prepared(offer) = offer else {
+        return Err("a quote and range decoded as a fixed offer".to_owned());
     };
-    let mediation = offer
-        .mediation
-        .as_ref()
-        .ok_or_else(|| "missing mediation".to_owned())?;
-    assert_eq!(
-        mediation.endpoint_url.as_str(),
-        "https://vendor.example/v1/invocations"
+    assert_eq!(offer.quote.as_str(), "preview");
+    assert_eq!(offer.amount_range.minimum_minor.get(), 5);
+    assert_eq!(offer.amount_range.maximum_minor.get(), 20);
+    Ok(())
+}
+
+#[test]
+fn a_quote_names_another_runner_that_is_not_sold() -> Result<(), String> {
+    for quote in ["missing", "transcribe"] {
+        let Err(error) = validate(&manifest(&prepared(quote))) else {
+            return Err(format!("quote {quote} unexpectedly passed"));
+        };
+        assert!(error.contains("must name another runner"), "{error}");
+    }
+    let sold_quote = prepared("preview").replace(
+        "  offers:\n",
+        &format!(
+            "  offers:\n    preview:\n      amount_minor: 1\n      currency: USD\n      accepted_settlement_families: [x402]\n      input_schema_digest: {DIGEST_A}\n      output_schema_digest: {DIGEST_B}\n"
+        ),
     );
-    assert_eq!(mediation.vendor_amount_minor.get(), 100);
-    assert_eq!(mediation.platform_fee_minor.get(), 25);
-    assert_eq!(mediation.settlement_family.as_str(), "x402");
+    let Err(error) = validate(&manifest(&sold_quote)) else {
+        return Err("a sold quote runner unexpectedly passed".to_owned());
+    };
+    assert!(error.contains("a quote is free"), "{error}");
     Ok(())
 }
 
@@ -199,9 +198,15 @@ fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
 }
 
 #[test]
-fn marketplace_rejects_partial_endpoint_execution_binding() -> Result<(), String> {
-    let missing_executor = manifest(&format!(
-        r#"marketplace:
+fn an_offer_names_no_wrapper_that_runs_it() -> Result<(), String> {
+    // A paid skill is bought directly: the terms a wrapper carried are not
+    // part of an offer.
+    for wrapper in [
+        "      mediation: {endpoint_url: https://vendor.example/v1/invocations}",
+        "      executor: {skill: marketplace-invoke, runner: invoke}",
+    ] {
+        let marketplace = format!(
+            r#"marketplace:
   offers:
     transcribe:
       amount_minor: 125
@@ -209,46 +214,12 @@ fn marketplace_rejects_partial_endpoint_execution_binding() -> Result<(), String
       accepted_settlement_families: [x402]
       input_schema_digest: {DIGEST_A}
       output_schema_digest: {DIGEST_B}
-      mediation:
-        endpoint_url: https://vendor.example/v1/invocations
-        vendor_offer_revision:
-          offer_id: vendor/transcribe
-          revision: vendor-r1
-          revision_digest: {DIGEST_A}
-          input_schema_digest: {DIGEST_A}
-          output_schema_digest: {DIGEST_B}
-        vendor_package_digest: {DIGEST_A}
-        vendor_amount_minor: 100
-        platform_fee_minor: 25
-        currency: USD
-        settlement_family: x402
-        expected_receipt_class: executed"#,
-    ));
-    let result = validate(&missing_executor);
-    assert!(matches!(
-        &result,
-        Err(error) if error.contains("must declare executor and mediation together")
-    ));
-
-    let missing_mediation = manifest(&format!(
-        r#"marketplace:
-  offers:
-    transcribe:
-      amount_minor: 125
-      currency: USD
-      accepted_settlement_families: [x402]
-      input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}
-      executor:
-        skill: marketplace-invoke
-        runner: invoke
-        package_digest: {DIGEST_A}
-        execution_closure_digest: {DIGEST_B}"#,
-    ));
-    let result = validate(&missing_mediation);
-    assert!(matches!(
-        &result,
-        Err(error) if error.contains("must declare executor and mediation together")
-    ));
+{wrapper}"#
+        );
+        let Err(error) = validate(&manifest(&marketplace)) else {
+            return Err(format!("{wrapper} unexpectedly passed"));
+        };
+        assert!(error.contains("is invalid"), "{error}");
+    }
     Ok(())
 }

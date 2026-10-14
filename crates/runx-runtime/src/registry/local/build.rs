@@ -4,8 +4,8 @@
 use runx_contracts::maturity::MaturityTier;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    MediationListingRef, OfferRevisionRef, PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers,
-    PaidSkillRunnerOffer, PrincipalReference, RunxPrincipalId, Sha256Digest, sha256_hex,
+    OfferRevisionRef, PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers, PaidSkillRunnerOffer,
+    PrincipalReference, RunxPrincipalId, Sha256Digest, sha256_hex,
 };
 use serde::Deserialize;
 
@@ -144,10 +144,6 @@ fn resolve_paid_listing(
     let runner_offers = offers
         .iter()
         .map(|(runner, terms)| {
-            let listing_ref = MediationListingRef::new(format!(
-                "runx:listing:{skill_id}@{version}#{runner}"
-            ))
-            .ok_or_else(|| invalid_paid_listing("derived listing_ref is invalid"))?;
             let offer = PaidSkillRunnerOffer::from_terms(
                 OfferRevisionRef {
                     offer_id: NonEmptyString::from(format!("{skill_id}#{runner}")),
@@ -156,20 +152,11 @@ fn resolve_paid_listing(
                     input_schema_digest: terms.input_schema_digest().clone(),
                     output_schema_digest: terms.output_schema_digest().clone(),
                 },
-                listing_ref,
                 terms,
-            )
-            .ok_or_else(|| {
-                invalid_paid_listing(
-                    "mediated offer must bind an executor and its total must equal vendor amount plus platform fee in one currency",
-                )
-            })?;
-            Ok::<_, LocalRegistryError>((
-                runner.clone(),
-                offer,
-            ))
+            );
+            (runner.clone(), offer)
         })
-        .collect::<Result<std::collections::BTreeMap<_, _>, _>>()?;
+        .collect::<std::collections::BTreeMap<_, _>>();
     let offers = PaidSkillOffers::new(runner_offers)
         .ok_or_else(|| invalid_paid_listing("offers must contain non-empty runner names"))?;
     Ok(Some(PaidSkillListing {

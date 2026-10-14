@@ -51,31 +51,11 @@ fn options(profile_document: String) -> IngestSkillOptions {
     }
 }
 
-fn mediated_profile(vendor_amount_minor: u64, platform_fee_minor: u64) -> String {
+/// A transcription priced by its input: the free `preview` runner quotes it.
+fn prepared_profile() -> String {
     profile(125).replace(
-        &format!("      output_schema_digest: {DIGEST_B}"),
-        &format!(
-            r#"      output_schema_digest: {DIGEST_B}
-      executor:
-        skill: marketplace-invoke
-        runner: invoke
-        package_digest: {DIGEST_A}
-        execution_closure_digest: {DIGEST_B}
-      mediation:
-        endpoint_url: https://vendor.example/v1/invocations
-        vendor_offer_revision:
-          offer_id: vendor/transcribe
-          revision: vendor-r1
-          revision_digest: {DIGEST_A}
-          input_schema_digest: {DIGEST_A}
-          output_schema_digest: {DIGEST_B}
-        vendor_package_digest: {DIGEST_A}
-        vendor_amount_minor: {vendor_amount_minor}
-        platform_fee_minor: {platform_fee_minor}
-        currency: USD
-        settlement_family: x402
-        expected_receipt_class: executed"#
-        ),
+        "      amount_minor: 125\n",
+        "      quote: preview\n      amount_range: {minimum_minor: 50, maximum_minor: 500}\n",
     )
 }
 
@@ -159,41 +139,27 @@ fn registry_paid_listing_price_change_revisions_profile_not_package()
 }
 
 #[test]
-fn registry_derives_mediated_listing_identity_and_refuses_split_drift()
+fn registry_lists_a_prepared_offer_with_its_quote_runner_and_range()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let store = FileRegistryStore::new(temp.path());
-    let version = ingest_skill_markdown(&store, MARKDOWN, options(mediated_profile(100, 25)))?;
+    let version = ingest_skill_markdown(&store, MARKDOWN, options(prepared_profile()))?;
     let offer = &version
         .paid_listing
         .as_ref()
         .ok_or("missing paid listing")?
         .offers
         .as_map()["transcribe"];
-    let PaidSkillRunnerOffer::Fixed(offer) = offer else {
-        return Err("fixed offer decoded as prepared pricing".into());
+    let PaidSkillRunnerOffer::Prepared(offer) = offer else {
+        return Err("a quoted offer decoded as a fixed price".into());
     };
-    let mediation = offer.mediation.as_ref().ok_or("missing mediation")?;
+    assert_eq!(offer.quote.as_str(), "preview");
     assert_eq!(
-        mediation.listing_ref.as_str(),
-        format!(
-            "runx:listing:acme/transcribe@{}#transcribe",
-            version.version
+        (
+            offer.amount_range.minimum_minor.get(),
+            offer.amount_range.maximum_minor.get()
         ),
-    );
-    assert_eq!(
-        mediation.endpoint_url.as_str(),
-        "https://vendor.example/v1/invocations"
-    );
-
-    let error = match ingest_skill_markdown(&store, MARKDOWN, options(mediated_profile(100, 24))) {
-        Err(error) => error,
-        Ok(_) => return Err("commercial split drift unexpectedly passed".into()),
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("must equal vendor amount plus platform fee")
+        (50, 500)
     );
     Ok(())
 }

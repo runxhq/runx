@@ -17120,143 +17120,6 @@ export const runxSchemaArtifacts = {
                   "pattern": "^[A-Z]{3}$",
                   "type": "string"
                 },
-                "executor": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "execution_closure_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "package_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "runner": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "skill": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "skill",
-                    "runner",
-                    "package_digest",
-                    "execution_closure_digest"
-                  ],
-                  "type": "object"
-                },
-                "mediation": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "currency": {
-                      "pattern": "^[A-Z]{3}$",
-                      "type": "string"
-                    },
-                    "endpoint_url": {
-                      "maxLength": 2048,
-                      "pattern": "^https://[^\\s@/#?]+[^\\s#]*$",
-                      "type": "string"
-                    },
-                    "expected_receipt_class": {
-                      "enum": [
-                        "executed"
-                      ],
-                      "type": "string"
-                    },
-                    "listing_ref": {
-                      "maxLength": 512,
-                      "pattern": "^runx:listing:[^\\s]+$",
-                      "type": "string"
-                    },
-                    "platform_fee_minor": {
-                      "maximum": 9007199254740991,
-                      "minimum": 1,
-                      "type": "integer"
-                    },
-                    "prepared_price": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "input_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "source_invocation_id": {
-                          "maxLength": 128,
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "source_invocation_id",
-                        "input_digest"
-                      ],
-                      "type": "object"
-                    },
-                    "settlement_family": {
-                      "maxLength": 64,
-                      "minLength": 1,
-                      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                      "type": "string"
-                    },
-                    "vendor_amount_minor": {
-                      "maximum": 9007199254740991,
-                      "minimum": 1,
-                      "type": "integer"
-                    },
-                    "vendor_offer_revision": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "input_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "offer_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "output_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "revision": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "revision_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "offer_id",
-                        "revision",
-                        "revision_digest",
-                        "input_schema_digest",
-                        "output_schema_digest"
-                      ],
-                      "type": "object"
-                    },
-                    "vendor_package_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "listing_ref",
-                    "endpoint_url",
-                    "vendor_offer_revision",
-                    "vendor_package_digest",
-                    "vendor_amount_minor",
-                    "platform_fee_minor",
-                    "currency",
-                    "settlement_family",
-                    "expected_receipt_class"
-                  ],
-                  "type": "object"
-                },
                 "offer_revision": {
                   "additionalProperties": false,
                   "properties": {
@@ -17378,142 +17241,29 @@ export const runxSchemaArtifacts = {
                   "type": "array",
                   "uniqueItems": true
                 },
-                "currency": {
-                  "pattern": "^[A-Z]{3}$",
-                  "type": "string"
-                },
-                "executor": {
+                "amount_range": {
                   "additionalProperties": false,
                   "properties": {
-                    "execution_closure_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "package_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
-                    },
-                    "runner": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "skill": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "skill",
-                    "runner",
-                    "package_digest",
-                    "execution_closure_digest"
-                  ],
-                  "type": "object"
-                },
-                "mediation": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "currency": {
-                      "pattern": "^[A-Z]{3}$",
-                      "type": "string"
-                    },
-                    "endpoint_url": {
-                      "maxLength": 2048,
-                      "pattern": "^https://[^\\s@/#?]+[^\\s#]*$",
-                      "type": "string"
-                    },
-                    "expected_receipt_class": {
-                      "enum": [
-                        "executed"
-                      ],
-                      "type": "string"
-                    },
-                    "listing_ref": {
-                      "maxLength": 512,
-                      "pattern": "^runx:listing:[^\\s]+$",
-                      "type": "string"
-                    },
-                    "platform_fee_minor": {
+                    "maximum_minor": {
                       "maximum": 9007199254740991,
                       "minimum": 1,
                       "type": "integer"
                     },
-                    "settlement_family": {
-                      "maxLength": 64,
-                      "minLength": 1,
-                      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                      "type": "string"
-                    },
-                    "vendor_amount_range": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "maximum_minor": {
-                          "maximum": 9007199254740991,
-                          "minimum": 1,
-                          "type": "integer"
-                        },
-                        "minimum_minor": {
-                          "maximum": 9007199254740991,
-                          "minimum": 1,
-                          "type": "integer"
-                        }
-                      },
-                      "required": [
-                        "minimum_minor",
-                        "maximum_minor"
-                      ],
-                      "type": "object"
-                    },
-                    "vendor_offer_revision": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "input_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "offer_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "output_schema_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        },
-                        "revision": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "revision_digest": {
-                          "pattern": "^sha256:[0-9a-f]{64}$",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "offer_id",
-                        "revision",
-                        "revision_digest",
-                        "input_schema_digest",
-                        "output_schema_digest"
-                      ],
-                      "type": "object"
-                    },
-                    "vendor_package_digest": {
-                      "pattern": "^sha256:[0-9a-f]{64}$",
-                      "type": "string"
+                    "minimum_minor": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
                     }
                   },
                   "required": [
-                    "listing_ref",
-                    "endpoint_url",
-                    "vendor_amount_range",
-                    "vendor_offer_revision",
-                    "vendor_package_digest",
-                    "platform_fee_minor",
-                    "currency",
-                    "settlement_family",
-                    "expected_receipt_class"
+                    "minimum_minor",
+                    "maximum_minor"
                   ],
                   "type": "object"
+                },
+                "currency": {
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
                 },
                 "offer_revision": {
                   "additionalProperties": false,
@@ -17611,14 +17361,18 @@ export const runxSchemaArtifacts = {
                     "output_schema"
                   ],
                   "type": "object"
+                },
+                "quote": {
+                  "minLength": 1,
+                  "type": "string"
                 }
               },
               "required": [
                 "offer_revision",
                 "currency",
                 "accepted_settlement_families",
-                "mediation",
-                "executor"
+                "quote",
+                "amount_range"
               ],
               "type": "object"
             }

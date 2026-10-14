@@ -284,12 +284,25 @@ fn validate_marketplace(
         .map_err(|error| {
             FIELDS.validation_error(format!("marketplace.offers.{runner} is invalid: {error}"))
         })?;
-        if !terms.mediation_and_executor_are_consistent() {
+        offers.insert(runner.clone(), terms);
+    }
+    // A prepared offer is priced by another runner of the package: a free one,
+    // since a quote is never bought.
+    for (runner, terms) in &offers {
+        let PaidSkillOfferTerms::Prepared(prepared) = terms else {
+            continue;
+        };
+        let quote = prepared.quote.as_str();
+        if quote == runner || !runners.contains_key(quote) {
             return Err(FIELDS.validation_error(format!(
-                "marketplace.offers.{runner} must declare executor and mediation together."
+                "marketplace.offers.{runner}.quote must name another runner of this skill."
             )));
         }
-        offers.insert(runner.clone(), terms);
+        if offers.contains_key(quote) {
+            return Err(FIELDS.validation_error(format!(
+                "marketplace.offers.{runner}.quote names {quote}, which is sold; a quote is free."
+            )));
+        }
     }
     Ok(Some(MarketplaceManifest { offers }))
 }

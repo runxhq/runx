@@ -222,11 +222,10 @@ pub use paid_invocation_fingerprint::{
     quote_paid_invocation_binding,
 };
 pub use paid_skill_listing::{
-    PAID_SKILL_LISTING_SCHEMA, PaidSkillExecutorBinding, PaidSkillFixedOfferTerms,
-    PaidSkillFixedRunnerOffer, PaidSkillListing, PaidSkillMediationTerms, PaidSkillOfferTerms,
-    PaidSkillOffers, PaidSkillPreparedMediation, PaidSkillPreparedMediationTerms,
-    PaidSkillPreparedOfferTerms, PaidSkillPreparedRunnerOffer, PaidSkillRunnerOffer,
-    PaidSkillVendorAmountRange,
+    PAID_SKILL_LISTING_SCHEMA, PaidSkillAmountRange, PaidSkillExecutorBinding,
+    PaidSkillFixedOfferTerms, PaidSkillFixedRunnerOffer, PaidSkillListing, PaidSkillOfferTerms,
+    PaidSkillOffers, PaidSkillPreparedOfferTerms, PaidSkillPreparedRunnerOffer,
+    PaidSkillRunnerOffer,
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use receipt::{
