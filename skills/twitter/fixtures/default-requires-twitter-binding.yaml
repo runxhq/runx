@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [moltbook, ecosystem-brief]
+    confusors: [moltbook, deep-research]
     request: Read the bounded current snapshot for this X account.
     expected_outcome: Use the live account read runner by default and return bounded provider evidence through the account's bound credential.
 inputs:

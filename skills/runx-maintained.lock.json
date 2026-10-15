@@ -113,7 +113,7 @@
   },
   {
     "skill_id": "runx/github-pr-review",
-    "version": "sha-71a85ce3c65a",
+    "version": "sha-d1200f465094",
     "digest": "b29f742ca22d68c8609bd0895ab213e0f2e232c86ac5136dbea2aef24fd9d62e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -218,7 +218,7 @@
   },
   {
     "skill_id": "runx/moltbook",
-    "version": "sha-fd25274fecc2",
+    "version": "sha-decb59ad3368",
     "digest": "2eb50b350e557c70875a5e9114c3d50de14f58163f78b32407a95c13057de5ff",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -421,7 +421,7 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-6fe146ae9b64",
+    "version": "sha-43f7b19bd360",
     "digest": "aa78eb16d5f39304172319d4130affeba61c1e5bce7b573f615860541d43cb00",
     "catalog_visibility": "public",
     "catalog_role": "branded"

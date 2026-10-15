@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [ecosystem-brief, research]
+    confusors: [deep-research, research]
     request: Scan Moltbook for current credible opportunities relevant to Runx builders.
     expected_outcome: Read the configured feed once and return a fresh evidence-bound opportunity packet without posting.
 inputs:
