@@ -418,9 +418,11 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             attempt: 1,
             turn: &turn,
             index,
+            call_id: None,
             target: &target,
             input: &input,
             outcome,
+            outputs: &[],
             answers: &[],
         })
         .unwrap();
@@ -451,9 +453,11 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         attempt: 1,
         turn: &turn,
         index: 1,
+        call_id: None,
         target: &target,
         input: &input,
         outcome: &CallOutcome::Completed(Box::new(step("run_turn_1", "answer/1"))),
+        outputs: &[],
         answers: &[],
     })
     .unwrap();
@@ -473,9 +477,11 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         attempt: 1,
         turn: &turn,
         index: 2,
+        call_id: None,
         target: &target,
         input: &input,
         outcome: &CallOutcome::Refused("not in the turn's allowance".to_owned()),
+        outputs: &[],
         answers: &[],
     })
     .unwrap();
@@ -520,6 +526,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             attempt: 1,
             turn: &child_turn,
             index: 0,
+            call_id: None,
             target: &TurnTarget::Ask,
             input: &JsonObject::new(),
             outcome: &CallOutcome::Pending(PendingRequest {
@@ -527,6 +534,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
                 value: serde_json::from_value(serde_json::to_value(&ask).unwrap()).unwrap(),
                 digest: request_digest(&ask).unwrap(),
             }),
+            outputs: &[],
             answers: &[],
         })
         .unwrap();
@@ -535,11 +543,13 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         attempt: 1,
         turn: &turn,
         index: 0,
+        call_id: None,
         target: &TurnTarget::Skill {
             skill: "./report".into(),
         },
         input: &JsonObject::new(),
         outcome: &CallOutcome::Child(child.run_id().to_owned()),
+        outputs: &[],
         answers: &[],
     })
     .unwrap();

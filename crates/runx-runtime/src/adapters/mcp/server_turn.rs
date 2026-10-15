@@ -40,7 +40,7 @@ impl McpServerOptions {
             })
             .unwrap_or_default();
         let instructions = format!(
-            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema and the tools it offers. Make each call with turn_call, naming one of those tools and its input; runx admits, executes and records it. End a turn with turn_complete and its output. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
+            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema and the tools it offers. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
             session.run_id()
         );
         Self {
@@ -57,13 +57,15 @@ impl McpServerOptions {
 /// names take that run's id beside the turn's address.
 pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
     let named = matches!(runs, McpTurnRuns::Named(_));
-    let fields = |extra: &[(&str, JsonValue)]| {
+    let fields = |extra: &[(&str, JsonValue)], optional: &[(&str, JsonValue)]| {
         let mut fields = Vec::new();
         if named {
             fields.push(("run", string_schema()));
         }
         fields.extend(extra.iter().cloned());
-        object_schema(&fields)
+        let required = fields.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+        fields.extend(optional.iter().cloned());
+        object_schema(&fields, &required)
     };
     let turn = || ("turn", string_schema());
     [
@@ -71,29 +73,44 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
             McpTurnAction::List,
             "turn_list",
             "What the run waits on: each open turn's act, whose id is the turn's address, and each ask, approval or retry beneath them.",
-            fields(&[]),
+            fields(&[], &[]),
         ),
         (
             McpTurnAction::Status,
             "turn_status",
             "Read an open turn: its instructions, inputs and output schema, the tools it offers with their input schemas, and how each call it made so far ended.",
-            fields(&[turn()]),
+            fields(&[turn()], &[]),
         ),
         (
             McpTurnAction::Call,
             "turn_call",
-            "Make a call in an open turn: one of the tools its status lists, by name, with its input. A call that waits on a human, or on a turn of its own, returns pending with what it waits on.",
-            fields(&[
-                turn(),
-                ("tool", string_schema()),
-                ("input", any_object_schema()),
-            ]),
+            "Make a call in an open turn: one of the tools its status lists, by name, with its input. Pin your own call_id on it, unique within the turn: a call made again with that id returns the recorded call, and one with another tool or input is refused. A call that waits on a human, or on a turn of its own, returns pending with what it waits on.",
+            fields(
+                &[
+                    turn(),
+                    ("tool", string_schema()),
+                    ("input", any_object_schema()),
+                ],
+                &[("call_id", string_schema())],
+            ),
         ),
         (
             McpTurnAction::Complete,
             "turn_complete",
-            "End an open turn with its output, which must match the turn's output schema; the run continues. A turn whose calls have not settled cannot end.",
-            fields(&[turn(), ("output", any_object_schema())]),
+            "End an open turn with its output, which must match the turn's output schema, or with a failure and its reason when the act cannot be done; the run continues. A turn whose calls have not settled cannot end.",
+            fields(
+                &[turn()],
+                &[
+                    ("output", any_object_schema()),
+                    (
+                        "failure",
+                        JsonValue::Object(object_schema(
+                            &[("reason", string_schema())],
+                            &["reason"],
+                        )),
+                    ),
+                ],
+            ),
         ),
     ]
     .into_iter()
@@ -163,8 +180,12 @@ pub(super) fn execute_mcp_turn_tool(
         McpTurnAction::Call => text(&arguments, "turn").and_then(|turn| {
             let tool = text(&arguments, "tool")?;
             let input = object(&arguments, "input")?;
+            let call_id = arguments
+                .contains_key("call_id")
+                .then(|| text(&arguments, "call_id"))
+                .transpose()?;
             session
-                .call(turn, tool, input)
+                .call(turn, tool, call_id, input)
                 .map(|call| {
                     let failed = matches!(
                         call.outcome,
@@ -175,9 +196,15 @@ pub(super) fn execute_mcp_turn_tool(
                 .map_err(|error| error.to_string())
         }),
         McpTurnAction::Complete => text(&arguments, "turn").and_then(|turn| {
-            let output = object(&arguments, "output")?;
-            session
-                .complete(turn, output)
+            let ended = match (arguments.get("output"), arguments.get("failure")) {
+                (Some(_), None) => session.complete(turn, object(&arguments, "output")?),
+                (None, Some(_)) => {
+                    let failure = object(&arguments, "failure")?;
+                    session.fail(turn, text(&failure, "reason")?)
+                }
+                _ => return Err("turn_complete takes its output or a failure, not both".to_owned()),
+            };
+            ended
                 .map(|result| {
                     super::server::mcp_tool_result_from_run_result(result, session.receipt_dir())
                 })
@@ -244,14 +271,14 @@ fn any_object_schema() -> JsonValue {
     )]))
 }
 
-fn object_schema(properties: &[(&str, JsonValue)]) -> JsonObject {
+fn object_schema(properties: &[(&str, JsonValue)], required: &[&str]) -> JsonObject {
     let properties = properties
         .iter()
         .map(|(name, schema)| ((*name).to_owned(), schema.clone()))
         .collect::<JsonObject>();
-    let required = properties
-        .keys()
-        .map(|name| JsonValue::String(name.clone()))
+    let required = required
+        .iter()
+        .map(|name| JsonValue::String((*name).to_owned()))
         .collect();
     JsonObject::from([
         ("type".to_owned(), JsonValue::String("object".to_owned())),

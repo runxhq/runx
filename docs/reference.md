@@ -112,8 +112,12 @@ printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
 `runx resume` continues a paused run from its run record. A host reads a run
 with `runx history <run-id> --json` (`runx.run_read.v1`): its state, every
 request it waits on with the digest an answer binds to, whether a process
-drives it, and its events stream by stream. The read's `cursor`, passed back
-as `--after`, returns only what followed. A sealed run is
+drives it, and its events stream by stream. A turn call's event carries the
+`call_id` its host pinned, and its outcome: a completed call's output as
+project artifacts of the run (one per packet output, named, and one for the
+rest, each with its digest and media type), and a refused or failed call's
+reason, so a host reads every call's outcome from the run alone. The read's
+`cursor`, passed back as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx history <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
 receipts if you need to compare the outcomes. The current CLI has no standalone
@@ -175,13 +179,19 @@ its skill's limits (`tools:`, `skills:`, connector operations, and
 `ask_human` when the skill declares `asks: true`), with their input schemas.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
+A host pins its own `call_id` on a call, unique within the turn: a call made
+again with that id returns the recorded call rather than running twice, and one
+naming another tool or input is refused. A skill call states its `act` beside
+the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
 runx cannot confirm stays pending on its own retry request until `runx resume`
 answers that request with `{"retry": true}`, which runs the call again with the
 same input. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
-and the run continues. A run whose host authority sets `max_fanout` or
+and the run continues; an act that cannot be done ends with
+`{"failure": {"reason": ...}}` instead, which fails its step with that reason,
+and a skill call whose child act failed settles failed with it. A run whose host authority sets `max_fanout` or
 `max_child_depth` refuses a skill call that would start more child runs in one
 turn, or nest them deeper, than it allows. A host whose own agent works the run
 sets `agent_bounds`, which keeps the run's file, git, command and authoring

@@ -4,6 +4,7 @@ import {
   validateContractSchema,
 } from "../internal.js";
 import type { ResolutionRequestContract } from "./resolution.js";
+import type { ProjectArtifactRefContract } from "./skill-output.js";
 import type { ClosureDispositionContract } from "./spine.js";
 import type { TurnTargetContract } from "./turn.js";
 
@@ -24,9 +25,22 @@ export type RunHoldContract = DeepReadonly<
   | { kind: "child"; run_id: string }
 >;
 
+/** A project artifact holding part of a call's output: a packet output by name, or the rest. */
+export type RunCallOutputContract = DeepReadonly<{
+  output?: string;
+  artifact: ProjectArtifactRefContract;
+}>;
+
 export type RunCallOutcomeContract = DeepReadonly<
-  | { status: "completed"; succeeded: boolean; receipt_id: string }
-  | { status: "refused" | "failed" }
+  | {
+      status: "completed";
+      succeeded: boolean;
+      receipt_id: string;
+      outputs?: readonly RunCallOutputContract[];
+      /** Why a call that ran did not succeed. */
+      reason?: string;
+    }
+  | { status: "refused" | "failed"; reason: string }
   | { status: "pending" | "claimed"; address: string; request_digest: string }
   | { status: "child"; run_id: string }
 >;
@@ -45,6 +59,8 @@ export type RunEventFactContract = DeepReadonly<
       index: number;
       target: TurnTargetContract;
       input_digest: string;
+      /** The id its host pinned on the call. */
+      call_id?: string;
       outcome: RunCallOutcomeContract;
     }
   | { kind: "sealed"; disposition: ClosureDispositionContract; receipt_id: string }

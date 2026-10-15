@@ -259,8 +259,8 @@ pub use registry_version::{
 pub use resume::{BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose};
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
 pub use run_read::{
-    RunCallOutcome, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead, RunReadSchema,
-    RunReadSummary, RunState, WaitedRequest,
+    RunCallOutcome, RunCallOutput, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead,
+    RunReadSchema, RunReadSummary, RunState, WaitedRequest,
 };
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,

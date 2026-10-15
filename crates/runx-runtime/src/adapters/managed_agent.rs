@@ -174,7 +174,7 @@ impl ToolExecutor for TurnCalls<'_> {
             )
         })?;
         let input = input.as_object().cloned().unwrap_or_default();
-        let result = self.turn.call(&mut *self.host, target, input)?;
+        let result = self.turn.call(&mut *self.host, None, target, input)?;
         let is_error = match &result.outcome {
             TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
             TurnCallOutcome::Completed { .. } => false,

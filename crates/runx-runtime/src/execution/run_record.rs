@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 pub use runx_contracts::RunState;
 use runx_contracts::{
     CallAct, ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
-    RunDriver, TurnTarget,
+    RunCallOutput, RunDriver, TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -220,6 +220,9 @@ struct CallEvent {
     /// what it waits on.
     turn: TurnRequestEvent,
     index: u32,
+    /// The id its host pinned on the call, unique within its turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    call_id: Option<String>,
     target: TurnTarget,
     /// Blob: the call's input.
     input: String,
@@ -241,12 +244,15 @@ struct TurnRequestEvent {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum CallOutcomeEvent {
-    /// The call ran as a step: blobs of its record and receipts.
+    /// The call ran as a step: blobs of its record and receipts, and its
+    /// output as the project artifacts a host reads it from.
     Completed {
         record: String,
         receipt: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         nested: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        outputs: Vec<RunCallOutput>,
     },
     /// Admission refused the call; nothing ran.
     Refused { reason: String },
@@ -340,6 +346,7 @@ pub(crate) struct RecordedCall {
     pub step_id: String,
     pub attempt: u32,
     pub index: u32,
+    pub call_id: Option<String>,
     pub target: TurnTarget,
     pub input: JsonObject,
     pub outcome: CallOutcome,
@@ -364,9 +371,12 @@ pub(crate) struct CallRecord<'a> {
     pub attempt: u32,
     pub turn: &'a PendingRequest,
     pub index: u32,
+    pub call_id: Option<&'a str>,
     pub target: &'a TurnTarget,
     pub input: &'a JsonObject,
     pub outcome: &'a CallOutcome,
+    /// A completed call's output, persisted as project artifacts.
+    pub outputs: &'a [RunCallOutput],
     pub answers: &'a [Answer],
 }
 
@@ -812,6 +822,7 @@ impl RunLog {
                     record: record.digest().to_owned(),
                     receipt: receipt.digest().to_owned(),
                     nested: nested.iter().map(|blob| blob.digest().to_owned()).collect(),
+                    outputs: call.outputs.to_vec(),
                 };
                 blobs.extend([record, receipt]);
                 blobs.extend(nested);
@@ -861,6 +872,7 @@ impl RunLog {
                 digest: call.turn.digest.clone(),
             },
             index: call.index,
+            call_id: call.call_id.map(str::to_owned),
             target: call.target.clone(),
             input: blobs[1].digest().to_owned(),
             outcome,
@@ -1298,6 +1310,7 @@ fn recorded_call(store: &KernelStore, call: CallEvent) -> Result<RecordedCall, R
         step_id: call.step_id,
         attempt: call.attempt,
         index: call.index,
+        call_id: call.call_id,
         target: call.target,
     })
 }
@@ -1308,6 +1321,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             record,
             receipt,
             nested,
+            ..
         } => CallOutcome::Completed(Box::new(step_run(
             store,
             StepEvent {

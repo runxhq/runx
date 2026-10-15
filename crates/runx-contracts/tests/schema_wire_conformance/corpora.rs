@@ -2528,16 +2528,42 @@ pub(super) fn run_event_corpus() -> Vec<(&'static str, Value)> {
             ),
         ),
         (
-            "a refused call carries no reason",
-            set_field(
-                valid.clone(),
-                "event",
-                json!({
-                    "kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0,
-                    "target": { "kind": "ask" }, "input_digest": "sha256:input",
-                    "outcome": { "status": "refused", "reason": "not allowed" },
-                }),
-            ),
+            "valid refused call with its reason",
+            event(json!({
+                "kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0,
+                "target": { "kind": "ask" }, "input_digest": "sha256:input",
+                "outcome": { "status": "refused", "reason": "not allowed" },
+            })),
+        ),
+        (
+            "valid completed call with its pinned id and output artifacts",
+            event(json!({
+                "kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 1,
+                "target": { "kind": "tool", "tool": "fs.read" }, "input_digest": "sha256:input",
+                "call_id": "toolu_1",
+                "outcome": {
+                    "status": "completed", "succeeded": true, "receipt_id": "sha256:step",
+                    "outputs": [{
+                        "output": "file_read",
+                        "artifact": {
+                            "schema": "runx.project_artifact_ref.v1",
+                            "ref": "runx:project-artifact:sha256:out",
+                            "digest": "sha256:out",
+                            "bytes": 12,
+                            "media_type": "application/json",
+                            "path": "/project/.runx/artifacts/skill-runs/run_1/calls/draft_1-file_read-out.json",
+                        },
+                    }],
+                },
+            })),
+        ),
+        (
+            "a refused call without its reason",
+            event(json!({
+                "kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0,
+                "target": { "kind": "ask" }, "input_digest": "sha256:input",
+                "outcome": { "status": "refused" },
+            })),
         ),
         ("unknown kind", event(json!({ "kind": "replayed" }))),
         ("missing stream", drop_field(valid.clone(), "stream")),

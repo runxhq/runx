@@ -24,7 +24,7 @@ use super::{
     CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest, standing,
     validate_run_id, waiting_requests,
 };
-use crate::adapter::InvocationStatus;
+use crate::execution::runner::StepOutcome;
 use crate::kernel::store::{KernelStore, Recorded};
 use crate::paths::RunxPaths;
 
@@ -179,12 +179,7 @@ fn stream_key(run_id: &str, relative: &str) -> String {
 /// The part of a step record a read reports.
 #[derive(Deserialize)]
 struct StepStatus {
-    outcome: OutcomeStatus,
-}
-
-#[derive(Deserialize)]
-struct OutcomeStatus {
-    status: InvocationStatus,
+    outcome: StepOutcome,
 }
 
 /// The part of a receipt a read reports.
@@ -198,14 +193,12 @@ fn project(
     stream: &str,
     recorded: Recorded<RunEvent>,
 ) -> Result<RunEventRecord, RunRecordError> {
-    let step = |record: &str, receipt: &str| -> Result<(bool, NonEmptyString), RunRecordError> {
-        let status: StepStatus = store.blob_json(record)?;
-        let receipt: ReceiptId = store.blob_json(receipt)?;
-        Ok((
-            status.outcome.status == InvocationStatus::Success,
-            receipt.id.into(),
-        ))
-    };
+    let step =
+        |record: &str, receipt: &str| -> Result<(StepOutcome, NonEmptyString), RunRecordError> {
+            let status: StepStatus = store.blob_json(record)?;
+            let receipt: ReceiptId = store.blob_json(receipt)?;
+            Ok((status.outcome, receipt.id.into()))
+        };
     let event = match recorded.event {
         RunEvent::Started(started) => RunEventFact::Started {
             skill: started.skill.into(),
@@ -220,11 +213,11 @@ fn project(
             return Err(invalid(stream, "an evaluation inside a run".to_owned()));
         }
         RunEvent::Step(event) => {
-            let (succeeded, receipt_id) = step(&event.record, &event.receipt)?;
+            let (outcome, receipt_id) = step(&event.record, &event.receipt)?;
             RunEventFact::Step {
                 step_id: event.step_id.into(),
                 attempt: event.attempt,
-                succeeded,
+                succeeded: outcome.succeeded(),
                 receipt_id,
             }
         }
@@ -262,16 +255,26 @@ fn project(
             let input: JsonObject = store.blob_json(&call.input)?;
             let outcome = match call.outcome {
                 CallOutcomeEvent::Completed {
-                    record, receipt, ..
+                    record,
+                    receipt,
+                    outputs,
+                    ..
                 } => {
-                    let (succeeded, receipt_id) = step(&record, &receipt)?;
+                    let (outcome, receipt_id) = step(&record, &receipt)?;
                     RunCallOutcome::Completed {
-                        succeeded,
+                        succeeded: outcome.succeeded(),
                         receipt_id,
+                        outputs,
+                        reason: (!outcome.succeeded())
+                            .then(|| reason(outcome.failure_message().unwrap_or_default())),
                     }
                 }
-                CallOutcomeEvent::Refused { .. } => RunCallOutcome::Refused,
-                CallOutcomeEvent::Failed { .. } => RunCallOutcome::Failed,
+                CallOutcomeEvent::Refused { reason: why } => RunCallOutcome::Refused {
+                    reason: reason(why),
+                },
+                CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
+                    reason: reason(why),
+                },
                 CallOutcomeEvent::Pending {
                     request_id, digest, ..
                 } => RunCallOutcome::Pending {
@@ -295,6 +298,7 @@ fn project(
                 index: call.index,
                 target: call.target,
                 input_digest: input_digest(&input)?.into(),
+                call_id: call.call_id.map(Into::into),
                 outcome,
             }
         }
@@ -309,6 +313,11 @@ fn project(
         committed_at: recorded.committed_at.into(),
         event,
     })
+}
+
+/// A recorded reason, which is never empty on the wire.
+fn reason(text: String) -> NonEmptyString {
+    NonEmptyString::new(text).unwrap_or_else(|| "the call gave no reason".into())
 }
 
 fn invalid(run_id: &str, reason: String) -> RunRecordError {

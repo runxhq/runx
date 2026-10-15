@@ -741,6 +741,44 @@ mod tests {
         let Some(McpServerToolBehavior::Turn(complete)) = tool("turn_complete") else {
             return Err("expected the turn_complete tool".into());
         };
+        // A turn ends with its output or a failure, never both; a call's id
+        // is the host's to pin or leave out.
+        let both = super::super::server_turn::execute_mcp_turn_tool(
+            &complete,
+            [
+                ("run".to_owned(), JsonValue::String(run_id.clone())),
+                ("turn".to_owned(), JsonValue::String("default".to_owned())),
+                ("output".to_owned(), JsonValue::Object(JsonObject::new())),
+                (
+                    "failure".to_owned(),
+                    JsonValue::Object(
+                        [("reason".to_owned(), JsonValue::String("no".to_owned()))].into(),
+                    ),
+                ),
+            ]
+            .into(),
+            &state.served_run_prefix(),
+        );
+        assert!(both.is_error, "{both:?}");
+        let call_schema = state
+            .options
+            .tools
+            .iter()
+            .find(|tool| tool.name == "turn_call")
+            .map(|tool| tool.input_schema.clone())
+            .ok_or("expected the turn_call tool")?;
+        assert!(
+            call_schema
+                .get("properties")
+                .and_then(JsonValue::as_object)
+                .is_some_and(|properties| properties.contains_key("call_id"))
+        );
+        assert!(
+            !call_schema
+                .get("required")
+                .and_then(JsonValue::as_array)
+                .is_some_and(|required| required.contains(&JsonValue::String("call_id".to_owned())))
+        );
         let completed = super::super::server_turn::execute_mcp_turn_tool(
             &complete,
             [

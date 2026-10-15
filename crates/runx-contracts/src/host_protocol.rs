@@ -198,6 +198,10 @@ pub struct TurnCallResult {
     /// (`runx.stable-json.v1`), so a host that recorded a call before making
     /// it can prove which call sits at this index.
     pub input_digest: NonEmptyString,
+    /// The id its host pinned on the call, unique within its turn: a call
+    /// made again with it returns this call rather than running twice.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub call_id: Option<NonEmptyString>,
     pub outcome: TurnCallOutcome,
 }
 

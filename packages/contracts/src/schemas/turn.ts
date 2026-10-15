@@ -30,11 +30,14 @@ export type TurnCallOutcomeContract = DeepReadonly<
  * One call an agent made in its turn, and how it ended. `input_digest` is
  * `sha256:` over the canonical JSON of the call's input, so a host that
  * recorded a call before making it can prove which call sits at an index.
+ * `call_id` is the id its host pinned on it, unique within the turn: a call
+ * made again with it returns this call rather than running twice.
  */
 export type TurnCallContract = DeepReadonly<{
   index: number;
   target: TurnTargetContract;
   input_digest: string;
+  call_id?: string;
   outcome: TurnCallOutcomeContract;
 }>;
 

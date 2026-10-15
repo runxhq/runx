@@ -85,15 +85,18 @@ impl TurnSession {
     }
 
     /// Make the call the turn at `turn` offers as `tool`; the run admits,
-    /// executes and records it.
+    /// executes and records it. A `call_id` pins the call: made again with
+    /// it, the recorded call returns rather than running twice.
     pub fn call(
         &self,
         turn: &str,
         tool: &str,
+        call_id: Option<&str>,
         input: JsonObject,
     ) -> Result<TurnCallResult, SkillRunError> {
         let action = TurnAction::Call {
             tool: tool.to_owned(),
+            call_id: call_id.map(str::to_owned),
             input,
         };
         match self.act(turn, action)?.0 {
@@ -106,6 +109,15 @@ impl TurnSession {
     /// as far as it goes.
     pub fn complete(&self, turn: &str, output: JsonObject) -> Result<RunResult, SkillRunError> {
         Ok(self.act(turn, TurnAction::Complete(output))?.1)
+    }
+
+    /// End the act of the turn at `turn` as failed, saying why; its step
+    /// fails and the run continues as far as that goes.
+    pub fn fail(&self, turn: &str, reason: &str) -> Result<RunResult, SkillRunError> {
+        if reason.trim().is_empty() {
+            return Err(invalid("a failed act says why"));
+        }
+        Ok(self.act(turn, TurnAction::Fail(reason.to_owned()))?.1)
     }
 
     /// Drive the run to the turn at `turn` and do `action` there.
@@ -263,6 +275,7 @@ mod tests {
             attempt: 1,
             turn: &turn,
             index: 0,
+            call_id: None,
             target: &TurnTarget::Tool {
                 tool: "data.digest".into(),
             },
@@ -274,6 +287,7 @@ mod tests {
                 value: serde_json::from_value(serde_json::to_value(&retry)?)?,
                 digest: request_digest(&retry)?,
             }),
+            outputs: &[],
             answers: &[],
         })?;
         Ok((run_id, log))
@@ -349,6 +363,91 @@ mod tests {
             )]),
         )?;
         assert!(sealed.succeeded(), "{:?}", sealed.output);
+        Ok(())
+    }
+
+    #[test]
+    fn a_skill_calls_act_is_its_child_runs_act() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let child = root.join("child");
+        fs::create_dir_all(&child)?;
+        fs::write(
+            child.join("SKILL.md"),
+            "---\nname: child\ndescription: Digests.\n---\n# Child\n\nDigest.\n",
+        )?;
+        fs::write(
+            child.join("run.yaml"),
+            "skill: child\nrunners:\n  digest:\n    default: true\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: child\n          encoding: utf8_text\n",
+        )?;
+        let skill = root.join("parent");
+        fs::create_dir_all(&skill)?;
+        fs::write(
+            skill.join("SKILL.md"),
+            "---\nname: parent\ndescription: Calls its child.\n---\n# Parent\n\nCall the child, then answer.\n",
+        )?;
+        fs::write(
+            skill.join("run.yaml"),
+            "skill: parent\nskills: [../child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        )?;
+        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        })?;
+        let run_id = started
+            .output
+            .as_object()
+            .and_then(|output| output.get("run_id"))
+            .and_then(JsonValue::as_str)
+            .ok_or("missing run_id")?
+            .to_owned();
+        let session = LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id: run_id.clone(),
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+        })?;
+        let input = |value: serde_json::Value| serde_json::from_value::<JsonObject>(value);
+
+        let called = session.call(
+            "answer",
+            "skill__child",
+            None,
+            input(serde_json::json!({"act": {"purpose": "check the release notes"}}))?,
+        )?;
+        assert!(
+            matches!(called.outcome, TurnCallOutcome::Completed { .. }),
+            "{called:?}"
+        );
+        let store = KernelStore::for_project(&RunxPaths::resolve(&env(root), root))?;
+        let child = RunLog::open(store, format!("{run_id}/answer/0"))?
+            .load()?
+            .ok_or("the call started its child run")?;
+        assert_eq!(
+            child.act.map(|act| act.purpose.as_str().to_owned()),
+            Some("check the release notes".to_owned())
+        );
+
+        let malformed = session.call(
+            "answer",
+            "skill__child",
+            None,
+            input(serde_json::json!({"act": {"purpose": ""}}))?,
+        )?;
+        assert!(
+            matches!(&malformed.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("act")),
+            "{malformed:?}"
+        );
         Ok(())
     }
 }

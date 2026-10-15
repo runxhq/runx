@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::decision::ClosureDisposition;
 use crate::host_protocol::{ResolutionRequest, TurnTarget};
 use crate::schema::{NonEmptyString, RunxSchema};
+use crate::skill_output::ProjectArtifactRef;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum RunReadSchema {
@@ -147,6 +148,9 @@ pub enum RunEventFact {
         index: u32,
         target: TurnTarget,
         input_digest: NonEmptyString,
+        /// The id its host pinned on the call.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<NonEmptyString>,
         outcome: RunCallOutcome,
     },
     Sealed {
@@ -186,9 +190,22 @@ pub enum RunCallOutcome {
     Completed {
         succeeded: bool,
         receipt_id: NonEmptyString,
+        /// The call's output as project artifacts of its run: one per
+        /// packet output, and one for the rest.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        outputs: Vec<RunCallOutput>,
+        /// Why a call that ran did not succeed.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<NonEmptyString>,
     },
-    Refused,
-    Failed,
+    /// Admission refused the call; nothing ran.
+    Refused {
+        reason: NonEmptyString,
+    },
+    /// The call could not run.
+    Failed {
+        reason: NonEmptyString,
+    },
     Pending {
         address: NonEmptyString,
         request_digest: NonEmptyString,
@@ -201,6 +218,17 @@ pub enum RunCallOutcome {
     Child {
         run_id: NonEmptyString,
     },
+}
+
+/// A project artifact holding part of a call's output.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunCallOutput {
+    /// The packet output it holds; absent on the artifact of the call's
+    /// other outputs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<NonEmptyString>,
+    pub artifact: ProjectArtifactRef,
 }
 
 #[cfg(test)]
@@ -231,7 +259,7 @@ mod tests {
             "events": [
                 {"stream": "run_1", "version": 1, "committed_at": "2026-10-14T00:00:00Z", "event": {"kind": "started", "skill": "reply", "runner": "reply"}},
                 {"stream": "run_1", "version": 2, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "suspended", "step_id": "send", "attempt": 1, "hold": {"kind": "request", "address": "send.approval", "request_digest": "sha256:r"}}},
-                {"stream": "run_1/draft", "version": 3, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0, "target": {"kind": "ask"}, "input_digest": "sha256:i", "outcome": {"status": "refused"}}}
+                {"stream": "run_1/draft", "version": 3, "committed_at": "2026-10-14T00:00:01Z", "event": {"kind": "call", "step_id": "draft", "attempt": 1, "turn": "draft", "index": 0, "target": {"kind": "ask"}, "input_digest": "sha256:i", "call_id": "toolu_1", "outcome": {"status": "refused", "reason": "ask is not in the turn's allowance"}}}
             ],
             "cursor": "c1",
             "more": false

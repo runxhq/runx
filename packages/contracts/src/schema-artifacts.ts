@@ -24130,6 +24130,10 @@ export const runxSchemaArtifacts = {
                 "minimum": 0,
                 "type": "integer"
               },
+              "call_id": {
+                "minLength": 1,
+                "type": "string"
+              },
               "index": {
                 "minimum": 0,
                 "type": "integer"
@@ -24147,6 +24151,66 @@ export const runxSchemaArtifacts = {
                   {
                     "additionalProperties": false,
                     "properties": {
+                      "outputs": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "artifact": {
+                              "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+                              "$schema": "https://json-schema.org/draft/2020-12/schema",
+                              "additionalProperties": false,
+                              "properties": {
+                                "bytes": {
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "digest": {
+                                  "type": "string"
+                                },
+                                "media_type": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "ref": {
+                                  "type": "string"
+                                },
+                                "schema": {
+                                  "enum": [
+                                    "runx.project_artifact_ref.v1"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "schema",
+                                "ref",
+                                "digest",
+                                "bytes",
+                                "media_type",
+                                "path"
+                              ],
+                              "type": "object",
+                              "x-runx-schema": "runx.project_artifact_ref.v1"
+                            },
+                            "output": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "artifact"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "reason": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "receipt_id": {
                         "minLength": 1,
                         "type": "string"
@@ -24169,26 +24233,36 @@ export const runxSchemaArtifacts = {
                   {
                     "additionalProperties": false,
                     "properties": {
+                      "reason": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "status": {
                         "const": "refused",
                         "type": "string"
                       }
                     },
                     "required": [
-                      "status"
+                      "status",
+                      "reason"
                     ],
                     "type": "object"
                   },
                   {
                     "additionalProperties": false,
                     "properties": {
+                      "reason": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "status": {
                         "const": "failed",
                         "type": "string"
                       }
                     },
                     "required": [
-                      "status"
+                      "status",
+                      "reason"
                     ],
                     "type": "object"
                   },
@@ -24654,6 +24728,10 @@ export const runxSchemaArtifacts = {
                       "minimum": 0,
                       "type": "integer"
                     },
+                    "call_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
                     "index": {
                       "minimum": 0,
                       "type": "integer"
@@ -24671,6 +24749,66 @@ export const runxSchemaArtifacts = {
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "outputs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "artifact": {
+                                    "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "bytes": {
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "digest": {
+                                        "type": "string"
+                                      },
+                                      "media_type": {
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "type": "string"
+                                      },
+                                      "schema": {
+                                        "enum": [
+                                          "runx.project_artifact_ref.v1"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "schema",
+                                      "ref",
+                                      "digest",
+                                      "bytes",
+                                      "media_type",
+                                      "path"
+                                    ],
+                                    "type": "object",
+                                    "x-runx-schema": "runx.project_artifact_ref.v1"
+                                  },
+                                  "output": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "artifact"
+                                ],
+                                "type": "object"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "reason": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
                             "receipt_id": {
                               "minLength": 1,
                               "type": "string"
@@ -24693,26 +24831,36 @@ export const runxSchemaArtifacts = {
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "reason": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
                             "status": {
                               "const": "refused",
                               "type": "string"
                             }
                           },
                           "required": [
-                            "status"
+                            "status",
+                            "reason"
                           ],
                           "type": "object"
                         },
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "reason": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
                             "status": {
                               "const": "failed",
                               "type": "string"
                             }
                           },
                           "required": [
-                            "status"
+                            "status",
+                            "reason"
                           ],
                           "type": "object"
                         },
@@ -30773,6 +30921,10 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "call_id": {
+        "minLength": 1,
+        "type": "string"
+      },
       "index": {
         "minimum": 0,
         "type": "integer"
@@ -31930,6 +32082,10 @@ export const runxSchemaArtifacts = {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "call_id": {
+              "minLength": 1,
+              "type": "string"
+            },
             "index": {
               "minimum": 0,
               "type": "integer"

@@ -39,7 +39,7 @@ pub(super) fn work_scripted_turn(
     };
     let made = turn.calls()?.len();
     for (index, call) in script.calls.iter().enumerate().skip(made) {
-        let result = call_tool(turn, host, &call.tool, call.input.clone())?;
+        let result = call_tool(turn, host, &call.tool, None, call.input.clone())?;
         if let Some(expect) = &call.expect {
             let actual = JsonValue::from_serialize(&result).map_err(|error| {
                 RuntimeError::InvalidRunStep {

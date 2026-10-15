@@ -13,8 +13,9 @@ use std::path::Path;
 use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AgentActInvocation, AllowedOperation, JsonObject, JsonValue, ResolutionRequest,
-    TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
+    AgentActInvocation, AllowedOperation, CallAct, JsonObject, JsonValue, ProjectArtifactRef,
+    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget,
+    TurnTool,
 };
 use runx_parser::{AgentTask, AskGate, GraphStep, OperationStepTarget, StepKind, ToolTarget};
 
@@ -57,10 +58,14 @@ pub trait Turn {
     }
 
     /// Make a new call. `host` answers what the call itself asks; a call it
-    /// cannot answer is pending until it can.
+    /// cannot answer is pending until it can. A `call_id` the turn already
+    /// records returns that call when its target and input are the same, and
+    /// is refused otherwise, so a call made again after a crash never runs
+    /// twice.
     fn call(
         &mut self,
         host: &mut dyn Host,
+        call_id: Option<String>,
         target: TurnTarget,
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError>;
@@ -75,6 +80,7 @@ pub(crate) fn call_tool(
     turn: &mut dyn Turn,
     host: &mut dyn Host,
     tool: &str,
+    call_id: Option<String>,
     input: JsonObject,
 ) -> Result<TurnCallResult, RuntimeError> {
     let target = turn
@@ -88,7 +94,7 @@ pub(crate) fn call_tool(
                 turn.invocation().id.as_str()
             ),
         })?;
-    turn.call(host, target, input)
+    turn.call(host, call_id, target, input)
 }
 
 /// The controls a host presents beside a turn's own tools; a turn's tools
@@ -97,6 +103,9 @@ pub(crate) const TURN_STATUS_TOOL: &str = "turn_status";
 pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
 const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount", "act"];
+
+/// The longest call id a host may pin.
+const CALL_ID_BYTES: usize = 200;
 
 /// Where a turn runs: the agent step, its attempt, and its runtime.
 pub(super) struct TurnScope<'a, A> {
@@ -117,6 +126,27 @@ pub(super) struct OpenTurn<'a, A> {
     request: PendingRequest,
     /// The calls the run records for this turn, read when first needed.
     calls: OnceCell<Vec<RecordedCall>>,
+}
+
+/// A call as its host made it: its place in the turn, the id its host
+/// pinned on it, what it names and its input.
+#[derive(Clone)]
+struct Made {
+    index: u32,
+    call_id: Option<String>,
+    target: TurnTarget,
+    input: JsonObject,
+}
+
+impl Made {
+    fn of(call: &RecordedCall) -> Self {
+        Self {
+            index: call.index,
+            call_id: call.call_id.clone(),
+            target: call.target.clone(),
+            input: call.input.clone(),
+        }
+    }
 }
 
 /// How a call's step went.
@@ -270,22 +300,22 @@ where
     fn run(
         &mut self,
         mut host: AnsweringHost<'_>,
-        index: u32,
-        target: TurnTarget,
-        input: JsonObject,
+        made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
-        let step = match self
-            .refusal(&target)?
-            .map_or_else(|| self.call_step(index, &target, &input), Err)
-        {
+        let (step, act) = match self.refusal(&made.target)?.map_or_else(
+            || self.call_step(made.index, &made.target, &made.input),
+            Err,
+        ) {
             Ok(step) => step,
             Err(reason) => {
                 let refused = CallOutcome::Refused(reason);
-                return self.settled(index, target, input, refused, &host.answers);
+                return self.settled(made, refused, &host.answers);
             }
         };
-        let claim = match &target {
-            _ if super::reaches_world(&step.kind) => Some(CallOutcome::Claimed(self.retry(index)?)),
+        let claim = match &made.target {
+            _ if super::reaches_world(&step.kind) => {
+                Some(CallOutcome::Claimed(self.retry(made.index)?))
+            }
             TurnTarget::Skill { .. } => Some(CallOutcome::Child(
                 self.scope.runtime.options.run.child_id(&step.id),
             )),
@@ -293,34 +323,22 @@ where
         };
         if let Some(claim) = &claim {
             let authorized = std::mem::take(&mut host.answers);
-            self.record(
-                RecordedCall {
-                    step_id: self.scope.step_id.to_owned(),
-                    attempt: self.scope.attempt,
-                    index,
-                    target: target.clone(),
-                    input: input.clone(),
-                    outcome: claim.clone(),
-                },
-                &authorized,
-            )?;
+            self.record(&made, claim.clone(), &authorized)?;
         }
         match (
-            self.run_call_step(&step, &target, &input, &mut host)?,
+            self.run_call_step(&step, &made.target, act, &mut host)?,
             claim,
         ) {
-            (Ran::Settled(outcome), _) => {
-                self.settled(index, target, input, outcome, &host.answers)
-            }
+            (Ran::Settled(outcome), _) => self.settled(made, outcome, &host.answers),
             // The child run holds what it waits on; its link stands.
             (Ran::Waiting(_) | Ran::Unconfirmed, Some(claim @ CallOutcome::Child(_))) => {
-                self.result(index, &target, &input, &claim)
+                self.result(&made, &claim)
             }
             (Ran::Waiting(request), _) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
-                self.settled(index, target, input, pending, &host.answers)
+                self.settled(made, pending, &host.answers)
             }
-            (Ran::Unconfirmed, Some(claim)) => self.result(index, &target, &input, &claim),
+            (Ran::Unconfirmed, Some(claim)) => self.result(&made, &claim),
             (Ran::Unconfirmed, None) => Err(RuntimeError::EngineInvariant {
                 context: "running a turn call",
                 message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
@@ -335,21 +353,20 @@ where
         host: &mut dyn Host,
         call: RecordedCall,
     ) -> Result<TurnCallResult, RuntimeError> {
-        let step = self
-            .call_step(call.index, &call.target, &call.input)
+        let made = Made::of(&call);
+        let (step, act) = self
+            .call_step(made.index, &made.target, &made.input)
             .map_err(|reason| RuntimeError::EngineInvariant {
                 context: "entering a skill call",
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self.run_call_step(&step, &call.target, &call.input, &mut answering)? {
+        match self.run_call_step(&step, &made.target, act, &mut answering)? {
             Ran::Settled(outcome) => {
                 let answers = answering.answers;
-                self.settled(call.index, call.target, call.input, outcome, &answers)
+                self.settled(made, outcome, &answers)
             }
-            Ran::Waiting(_) | Ran::Unconfirmed => {
-                self.result(call.index, &call.target, &call.input, &call.outcome)
-            }
+            Ran::Waiting(_) | Ran::Unconfirmed => self.result(&made, &call.outcome),
         }
     }
 
@@ -374,39 +391,48 @@ where
     /// Record how a call ended, and return it as its agent reads it.
     fn settled(
         &mut self,
-        index: u32,
-        target: TurnTarget,
-        input: JsonObject,
+        made: Made,
         outcome: CallOutcome,
         answers: &[Answer],
     ) -> Result<TurnCallResult, RuntimeError> {
-        let result = self.result(index, &target, &input, &outcome)?;
-        self.record(
-            RecordedCall {
-                step_id: self.scope.step_id.to_owned(),
-                attempt: self.scope.attempt,
-                index,
-                target,
-                input,
-                outcome,
-            },
-            answers,
-        )?;
+        let result = self.result(&made, &outcome)?;
+        self.record(&made, outcome, answers)?;
         Ok(result)
     }
 
-    /// Record a call's latest word on its index.
-    fn record(&mut self, call: RecordedCall, answers: &[Answer]) -> Result<(), RuntimeError> {
+    /// Record a call's latest word on its index. A completed call's output
+    /// is persisted first, as project artifacts its event names.
+    fn record(
+        &mut self,
+        made: &Made,
+        outcome: CallOutcome,
+        answers: &[Answer],
+    ) -> Result<(), RuntimeError> {
+        let outputs = match &outcome {
+            CallOutcome::Completed(run) => self.output_artifacts(made.index, run)?,
+            _ => Vec::new(),
+        };
         self.scope.runtime.options.run.record_call(&CallRecord {
             step_id: self.scope.step_id,
             attempt: self.scope.attempt,
             turn: &self.request,
-            index: call.index,
-            target: &call.target,
-            input: &call.input,
-            outcome: &call.outcome,
+            index: made.index,
+            call_id: made.call_id.as_deref(),
+            target: &made.target,
+            input: &made.input,
+            outcome: &outcome,
+            outputs: &outputs,
             answers,
         })?;
+        let call = RecordedCall {
+            step_id: self.scope.step_id.to_owned(),
+            attempt: self.scope.attempt,
+            index: made.index,
+            call_id: made.call_id.clone(),
+            target: made.target.clone(),
+            input: made.input.clone(),
+            outcome,
+        };
         let calls = self.recorded_mut()?;
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
@@ -415,15 +441,59 @@ where
         Ok(())
     }
 
-    /// How a call stands, as its agent reads it. A skill call waits on what
-    /// its child run waits on.
-    fn result(
+    /// A completed call's output as project artifacts of its run: one per
+    /// packet output, holding the packet's data, and one for the rest. Each
+    /// is content-addressed, so a host reads the call's outcome from the
+    /// run's record alone.
+    fn output_artifacts(
         &self,
         index: u32,
-        target: &TurnTarget,
-        input: &JsonObject,
-        outcome: &CallOutcome,
-    ) -> Result<TurnCallResult, RuntimeError> {
+        run: &StepRun,
+    ) -> Result<Vec<RunCallOutput>, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        let artifacts =
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir).artifacts();
+        let label = call_step_id(self.scope.step_id, index);
+        let persist = |label: &str, value: &JsonValue| {
+            crate::services::persist_json_artifact(
+                &artifacts,
+                options.run.run_id(),
+                "calls",
+                label,
+                value,
+            )
+            .and_then(|reference| {
+                serde_json::to_value(reference)
+                    .and_then(serde_json::from_value::<ProjectArtifactRef>)
+                    .map_err(|error| error.to_string())
+            })
+            .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
+        };
+        let mut outputs = Vec::new();
+        let mut rest = JsonObject::new();
+        for (name, value) in &run.contract {
+            if run.artifact_outputs.contains(name) {
+                let data = run.output(name).unwrap_or(value);
+                outputs.push(RunCallOutput {
+                    output: NonEmptyString::new(name.clone()),
+                    artifact: persist(&format!("{label}-{name}"), data)?,
+                });
+            } else {
+                rest.insert(name.clone(), value.clone());
+            }
+        }
+        if !rest.is_empty() {
+            outputs.push(RunCallOutput {
+                output: None,
+                artifact: persist(&label, &JsonValue::Object(rest))?,
+            });
+        }
+        Ok(outputs)
+    }
+
+    /// How a call stands, as its agent reads it. A skill call waits on what
+    /// its child run waits on.
+    fn result(&self, made: &Made, outcome: &CallOutcome) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
             CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
                 output: run.contract.clone(),
@@ -453,19 +523,20 @@ where
             },
         };
         Ok(TurnCallResult {
-            index,
-            target: target.clone(),
-            input_digest: crate::execution::run_record::input_digest(input)?.into(),
+            index: made.index,
+            target: made.target.clone(),
+            input_digest: crate::execution::run_record::input_digest(&made.input)?.into(),
+            call_id: made.call_id.clone().map(Into::into),
             outcome,
         })
     }
 
-    /// Run a call as its step.
+    /// Run a call as its step; a skill call's act becomes its child run's.
     fn run_call_step(
         &self,
         step: &GraphStep,
         target: &TurnTarget,
-        input: &JsonObject,
+        act: Option<CallAct>,
         host: &mut dyn Host,
     ) -> Result<Ran, RuntimeError> {
         let scope = &self.scope;
@@ -475,8 +546,8 @@ where
             graph_name: scope.graph_name,
             step,
             attempt: 1,
-            inputs: input.clone(),
-            child_act: None,
+            inputs: step.inputs.clone(),
+            child_act: act,
             provenance: Vec::new(),
             policy_approval_refs: Vec::new(),
             host,
@@ -508,14 +579,17 @@ where
         })
     }
 
-    /// The step a call runs as. A malformed call is refused before it runs.
+    /// The step a call runs as, and a skill call's act. A malformed call is
+    /// refused before it runs.
     fn call_step(
         &self,
         index: u32,
         target: &TurnTarget,
         input: &JsonObject,
-    ) -> Result<GraphStep, String> {
+    ) -> Result<(GraphStep, Option<CallAct>), String> {
         let step_id = call_step_id(self.scope.step_id, index);
+        let mut inputs = input.clone();
+        let mut act = None;
         let (kind, scopes) = match target {
             TurnTarget::Tool { tool } => (
                 StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned())),
@@ -548,10 +622,17 @@ where
                 };
                 (StepKind::Operation(target), Vec::new())
             }
-            TurnTarget::Skill { skill } => (
-                StepKind::Skill(turn_skill_target(skill.as_str())),
-                Vec::new(),
-            ),
+            TurnTarget::Skill { skill } => {
+                // `act` is never a skill input: it is why the skill is run.
+                act = inputs
+                    .remove("act")
+                    .map(|value| CallAct::parse(&value))
+                    .transpose()?;
+                (
+                    StepKind::Skill(turn_skill_target(skill.as_str())),
+                    Vec::new(),
+                )
+            }
             TurnTarget::Ask => {
                 let reason = input
                     .get("reason")
@@ -571,7 +652,7 @@ where
                 )
             }
         };
-        Ok(GraphStep {
+        let step = GraphStep {
             id: step_id,
             label: Some(label(target)),
             kind,
@@ -579,14 +660,15 @@ where
             outputs: None,
             // An agent's call carries values, never references. An operation
             // call's act is one of its fields.
-            inputs: input.clone(),
+            inputs,
             bindings: Vec::new(),
             act: None,
             context_skills: Vec::new(),
             scopes,
             when: None,
             duplicates: None,
-        })
+        };
+        Ok((step, act))
     }
 
     /// An operation's tool: the call fields the turn accepts, with the
@@ -727,7 +809,7 @@ where
         let target = TurnTarget::Skill {
             skill: skill.clone(),
         };
-        let step = self
+        let (step, _) = self
             .call_step(0, &target, &JsonObject::new())
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
         let loaded = load_step_skill(
@@ -742,10 +824,20 @@ where
             .skill
             .description
             .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
+        // Beside its inputs, a skill call states why it runs the skill.
+        let mut input_schema = runx_contracts::input_contract_schema(&loaded.runner.inputs);
+        if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
+            properties.insert(
+                "act".to_owned(),
+                JsonValue::from_serialize(&CallAct::json_schema()).map_err(|error| {
+                    RuntimeError::effect_state("describing a child skill", error.to_string())
+                })?,
+            );
+        }
         Ok(offered(
             &format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
             description,
-            runx_contracts::input_contract_schema(&loaded.runner.inputs),
+            input_schema,
             target,
         ))
     }
@@ -835,23 +927,58 @@ where
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
         self.recorded()?
             .iter()
-            .map(|call| self.result(call.index, &call.target, &call.input, &call.outcome))
+            .map(|call| self.result(&Made::of(call), &call.outcome))
             .collect()
     }
 
     fn call(
         &mut self,
         host: &mut dyn Host,
+        call_id: Option<String>,
         target: TurnTarget,
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError> {
+        if let Some(call_id) = &call_id {
+            if call_id.is_empty()
+                || call_id.len() > CALL_ID_BYTES
+                || !call_id.bytes().all(|byte| byte.is_ascii_graphic())
+            {
+                return Err(RuntimeError::ContinuationRejected {
+                    reason: format!(
+                        "call_id must be 1-{CALL_ID_BYTES} printable ASCII characters without spaces"
+                    ),
+                });
+            }
+            if let Some(known) = self
+                .recorded()?
+                .iter()
+                .find(|known| known.call_id.as_deref() == Some(call_id.as_str()))
+            {
+                let digest = crate::execution::run_record::input_digest;
+                if known.target != target || digest(&known.input)? != digest(&input)? {
+                    return Err(RuntimeError::ContinuationRejected {
+                        reason: format!(
+                            "call_id {call_id} names call {} of the turn, made with another target or input",
+                            known.index
+                        ),
+                    });
+                }
+                return self.result(&Made::of(known), &known.outcome);
+            }
+        }
         let index = self
             .recorded()?
             .iter()
             .map(|call| call.index + 1)
             .max()
             .unwrap_or(0);
-        self.run(AnsweringHost::new(host, None), index, target, input)
+        let made = Made {
+            index,
+            call_id,
+            target,
+            input,
+        };
+        self.run(AnsweringHost::new(host, None), made)
     }
 
     fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError> {
@@ -868,12 +995,9 @@ where
         match call.outcome.clone() {
             CallOutcome::Child(_) => self.enter(host, call),
             // The call asks again what it waits on, unchanged.
-            CallOutcome::Pending(waiting) => self.run(
-                AnsweringHost::new(host, Some(&waiting)),
-                index,
-                call.target,
-                call.input,
-            ),
+            CallOutcome::Pending(waiting) => {
+                self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
+            }
             // A claimed call runs again only on the host's exact
             // acknowledgement, which its new claim records.
             CallOutcome::Claimed(retry) => {
@@ -888,9 +1012,9 @@ where
                         ),
                     });
                 }
-                self.run(answering, index, call.target, call.input)
+                self.run(answering, Made::of(&call))
             }
-            settled => self.result(index, &call.target, &call.input, &settled),
+            settled => self.result(&Made::of(&call), &settled),
         }
     }
 }

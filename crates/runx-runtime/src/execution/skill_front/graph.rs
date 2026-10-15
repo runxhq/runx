@@ -574,13 +574,17 @@ pub(super) struct TurnAct {
 
 pub(super) enum TurnAction {
     Status,
-    /// Make the call the turn offers as `tool`.
+    /// Make the call the turn offers as `tool`, under the id its host pins.
     Call {
         tool: String,
+        call_id: Option<String>,
         input: JsonObject,
     },
     /// Answer the act; the run continues.
     Complete(JsonObject),
+    /// End the act as failed, saying why: its step fails, and a skill call
+    /// that started this run settles failed with the reason.
+    Fail(String),
 }
 
 /// What an action on a turn did.
@@ -767,11 +771,17 @@ impl Host for RunHost {
         if let Some(act) = self.act.take_if(|act| act.turn == address) {
             self.acted = Some(match act.action {
                 TurnAction::Status => TurnActed::Status(Box::new(turn.status()?)),
-                TurnAction::Call { tool, input } => {
-                    TurnActed::Call(call_tool(turn, self, &tool, input)?)
-                }
+                TurnAction::Call {
+                    tool,
+                    call_id,
+                    input,
+                } => TurnActed::Call(call_tool(turn, self, &tool, call_id, input)?),
                 TurnAction::Complete(output) => {
                     self.given.insert(address, JsonValue::Object(output));
+                    TurnActed::Completed
+                }
+                TurnAction::Fail(reason) => {
+                    self.given.insert(address, failed_act(reason));
                     TurnActed::Completed
                 }
             });
@@ -789,6 +799,20 @@ impl Host for RunHost {
         }
         Ok(())
     }
+}
+
+/// The answer of an act that failed: its closure, with why.
+fn failed_act(reason: String) -> JsonValue {
+    JsonValue::Object(JsonObject::from([(
+        "closure".to_owned(),
+        JsonValue::Object(JsonObject::from([
+            (
+                "disposition".to_owned(),
+                JsonValue::String("failed".to_owned()),
+            ),
+            ("reason".to_owned(), JsonValue::String(reason)),
+        ])),
+    )]))
 }
 
 fn is_agent_act(request: &PendingRequest) -> bool {

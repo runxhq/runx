@@ -719,9 +719,14 @@ fn seal_agent_act_step<A>(
     // The turn's receipt names each call the agent made, in order.
     let lineage = StepReceiptLineage::of_turn(&calls);
     // The answer was verified against its output contract whatever closure it
-    // claims, so an act that declines or defers still returns its outputs.
-    let answer = InvocationOutput::runtime_success(response.payload.clone(), 0);
-    let projection = build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?;
+    // claims, so an act that declines or defers still returns its outputs. An
+    // act that failed has no result.
+    let projection = if disposition == ClosureDisposition::Failed {
+        project_step_claim(JsonObject::new(), None)
+    } else {
+        let answer = InvocationOutput::runtime_success(response.payload.clone(), 0);
+        build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?
+    };
     let mut output = agent_task_output(response, &disposition)?;
     output.observations.contract = contract_checks;
     let receipt = seal_executed_step(
@@ -853,20 +858,26 @@ where
         });
     }
     // An answer that breaks the act's output contract is refused, not sealed:
-    // the turn stays open for a corrected answer.
-    let contract_checks = agent_contract_checks_with_artifacts(
-        &request,
-        &response.payload,
-        step.artifacts.as_ref(),
-        graph_dir,
-        &runtime.options.env,
-    )
-    .map_err(|error| match error {
-        RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
-            reason: format!("agent answer {request_id} was refused: {message}"),
-        },
-        error => error,
-    })?;
+    // the turn stays open for a corrected answer. An act that failed returns
+    // no outputs to check; its step fails with its reason.
+    let contract_checks =
+        if agent_answer_disposition_value(step, &response.payload)? == ClosureDisposition::Failed {
+            ContractChecks::default()
+        } else {
+            agent_contract_checks_with_artifacts(
+                &request,
+                &response.payload,
+                step.artifacts.as_ref(),
+                graph_dir,
+                &runtime.options.env,
+            )
+            .map_err(|error| match error {
+                RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
+                    reason: format!("agent answer {request_id} was refused: {message}"),
+                },
+                error => error,
+            })?
+        };
     seal_agent_act_step(
         runtime,
         AgentActStepSeal {
@@ -1244,14 +1255,24 @@ fn agent_task_output(
     disposition: &ClosureDisposition,
 ) -> Result<InvocationOutput, RuntimeError> {
     let succeeded = *disposition == ClosureDisposition::Closed;
+    // A failure says why, in the closure's reason.
+    let reason = response
+        .payload
+        .as_object()
+        .and_then(|answer| answer.get("closure"))
+        .and_then(JsonValue::as_object)
+        .and_then(|closure| closure.get("reason"))
+        .and_then(JsonValue::as_str)
+        .filter(|reason| !reason.trim().is_empty())
+        .map(str::to_owned);
     Ok(if succeeded {
         InvocationOutput::runtime_success(response.payload, 0)
     } else {
-        InvocationOutput::runtime_failure(
-            response.payload,
-            format!("agent act closed with {}", disposition.label()),
-            0,
-        )
+        let message = match reason {
+            Some(reason) => format!("agent act closed with {}: {reason}", disposition.label()),
+            None => format!("agent act closed with {}", disposition.label()),
+        };
+        InvocationOutput::runtime_failure(response.payload, message, 0)
     })
 }
 

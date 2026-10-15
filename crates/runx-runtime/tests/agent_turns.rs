@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    JsonObject, JsonValue, ResolutionRequest, TurnCallOutcome, TurnCallResult, TurnStatus,
+    JsonObject, JsonValue, ResolutionRequest, RunCallOutcome, RunEventFact, TurnCallOutcome,
+    TurnCallResult, TurnStatus,
 };
 use runx_runtime::{
     LocalOrchestrator, ManagedAgentPolicy, PackageHarnessRequest, ResumeRequest, RunResult,
@@ -249,6 +250,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
     let digest = turn.call(
         TURN,
         "data_digest",
+        None,
         input(serde_json::json!({"value": "hello", "encoding": "utf8_text"}))?,
     )?;
     assert_eq!(digest.index, 0);
@@ -257,7 +259,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
         "{digest:?}"
     );
 
-    let refused = turn.call(TURN, "ask_human", JsonObject::new())?;
+    let refused = turn.call(TURN, "ask_human", None, JsonObject::new())?;
     assert!(
         matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("reason")),
         "{refused:?}"
@@ -266,6 +268,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
     let child = turn.call(
         TURN,
         "skill__digest-child",
+        None,
         input(serde_json::json!({"value": "child"}))?,
     )?;
     assert!(
@@ -276,6 +279,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
     let asked = turn.call(
         TURN,
         "ask_human",
+        None,
         input(serde_json::json!({"reason": "Send it?"}))?,
     )?;
     assert_eq!(waiting_on(&asked)?, ["answer/3"]);
@@ -316,6 +320,7 @@ fn a_turn_inside_a_child_skill_is_worked_at_its_own_address() -> TestResult {
     let digest = turn.call(
         child_turn,
         "data_digest",
+        None,
         input(serde_json::json!({"value": "nested", "encoding": "utf8_text"}))?,
     )?;
     assert!(
@@ -345,6 +350,7 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
     turn.call(
         TURN,
         "ask_human",
+        None,
         input(serde_json::json!({"reason": "Go ahead?"}))?,
     )?;
 
@@ -451,6 +457,7 @@ fn a_turn_the_run_has_left_cannot_be_worked() -> TestResult {
         .call(
             TURN,
             "data_digest",
+            None,
             input(serde_json::json!({"value": "late", "encoding": "utf8_text"}))?,
         )
         .err()
@@ -515,7 +522,7 @@ fn a_call_into_a_skill_whose_agent_shares_the_task_opens_a_turn_of_its_own() -> 
         ["skill__answer-child"],
         "a turn may ask the human only when its skill declares asks"
     );
-    let child = turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    let child = turn.call(TURN, "skill__answer-child", None, JsonObject::new())?;
     let child_turn = "answer/0#answer";
     assert_eq!(waiting_on(&child)?, [child_turn]);
     assert_eq!(
@@ -547,8 +554,8 @@ fn sibling_child_turns_are_worked_apart() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
     let turn = paused.open()?;
-    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
-    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    turn.call(TURN, "skill__answer-child", None, JsonObject::new())?;
+    turn.call(TURN, "skill__answer-child", None, JsonObject::new())?;
     let (first, second) = ("answer/0#answer", "answer/1#answer");
     assert_eq!(
         turn.waiting()?
@@ -574,11 +581,12 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
     let turn = paused.open()?;
-    turn.call(TURN, "skill__answer-child", JsonObject::new())?;
+    turn.call(TURN, "skill__answer-child", None, JsonObject::new())?;
     let child_turn = "answer/0#answer";
     let asked = turn.call(
         child_turn,
         "ask_human",
+        None,
         input(serde_json::json!({"reason": "Go on?"}))?,
     )?;
     let ask = "answer/0#answer/0";
@@ -865,6 +873,7 @@ fn a_delegation_bounds_the_child_runs_a_turn_starts() -> TestResult {
         Ok(turn.call(
             TURN,
             "skill__digest-child",
+            None,
             input(serde_json::json!({ "value": value }))?,
         )?)
     };
@@ -886,7 +895,7 @@ fn a_skill_call_that_starts_no_child_spends_no_fanout() -> TestResult {
     let skill_dir = write_turn_skill(temp.path())?;
     let started = start_bounded(temp.path(), skill_dir, bounded(Some(1), None))?;
     let turn = opened(temp.path(), &started)?;
-    let missing = turn.call(TURN, "skill__digest-child", JsonObject::new())?;
+    let missing = turn.call(TURN, "skill__digest-child", None, JsonObject::new())?;
     assert!(
         !matches!(missing.outcome, TurnCallOutcome::Completed { .. }),
         "{missing:?}"
@@ -894,6 +903,7 @@ fn a_skill_call_that_starts_no_child_spends_no_fanout() -> TestResult {
     let first = turn.call(
         TURN,
         "skill__digest-child",
+        None,
         input(serde_json::json!({ "value": "one" }))?,
     )?;
     assert!(
@@ -911,6 +921,7 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
     let refused = opened(temp.path(), &started)?.call(
         TURN,
         "skill__digest-child",
+        None,
         input(serde_json::json!({ "value": "deep" }))?,
     )?;
     assert!(
@@ -972,7 +983,7 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
     let started = start_bounded(temp.path(), skill_dir.clone(), authority)?;
     let turn = opened(temp.path(), &started)?;
     let read = |inputs: serde_json::Value| -> TestResult<TurnCallResult> {
-        Ok(turn.call(TURN, "fs_read", input(inputs)?)?)
+        Ok(turn.call(TURN, "fs_read", None, input(inputs)?)?)
     };
 
     assert!(completed(&read(
@@ -985,12 +996,13 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
         "path": "notes.md",
     }))?;
     assert!(!completed(&outside), "{outside:?}");
-    let listed = turn.call(TURN, "fs_list", input(serde_json::json!({}))?)?;
+    let listed = turn.call(TURN, "fs_list", None, input(serde_json::json!({}))?)?;
     assert!(completed(&listed));
     assert!(!format!("{listed:?}").contains(".env"));
     let written = turn.call(
         TURN,
         "fs_write",
+        None,
         input(serde_json::json!({ "path": ".env", "contents": "TOKEN=2" }))?,
     )?;
     assert!(!completed(&written), "{written:?}");
@@ -1005,9 +1017,156 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
     let read = operator.call(
         TURN,
         "fs_read",
+        None,
         input(serde_json::json!({ "path": ".env" }))?,
     )?;
     assert!(completed(&read), "{read:?}");
+    Ok(())
+}
+
+/// The calls a run's record holds, each with its pinned id and the outcome
+/// its latest event records, in index order.
+fn recorded_calls(paused: &Paused) -> TestResult<Vec<(Option<String>, RunCallOutcome)>> {
+    let read =
+        runx_runtime::run_record::read_run(&env(&paused.root), &paused.root, &paused.run_id, None)?;
+    let mut calls = BTreeMap::new();
+    for record in read.events {
+        if let RunEventFact::Call {
+            index,
+            call_id,
+            outcome,
+            ..
+        } = record.event
+        {
+            calls.insert(index, (call_id.map(|id| id.as_str().to_owned()), outcome));
+        }
+    }
+    Ok(calls.into_values().collect())
+}
+
+#[test]
+fn a_pinned_call_runs_once_and_its_outcome_is_on_the_runs_record() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    let hello = || input(serde_json::json!({"value": "hello", "encoding": "utf8_text"}));
+    let first = turn.call(TURN, "data_digest", Some("toolu_1"), hello()?)?;
+    assert_eq!(
+        first.call_id.as_ref().map(|id| id.as_str()),
+        Some("toolu_1")
+    );
+
+    // Made again with its id, the call returns as recorded and runs once.
+    assert_eq!(
+        turn.call(TURN, "data_digest", Some("toolu_1"), hello()?)?,
+        first
+    );
+    assert_eq!(turn.status(TURN)?.calls.len(), 1);
+    let other = turn
+        .call(
+            TURN,
+            "data_digest",
+            Some("toolu_1"),
+            input(serde_json::json!({"value": "other", "encoding": "utf8_text"}))?,
+        )
+        .err()
+        .ok_or("an id names one call")?;
+    assert!(
+        other.to_string().contains("another target or input"),
+        "{other}"
+    );
+    assert!(
+        turn.call(TURN, "data_digest", Some("two words"), hello()?)
+            .is_err()
+    );
+    turn.call(TURN, "ask_human", Some("toolu_2"), JsonObject::new())?;
+
+    // The record names each call by its id, holds a completed call's output
+    // as project artifacts, and says why a refused call was refused.
+    let calls = recorded_calls(&paused)?;
+    let [(Some(first_id), completed), (Some(second_id), refused)] = calls.as_slice() else {
+        return Err(format!("two pinned calls: {calls:?}").into());
+    };
+    assert_eq!(
+        (first_id.as_str(), second_id.as_str()),
+        ("toolu_1", "toolu_2")
+    );
+    assert!(
+        matches!(refused, RunCallOutcome::Refused { reason } if reason.as_str().contains("reason")),
+        "{refused:?}"
+    );
+    let RunCallOutcome::Completed {
+        succeeded: true,
+        outputs,
+        reason: None,
+        ..
+    } = completed
+    else {
+        return Err(format!("a completed call: {completed:?}").into());
+    };
+    let TurnCallOutcome::Completed { output, .. } = &first.outcome else {
+        return Err("the first call completed".into());
+    };
+    // The artifacts rebuild the output the agent read: a packet's data under
+    // its name, and the rest as it is.
+    let mut rebuilt = serde_json::Map::new();
+    for part in outputs {
+        assert_eq!(part.artifact.media_type, "application/json");
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&part.artifact.path)?)?;
+        match &part.output {
+            Some(name) => {
+                rebuilt.insert(
+                    name.as_str().to_owned(),
+                    serde_json::json!({ "data": value }),
+                );
+            }
+            None => rebuilt.extend(value.as_object().cloned().unwrap_or_default()),
+        }
+    }
+    assert!(!outputs.is_empty());
+    assert_eq!(
+        serde_json::Value::Object(rebuilt),
+        serde_json::to_value(output)?
+    );
+    Ok(())
+}
+
+#[test]
+fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_answer_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    turn.call(
+        TURN,
+        "skill__answer-child",
+        Some("child"),
+        JsonObject::new(),
+    )?;
+    let child_turn = "answer/0#answer";
+    assert!(turn.fail(child_turn, " ").is_err(), "a failure says why");
+    turn.fail(child_turn, "the source is gone")?;
+
+    let [call] = turn
+        .status(TURN)?
+        .calls
+        .try_into()
+        .map_err(|_| "one call")?;
+    assert!(
+        matches!(&call.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("the source is gone")),
+        "{call:?}"
+    );
+    let recorded = recorded_calls(&paused)?;
+    assert!(
+        matches!(recorded.as_slice(), [(Some(id), RunCallOutcome::Failed { reason })] if id == "child" && reason.as_str().contains("the source is gone")),
+        "{recorded:?}"
+    );
+
+    // The calling agent fails its own act; the run seals failed.
+    let sealed = turn.fail(TURN, "nothing to answer with")?;
+    let output = object(&sealed.output)?;
+    let closure = object(output.get("closure").ok_or("missing closure")?)?;
+    assert_eq!(text(closure, "disposition"), Some("failed"), "{output:?}");
     Ok(())
 }
 

@@ -245,6 +245,7 @@ export {
   type WaitedRequestContract,
   type RunHoldContract,
   type RunCallOutcomeContract,
+  type RunCallOutputContract,
   type RunEventFactContract,
   type RunEventContract,
   type RunReadContract,

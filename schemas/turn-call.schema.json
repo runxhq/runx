@@ -3,6 +3,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "call_id": {
+      "minLength": 1,
+      "type": "string"
+    },
     "index": {
       "minimum": 0,
       "type": "integer"
