@@ -149,8 +149,8 @@ fn resolve_paid_listing(
                     offer_id: NonEmptyString::from(format!("{skill_id}#{runner}")),
                     revision: NonEmptyString::from(version.to_owned()),
                     revision_digest: profile_digest.clone(),
-                    input_schema_digest: terms.input_schema_digest().clone(),
-                    output_schema_digest: terms.output_schema_digest().clone(),
+                    input_schema_digest: terms.input_schema_digest.clone(),
+                    output_schema_digest: terms.output_schema_digest.clone(),
                 },
                 terms,
             );

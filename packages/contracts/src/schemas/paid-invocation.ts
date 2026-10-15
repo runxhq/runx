@@ -6,6 +6,7 @@ import {
   validateContractSchema,
 } from "../internal.js";
 import validatePaidSkillListing from "../generated/paid-skill-listing-validator.js";
+import { paidSkillClaimProblem, paidSkillPriceProblem } from "../paid-skill-price.js";
 import { RECEIPT_CANONICALIZATION } from "./receipt.js";
 import type { ReferenceContract } from "./spine.js";
 
@@ -73,12 +74,6 @@ export type OfferRevisionRefContract = DeepReadonly<{
   output_schema_digest: Sha256DigestContract;
 }>;
 
-/** The least and most a prepared offer's quote may name. */
-export type PaidSkillAmountRangeContract = DeepReadonly<{
-  minimum_minor: number;
-  maximum_minor: number;
-}>;
-
 export type PaidSkillExecutorBindingContract = DeepReadonly<{
   skill: string;
   runner: string;
@@ -86,29 +81,49 @@ export type PaidSkillExecutorBindingContract = DeepReadonly<{
   execution_closure_digest: Sha256DigestContract;
 }>;
 
-export type PaidSkillFixedOfferTermsContract = DeepReadonly<{
-  amount_minor: number;
+/** A selector value: a string, a portable integer or a boolean. */
+export type PaidSkillPriceChoiceContract = string | number | boolean;
+
+/**
+ * How an offer prices one call: from the listing and the inputs the runner
+ * receives, never from the runner. `paidSkillPriceAmount` computes it.
+ */
+export type PaidSkillPriceContract = DeepReadonly<
+  | { model: "fixed"; amount_minor: number }
+  | {
+      model: "input_choice";
+      selectors: string[];
+      cases: { when: PaidSkillPriceChoiceContract[]; amount_minor: number }[];
+    }
+  | {
+      model: "artifact_bytes";
+      artifact_input: string;
+      base_amount_minor: number;
+      unit_bytes: number;
+      unit_amount_minor: number;
+      max_bytes: number;
+    }
+>;
+
+/**
+ * Where a buyer claims what a fulfilled purchase bought but runx never holds:
+ * https on the seller's fixed host, path parameters bound to JSON pointers
+ * into the runner's public result. `resolvePaidSkillClaim` fills it.
+ */
+export type PaidSkillClaimContract = DeepReadonly<{
+  url: string;
+  bind?: Record<string, string>;
+}>;
+
+export type PaidSkillOfferTermsContract = DeepReadonly<{
+  price: PaidSkillPriceContract;
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
   input_schema_digest: Sha256DigestContract;
   output_schema_digest: Sha256DigestContract;
+  claim?: PaidSkillClaimContract;
   presentation?: PaidInvocationPresentationContract;
 }>;
-
-/** Priced by its inputs: the free `quote` runner names the amount. */
-export type PaidSkillPreparedOfferTermsContract = DeepReadonly<{
-  currency: CurrencyCodeContract;
-  accepted_settlement_families: readonly SettlementFamilyContract[];
-  quote: string;
-  amount_range: PaidSkillAmountRangeContract;
-  input_schema_digest: Sha256DigestContract;
-  output_schema_digest: Sha256DigestContract;
-  presentation?: PaidInvocationPresentationContract;
-}>;
-
-export type PaidSkillOfferTermsContract =
-  | PaidSkillFixedOfferTermsContract
-  | PaidSkillPreparedOfferTermsContract;
 
 /**
  * Vendor-authored presentation of a payable resource; never part of quote
@@ -126,26 +141,14 @@ export type PaidInvocationPresentationContract = DeepReadonly<{
   output_schema: string;
 }>;
 
-export type PaidSkillFixedRunnerOfferContract = DeepReadonly<{
+export type PaidSkillRunnerOfferContract = DeepReadonly<{
   offer_revision: OfferRevisionRefContract;
-  amount_minor: number;
+  price: PaidSkillPriceContract;
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
+  claim?: PaidSkillClaimContract;
   presentation?: PaidInvocationPresentationContract;
 }>;
-
-export type PaidSkillPreparedRunnerOfferContract = DeepReadonly<{
-  offer_revision: OfferRevisionRefContract;
-  currency: CurrencyCodeContract;
-  accepted_settlement_families: readonly SettlementFamilyContract[];
-  quote: string;
-  amount_range: PaidSkillAmountRangeContract;
-  presentation?: PaidInvocationPresentationContract;
-}>;
-
-export type PaidSkillRunnerOfferContract =
-  | PaidSkillFixedRunnerOfferContract
-  | PaidSkillPreparedRunnerOfferContract;
 
 export type PaidSkillListingContract = DeepReadonly<{
   skill_id: string;
@@ -346,12 +349,20 @@ export function validatePaidInvocationContract(value: unknown, label = "paid_inv
 }
 
 export function validatePaidSkillListingContract(value: unknown, label = "paid_skill_listing") {
-  return validatePrecompiledContract(
+  const listing = validatePrecompiledContract(
     paidSkillListingV1Schema,
     value,
     label,
     validatePaidSkillListing,
   );
+  // The invariants a schema cannot state, checked as the Rust contract does.
+  for (const [runner, offer] of Object.entries(listing.offers)) {
+    const priceProblem = paidSkillPriceProblem(offer.price);
+    if (priceProblem) throw new Error(`${label}.offers.${runner}.price: ${priceProblem}.`);
+    const claimProblem = offer.claim ? paidSkillClaimProblem(offer.claim) : undefined;
+    if (claimProblem) throw new Error(`${label}.offers.${runner}.claim: ${claimProblem}.`);
+  }
+  return listing;
 }
 
 export function validateOfferRevisionRefContract(value: unknown, label = "offer_revision") {

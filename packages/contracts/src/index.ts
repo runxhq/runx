@@ -82,6 +82,18 @@ export {
   fingerprintExecutePaidInvocationRequest,
   fingerprintCancelPaidInvocationRequest,
 } from "./paid-invocation-fingerprint.js";
+export {
+  PaidSkillClaimError,
+  type PaidSkillClaimErrorCode,
+  PaidSkillPriceError,
+  type PaidSkillPriceErrorCode,
+  paidSkillClaimProblem,
+  paidSkillPriceAmount,
+  paidSkillPricedArtifactRef,
+  paidSkillPricedInputs,
+  paidSkillPriceProblem,
+  resolvePaidSkillClaim,
+} from "./paid-skill-price.js";
 
 export {
   X402_PAYMENT_REQUIRED_HEADER,
@@ -409,14 +421,12 @@ export {
   type PaymentIdempotencyBindingContract,
   type OfferRevisionRefContract,
   type PaidSkillExecutorBindingContract,
-  type PaidSkillFixedOfferTermsContract,
   type PaidInvocationPresentationContract,
-  type PaidSkillFixedRunnerOfferContract,
+  type PaidSkillClaimContract,
   type PaidSkillOfferTermsContract,
-  type PaidSkillPreparedOfferTermsContract,
-  type PaidSkillPreparedRunnerOfferContract,
+  type PaidSkillPriceChoiceContract,
+  type PaidSkillPriceContract,
   type PaidSkillRunnerOfferContract,
-  type PaidSkillAmountRangeContract,
   type PaidSkillListingContract,
   type PaidInvocationAttributionContract,
   type PaidInvocationContract,

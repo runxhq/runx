@@ -441,7 +441,7 @@ fn paid_skill_listing() -> Value {
                 "input_schema_digest": digest('2'),
                 "output_schema_digest": digest('3')
             },
-            "amount_minor": 1250,
+            "price": {"model": "fixed", "amount_minor": 1250},
             "currency": "USD",
             "accepted_settlement_families": ["x402", "stripe-spt"]
         }}

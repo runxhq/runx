@@ -64,6 +64,7 @@ type ContractScope =
   | "act-assignment"
   | "host-protocol"
   | "paid-invocation"
+  | "paid-skill-price"
   | "principal-id"
   | "x402-v2";
 
@@ -75,6 +76,7 @@ if (
   && selectedScope !== "act-assignment"
   && selectedScope !== "host-protocol"
   && selectedScope !== "paid-invocation"
+  && selectedScope !== "paid-skill-price"
   && selectedScope !== "principal-id"
   && selectedScope !== "x402-v2"
 ) {
@@ -96,6 +98,9 @@ if (selectedScope === undefined || selectedScope === "host-protocol") {
 }
 if (selectedScope === undefined || selectedScope === "paid-invocation") {
   runPaidInvocationFixtures();
+}
+if (selectedScope === undefined || selectedScope === "paid-skill-price") {
+  runPaidSkillPriceFixtures();
 }
 if (selectedScope === undefined || selectedScope === "principal-id") {
   runPrincipalIdFixtures();
@@ -133,6 +138,31 @@ function runPaidInvocationFixtures(): void {
         path.join(workspaceRoot, "dist", "packets"),
         "--oracle-out",
         fingerprintOracle,
+      ];
+  if (check) args.push("--check");
+  const result = spawnSync(command, args, { cwd: workspaceRoot, env: process.env, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
+}
+
+function runPaidSkillPriceFixtures(): void {
+  const outputRoot = path.join(fixtureRoot, "paid-skill-price");
+  const configured = process.env.RUNX_PAID_SKILL_PRICE_FIXTURES_BIN;
+  const command = configured || (process.platform === "win32" ? "cargo.exe" : "cargo");
+  const args = configured
+    ? ["--out", outputRoot]
+    : [
+        "run",
+        "--quiet",
+        "--manifest-path",
+        path.join(workspaceRoot, "crates", "Cargo.toml"),
+        "-p",
+        "runx-contracts",
+        "--example",
+        "runx-paid-skill-price-fixtures",
+        "--",
+        "--out",
+        outputRoot,
       ];
   if (check) args.push("--check");
   const result = spawnSync(command, args, { cwd: workspaceRoot, env: process.env, stdio: "inherit" });

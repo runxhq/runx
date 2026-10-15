@@ -1,15 +1,16 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillFixedOfferTerms,
-    PaidSkillOfferTerms, PaidSkillPreparedOfferTerms, TurnAllowance,
+    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillOfferTerms,
+    PaidSkillPrice, TurnAllowance, canonical_json::canonical_stable_json,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::skill::{
-    CatalogMetadata, ConnectorRequirement, RunnerHarnessManifest, SkillRunnerDefinition,
-    bind_operation_steps, validate_catalog_metadata, validate_connector_requirements,
-    validate_harness_manifest, validate_inputs, validate_runner_definition,
+    CatalogMetadata, ConnectorRequirement, RunnerHarnessManifest, SkillInput,
+    SkillRunnerDefinition, bind_operation_steps, validate_catalog_metadata,
+    validate_connector_requirements, validate_harness_manifest, validate_inputs,
+    validate_runner_definition,
 };
 use crate::{
     ParseError, ValidationError, assert_execution_profile_yaml_subset, json_fields::JsonFieldReader,
@@ -264,53 +265,102 @@ fn validate_marketplace(
 
     let mut offers = BTreeMap::new();
     for (runner, value) in raw_offers {
-        if !runners.contains_key(runner) {
+        let Some(definition) = runners.get(runner) else {
             return Err(FIELDS.validation_error(format!(
                 "marketplace.offers.{runner} references an undeclared runner."
             )));
-        }
+        };
         let serialized = serde_json::to_value(value).map_err(|error| {
             FIELDS.validation_error(format!(
                 "marketplace.offers.{runner} could not be materialized: {error}"
             ))
         })?;
-        let terms = if serialized.get("amount_minor").is_some() {
-            serde_json::from_value::<PaidSkillFixedOfferTerms>(serialized)
-                .map(PaidSkillOfferTerms::Fixed)
-        } else {
-            serde_json::from_value::<PaidSkillPreparedOfferTerms>(serialized)
-                .map(PaidSkillOfferTerms::Prepared)
-        }
-        .map_err(|error| {
+        let terms = serde_json::from_value::<PaidSkillOfferTerms>(serialized).map_err(|error| {
             FIELDS.validation_error(format!("marketplace.offers.{runner} is invalid: {error}"))
         })?;
+        validate_priced_inputs(runner, &terms.price, &definition.inputs)?;
         offers.insert(runner.clone(), terms);
     }
-    // A prepared offer is priced by another runner of the package: a free one,
-    // since a quote is never bought.
-    for (runner, terms) in &offers {
-        let PaidSkillOfferTerms::Prepared(prepared) = terms else {
-            continue;
-        };
-        let quote = prepared.quote.as_str();
-        if quote == runner || !runners.contains_key(quote) {
+    Ok(Some(MarketplaceManifest { offers }))
+}
+
+/// A price reads only inputs its runner requires: each `input_choice`
+/// selector an `enum` input, with a case for every combination of their
+/// values, and the `artifact_bytes` input a JSON value holding the stored
+/// artifact's reference. A packet envelope (`artifact: true`) is not a stored
+/// artifact and has no committed size.
+fn validate_priced_inputs(
+    runner: &str,
+    price: &PaidSkillPrice,
+    inputs: &BTreeMap<String, SkillInput>,
+) -> Result<(), ValidationError> {
+    let field = format!("marketplace.offers.{runner}.price");
+    for name in price.priced_inputs() {
+        if !inputs.get(name).is_some_and(|input| input.required) {
             return Err(FIELDS.validation_error(format!(
-                "marketplace.offers.{runner}.quote must name another runner of this skill."
-            )));
-        }
-        if offers.contains_key(quote) {
-            return Err(FIELDS.validation_error(format!(
-                "marketplace.offers.{runner}.quote names {quote}, which is sold; a quote is free."
-            )));
-        }
-        // The paid runner receives the quote it is bought at.
-        if !runners[runner].inputs.contains_key("quote") {
-            return Err(FIELDS.validation_error(format!(
-                "marketplace.offers.{runner} is quoted, so runner {runner} declares the quote input it receives."
+                "{field} reads input {name}, which runner {runner} does not require."
             )));
         }
     }
-    Ok(Some(MarketplaceManifest { offers }))
+    match price {
+        PaidSkillPrice::Fixed { .. } => Ok(()),
+        PaidSkillPrice::ArtifactBytes { artifact_input, .. } => {
+            let input = &inputs[artifact_input.as_str()];
+            if matches!(input.input_type.as_str(), "json" | "object")
+                && input.artifact != Some(true)
+            {
+                Ok(())
+            } else {
+                Err(FIELDS.validation_error(format!(
+                    "{field} prices input {artifact_input} by the bytes of the stored artifact it references, so runner {runner} declares it a json or object input."
+                )))
+            }
+        }
+        PaidSkillPrice::InputChoice { selectors, cases } => {
+            let mut combinations = 1_usize;
+            for (index, selector) in selectors.iter().enumerate() {
+                let choices = enum_choices(&inputs[selector.as_str()]).ok_or_else(|| {
+                    FIELDS.validation_error(format!(
+                        "{field} selects on input {selector}, so runner {runner} declares its enum."
+                    ))
+                })?;
+                combinations = combinations.saturating_mul(choices.len());
+                if let Some(case) = cases
+                    .iter()
+                    .find(|case| !choices.contains(&case.when[index].as_value()))
+                {
+                    return Err(FIELDS.validation_error(format!(
+                        "{field} has a case for {selector} = {}, which is not one of its enum values.",
+                        canonical_stable_json(case.when[index].as_value()).unwrap_or_default()
+                    )));
+                }
+            }
+            // Cases are unique and each value is a declared one, so a case per
+            // combination is an exact cover.
+            if cases.len() == combinations {
+                Ok(())
+            } else {
+                Err(FIELDS.validation_error(format!(
+                    "{field} prices {} of the {combinations} combinations of its selector values; it prices each once.",
+                    cases.len()
+                )))
+            }
+        }
+    }
+}
+
+/// The distinct values an input's schema enumerates, if it enumerates any.
+fn enum_choices(input: &SkillInput) -> Option<Vec<&JsonValue>> {
+    let JsonValue::Array(values) = input.schema.as_ref()?.get("enum")? else {
+        return None;
+    };
+    let mut choices = Vec::<&JsonValue>::new();
+    for value in values {
+        if !choices.contains(&value) {
+            choices.push(value);
+        }
+    }
+    (!choices.is_empty()).then_some(choices)
 }
 
 fn expand_input_definitions(

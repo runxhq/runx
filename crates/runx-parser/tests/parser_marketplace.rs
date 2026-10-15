@@ -1,4 +1,4 @@
-use runx_contracts::PaidSkillOfferTerms;
+use runx_contracts::{PaidSkillPrice, PortableAmountMinor};
 use runx_parser::{SkillRunnerManifest, parse_runner_manifest_yaml, validate_runner_manifest};
 
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -9,6 +9,9 @@ fn validate(yaml: &str) -> Result<SkillRunnerManifest, String> {
     validate_runner_manifest(raw).map_err(|error| error.to_string())
 }
 
+/// A skill with a free `preview` runner and a `transcribe` runner whose inputs
+/// a price may read: an enumerated duration, a free-text note, an optional
+/// tier and a committed artifact.
 fn manifest(marketplace: &str) -> String {
     format!(
         r#"
@@ -21,6 +24,13 @@ runners:
         tool: {{command: preview}}
   transcribe:
     default: true
+    inputs:
+      duration_seconds: {{type: integer, required: true, schema: {{enum: [600, 1800, 3600]}}}}
+      language: {{type: string, required: true, schema: {{enum: [en, fr]}}}}
+      note: {{type: string, required: true}}
+      tier: {{type: string, schema: {{enum: [basic, plus]}}}}
+      artifact: {{type: object, required: true}}
+      envelope: {{type: object, required: true, artifact: true}}
     steps:
       - id: transcribe
         tool: {{command: transcribe}}
@@ -28,30 +38,53 @@ runners:
     )
 }
 
-#[test]
-fn marketplace_paid_and_free_runners_share_one_manifest() -> Result<(), String> {
-    let parsed = validate(&manifest(&format!(
+fn offer(price: &str) -> String {
+    format!(
         r#"marketplace:
   offers:
     transcribe:
-      amount_minor: 125
+      price: {price}
       currency: USD
       accepted_settlement_families: [x402, stripe-spt]
       input_schema_digest: {DIGEST_A}
       output_schema_digest: {DIGEST_B}"#
-    )))?;
+    )
+}
+
+fn price_of(parsed: SkillRunnerManifest) -> Result<PaidSkillPrice, String> {
+    Ok(parsed
+        .marketplace
+        .ok_or_else(|| "missing marketplace".to_owned())?
+        .offers
+        .get("transcribe")
+        .ok_or_else(|| "missing paid runner".to_owned())?
+        .price
+        .clone())
+}
+
+fn refused(price: &str) -> Result<String, String> {
+    match validate(&manifest(&offer(price))) {
+        Ok(_) => Err(format!("price {price} unexpectedly passed")),
+        Err(error) => Ok(error),
+    }
+}
+
+#[test]
+fn marketplace_paid_and_free_runners_share_one_manifest() -> Result<(), String> {
+    let parsed = validate(&manifest(&offer("{model: fixed, amount_minor: 125}")))?;
     let offers = &parsed
         .marketplace
+        .as_ref()
         .ok_or_else(|| "missing marketplace".to_owned())?
         .offers;
     assert_eq!(offers.len(), 1);
-    let offer = offers
-        .get("transcribe")
-        .ok_or_else(|| "missing paid runner".to_owned())?;
-    let PaidSkillOfferTerms::Fixed(offer) = offer else {
-        return Err("fixed offer decoded as prepared pricing".to_owned());
-    };
-    assert_eq!(offer.amount_minor.get(), 125);
+    let offer = &offers["transcribe"];
+    assert_eq!(
+        offer.price,
+        PaidSkillPrice::Fixed {
+            amount_minor: PortableAmountMinor::new(125).ok_or("amount")?
+        }
+    );
     assert_eq!(offer.currency.as_str(), "USD");
     assert_eq!(
         offer
@@ -73,140 +106,153 @@ fn missing_marketplace_keeps_all_runners_free() -> Result<(), String> {
     Ok(())
 }
 
-fn prepared(quote: &str) -> String {
-    format!(
+#[test]
+fn an_input_choice_price_covers_every_combination_of_its_enum_inputs() -> Result<(), String> {
+    let price = price_of(validate(&manifest(&offer(
+        r#"{model: input_choice, selectors: [duration_seconds, language], cases: [
+        {when: [600, en], amount_minor: 5}, {when: [600, fr], amount_minor: 6},
+        {when: [1800, en], amount_minor: 10}, {when: [1800, fr], amount_minor: 11},
+        {when: [3600, en], amount_minor: 20}, {when: [3600, fr], amount_minor: 21}]}"#,
+    )))?)?;
+    assert!(matches!(price, PaidSkillPrice::InputChoice { .. }));
+
+    let missing = refused(
+        "{model: input_choice, selectors: [duration_seconds], cases: [
+        {when: [600], amount_minor: 5}, {when: [1800], amount_minor: 10}]}",
+    )?;
+    assert!(
+        missing.contains("prices 2 of the 3 combinations"),
+        "{missing}"
+    );
+
+    let undeclared = refused(
+        "{model: input_choice, selectors: [duration_seconds], cases: [
+        {when: [600], amount_minor: 5}, {when: [1800], amount_minor: 10}, {when: [7200], amount_minor: 30}]}",
+    )?;
+    assert!(
+        undeclared.contains("not one of its enum values"),
+        "{undeclared}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_price_reads_only_required_inputs_of_the_right_kind() -> Result<(), String> {
+    for (price, expected) in [
+        (
+            "{model: input_choice, selectors: [missing], cases: [{when: [1], amount_minor: 1}]}",
+            "reads input missing, which runner transcribe does not require",
+        ),
+        (
+            "{model: input_choice, selectors: [tier], cases: [
+            {when: [basic], amount_minor: 1}, {when: [plus], amount_minor: 2}]}",
+            "reads input tier, which runner transcribe does not require",
+        ),
+        (
+            "{model: input_choice, selectors: [note], cases: [{when: [hello], amount_minor: 1}]}",
+            "so runner transcribe declares its enum",
+        ),
+        (
+            "{model: artifact_bytes, artifact_input: note, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
+            "so runner transcribe declares it a json or object input",
+        ),
+        (
+            "{model: artifact_bytes, artifact_input: envelope, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
+            "so runner transcribe declares it a json or object input",
+        ),
+    ] {
+        let error = refused(price)?;
+        assert!(error.contains(expected), "{error}");
+    }
+
+    let price = price_of(validate(&manifest(&offer(
+        "{model: artifact_bytes, artifact_input: artifact, base_amount_minor: 25, unit_bytes: 1048576, unit_amount_minor: 5, max_bytes: 104857600}",
+    )))?)?;
+    assert_eq!(price.priced_inputs(), ["artifact"]);
+    Ok(())
+}
+
+#[test]
+fn a_prepared_offer_is_no_longer_accepted() -> Result<(), String> {
+    let quoted = format!(
         r#"marketplace:
   offers:
     transcribe:
       currency: USD
       accepted_settlement_families: [x402]
-      quote: {quote}
+      quote: preview
       amount_range: {{minimum_minor: 5, maximum_minor: 20}}
       input_schema_digest: {DIGEST_A}
       output_schema_digest: {DIGEST_B}"#
-    )
-}
-
-/// A skill whose paid `transcribe` runner receives the quote it is bought at.
-fn quoted_manifest(marketplace: &str) -> String {
-    manifest(marketplace).replace(
-        "  transcribe:\n    default: true\n",
-        "  transcribe:\n    default: true\n    inputs:\n      quote: {type: object, required: true}\n",
-    )
-}
-
-#[test]
-fn a_prepared_offer_is_priced_by_a_free_runner_of_the_skill() -> Result<(), String> {
-    let parsed = validate(&quoted_manifest(&prepared("preview")))?;
-    let offer = &parsed
-        .marketplace
-        .ok_or_else(|| "missing marketplace".to_owned())?
-        .offers["transcribe"];
-    let PaidSkillOfferTerms::Prepared(offer) = offer else {
-        return Err("a quote and range decoded as a fixed offer".to_owned());
-    };
-    assert_eq!(offer.quote.as_str(), "preview");
-    assert_eq!(offer.amount_range.minimum_minor.get(), 5);
-    assert_eq!(offer.amount_range.maximum_minor.get(), 20);
-
-    let Err(error) = validate(&manifest(&prepared("preview"))) else {
-        return Err("a paid runner without the quote input unexpectedly passed".to_owned());
+    );
+    let Err(error) = validate(&manifest(&quoted)) else {
+        return Err("a quote runner and amount range unexpectedly passed".to_owned());
     };
     assert!(
-        error.contains("declares the quote input it receives"),
+        error.contains("marketplace.offers.transcribe is invalid"),
         "{error}"
     );
     Ok(())
 }
 
 #[test]
-fn a_quote_names_another_runner_that_is_not_sold() -> Result<(), String> {
-    for quote in ["missing", "transcribe"] {
-        let Err(error) = validate(&quoted_manifest(&prepared(quote))) else {
-            return Err(format!("quote {quote} unexpectedly passed"));
-        };
-        assert!(error.contains("must name another runner"), "{error}");
-    }
-    let sold_quote = prepared("preview").replace(
-        "  offers:\n",
-        &format!(
-            "  offers:\n    preview:\n      amount_minor: 1\n      currency: USD\n      accepted_settlement_families: [x402]\n      input_schema_digest: {DIGEST_A}\n      output_schema_digest: {DIGEST_B}\n"
-        ),
+fn an_offer_names_where_its_buyer_claims() -> Result<(), String> {
+    let claimed = offer("{model: fixed, amount_minor: 5}").replace(
+        "      currency: USD\n",
+        "      currency: USD\n      claim: {url: \"https://inbox.ausca.com/v1/agent-inboxes/{inbox_id}/claim\", bind: {inbox_id: /lease/inbox_id}}\n",
     );
-    let Err(error) = validate(&quoted_manifest(&sold_quote)) else {
-        return Err("a sold quote runner unexpectedly passed".to_owned());
+    let parsed = validate(&manifest(&claimed))?;
+    let claim = parsed
+        .marketplace
+        .ok_or_else(|| "missing marketplace".to_owned())?
+        .offers["transcribe"]
+        .claim
+        .clone()
+        .ok_or_else(|| "missing claim".to_owned())?;
+    assert_eq!(claim.bind["inbox_id"].as_str(), "/lease/inbox_id");
+
+    let redirectable = claimed.replace("https://inbox.ausca.com", "https://{inbox_id}.ausca.com");
+    let Err(error) = validate(&manifest(&redirectable)) else {
+        return Err("a claim host filled from the result unexpectedly passed".to_owned());
     };
-    assert!(error.contains("a quote is free"), "{error}");
+    assert!(error.contains("must name a fixed host"), "{error}");
     Ok(())
 }
 
 #[test]
 fn marketplace_rejects_undeclared_runner_and_unknown_rail_fields() -> Result<(), String> {
-    let Err(undeclared) = validate(&manifest(&format!(
-        r#"marketplace:
-  offers:
-    missing:
-      amount_minor: 125
-      currency: USD
-      accepted_settlement_families: [x402]
-      input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}"#
-    ))) else {
+    let undeclared =
+        offer("{model: fixed, amount_minor: 125}").replace("    transcribe:\n", "    missing:\n");
+    let Err(error) = validate(&manifest(&undeclared)) else {
         return Err("undeclared offer unexpectedly passed".to_owned());
     };
-    assert!(undeclared.contains("references an undeclared runner"));
+    assert!(error.contains("references an undeclared runner"));
 
-    let Err(provider_shape) = validate(&manifest(&format!(
-        r#"marketplace:
-  offers:
-    transcribe:
-      amount_minor: 125
-      currency: USD
-      accepted_settlement_families: [stripe-spt]
-      input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}
-      stripe_price_id: price_private"#
-    ))) else {
+    let provider_shape = format!(
+        "{}\n      stripe_price_id: price_private",
+        offer("{model: fixed, amount_minor: 125}")
+    );
+    let Err(error) = validate(&manifest(&provider_shape)) else {
         return Err("provider field unexpectedly passed".to_owned());
     };
-    assert!(provider_shape.contains("unknown field `stripe_price_id`"));
+    assert!(error.contains("unknown field `stripe_price_id`"), "{error}");
     Ok(())
 }
 
 #[test]
 fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
-    for (field, value, expected) in [
-        ("amount_minor", "0", "amount_minor"),
-        ("currency", "usd", "currency"),
+    let base = offer("{model: fixed, amount_minor: 125}");
+    for (from, to, expected) in [
+        ("amount_minor: 125", "amount_minor: 0", "amount_minor"),
+        ("currency: USD", "currency: usd", "currency"),
         (
-            "accepted_settlement_families",
-            "[x402, x402]",
+            "accepted_settlement_families: [x402, stripe-spt]",
+            "accepted_settlement_families: [x402, x402]",
             "settlement families",
         ),
     ] {
-        let marketplace = format!(
-            r#"marketplace:
-  offers:
-    transcribe:
-      amount_minor: 125
-      currency: USD
-      accepted_settlement_families: [x402]
-      input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}"#
-        )
-        .replace(
-            &format!(
-                "{field}: {}",
-                match field {
-                    "amount_minor" => "125",
-                    "currency" => "USD",
-                    _ => "[x402]",
-                }
-            ),
-            &format!("{field}: {value}"),
-        );
-        let Err(error) = validate(&manifest(&marketplace)) else {
-            return Err("invalid offer unexpectedly passed".to_owned());
+        let Err(error) = validate(&manifest(&base.replace(from, to))) else {
+            return Err(format!("{to} unexpectedly passed"));
         };
         assert!(error.contains(expected), "{error}");
     }

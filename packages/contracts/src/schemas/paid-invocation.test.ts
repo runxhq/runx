@@ -145,7 +145,7 @@ describe("paid-invocation V1 contract facade", () => {
           input_schema_digest: digest("d"),
           output_schema_digest: digest("e"),
         },
-        amount_minor: 125,
+        price: { model: "fixed", amount_minor: 125 },
         currency: "USD",
         accepted_settlement_families: ["x402", "stripe-spt"],
       } },
@@ -155,6 +155,24 @@ describe("paid-invocation V1 contract facade", () => {
       ...listing,
       stripe_price_id: "price_private",
     })).toThrow();
+    // The invariants a schema cannot state still refuse the listing.
+    expect(() => validatePaidSkillListingContract({
+      ...listing,
+      offers: { transcribe: {
+        ...listing.offers.transcribe,
+        price: { model: "input_choice", selectors: ["tier"], cases: [
+          { when: ["basic"], amount_minor: 1 },
+          { when: ["basic"], amount_minor: 2 },
+        ] },
+      } },
+    })).toThrow(/one price case/u);
+    expect(() => validatePaidSkillListingContract({
+      ...listing,
+      offers: { transcribe: {
+        ...listing.offers.transcribe,
+        claim: { url: "https://{host}.example.com/claim", bind: { host: "/host" } },
+      } },
+    })).toThrow(/fixed host/u);
   });
 
   it("binds nested values through exact generated fragments without new ids", () => {
