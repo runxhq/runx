@@ -468,6 +468,36 @@ impl KernelStore {
             .map_err(|source| self.database("listing a stream tree", source))
     }
 
+    /// The keys of `root`'s stream and the streams below it that hold an
+    /// event of `event_type`, in key order.
+    pub(crate) fn tree_keys_with<E: StreamEvent>(
+        &self,
+        root: &str,
+        event_type: &str,
+    ) -> Result<Vec<String>, KernelStoreError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT DISTINCT key FROM kernel_events
+                 WHERE kind = ?1 AND event_type = ?2 AND (key = ?3 OR (key >= ?4 AND key < ?5))
+                 ORDER BY key",
+            )
+            .map_err(|source| self.database("preparing a stream tree search", source))?;
+        statement
+            .query_map(
+                params![
+                    E::KIND,
+                    event_type,
+                    root,
+                    format!("{root}/"),
+                    format!("{root}0")
+                ],
+                |row| row.get::<_, String>(0),
+            )
+            .and_then(Iterator::collect)
+            .map_err(|source| self.database("searching a stream tree", source))
+    }
+
     /// At most `limit` events of a kernel stream after version `after`.
     pub(crate) fn read_after<E: StreamEvent>(
         &self,

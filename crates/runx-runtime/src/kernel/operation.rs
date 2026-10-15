@@ -251,6 +251,29 @@ impl ToolRunner for NoTools {
     }
 }
 
+/// Whether a mutation that may have reached its provider can be sent again:
+/// the provider enforces the call's key, the operation sets a state, or the
+/// step accepts duplicates. Custody refuses resending any other whose
+/// outcome is unknown.
+fn mutation_resends_safely(
+    operation: &runx_contracts::connector::ConnectorOperation,
+    duplicates: Option<DuplicatePolicy>,
+) -> bool {
+    matches!(
+        operation.guarantees.provider_idempotency,
+        ProviderIdempotency::Enforced | ProviderIdempotency::Inherent
+    ) || duplicates == Some(DuplicatePolicy::Visible)
+}
+
+/// Whether a call of `operation` that may have reached its provider can be
+/// sent again unseen: it only reads, or it is a mutation custody resends.
+pub(crate) fn resends_safely(
+    operation: &runx_contracts::connector::ConnectorOperation,
+    duplicates: Option<DuplicatePolicy>,
+) -> bool {
+    operation.access() == OperationAccess::Read || mutation_resends_safely(operation, duplicates)
+}
+
 /// An admitted operation step, carried from admission to sealing.
 #[derive(Clone)]
 pub(crate) struct OperationAdmission {
@@ -351,10 +374,7 @@ impl OperationAdmission {
     /// again: the provider enforces the key, the operation sets a state, or
     /// the step accepts duplicates.
     fn resend_safe(&self) -> bool {
-        matches!(
-            self.admitted.operation().guarantees.provider_idempotency,
-            ProviderIdempotency::Enforced | ProviderIdempotency::Inherent
-        ) || self.duplicates == Some(DuplicatePolicy::Visible)
+        mutation_resends_safely(self.admitted.operation(), self.duplicates)
     }
 
     /// The implementation that runs: any kind locally; only declared

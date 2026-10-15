@@ -26,15 +26,20 @@ export type AgentActResolutionRequestContract = DeepReadonly<{
   invocation: AgentActInvocationContract;
 }>;
 /**
- * A step that may have run and whose effect runx could not confirm. Only
- * `{"retry": true}` under `answers` runs it again with the same input; a
- * close ends the run with the effect still unconfirmed.
+ * A step or call waiting to run again. A bounded retry (`retry_after_seconds`
+ * above zero) is runx's own: it runs after the delay on the next resume. A
+ * claimed call whose effect runx could not confirm (`retry_after_seconds`
+ * zero) runs again only on the person's `{"retry": true}` under `approvals`,
+ * and only when `resend` is not `unsafe`; a close ends the run with the
+ * effect still unconfirmed.
  */
 export type RetryResolutionRequestContract = DeepReadonly<{
   id: string;
   kind: "retry";
   reason: string;
   retry_after_seconds: number;
+  /** Absent when safe: sending it again repeats nothing. */
+  resend?: "safe" | "unsafe";
 }>;
 export type ResolutionRequestContract =
   | InputResolutionRequestContract

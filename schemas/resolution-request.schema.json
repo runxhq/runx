@@ -950,6 +950,12 @@
           "minLength": 1,
           "type": "string"
         },
+        "resend": {
+          "enum": [
+            "unsafe"
+          ],
+          "type": "string"
+        },
         "retry_after_seconds": {
           "minimum": 0,
           "type": "integer"

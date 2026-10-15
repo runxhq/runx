@@ -684,8 +684,12 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
     let (_root, store) = store();
     let log = RunLog::open(Arc::clone(&store), "run_triage_9").unwrap();
     start(&log, &JsonObject::new());
-    let retry = crate::execution::runner::unsettled_retry(log.address("send/retry"), "step send");
-    log.record_claim("send", 1, &retry).unwrap();
+    let retry = crate::execution::runner::unsettled_retry(
+        log.address("send/retry"),
+        "step send",
+        runx_contracts::RetryResend::Safe,
+    );
+    log.record_claim("send", 1, &retry, &[]).unwrap();
 
     // The driver stopped after the claim: the step may have run.
     let record = log.load().unwrap().unwrap();
@@ -693,7 +697,7 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
         panic!("an unsettled claim holds the run");
     };
     assert_eq!(step_id, "send");
-    let Hold::Retry(request) = hold else {
+    let Hold::Claimed(request) = hold else {
         panic!("it waits on its retry");
     };
     assert_eq!(request.id, log.address("send/retry"));
@@ -706,6 +710,69 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
     // A step that settles after its claim leaves nothing waiting.
     log.record_step(&step("run_triage_9", "send"), &[]).unwrap();
     assert!(log.load().unwrap().unwrap().suspension.is_none());
+}
+
+#[test]
+fn an_admitted_answer_waits_in_the_record_until_a_step_uses_it() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_triage_10").unwrap();
+    start(&log, &JsonObject::new());
+    log.record_request("send", 1, &approval("send.approval"))
+        .unwrap();
+    let digest = request_digest(&approval("send.approval")).unwrap();
+    let answer = Answer {
+        request_id: "send.approval".to_owned(),
+        request_digest: digest.clone(),
+        value: JsonValue::Bool(true),
+        human: true,
+    };
+    log.record_answer(&answer).unwrap();
+
+    // The answer leaves the run where it waits, and any later driver finds
+    // it in the record.
+    assert_eq!(waiting_ids(&store, "run_triage_10"), ["send.approval"]);
+    assert_eq!(log.admitted().unwrap(), [answer.clone()]);
+    let record = log.load().unwrap().unwrap();
+    assert!(matches!(
+        record.suspension,
+        Some(Suspension {
+            hold: Hold::Request(_),
+            ..
+        })
+    ));
+
+    // The step that uses it consumes it.
+    log.record_step(&step("run_triage_10", "send"), &[answer])
+        .unwrap();
+    assert!(log.admitted().unwrap().is_empty());
+}
+
+#[test]
+fn a_bounded_retry_records_when_it_is_due() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_triage_11").unwrap();
+    start(&log, &JsonObject::new());
+    let retry = ResolutionRequest::Retry {
+        id: "provider-readback-send-1".into(),
+        reason: "Independent provider readback is pending".into(),
+        retry_after_seconds: 300,
+        resend: runx_contracts::RetryResend::Safe,
+    };
+    let now = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_760_000_000);
+    log.record_retry("send", &retry, now).unwrap();
+    let record = log.load().unwrap().unwrap();
+    let Some(Suspension {
+        hold: Hold::Retry { due_at, .. },
+        ..
+    }) = &record.suspension
+    else {
+        panic!("the run waits on its bounded retry");
+    };
+    assert_eq!(
+        due_at.as_deref(),
+        Some(crate::time::iso8601_from_unix_seconds(1_760_000_300).as_str())
+    );
+    assert_eq!(record.retries, 1);
 }
 
 fn project_env(workspace: &tempfile::TempDir) -> (BTreeMap<String, String>, Arc<KernelStore>) {

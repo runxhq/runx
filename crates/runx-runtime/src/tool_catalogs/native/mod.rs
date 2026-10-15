@@ -194,6 +194,12 @@ pub(crate) fn is_core_tool(tool_ref: &str) -> bool {
     definition(tool_ref).is_some()
 }
 
+/// Whether the core tool `tool_ref` only reads, so a call of it that may
+/// have run can run again unseen.
+pub(crate) fn only_reads(tool_ref: &str) -> bool {
+    definition(tool_ref).is_some_and(|capability| !capability.definition().effect.mutating())
+}
+
 pub(crate) fn execution_boundary(
     tool_ref: &str,
     effects: &crate::effects::RuntimeEffectRegistry,

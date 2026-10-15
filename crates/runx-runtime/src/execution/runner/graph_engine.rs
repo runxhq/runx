@@ -13,7 +13,9 @@ use runx_parser::{ExecutionGraph, GraphStep, Operand, Source, StepKind};
 
 use super::super::graph::{LoadedStepSkill, StepSkillCache, StepSkillLoadOptions};
 use super::super::graph_index::{ExecutionGraphIndex, PriorRunIndex};
-use super::super::run_record::{Answer, Hold, PendingRequest, Replayed, RunRecord, request_digest};
+use super::super::run_record::{
+    Answer, Hold, PendingRequest, Replayed, RunRecord, Suspension, request_digest,
+};
 use super::dispatch::{LoadedStepExecutionRequest, run_step_with_loaded_skill_index};
 use super::step_handlers::output_error;
 use super::{GraphRun, Runtime, StepRun};
@@ -35,6 +37,9 @@ pub(super) struct GraphExecution {
     /// What that step waited on. A step that suspends on it again still
     /// waits; the run records nothing new.
     suspended_hold: Option<Hold>,
+    /// A step claimed and never settled, and its retry: it runs again only
+    /// on the person's acknowledgement, which its new claim records.
+    claimed: Option<(String, PendingRequest)>,
 }
 
 /// What one step runs against, apart from its host.
@@ -143,6 +148,7 @@ impl GraphExecution {
             run_positions: BTreeMap::new(),
             suspended_step: None,
             suspended_hold: None,
+            claimed: None,
         }
     }
 
@@ -192,8 +198,16 @@ impl GraphExecution {
                 }
             }
         }
+        if let Some(Suspension {
+            step_id,
+            hold: Hold::Claimed(retry),
+            ..
+        }) = &record.suspension
+        {
+            execution.claimed = Some((step_id.clone(), retry.clone()));
+        }
         if let Some(suspension) = &record.suspension
-            && !matches!(suspension.hold, Hold::Retry(_))
+            && !matches!(suspension.hold, Hold::Retry { .. } | Hold::Claimed(_))
         {
             execution
                 .graph_index
@@ -386,20 +400,47 @@ impl GraphExecution {
             None
         };
         let log = &context.runtime.options.run;
+        let held = match &resumed_hold {
+            Some(Hold::Request(held)) => Some(held),
+            _ => None,
+        };
+        let mut answering = AnsweringHost::new(&mut *context.host, held);
+        // A step claimed before runs again only on the person's exact
+        // acknowledgement, which its new claim consumes.
+        if let Some((_, retry)) = self
+            .claimed
+            .take_if(|(step_id, _)| step_id == context.plan.step_id)
+        {
+            let acknowledged = answering
+                .resolve(super::turn::resolution_request(&retry)?)?
+                .is_some_and(|response| response.payload == super::turn::retry_acknowledgement());
+            if !acknowledged {
+                return Err(RuntimeError::ContinuationRejected {
+                    reason: format!(
+                        "step {} runs again only on the acknowledgement {{\"retry\": true}}",
+                        context.plan.step_id
+                    ),
+                });
+            }
+        }
         let claimed = super::reaches_world(&context.step.kind);
         if claimed {
             let retry = log.address(&format!("{}/retry", context.plan.step_id));
             log.record_claim(
                 context.plan.step_id,
                 context.plan.attempt,
-                &super::unsettled_retry(retry, &format!("step {}", context.plan.step_id)),
+                &super::unsettled_retry(
+                    retry,
+                    &format!("step {}", context.plan.step_id),
+                    super::resend_of(
+                        context.step,
+                        context.graph_dir,
+                        &context.runtime.options.env,
+                    ),
+                ),
+                &std::mem::take(&mut answering.answers),
             )?;
         }
-        let held = match &resumed_hold {
-            Some(Hold::Request(held)) => Some(held),
-            _ => None,
-        };
-        let mut answering = AnsweringHost::new(&mut *context.host, held);
         let result = self.execute_step_plan(
             StepPlanTarget {
                 runtime: context.runtime,

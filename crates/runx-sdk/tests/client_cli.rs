@@ -56,8 +56,9 @@ fn continue_run_sends_bound_answers_and_approvals_on_stdin()
             "gate-1".to_owned(),
             BoundApproval {
                 request_digest: "sha256:gate".into(),
-                approved: true,
+                approved: Some(true),
                 reason: None,
+                value: None,
             },
         )]
         .into(),

@@ -8,12 +8,18 @@ import {
  * What a host brings a paused run (`runx resume <run-id> -`), keyed by the
  * address of the request each entry answers. Every entry carries the
  * `request_digest` the run reported for that request, so a decision never
- * reaches a request that changed after the person saw it. A close comes
- * alone, and leaves an unconfirmed effect unconfirmed.
+ * reaches a request that changed after the person saw it. `answers` is the
+ * agent's lane (inputs and acts); `approvals` is the person's: an approval
+ * takes `approved` and `reason`, a claimed call's retry `value: {retry:
+ * true}`. Runx records each decision it admits before it goes further. A
+ * close comes alone, and leaves an unconfirmed effect unconfirmed.
  */
 export type ResumeDocumentContract = DeepReadonly<{
   answers?: Record<string, { request_digest: string; value: unknown }>;
-  approvals?: Record<string, { request_digest: string; approved: boolean; reason?: string }>;
+  approvals?: Record<
+    string,
+    { request_digest: string; approved?: boolean; reason?: string; value?: unknown }
+  >;
   close?: { disposition: "declined" | "superseded" };
 }>;
 

@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::decision::ClosureDisposition;
-use crate::host_protocol::{ResolutionRequest, TurnTarget};
+use crate::host_protocol::{ResolutionRequest, ResolutionResponseActor, TurnTarget};
 use crate::schema::{NonEmptyString, RunxSchema};
 use crate::skill_output::ProjectArtifactRef;
 
@@ -156,6 +156,16 @@ pub enum RunEventFact {
     Sealed {
         disposition: ClosureDisposition,
         receipt_id: NonEmptyString,
+    },
+    /// A resume admitted a person's decision on the request at `address`,
+    /// before it took the run further; the run's next driver to reach the
+    /// request uses it.
+    Answered {
+        address: NonEmptyString,
+        request_digest: NonEmptyString,
+        /// `sha256:` over the answer's value.
+        answer_digest: NonEmptyString,
+        actor: ResolutionResponseActor,
     },
 }
 

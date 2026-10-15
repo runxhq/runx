@@ -44,7 +44,7 @@ use super::runner::{StepOutcome, StepRun};
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::custody::Settlement;
 use crate::kernel::store::{
-    Append, Blob, Expected, Head, KernelStore, KernelStoreError, StreamEvent,
+    Append, Blob, Expected, Head, KernelStore, KernelStoreError, Recorded, StreamEvent,
 };
 
 mod driver;
@@ -65,6 +65,7 @@ enum RunEvent {
     Suspended(Box<SuspendedEvent>),
     Call(Box<CallEvent>),
     Sealed(Box<SealedEvent>),
+    Answered(Box<AnsweredEvent>),
 }
 
 impl StreamEvent for RunEvent {
@@ -80,9 +81,13 @@ impl StreamEvent for RunEvent {
             Self::Suspended(_) => "suspended",
             Self::Call(_) => "call",
             Self::Sealed(_) => "sealed",
+            Self::Answered(_) => ANSWERED,
         }
     }
 }
+
+/// The event type of an answer a resume admitted.
+const ANSWERED: &str = "answered";
 
 /// What a top-level run is bound to. A pinned run id is a submission
 /// identity: a continuation under it must present the same identity.
@@ -179,6 +184,10 @@ struct SuspendedEvent {
     step_id: String,
     attempt: u32,
     hold: HoldEvent,
+    /// The answers a claim consumed: the acknowledgement that runs a claimed
+    /// step again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    answers: Vec<AnswerEvent>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -192,12 +201,14 @@ enum HoldEvent {
     },
     /// The step's child run holds the request.
     Child { run_id: String },
-    /// The step has not started: it waits for a bounded retry, acknowledged
-    /// by this exact request.
+    /// The step has not started: it waits for a bounded retry, which the
+    /// driver that reaches it after `due_at` runs.
     Retry {
         request_id: String,
         request: String,
         digest: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        due_at: Option<String>,
     },
     /// The step reaches the world and was claimed before it ran. Until its
     /// step event follows it may have run, so the run waits on this retry
@@ -287,6 +298,21 @@ struct AnswerEvent {
     human: bool,
 }
 
+/// A person's decision a resume admitted, in the stream of the run that
+/// raised its request, before any step used it. The first later step, call or claim of
+/// that stream that consumes the same request uses it; a later admission to
+/// the same request replaces it until then.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AnsweredEvent {
+    /// The address of the request answered.
+    request_id: String,
+    request_digest: String,
+    /// Blob: the answer.
+    value: String,
+    human: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SealedEvent {
@@ -322,7 +348,14 @@ pub(crate) struct Answer {
 pub(crate) enum Hold {
     Request(PendingRequest),
     Child(String),
-    Retry(PendingRequest),
+    /// A bounded retry: runx runs the step again itself once it is due.
+    Retry {
+        request: PendingRequest,
+        due_at: Option<String>,
+    },
+    /// A claimed step that never settled: it runs again only on the person's
+    /// acknowledgement of its retry.
+    Claimed(PendingRequest),
 }
 
 /// A request a run is waiting on, with the digest an answer must bind to.
@@ -417,12 +450,60 @@ pub(crate) struct RunRecord {
     pub suspension: Option<Suspension>,
     /// Every answer the run's steps and calls consumed, in order.
     pub answers: Vec<Answer>,
+    /// The answers a resume admitted that no step, call or claim has used
+    /// yet, in the order they were admitted.
+    pub admitted: Vec<Answer>,
     /// Every call agents made during the run's turns, each as its latest
     /// event settled it, in the order they were first made.
     pub calls: Vec<RecordedCall>,
     /// How many times the run has waited for a bounded retry.
     pub retries: u32,
     pub sealed: Option<Sealed>,
+}
+
+impl RunRecord {
+    /// Record the answers a step, call or claim consumed; each uses the
+    /// earliest admitted answer to its request, if a resume admitted one.
+    fn consume(
+        &mut self,
+        store: &KernelStore,
+        answers: &[AnswerEvent],
+    ) -> Result<(), RunRecordError> {
+        for answer in answers {
+            if let Some(position) = self.admitted.iter().position(|admitted| {
+                admitted.request_id == answer.request_id
+                    && admitted.request_digest == answer.request_digest
+            }) {
+                self.admitted.remove(position);
+            }
+            self.answers.push(Answer {
+                request_id: answer.request_id.clone(),
+                request_digest: answer.request_digest.clone(),
+                value: store.blob_json(&answer.value)?,
+                human: answer.human,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// The events and blobs of the answers a step, call or claim consumed.
+fn answer_events(answers: &[Answer]) -> Result<(Vec<AnswerEvent>, Vec<Blob>), RunRecordError> {
+    let values = answers
+        .iter()
+        .map(|answer| Blob::json(&answer.value))
+        .collect::<Result<Vec<_>, _>>()?;
+    let events = answers
+        .iter()
+        .zip(&values)
+        .map(|(answer, value)| AnswerEvent {
+            request_id: answer.request_id.clone(),
+            request_digest: answer.request_digest.clone(),
+            value: value.digest().to_owned(),
+            human: answer.human,
+        })
+        .collect();
+    Ok((events, values))
 }
 
 #[derive(Debug, Error)]
@@ -724,6 +805,7 @@ impl RunLog {
                     request: blob.digest().to_owned(),
                     digest,
                 },
+                answers: Vec::new(),
             })),
             vec![blob],
         )
@@ -743,6 +825,7 @@ impl RunLog {
                 hold: HoldEvent::Child {
                     run_id: child.to_owned(),
                 },
+                answers: Vec::new(),
             })),
             Vec::new(),
         )
@@ -750,14 +833,17 @@ impl RunLog {
 
     /// The step reaches the world: claim it before it runs, under the version
     /// this driver last read, so a second driver is refused before anything
-    /// runs and a step that never settles waits on `retry`.
+    /// runs and a step that never settles waits on `retry`. A claim that
+    /// runs a claimed step again records the acknowledgement it consumed.
     pub(crate) fn record_claim(
         &self,
         step_id: &str,
         attempt: u32,
         retry: &ResolutionRequest,
+        answers: &[Answer],
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(retry)?;
+        let (answers, values) = answer_events(answers)?;
         self.append(
             RunEvent::Suspended(Box::new(SuspendedEvent {
                 step_id: step_id.to_owned(),
@@ -767,18 +853,33 @@ impl RunLog {
                     request: blob.digest().to_owned(),
                     digest,
                 },
+                answers,
             })),
-            vec![blob],
+            std::iter::once(blob).chain(values).collect(),
         )
     }
 
-    /// The step has not started; it waits for a bounded retry.
+    /// The step has not started; it waits for a bounded retry, due
+    /// `retry_after_seconds` after `now`.
     pub(crate) fn record_retry(
         &self,
         step_id: &str,
         request: &ResolutionRequest,
+        now: std::time::SystemTime,
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(request)?;
+        let delay = match request {
+            ResolutionRequest::Retry {
+                retry_after_seconds,
+                ..
+            } => *retry_after_seconds,
+            _ => 0,
+        };
+        let due = now
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .saturating_add(delay);
         self.append(
             RunEvent::Suspended(Box::new(SuspendedEvent {
                 step_id: step_id.to_owned(),
@@ -787,10 +888,50 @@ impl RunLog {
                     request_id,
                     request: blob.digest().to_owned(),
                     digest,
+                    due_at: Some(crate::time::iso8601_from_unix_seconds(
+                        i64::try_from(due).unwrap_or(i64::MAX),
+                    )),
                 },
+                answers: Vec::new(),
             })),
             vec![blob],
         )
+    }
+
+    /// An answer a resume admits, recorded before the run goes further, so
+    /// the next driver to reach its request uses it even after a crash.
+    pub(crate) fn record_answer(&self, answer: &Answer) -> Result<(), RunRecordError> {
+        let value = Blob::json(&answer.value)?;
+        self.append(
+            RunEvent::Answered(Box::new(AnsweredEvent {
+                request_id: answer.request_id.clone(),
+                request_digest: answer.request_digest.clone(),
+                value: value.digest().to_owned(),
+                human: answer.human,
+            })),
+            vec![value],
+        )
+    }
+
+    /// Every answer a resume admitted in this run's tree that no step, call
+    /// or claim has used yet.
+    pub(crate) fn admitted(&self) -> Result<Vec<Answer>, RunRecordError> {
+        let mut admitted = Vec::new();
+        for key in self
+            .0
+            .store
+            .tree_keys_with::<RunEvent>(&self.0.run_id, ANSWERED)?
+        {
+            let events = self.0.store.read::<RunEvent>(&key)?;
+            if let Some(record) = replay(
+                &self.0.store,
+                &key,
+                events.into_iter().map(|event| event.event),
+            )? {
+                admitted.extend(record.admitted);
+            }
+        }
+        Ok(admitted)
     }
 
     /// A call an agent made during its turn, with the answers it consumed.
@@ -1082,9 +1223,36 @@ fn standing(latest: &RunEvent) -> (RunState, Option<ClosureDisposition>, Option<
             Some(sealed.disposition.clone()),
             Some(sealed.receipt_id.clone()),
         ),
-        RunEvent::Suspended(_) | RunEvent::Call(_) => (RunState::Paused, None, None),
+        RunEvent::Suspended(_) | RunEvent::Call(_) | RunEvent::Answered(_) => {
+            (RunState::Paused, None, None)
+        }
         _ => (RunState::Running, None, None),
     }
+}
+
+/// The latest event that says where a stream stands: its last, stepping
+/// back past the answers admitted while it waited, which never move it.
+fn standing_event(
+    store: &KernelStore,
+    key: &str,
+) -> Result<Option<Recorded<RunEvent>>, RunRecordError> {
+    let Some(mut latest) = store.latest::<RunEvent>(key)? else {
+        return Ok(None);
+    };
+    while matches!(latest.event, RunEvent::Answered(_)) {
+        let earlier = match latest.version.checked_sub(2) {
+            Some(after) => store
+                .read_after::<RunEvent>(key, after, 1)?
+                .into_iter()
+                .next(),
+            None => None,
+        };
+        let Some(earlier) = earlier else {
+            break;
+        };
+        latest = earlier;
+    }
+    Ok(Some(latest))
 }
 
 /// The digest an answer to `request` binds to.
@@ -1171,6 +1339,7 @@ fn replay(
         facts: Vec::new(),
         suspension: None,
         answers: Vec::new(),
+        admitted: Vec::new(),
         calls: Vec::new(),
         retries: 0,
         sealed: None,
@@ -1185,14 +1354,7 @@ fn replay(
             }
             RunEvent::Step(step) => {
                 record.suspension = None;
-                for answer in &step.answers {
-                    record.answers.push(Answer {
-                        request_id: answer.request_id.clone(),
-                        request_digest: answer.request_digest.clone(),
-                        value: store.blob_json(&answer.value)?,
-                        human: answer.human,
-                    });
-                }
+                record.consume(store, &step.answers)?;
                 record
                     .facts
                     .push(Replayed::Step(Box::new(step_run(store, *step)?)));
@@ -1202,6 +1364,7 @@ fn replay(
                 record.facts.push(Replayed::Skipped(skipped.step_ids));
             }
             RunEvent::Suspended(suspended) => {
+                record.consume(store, &suspended.answers)?;
                 let hold = match suspended.hold {
                     HoldEvent::Request {
                         request_id,
@@ -1217,21 +1380,25 @@ fn replay(
                         request_id,
                         request,
                         digest,
+                        due_at,
                     } => {
                         record.retries = record.retries.saturating_add(1);
-                        Hold::Retry(PendingRequest {
-                            id: request_id,
-                            value: store.blob_json(&request)?,
-                            digest,
-                        })
+                        Hold::Retry {
+                            request: PendingRequest {
+                                id: request_id,
+                                value: store.blob_json(&request)?,
+                                digest,
+                            },
+                            due_at,
+                        }
                     }
                     // A claim no step event settled may have run: it waits on
-                    // its retry like any step that has not settled.
+                    // its retry until it settles.
                     HoldEvent::Claimed {
                         request_id,
                         request,
                         digest,
-                    } => Hold::Retry(PendingRequest {
+                    } => Hold::Claimed(PendingRequest {
                         id: request_id,
                         value: store.blob_json(&request)?,
                         digest,
@@ -1245,15 +1412,22 @@ fn replay(
             }
             RunEvent::Call(call) => {
                 let call = *call;
-                for answer in &call.answers {
-                    record.answers.push(Answer {
-                        request_id: answer.request_id.clone(),
-                        request_digest: answer.request_digest.clone(),
-                        value: store.blob_json(&answer.value)?,
-                        human: answer.human,
-                    });
-                }
+                record.consume(store, &call.answers)?;
                 settle_call(&mut record.calls, recorded_call(store, call)?);
+            }
+            // An admitted answer leaves the run where it waits, and replaces
+            // one admitted to the same request that no step used.
+            RunEvent::Answered(answered) => {
+                record.admitted.retain(|admitted| {
+                    admitted.request_id != answered.request_id
+                        || admitted.request_digest != answered.request_digest
+                });
+                record.admitted.push(Answer {
+                    request_id: answered.request_id,
+                    request_digest: answered.request_digest,
+                    value: store.blob_json(&answered.value)?,
+                    human: answered.human,
+                });
             }
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
@@ -1468,7 +1642,7 @@ struct Held {
 fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordError> {
     let mut current = run_id.to_owned();
     loop {
-        let Some(latest) = store.latest::<RunEvent>(&current)? else {
+        let Some(latest) = standing_event(store, &current)? else {
             return Ok(None);
         };
         let suspended = match latest.event {
@@ -1498,6 +1672,7 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
                 request_id,
                 request,
                 digest,
+                ..
             }
             | HoldEvent::Claimed {
                 request_id,
@@ -1700,8 +1875,7 @@ pub fn paused_run(
     // A run is paused when its own latest event leaves it waiting, even when
     // nothing it waits on needs a host: a child that sealed before its parent
     // step was recorded is taken further by the next continuation.
-    let paused = store
-        .latest::<RunEvent>(run_id)?
+    let paused = standing_event(&store, run_id)?
         .is_some_and(|latest| standing(&latest.event).0 == RunState::Paused);
     if !paused {
         return Ok(None);
@@ -1762,7 +1936,7 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, Run
     let RunEvent::Started(started) = first.event else {
         return Ok(None);
     };
-    let Some(latest) = store.latest::<RunEvent>(&head.key)? else {
+    let Some(latest) = standing_event(store, &head.key)? else {
         return Ok(None);
     };
     let (state, disposition, receipt_id) = standing(&latest.event);

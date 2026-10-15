@@ -2342,7 +2342,10 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
     })
     .err()
     .ok_or("agent-authored approval must be rejected without sealing")?;
-    assert!(rejected.to_string().contains("host-attested human"));
+    assert!(
+        rejected.to_string().contains("a person's to answer"),
+        "{rejected}"
+    );
     assert!(
         runx_runtime::run_record::paused_run(&BTreeMap::new(), temp.path(), &run_id)?.is_some()
     );

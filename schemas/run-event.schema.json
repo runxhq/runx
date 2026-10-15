@@ -565,6 +565,42 @@
             "receipt_id"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "actor": {
+              "enum": [
+                "human",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "address": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "answer_digest": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "answered",
+              "type": "string"
+            },
+            "request_digest": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "address",
+            "request_digest",
+            "answer_digest",
+            "actor"
+          ],
+          "type": "object"
         }
       ]
     },

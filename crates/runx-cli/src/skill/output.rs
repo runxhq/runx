@@ -476,7 +476,9 @@ fn write_pending_requests(
 }
 
 /// A `runx.resume.v1` document to fill in: one entry per request, each
-/// already bound to its request's digest.
+/// already bound to its request's digest. A retry has no entry: runx runs a
+/// bounded one itself, and a claimed one runs again only on the person's
+/// explicit `{"retry": true}`.
 fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
     let mut answers = JsonObject::new();
     let mut approvals = JsonObject::new();
@@ -488,6 +490,9 @@ fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
             continue;
         };
         let digest = ("request_digest".to_owned(), JsonValue::String(digest));
+        if object_string(object, "kind") == Some("retry") {
+            continue;
+        }
         if object_string(object, "kind") == Some("approval") {
             approvals.insert(
                 id.to_owned(),

@@ -15,14 +15,14 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    JsonObject, ResolutionRequest, RunCallOutcome, RunEventFact, RunEventRecord, RunHold, RunRead,
-    RunReadSchema, RunReadSummary, WaitedRequest,
+    JsonObject, ResolutionRequest, ResolutionResponseActor, RunCallOutcome, RunEventFact,
+    RunEventRecord, RunHold, RunRead, RunReadSchema, RunReadSummary, WaitedRequest,
 };
 use serde::{Deserialize, Serialize};
 
 use super::{
     CallOutcomeEvent, HoldEvent, RunEvent, RunRecordError, driven, input_digest, standing,
-    validate_run_id, waiting_requests,
+    standing_event, validate_run_id, waiting_requests,
 };
 use crate::execution::runner::StepOutcome;
 use crate::kernel::store::{KernelStore, Recorded};
@@ -87,7 +87,12 @@ pub fn read_run(
         positions.insert(relative.to_owned(), last);
         more |= last < head.version;
     }
-    let latest = store.latest::<RunEvent>(run_id)?.ok_or_else(unknown)?;
+    // An admitted answer updates the run but leaves it where it waits.
+    let updated_at = store
+        .latest::<RunEvent>(run_id)?
+        .ok_or_else(unknown)?
+        .committed_at;
+    let latest = standing_event(&store, run_id)?.ok_or_else(unknown)?;
     let (state, disposition, receipt_id) = standing(&latest.event);
     let waiting = waiting_requests(&store, run_id)?
         .into_iter()
@@ -116,7 +121,7 @@ pub fn read_run(
             receipt_id: receipt_id.map(Into::into),
             driven: driven(&paths, run_id)?,
             created_at: started.created_at.into(),
-            updated_at: latest.committed_at.into(),
+            updated_at: updated_at.into(),
         },
         waiting,
         events,
@@ -305,6 +310,16 @@ fn project(
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {
             disposition: sealed.disposition,
             receipt_id: sealed.receipt_id.into(),
+        },
+        RunEvent::Answered(answered) => RunEventFact::Answered {
+            address: answered.request_id.into(),
+            request_digest: answered.request_digest.into(),
+            answer_digest: answered.value.into(),
+            actor: if answered.human {
+                ResolutionResponseActor::Human
+            } else {
+                ResolutionResponseActor::Agent
+            },
         },
     };
     Ok(RunEventRecord {

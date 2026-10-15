@@ -139,6 +139,10 @@ authorization distinct, and binds every entry to the request it answers:
       "request_digest": "sha256:…",
       "approved": true,
       "reason": "I authorize this exact provider action."
+    },
+    "send/retry": {
+      "request_digest": "sha256:…",
+      "value": { "retry": true }
     }
   }
 }
@@ -151,6 +155,19 @@ belongs to another request, refuses the whole resume, so a decision never
 reaches a request that changed after the person saw it, and nothing answers a
 request the run has not asked yet. The pending run's `answers_template` is
 already bound.
+
+`answers` is the agent's lane: inputs and agent acts. `approvals` is the
+person's: an approval takes `approved` and `reason`, and a claimed call's retry
+takes `value: {"retry": true}`; each entry is checked against the kind of
+request it answers. Runx records every decision it admits under `approvals` in
+the run before it takes the run further (`answered` in `runx history <run-id>
+--json`), so a decision admitted before a crash is used by the run's next
+driver, and a resume with no entries continues such a run. The same decision
+delivered again is recorded once, a different one replaces a decision no step
+has used yet, and one delivered after its request was answered names no
+request the run waits on, and is refused. An agent's answer is checked by the
+step that uses it and recorded when used, so one its step refuses is never the
+run's.
 
 Only entries under `approvals` carry host-attested human approval provenance.
 The local CLI cannot authenticate a person from JSON: by placing a decision
@@ -184,9 +201,12 @@ again with that id returns the recorded call rather than running twice, and one
 naming another tool or input is refused. A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
-runx cannot confirm stays pending on its own retry request until `runx resume`
-answers that request with `{"retry": true}`, which runs the call again with the
-same input. A call that needs approval stays pending until `runx resume`
+runx cannot confirm stays pending on its own retry request, which says whether
+sending it again is safe (`resend`: a read, or a write its provider
+deduplicates); a safe one runs again with the same input when `runx resume`
+answers it under `approvals` with `{"retry": true}`, and an unsafe one is never
+resent: check what it did, then close the run. A bounded retry (one with
+`retry_after_seconds`) is runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
 answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
 and the run continues; an act that cannot be done ends with

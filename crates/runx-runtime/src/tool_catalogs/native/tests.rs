@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{JsonObject, JsonValue};
 
-use super::{core_capabilities, definition};
+use super::{core_capabilities, definition, only_reads};
 use crate::credentials::CredentialDelivery;
 use crate::effects::RuntimeEffectRegistry;
 
@@ -201,4 +201,14 @@ fn native_output_contract_is_exact_and_rejects_invalid_inner_fields() {
         ])),
     )]));
     assert!(capability.validate_output(&invalid).is_err());
+}
+
+#[test]
+fn a_tool_that_only_reads_can_run_again_and_one_that_changes_cannot() {
+    for read in ["fs.read", "fs.search", "git.log", "data.digest"] {
+        assert!(only_reads(read), "{read} only reads");
+    }
+    for changes in ["fs.write", "command.execute", "an.unknown.tool"] {
+        assert!(!only_reads(changes), "{changes} is not resent unseen");
+    }
 }

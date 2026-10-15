@@ -85,13 +85,31 @@ pub enum ResolutionRequest {
         id: NonEmptyString,
         invocation: Box<AgentActInvocation>,
     },
-    /// A native checkpoint can be resumed after a bounded delay. The host
-    /// acknowledges this exact request; it supplies no model or human verdict.
+    /// A step or call waits to run again. A bounded retry
+    /// (`retry_after_seconds` above zero) is runx's own: the driver that
+    /// reaches it after the delay runs it. A claimed call that never settled
+    /// (`retry_after_seconds` zero) runs again only on a person's
+    /// acknowledgement, `{"retry": true}`, and only when it can be resent.
     Retry {
         id: NonEmptyString,
         reason: NonEmptyString,
         retry_after_seconds: u64,
+        /// Whether a claimed call can be sent again with the same input: its
+        /// provider deduplicates it, or it only reads. One that cannot is
+        /// never resent; its run can only be closed with the call
+        /// unconfirmed.
+        #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+        resend: RetryResend,
     },
+}
+
+/// Whether sending a claimed call again could repeat its effect.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryResend {
+    #[default]
+    Safe,
+    Unsafe,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

@@ -1,7 +1,7 @@
-//! What a host brings a paused run (`runx resume <run-id> -`): answers and a
-//! person's approvals, each bound by digest to the request it answers, or a
-//! close. A decision therefore never reaches a request that changed after the
-//! person saw it.
+//! What a host brings a paused run (`runx resume <run-id> -`): an agent's
+//! answers and a person's decisions, each bound by digest to the request it
+//! answers, or a close. A decision therefore never reaches a request that
+//! changed after the person saw it.
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -10,8 +10,9 @@ use crate::JsonValue;
 use crate::decision::ClosureDisposition;
 use crate::schema::{NonEmptyString, RunxSchema};
 
-/// Each map is keyed by the address of the request it answers. A close comes
-/// alone.
+/// Each map is keyed by the address of the request it answers. `answers` is
+/// the agent's lane; `approvals` is the person's, and every entry in it
+/// resolves as theirs. A close comes alone.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.resume.v1")]
@@ -24,7 +25,7 @@ pub struct ResumeDocument {
     pub close: Option<RunClose>,
 }
 
-/// An answer to an ask, an agent act or a retry (`{"retry": true}`).
+/// An agent's answer to an input request or an agent act.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundAnswer {
@@ -33,14 +34,19 @@ pub struct BoundAnswer {
     pub value: JsonValue,
 }
 
-/// A person's decision on an approval.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// A person's decision, validated against the request it answers: an
+/// approval takes `approved` and `reason`; a claimed call's retry takes
+/// `value: {"retry": true}`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundApproval {
     pub request_digest: NonEmptyString,
-    pub approved: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<NonEmptyString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<JsonValue>,
 }
 
 /// Seal the run without continuing it: a person stopped it, or a new attempt
@@ -75,7 +81,10 @@ mod tests {
     fn a_document_binds_each_entry_and_refuses_an_unbound_one() -> Result<(), serde_json::Error> {
         let value = serde_json::json!({
             "answers": {"draft": {"request_digest": "sha256:a", "value": {"text": "hello"}}},
-            "approvals": {"send.approval": {"request_digest": "sha256:b", "approved": true, "reason": "checked"}}
+            "approvals": {
+                "send.approval": {"request_digest": "sha256:b", "approved": true, "reason": "checked"},
+                "send/retry": {"request_digest": "sha256:c", "value": {"retry": true}}
+            }
         });
         let document: ResumeDocument = serde_json::from_value(value.clone())?;
         assert_eq!(serde_json::to_value(document)?, value);

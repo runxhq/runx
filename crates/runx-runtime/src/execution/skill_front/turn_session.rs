@@ -163,11 +163,12 @@ mod tests {
         BTreeMap::from([(RUNX_CWD_ENV.to_owned(), root.display().to_string())])
     }
 
-    /// Answer the request run `run_id` waits on at `address` with `value`,
-    /// bound to that request's digest.
+    /// Answer the request run `run_id` waits on at `address` with `value`
+    /// in `lane`, bound to that request's digest.
     fn answer(
         root: &Path,
         run_id: &str,
+        lane: &str,
         address: &str,
         value: serde_json::Value,
     ) -> TestResult<RunResult> {
@@ -180,7 +181,7 @@ mod tests {
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: run_id.to_owned(),
             answers: serde_json::from_value(serde_json::json!({
-                "answers": { address: { "request_digest": digest, "value": value } }
+                lane: { address: { "request_digest": digest, "value": value } }
             }))?,
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
@@ -269,6 +270,7 @@ mod tests {
             id: "answer/0/retry".into(),
             reason: "call 0 has not settled".into(),
             retry_after_seconds: 0,
+            resend: runx_contracts::RetryResend::Safe,
         };
         log.record_call(&CallRecord {
             step_id: "answer",
@@ -327,16 +329,31 @@ mod tests {
         let refused = answer(
             root,
             &run_id,
+            "approvals",
             "answer/0/retry",
             serde_json::json!({"retry": false}),
         )
         .err()
         .ok_or("only the exact acknowledgement runs the call again")?;
-        assert!(refused.to_string().contains("acknowledgement"), "{refused}");
+        assert!(
+            refused.to_string().contains("acknowledged only"),
+            "{refused}"
+        );
+        let agent = answer(
+            root,
+            &run_id,
+            "answers",
+            "answer/0/retry",
+            serde_json::json!({"retry": true}),
+        )
+        .err()
+        .ok_or("a retry is the person's to acknowledge")?;
+        assert!(agent.to_string().contains("under approvals"), "{agent}");
 
         let settled = answer(
             root,
             &run_id,
+            "approvals",
             "answer/0/retry",
             serde_json::json!({"retry": true}),
         )?;
@@ -363,6 +380,115 @@ mod tests {
             )]),
         )?;
         assert!(sealed.succeeded(), "{:?}", sealed.output);
+        Ok(())
+    }
+
+    #[test]
+    fn an_answer_admitted_before_a_crash_is_used_by_the_next_resume() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let skill = root.join("asks");
+        fs::create_dir_all(&skill)?;
+        fs::write(
+            skill.join("SKILL.md"),
+            "---\nname: asks\ndescription: Asks, then answers.\n---\n# Asks\n\nAsk, then answer.\n",
+        )?;
+        fs::write(
+            skill.join("run.yaml"),
+            "skill: asks\nasks: true\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        )?;
+        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        })?;
+        let run_id = started
+            .output
+            .as_object()
+            .and_then(|output| output.get("run_id"))
+            .and_then(JsonValue::as_str)
+            .ok_or("missing run_id")?
+            .to_owned();
+        let session = LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id: run_id.clone(),
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+        })?;
+        session.call(
+            "answer",
+            "ask_human",
+            Some("ask-1"),
+            serde_json::from_value(serde_json::json!({"reason": "Go on?"}))?,
+        )?;
+        drop(session);
+
+        // A resume admitted the person's approval and stopped before the
+        // call went further.
+        let store = KernelStore::for_project(&RunxPaths::resolve(&env(root), root))?;
+        let ask = waiting_requests(&store, &run_id)?
+            .into_iter()
+            .find(|request| request.id == "answer/0")
+            .ok_or("the call waits on its ask")?;
+        let log = RunLog::open(Arc::clone(&store), run_id.clone())?;
+        log.record_answer(&crate::execution::run_record::Answer {
+            request_id: ask.id.clone(),
+            request_digest: ask.digest.clone(),
+            value: serde_json::from_value(serde_json::json!({"approved": true}))?,
+            human: true,
+        })?;
+        let read = crate::execution::run_record::read_run(&env(root), root, &run_id, None)?;
+        assert!(read.events.iter().any(|record| matches!(
+            &record.event,
+            runx_contracts::RunEventFact::Answered { address, actor: runx_contracts::ResolutionResponseActor::Human, .. }
+                if address.as_str() == "answer/0"
+        )));
+        assert_eq!(read.run.state, runx_contracts::RunState::Paused);
+
+        // The next resume brings nothing and uses the recorded answer.
+        let resume = |document: serde_json::Value| {
+            LocalOrchestrator::default()
+                .resume(&ResumeRequest {
+                    run_id: run_id.clone(),
+                    answers: serde_json::from_value(document)?,
+                    receipt_dir: Some(root.join("receipts")),
+                    env: env(root),
+                    cwd: root.to_path_buf(),
+                    managed_agent: ManagedAgentPolicy::HostDriven,
+                    package_digest: None,
+                    execution_closure_digest: None,
+                })
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+        };
+        resume(serde_json::json!({}))?;
+        assert!(log.admitted()?.is_empty(), "the call used the answer");
+        let session = LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id: run_id.clone(),
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+        })?;
+        assert!(matches!(
+            &session.status("answer")?.calls[0].outcome,
+            TurnCallOutcome::Completed { .. }
+        ));
+
+        // Delivered again, it answers nothing the run still waits on.
+        let again = resume(serde_json::json!({
+            "approvals": {"answer/0": {"request_digest": ask.digest, "approved": true}}
+        }))
+        .err()
+        .ok_or("the request is answered")?;
+        assert!(again.to_string().contains("names no request"), "{again}");
         Ok(())
     }
 

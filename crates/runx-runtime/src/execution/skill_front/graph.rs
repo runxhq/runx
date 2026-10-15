@@ -182,24 +182,31 @@ impl BoundRun {
                 Stop::Closed(close.disposition.into()),
             );
         }
+        // Every decision a person brings is the run's before it goes
+        // further: recorded in the stream whose request it answers, so the
+        // next driver to reach that request uses it, even after a crash.
+        // Decisions recorded earlier that no step has used yet are used now.
+        if existing.is_some() {
+            host.answers.join_recorded(log.admitted()?);
+            for answer in host.answers.brought() {
+                match answer.request_id.split_once('#') {
+                    Some((path, _)) => log.child(path)?.record_answer(&answer)?,
+                    None => log.record_answer(&answer)?,
+                }
+            }
+        }
         if let Some(suspension) = suspension {
             match &suspension.hold {
-                Hold::Retry(retry) => {
-                    let Some(answer) = host.answers.get(&retry.id, &retry.digest) else {
-                        return self.paused(&log);
-                    };
-                    if answer
-                        != &JsonValue::Object(JsonObject::from([(
-                            "retry".to_owned(),
-                            JsonValue::Bool(true),
-                        )]))
-                    {
-                        return Err(invalid(format!(
-                            "{} is answered with {{\"retry\": true}}",
-                            retry.id
-                        )));
-                    }
+                // A bounded retry is runx's own: it runs once it is due.
+                Hold::Retry { due_at, .. } if !is_due(due_at.as_deref()) => {
+                    return self.paused(&log);
                 }
+                // A claimed step runs again only on the person's
+                // acknowledgement, which its lane checked.
+                Hold::Claimed(retry) if host.answers.get(&retry.id, &retry.digest).is_none() => {
+                    return self.paused(&log);
+                }
+                Hold::Retry { .. } | Hold::Claimed(_) => {}
                 // Nothing new to continue with: the run still waits on what
                 // only a host can answer. A run that waits on nothing, a child
                 // that sealed before its parent step was recorded, goes on.
@@ -251,7 +258,9 @@ impl BoundRun {
                         id: format!("provider-readback-{step_id}-{retries}").into(),
                         reason: "Independent provider readback is pending".into(),
                         retry_after_seconds: 300,
+                        resend: runx_contracts::RetryResend::Safe,
                     },
+                    std::time::SystemTime::now(),
                 )?;
                 self.paused(&log)
             }
@@ -801,6 +810,16 @@ impl Host for RunHost {
     }
 }
 
+/// Whether a bounded retry due at `due_at` may run now. One recorded before
+/// retries carried their time is due.
+fn is_due(due_at: Option<&str>) -> bool {
+    let parse = runx_core::policy::parse_rfc3339_moment;
+    match due_at.map(|due| (parse(due), parse(&crate::time::now_iso8601()))) {
+        Some((Some(due), Some(now))) => now >= due,
+        _ => true,
+    }
+}
+
 /// The answer of an act that failed: its closure, with why.
 fn failed_act(reason: String) -> JsonValue {
     JsonValue::Object(JsonObject::from([(
@@ -1004,6 +1023,7 @@ steps:
                         id: "compose".into(),
                         reason: "the turn is open".into(),
                         retry_after_seconds: 1,
+                        resend: runx_contracts::RetryResend::Safe,
                     },
                 )?;
             }

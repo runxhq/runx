@@ -1707,3 +1707,62 @@ fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
         .expect_err("held");
     assert!(error.contains("another principal"), "{error}");
 }
+
+#[test]
+fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
+    let manifest: runx_contracts::connector::ConnectorManifest =
+        serde_json::from_value(serde_json::json!({
+            "schema": "runx.connector.v1",
+            "id": "notes",
+            "name": "Notes",
+            "description": "Write and read notes.",
+            "runtime_capability": false,
+            "auth": {"delegated": {}},
+            "placements": {"hosted": {"auth": "delegated"}},
+            "operations": {
+                "note.read": {
+                    "description": "Read a note.",
+                    "verb": "read",
+                    "scopes": ["note.read"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "hosted": {"provider_scopes": ["notes:read"]}
+                },
+                "note.post": {
+                    "description": "Post a note.",
+                    "verb": "write",
+                    "scopes": ["note.post"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "approval": "required",
+                    "result_fields": ["note"],
+                    "hosted": {"provider_scopes": ["notes:write"]}
+                },
+                "note.put": {
+                    "description": "Put a note by its key.",
+                    "verb": "write",
+                    "scopes": ["note.put"],
+                    "target": {"template": {"$argument": "/note"}},
+                    "approval": "required",
+                    "idempotency_key_format": "uuid",
+                    "guarantees": {"provider_idempotency": "enforced"},
+                    "result_fields": ["note"],
+                    "hosted": {"provider_scopes": ["notes:write"]}
+                }
+            }
+        }))
+        .expect("the manifest parses");
+    let operation = |name: &str| {
+        manifest
+            .operations
+            .iter()
+            .find(|(operation, _)| operation.as_str() == name)
+            .map(|(_, operation)| operation.clone())
+            .expect("the operation")
+    };
+    assert!(resends_safely(&operation("note.read"), None));
+    assert!(resends_safely(&operation("note.put"), None));
+    assert!(!resends_safely(&operation("note.post"), None));
+    assert!(resends_safely(
+        &operation("note.post"),
+        Some(DuplicatePolicy::Visible)
+    ));
+}

@@ -64,6 +64,14 @@ export type RunEventFactContract = DeepReadonly<
       outcome: RunCallOutcomeContract;
     }
   | { kind: "sealed"; disposition: ClosureDispositionContract; receipt_id: string }
+  | {
+      /** A resume admitted this decision before it took the run further. */
+      kind: "answered";
+      address: string;
+      request_digest: string;
+      answer_digest: string;
+      actor: "human" | "agent";
+    }
 >;
 
 /** One event of a run's record: references and digests, never outputs or secrets. */

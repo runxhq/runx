@@ -1189,6 +1189,12 @@ export const runxSchemaArtifacts = {
                     "minLength": 1,
                     "type": "string"
                   },
+                  "resend": {
+                    "enum": [
+                      "unsafe"
+                    ],
+                    "type": "string"
+                  },
                   "retry_after_seconds": {
                     "minimum": 0,
                     "type": "integer"
@@ -23730,6 +23736,12 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
+          "resend": {
+            "enum": [
+              "unsafe"
+            ],
+            "type": "string"
+          },
           "retry_after_seconds": {
             "minimum": 0,
             "type": "integer"
@@ -23805,11 +23817,11 @@ export const runxSchemaArtifacts = {
             "request_digest": {
               "minLength": 1,
               "type": "string"
-            }
+            },
+            "value": {}
           },
           "required": [
-            "request_digest",
-            "approved"
+            "request_digest"
           ],
           "type": "object"
         },
@@ -24460,6 +24472,42 @@ export const runxSchemaArtifacts = {
               "receipt_id"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "enum": [
+                  "human",
+                  "agent"
+                ],
+                "type": "string"
+              },
+              "address": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "answer_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "answered",
+                "type": "string"
+              },
+              "request_digest": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "address",
+              "request_digest",
+              "answer_digest",
+              "actor"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -25056,6 +25104,42 @@ export const runxSchemaArtifacts = {
                     "kind",
                     "disposition",
                     "receipt_id"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actor": {
+                      "enum": [
+                        "human",
+                        "agent"
+                      ],
+                      "type": "string"
+                    },
+                    "address": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "answer_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "answered",
+                      "type": "string"
+                    },
+                    "request_digest": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "address",
+                    "request_digest",
+                    "answer_digest",
+                    "actor"
                   ],
                   "type": "object"
                 }
@@ -26129,6 +26213,12 @@ export const runxSchemaArtifacts = {
                     },
                     "reason": {
                       "minLength": 1,
+                      "type": "string"
+                    },
+                    "resend": {
+                      "enum": [
+                        "unsafe"
+                      ],
                       "type": "string"
                     },
                     "retry_after_seconds": {
@@ -31958,6 +32048,12 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
+                        "resend": {
+                          "enum": [
+                            "unsafe"
+                          ],
+                          "type": "string"
+                        },
                         "retry_after_seconds": {
                           "minimum": 0,
                           "type": "integer"
@@ -33117,6 +33213,12 @@ export const runxSchemaArtifacts = {
                               },
                               "reason": {
                                 "minLength": 1,
+                                "type": "string"
+                              },
+                              "resend": {
+                                "enum": [
+                                  "unsafe"
+                                ],
                                 "type": "string"
                               },
                               "retry_after_seconds": {

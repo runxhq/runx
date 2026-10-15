@@ -55,16 +55,91 @@ pub(crate) fn reaches_world(kind: &runx_parser::StepKind) -> bool {
     )
 }
 
-/// The request a claimed step that never settled waits on.
-pub(crate) fn unsettled_retry(id: String, what: &str) -> runx_contracts::ResolutionRequest {
+/// The request a claimed step that never settled waits on. One that can be
+/// sent again is acknowledged with `{"retry": true}`; one that cannot is
+/// never resent, and its run can only be closed with it unconfirmed.
+pub(crate) fn unsettled_retry(
+    id: String,
+    what: &str,
+    resend: runx_contracts::RetryResend,
+) -> runx_contracts::ResolutionRequest {
+    let reason = match resend {
+        runx_contracts::RetryResend::Safe => format!(
+            "{what} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
+        ),
+        runx_contracts::RetryResend::Unsafe => format!(
+            "{what} has not settled and may have run, and sending it again could repeat its effect; check what it did, then close the run"
+        ),
+    };
     runx_contracts::ResolutionRequest::Retry {
         id: id.into(),
-        reason: format!(
-            "{what} has not settled and may have run; acknowledge with {{\"retry\": true}} to run it again with the same input"
-        )
-        .into(),
+        reason: reason.into(),
         retry_after_seconds: 0,
+        resend,
     }
+}
+
+/// Whether a step that reaches the world can be sent again if it never
+/// settles, decided before it runs so its retry says so even after a crash:
+/// a core tool that only reads, or an operation every connector that may
+/// serve it resends safely. A process, a tool that changes something, and
+/// anything runx cannot resolve here, cannot.
+pub(crate) fn resend_of(
+    step: &runx_parser::GraphStep,
+    graph_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> runx_contracts::RetryResend {
+    use runx_parser::{StepKind, ToolTarget};
+    let safe = match &step.kind {
+        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        StepKind::Operation(target) => operation_resends(step, target, graph_dir, env),
+        _ => false,
+    };
+    if safe {
+        runx_contracts::RetryResend::Safe
+    } else {
+        runx_contracts::RetryResend::Unsafe
+    }
+}
+
+fn operation_resends(
+    step: &runx_parser::GraphStep,
+    target: &runx_parser::OperationStepTarget,
+    graph_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    let (Some(operation), Ok(scope)) = (
+        target.operation.as_ref(),
+        crate::kernel::connectors::ConnectorScope::at(graph_dir),
+    ) else {
+        return false;
+    };
+    let scope = scope.in_project(crate::paths::RunxPaths::resolve(env, graph_dir).connectors());
+    let connectors = match target
+        .declared
+        .as_ref()
+        .filter(|declared| declared.connector_from.is_some())
+    {
+        Some(declared) => declared
+            .allowed_connectors
+            .iter()
+            .map(|id| id.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        None => vec![target.requirement.clone()],
+    };
+    !connectors.is_empty()
+        && connectors.iter().all(|id| {
+            scope.connector(id).is_ok_and(|connector| {
+                connector
+                    .manifest
+                    .operations
+                    .iter()
+                    .find(|(name, _)| name.as_str() == operation.as_str())
+                    .is_some_and(|(_, operation)| {
+                        crate::kernel::operation::resends_safely(operation, step.duplicates)
+                    })
+            })
+        })
 }
 
 /// Why the run's delegation refuses a child run one level below this run.

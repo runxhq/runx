@@ -314,7 +314,7 @@ where
         };
         let claim = match &made.target {
             _ if super::reaches_world(&step.kind) => {
-                Some(CallOutcome::Claimed(self.retry(made.index)?))
+                Some(CallOutcome::Claimed(self.retry(made.index, &step)?))
             }
             TurnTarget::Skill { .. } => Some(CallOutcome::Child(
                 self.scope.runtime.options.run.child_id(&step.id),
@@ -370,12 +370,14 @@ where
         }
     }
 
-    /// What a claimed call waits on until it settles: the host's
-    /// acknowledgement to run it again with the same input.
-    fn retry(&self, index: u32) -> Result<PendingRequest, RuntimeError> {
+    /// What a claimed call waits on until it settles: the person's
+    /// acknowledgement to run it again with the same input, when it can be
+    /// sent again.
+    fn retry(&self, index: u32, step: &GraphStep) -> Result<PendingRequest, RuntimeError> {
         pending_request(&super::unsettled_retry(
             self.retry_id(index),
             &format!("call {index}"),
+            super::resend_of(step, self.scope.graph_dir, &self.scope.runtime.options.env),
         ))
     }
 
@@ -1020,13 +1022,16 @@ where
 }
 
 /// A recorded request as the host protocol carries it.
-fn resolution_request(request: &PendingRequest) -> Result<ResolutionRequest, RuntimeError> {
+pub(super) fn resolution_request(
+    request: &PendingRequest,
+) -> Result<ResolutionRequest, RuntimeError> {
     serde_json::to_value(&request.value)
         .and_then(serde_json::from_value)
         .map_err(|source| RuntimeError::json("reading a pending request", source))
 }
 
-fn retry_acknowledgement() -> JsonValue {
+/// The person's acknowledgement that runs a claimed call or step again.
+pub(super) fn retry_acknowledgement() -> JsonValue {
     JsonValue::Object(JsonObject::from([(
         "retry".to_owned(),
         JsonValue::Bool(true),

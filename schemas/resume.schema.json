@@ -36,11 +36,11 @@
           "request_digest": {
             "minLength": 1,
             "type": "string"
-          }
+          },
+          "value": {}
         },
         "required": [
-          "request_digest",
-          "approved"
+          "request_digest"
         ],
         "type": "object"
       },
