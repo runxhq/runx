@@ -41,8 +41,23 @@ pub(super) fn harness_transport(
     let grant_connector = caller
         .provider_responses
         .as_ref()
-        .map(|provider| granted_connector(scope, closure, skill_dir, &provider.grant.provider))
+        .and_then(|provider| provider.grant.as_ref())
+        .map(|grant| granted_connector(scope, closure, skill_dir, &grant.provider))
         .transpose()?;
+    let mut held_connectors: Vec<Arc<LoadedConnector>> = Vec::new();
+    for hold in caller
+        .provider_responses
+        .iter()
+        .flat_map(|provider| &provider.holds)
+    {
+        let connector = granted_connector(scope, closure, skill_dir, &hold.connector)?;
+        if !held_connectors
+            .iter()
+            .any(|known| known.binding() == connector.binding())
+        {
+            held_connectors.push(connector);
+        }
+    }
     let exchanges = Arc::new(HarnessExchanges::new(
         caller
             .http_exchanges
@@ -63,6 +78,7 @@ pub(super) fn harness_transport(
     Ok(HarnessTransport {
         provider: caller.provider_responses.clone(),
         grant_connector,
+        held_connectors,
         exchanges,
         mutation_keys: Arc::default(),
         artifacts: Arc::default(),
@@ -153,10 +169,14 @@ pub(crate) fn seed_provider_grant(
     env: &BTreeMap<String, String>,
     cwd: &std::path::Path,
 ) -> Result<(), String> {
-    let Some(provider) = &caller.provider_responses else {
+    let Some(grant) = caller
+        .provider_responses
+        .as_ref()
+        .and_then(|provider| provider.grant.as_ref())
+    else {
         return Ok(());
     };
-    let connector = granted_connector(scope, closure, cwd, &provider.grant.provider)?;
+    let connector = granted_connector(scope, closure, cwd, &grant.provider)?;
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))
             .map_err(|error| error.to_string())?,
@@ -165,7 +185,7 @@ pub(crate) fn seed_provider_grant(
         &instances,
         &connector,
         Arc::new(harness_transport(caller, scope, closure, cwd)?),
-        &provider.grant.grant_id,
+        &grant.grant_id,
         env,
         cwd,
     )

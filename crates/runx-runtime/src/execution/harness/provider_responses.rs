@@ -21,6 +21,8 @@ pub(super) struct HarnessTransport {
     /// The exact connector the fixture's grant is for, as runx Connect
     /// lists and executes it.
     pub(super) grant_connector: Option<Arc<crate::kernel::connectors::LoadedConnector>>,
+    /// The exact connectors the fixture's holds are of.
+    pub(super) held_connectors: Vec<Arc<crate::kernel::connectors::LoadedConnector>>,
     pub(super) exchanges: Arc<HarnessExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
     /// The fixture principal's artifact space, as runx keeps it: what the
@@ -52,22 +54,29 @@ impl RuntimeHttpTransport for HarnessTransport {
                 ])))
             }
             (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
-                let connector = self.grant_connector.as_ref().ok_or_else(|| {
-                    transport_error("the provider fixture's grant names no connector".to_owned())
-                })?;
-                // Connect records the provider of the connector a grant binds,
-                // however the fixture named that connector.
-                let grant = serde_json::json!({
-                    "grant_id": fixture.grant.grant_id,
-                    "provider": connector.manifest.id.as_str(),
-                    "connector_binding": connector.binding(),
-                    "status": "active",
-                    "scopes": fixture.grant.scopes,
-                });
+                let grants = match &fixture.grant {
+                    Some(grant) => {
+                        let connector = self.grant_connector.as_ref().ok_or_else(|| {
+                            transport_error(
+                                "the provider fixture's grant names no connector".to_owned(),
+                            )
+                        })?;
+                        // Connect records the provider of the connector a grant
+                        // binds, however the fixture named that connector.
+                        vec![serde_json::json!({
+                            "grant_id": grant.grant_id,
+                            "provider": connector.manifest.id.as_str(),
+                            "connector_binding": connector.binding(),
+                            "status": "active",
+                            "scopes": grant.scopes,
+                        })]
+                    }
+                    None => Vec::new(),
+                };
                 json_response(
                     JsonValue::from_serialize(&serde_json::json!({
                         "status": "success",
-                        "grants": [grant],
+                        "grants": grants,
                     }))
                     .map_err(|error| transport_error(error.to_string()))?,
                 )
@@ -133,13 +142,17 @@ impl HarnessTransport {
                 )));
             }
         };
-        if grant_id != fixture.grant.grant_id {
+        let Some(grant) = fixture
+            .grant
+            .as_ref()
+            .filter(|grant| grant.grant_id == grant_id)
+        else {
             return Err(transport_error(format!(
                 "the harness provider fixture holds no grant {grant_id:?}"
             )));
-        }
+        };
         let provider = self.grant_connector.as_ref().map_or_else(
-            || fixture.grant.provider.clone(),
+            || grant.provider.clone(),
             |connector| connector.manifest.id.as_str().to_owned(),
         );
         let fixture = fixture
@@ -240,7 +253,11 @@ impl HarnessTransport {
 #[serde(deny_unknown_fields)]
 struct DeclaredRequest {
     connector_binding: runx_contracts::connector::ConnectorBinding,
-    grant_id: String,
+    #[serde(default)]
+    grant_id: Option<String>,
+    /// What a purchase holds on one resource, presented in place of a grant.
+    #[serde(default)]
+    held: Option<DeclaredHold>,
     operation: String,
     operation_digest: String,
     implementation_digest: String,
@@ -252,6 +269,14 @@ struct DeclaredRequest {
     item: Option<usize>,
     #[serde(default)]
     responses: Option<BTreeMap<String, JsonObject>>,
+}
+
+/// The held resource a declared request is sent under.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeclaredHold {
+    credential: String,
+    target: String,
 }
 
 impl HarnessTransport {
@@ -268,19 +293,64 @@ impl HarnessTransport {
         let Ok(call) = serde_json::from_str::<DeclaredRequest>(body.unwrap_or_default()) else {
             return refused(400, "invalid_request", "the provider request is malformed");
         };
-        if call.grant_id != fixture.grant.grant_id {
-            return refused(
-                404,
-                "unknown-grant",
-                format!(
-                    "the harness provider fixture holds no grant {:?}",
-                    call.grant_id
-                ),
-            );
-        }
-        let connector = self.grant_connector.as_ref().ok_or_else(|| {
-            transport_error("the provider fixture's grant names no connector".to_owned())
-        })?;
+        // A request is sent under a grant, or under what a purchase holds on
+        // one resource, never both.
+        let connector = match (&call.grant_id, &call.held) {
+            (Some(grant_id), None) => {
+                if fixture
+                    .grant
+                    .as_ref()
+                    .is_none_or(|grant| &grant.grant_id != grant_id)
+                {
+                    return refused(
+                        404,
+                        "unknown-grant",
+                        format!("the harness provider fixture holds no grant {grant_id:?}"),
+                    );
+                }
+                self.grant_connector.as_ref().ok_or_else(|| {
+                    transport_error("the provider fixture's grant names no connector".to_owned())
+                })?
+            }
+            (None, Some(held)) => {
+                if !fixture.holds.iter().any(|hold| {
+                    hold.connector == call.connector_binding.connector.as_str()
+                        && hold.credential == held.credential
+                        && hold.target == held.target
+                }) {
+                    return refused(
+                        403,
+                        "credential_unavailable",
+                        format!(
+                            "Nothing is held for {}; it was never bought, has ended, or is another account's.",
+                            held.target
+                        ),
+                    );
+                }
+                let Some(connector) = self
+                    .held_connectors
+                    .iter()
+                    .find(|connector| connector.binding() == call.connector_binding)
+                else {
+                    return refused(
+                        409,
+                        "operation_contract_mismatch",
+                        format!(
+                            "{} is not a revision runx Connect executes; update runx.",
+                            call.connector_binding.connector
+                        ),
+                    );
+                };
+                connector
+            }
+            _ => {
+                return refused(
+                    400,
+                    "invalid_input",
+                    "A request names a grant or a held resource, never both.",
+                );
+            }
+        };
         let digests = crate::kernel::connectors::operation_digest_entries(
             &connector.manifest,
             &connector.operation_digests,
@@ -316,12 +386,51 @@ impl HarnessTransport {
                 format!("operation '{}' declares no hosted requests", call.operation),
             );
         };
-        if operation.scopes.iter().any(|scope| {
+        if let Some(held) = &call.held {
+            // A hold is presented only to an operation authorized by its
+            // purchase credential, on the resource it holds.
+            let purchase = connector
+                .manifest
+                .auth
+                .credentials
+                .iter()
+                .any(|(name, declaration)| {
+                    name.as_str() == held.credential && declaration.is_purchase()
+                });
+            if !purchase
+                || !operation
+                    .credentials
+                    .iter()
+                    .any(|credential| credential.as_str() == held.credential)
+            {
+                return refused(
+                    400,
+                    "operation_unsupported",
+                    format!(
+                        "operation '{}' is not one on a resource a purchase holds",
+                        call.operation
+                    ),
+                );
+            }
+            let arguments = JsonValue::Object(call.input.clone());
+            let target = operation.target.template.render_string(
+                &runx_contracts::connector::TemplateInputs {
+                    arguments: Some(&arguments),
+                    ..runx_contracts::connector::TemplateInputs::default()
+                },
+            );
+            if target.as_deref().ok() != Some(held.target.as_str()) {
+                return refused(
+                    400,
+                    "invalid_input",
+                    "The call names another resource than the one it is sent under.",
+                );
+            }
+        } else if operation.scopes.iter().any(|scope| {
             !fixture
                 .grant
-                .scopes
-                .iter()
-                .any(|granted| granted == scope.as_str())
+                .as_ref()
+                .is_some_and(|grant| grant.scopes.iter().any(|granted| granted == scope.as_str()))
         }) {
             return refused(
                 400,
@@ -364,13 +473,131 @@ impl HarnessTransport {
             Err(error) => return refused(400, "invalid_input", error),
         };
         let answer = self.exchanges.answer(&rendered)?;
+        let body = match operation.holds.as_ref() {
+            Some(hold) if hold.action == runx_contracts::connector::HoldAction::Take => {
+                held_answer(hold, spec, answer.status, &answer.body).map_err(transport_error)?
+            }
+            _ => answer.body,
+        };
         json_response(JsonValue::Object(JsonObject::from([
             (
                 "status".to_owned(),
                 JsonValue::Number(runx_contracts::JsonNumber::from(u64::from(answer.status))),
             ),
-            ("body".to_owned(), JsonValue::String(answer.body)),
+            ("body".to_owned(), JsonValue::String(body)),
         ])))
+    }
+}
+
+/// What runx Connect answers a take with: the provider's answer with every
+/// field the hold takes replaced by the hold's evidence, so the kernel sees
+/// that a hold was taken and never what it holds. An error answer keeps none
+/// of the fields.
+fn held_answer(
+    hold: &runx_contracts::connector::OperationHold,
+    spec: &runx_contracts::connector::HttpImplementation,
+    status: u16,
+    body: &str,
+) -> Result<String, String> {
+    let paths = hold
+        .fields
+        .iter()
+        .map(|(name, binding)| {
+            binding
+                .response_reference()
+                .and_then(|reference| reference.strip_prefix("write."))
+                .map(|path| (name.as_str().to_owned(), path.to_owned()))
+                .ok_or_else(|| format!("held field {name} names no path in the write's answer"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let decoded = serde_json::from_str::<serde_json::Value>(body).ok();
+    let Some(serde_json::Value::Object(mut answer)) = decoded else {
+        return if (200..300).contains(&status) {
+            Err("the provider's answer is not the JSON object its hold reads".to_owned())
+        } else {
+            Ok(body.to_owned())
+        };
+    };
+    if !(200..300).contains(&status) {
+        for (_, path) in &paths {
+            replace_at(&mut answer, path, serde_json::Value::Null);
+        }
+        return serde_json::to_string(&answer).map_err(|error| error.to_string());
+    }
+    let acknowledgement: JsonValue =
+        serde_json::from_value(serde_json::Value::Object(answer.clone()))
+            .map_err(|error| error.to_string())?;
+    let source = JsonValue::Object(JsonObject::from([
+        ("acknowledgement".to_owned(), acknowledgement.clone()),
+        ("readbacks".to_owned(), JsonValue::Array(Vec::new())),
+    ]));
+    let result = JsonValue::Object(
+        spec.result_paths
+            .iter()
+            .filter_map(|(field, path)| {
+                crate::kernel::operation::confirm::at_path(&source, path)
+                    .map(|value| (field.clone(), value.clone()))
+            })
+            .collect(),
+    );
+    let inputs = runx_contracts::connector::TemplateInputs {
+        result: Some(&result),
+        ..runx_contracts::connector::TemplateInputs::default()
+    };
+    let target = hold
+        .target
+        .render_string(&inputs)
+        .map_err(|error| format!("the provider's answer names no held resource: {error}"))?;
+    let expires_at = hold
+        .expires_at
+        .as_ref()
+        .ok_or("a take states when its resource ends")?
+        .render_string(&inputs)
+        .map_err(|error| format!("the provider's answer names no expiry: {error}"))?;
+    let mut fields = serde_json::Map::new();
+    for (name, path) in &paths {
+        let value = crate::kernel::operation::confirm::at_path(&acknowledgement, path)
+            .and_then(JsonValue::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("the provider's answer holds no {name}"))?;
+        fields.insert(name.clone(), serde_json::Value::String(value.to_owned()));
+    }
+    let digest =
+        runx_contracts::canonical_json::canonical_stable_json(&serde_json::Value::Object(fields))
+            .map(|text| runx_contracts::sha256_prefixed(text.as_bytes()))
+            .map_err(|error| error.to_string())?;
+    let evidence = serde_json::json!({
+        runx_contracts::connector::HOLD_EVIDENCE_KEY: {
+            "target": target,
+            "expires_at": expires_at,
+            "value_digest": digest,
+        }
+    });
+    for (_, path) in &paths {
+        replace_at(&mut answer, path, evidence.clone());
+    }
+    serde_json::to_string(&answer).map_err(|error| error.to_string())
+}
+
+/// Replace the value at a dotted path that exists; nothing else changes.
+fn replace_at(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    path: &str,
+    value: serde_json::Value,
+) {
+    let segments = path.split('.').collect::<Vec<_>>();
+    let Some((last, parents)) = segments.split_last() else {
+        return;
+    };
+    let mut current = object;
+    for segment in parents {
+        let Some(serde_json::Value::Object(next)) = current.get_mut(*segment) else {
+            return;
+        };
+        current = next;
+    }
+    if let Some(slot) = current.get_mut(*last) {
+        *slot = value;
     }
 }
 
@@ -550,4 +777,76 @@ fn json_response(value: JsonValue) -> Result<RuntimeHttpResponse, RuntimeHttpErr
 
 fn transport_error(message: String) -> RuntimeHttpError {
     RuntimeHttpError::Transport { message }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use runx_contracts::connector::{HttpImplementation, OperationHold};
+    use serde_json::json;
+
+    use super::held_answer;
+
+    fn hold() -> OperationHold {
+        serde_json::from_value(json!({
+            "action": "take",
+            "credential": "lease",
+            "target": {"$concat": ["acme:inbox/", {"$result": "/lease/inbox_id"}]},
+            "expires_at": {"$result": "/lease/expires_at"},
+            "fields": {"capability": {"$response": "write.capability"}},
+        }))
+        .expect("a take")
+    }
+
+    fn spec() -> HttpImplementation {
+        serde_json::from_value(json!({
+            "allowed_hosts": ["inbox.acme.test"],
+            "requests": [{"id": "provision", "method": "POST", "url": "https://inbox.acme.test/inboxes"}],
+            "result_paths": {"lease": "acknowledgement.lease"},
+        }))
+        .expect("an http implementation")
+    }
+
+    #[test]
+    fn a_take_answers_the_hold_s_evidence_in_place_of_what_it_holds() {
+        let answer = held_answer(
+            &hold(),
+            &spec(),
+            200,
+            r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"},"capability":"auc_secret"}"#,
+        )
+        .expect("a held answer");
+        assert!(!answer.contains("auc_secret"));
+        let answer: serde_json::Value = serde_json::from_str(&answer).expect("json");
+        assert_eq!(
+            answer["capability"]["$held"],
+            json!({
+                "target": "acme:inbox/inb_1",
+                "expires_at": "2026-10-16T00:00:00.000Z",
+                "value_digest": runx_contracts::sha256_prefixed(br#"{"capability":"auc_secret"}"#),
+            })
+        );
+        assert_eq!(answer["lease"]["inbox_id"], json!("inb_1"));
+    }
+
+    #[test]
+    fn a_take_holds_nothing_from_an_error_or_an_answer_without_its_fields() {
+        let refused = held_answer(
+            &hold(),
+            &spec(),
+            409,
+            r#"{"error":"quota","capability":"auc_secret"}"#,
+        )
+        .expect("an error answer");
+        assert_eq!(refused, r#"{"capability":null,"error":"quota"}"#);
+        held_answer(
+            &hold(),
+            &spec(),
+            200,
+            r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"}}"#,
+        )
+        .expect_err("no capability to hold");
+        held_answer(&hold(), &spec(), 200, "not json").expect_err("not an object");
+    }
 }

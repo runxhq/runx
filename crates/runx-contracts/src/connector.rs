@@ -670,7 +670,8 @@ pub struct OperationHold {
 pub struct HoldEvidence {
     pub target: NonEmptyString,
     pub expires_at: NonEmptyString,
-    /// `sha256:` over the held value's UTF-8 bytes.
+    /// `sha256:` over the stable JSON of the hold's fields, which tells holds
+    /// apart without showing one.
     pub value_digest: NonEmptyString,
 }
 

@@ -139,8 +139,10 @@ pub struct HarnessProviderOperationFixture {
 #[serde(deny_unknown_fields)]
 pub struct HarnessProviderResponsesFixture {
     pub principal_id: String,
-    /// The grant the case's hosted instance is confirmed with.
-    pub grant: HarnessProviderGrantFixture,
+    /// The grant the case's hosted instance is confirmed with. A case that
+    /// acts only on what purchases hold names none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grant: Option<HarnessProviderGrantFixture>,
     /// The provider operations Connect answers. A case whose operations are
     /// refused before any request leaves declares none.
     #[serde(default)]
@@ -150,6 +152,22 @@ pub struct HarnessProviderResponsesFixture {
     /// fails closed, as it does for a run no paid invocation is bound to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invocation_id: Option<String>,
+    /// What earlier purchases hold for the principal: Connect presents a hold
+    /// only to an operation on that resource, and refuses one the principal
+    /// does not hold.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holds: Vec<HarnessProviderHoldFixture>,
+}
+
+/// One resource a purchase holds for the harness principal: the seller's
+/// connector, the purchase credential that holds it, and the resource's
+/// target.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessProviderHoldFixture {
+    pub connector: String,
+    pub credential: String,
+    pub target: String,
 }
 
 /// An agent turn the caller works: the calls it makes in order, then the
@@ -469,15 +487,25 @@ fn validate_harness_provider_responses(
             "must be a non-empty principal id no longer than 256 characters",
         ));
     }
-    let grant = &fixture.grant;
-    if grant.grant_id.trim().is_empty()
-        || grant.provider.trim().is_empty()
-        || grant.scopes.is_empty()
-        || grant.scopes.iter().any(|scope| scope.trim().is_empty())
+    if let Some(grant) = &fixture.grant
+        && (grant.grant_id.trim().is_empty()
+            || grant.provider.trim().is_empty()
+            || grant.scopes.is_empty()
+            || grant.scopes.iter().any(|scope| scope.trim().is_empty()))
     {
         return Err(invalid(
             format!("{field}.grant"),
             "grant_id, provider, and every declared scope must be non-empty",
+        ));
+    }
+    if fixture.holds.iter().any(|hold| {
+        hold.connector.trim().is_empty()
+            || hold.credential.trim().is_empty()
+            || hold.target.trim().is_empty()
+    }) {
+        return Err(invalid(
+            format!("{field}.holds"),
+            "each hold names its connector, credential and target",
         ));
     }
     if fixture.operations.len() > MAX_OPERATIONS {

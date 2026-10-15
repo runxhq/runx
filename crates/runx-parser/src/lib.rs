@@ -28,8 +28,8 @@ pub use graph::{
     validate_graph_document, validate_process_tool,
 };
 pub use harness_fixture::{
-    HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderOperationFixture,
-    HarnessProviderResponsesFixture,
+    HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderHoldFixture,
+    HarnessProviderOperationFixture, HarnessProviderResponsesFixture,
 };
 pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
