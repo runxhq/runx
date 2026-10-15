@@ -211,7 +211,7 @@
   },
   {
     "skill_id": "runx/message-send",
-    "version": "sha-1e8982e0afdf",
+    "version": "sha-37a6e4f694cc",
     "digest": "4d876a6b2b2eda9a1e3144c26ddc65c7fa02bb365d2cc1b18cc7b58fafc47bfd",
     "catalog_visibility": "public",
     "catalog_role": "canonical"

@@ -77,6 +77,8 @@ describe("Skill Build authoring ownership", () => {
       const answers = fixture.caller.answers;
       expect(answers["architect"].architecture_decision.schema)
         .toBe("runx.skill.architecture_decision.v1");
+      // A design run architects and plans; only an authoring run drafts.
+      if (answers["author"] === undefined) continue;
       const draft = answers["author"].change_draft;
       expect(draft.schema).toBe("runx.skill.change_draft.v1");
       expect(draft).not.toHaveProperty("base_digest");
