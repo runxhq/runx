@@ -121,7 +121,7 @@ runners:
       - id: readback
         operation: wallet/evm/payment.x402.read
         result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, readback_status]
-        optional_result_fields: [resource_state, finality, block_number, inner_receipt_ref, runx_composite]
+        optional_result_fields: [resource_state, finality, block_number, inner_receipt_ref]
         ephemeral_result_paths: [/resource_result/resource_access]
         input: $steps.prepare.readback_request
         expected_result: $steps.prepare.expected_result

@@ -28,7 +28,7 @@ operations:
     guarantees:
       provider_idempotency: enforced
     amount: required
-    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref, runx_composite]
+    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref]
     hosted: {}
   payment.x402.read:
     description: Read back one x402 payment and its resource result.
@@ -43,5 +43,5 @@ operations:
       properties:
         payment_ref: {type: string, minLength: 1, maxLength: 300}
         resource_url: {type: string, format: uri, pattern: "^https://", maxLength: 2048}
-    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref, runx_composite, readback_status, resource_state]
+    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, inner_receipt_ref, readback_status, resource_state]
     hosted: {}
