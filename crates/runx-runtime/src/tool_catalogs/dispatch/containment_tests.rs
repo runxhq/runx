@@ -48,6 +48,7 @@ fn invoke_with_scopes(
             allow_explicit_manifest_path: false,
             effect_admission: None,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         },
         &RuntimeEffectRegistry::default(),
         "2026-01-01T00:00:00Z",

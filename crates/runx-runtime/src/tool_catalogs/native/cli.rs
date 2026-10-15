@@ -203,6 +203,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })?;
         assert_eq!(output.exit_code, Some(0));
         assert!(output.stdout.contains("usage:"));
@@ -234,6 +235,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })
         .expect_err("flags before the help flag must be rejected");
         assert!(error.to_string().contains("not a flag"));

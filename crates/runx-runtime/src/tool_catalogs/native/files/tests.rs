@@ -37,6 +37,7 @@ fn reads_and_digests_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
     assert_eq!(
@@ -79,6 +80,7 @@ fn reads_and_digests_a_bounded_file_bundle() -> Result<(), Box<dyn std::error::E
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
 
@@ -129,6 +131,7 @@ fn rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::error::E
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })
     .expect_err("escaping symlink must be rejected");
     assert!(error.to_string().contains("escapes the workspace root"));
@@ -163,6 +166,7 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })?)?;
     let output = output.as_object().ok_or("missing output")?;
 
@@ -229,6 +233,7 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
                     effects: &effects,
                     bounds: crate::services::WorkspaceBounds::Operator,
+                    call: None,
                 })
                 .is_err()
             );
@@ -260,6 +265,7 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
                         effects: &effects,
                         bounds: crate::services::WorkspaceBounds::Operator,
+                        call: None,
                     })
                     .is_err()
                 );
@@ -276,6 +282,7 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
                     effects: &effects,
                     bounds: crate::services::WorkspaceBounds::Operator,
+                    call: None,
                 })
                 .is_err()
             );
@@ -348,6 +355,7 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })
         .is_err()
     );
@@ -393,6 +401,7 @@ fn write_rejects_a_symlink_that_escapes_the_root() -> Result<(), Box<dyn std::er
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })
     .expect_err("escaping symlink must be rejected");
 

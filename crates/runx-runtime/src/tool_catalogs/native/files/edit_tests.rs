@@ -42,6 +42,7 @@ where
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds,
+        call: None,
     })
     .map_err(|error| error.to_string())
 }

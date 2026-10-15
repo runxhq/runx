@@ -161,6 +161,8 @@ pub use list::{
 pub use native_packets::{
     ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,
     DataOperationStatus, DataStopCondition, GitBlobDigest, LocalArtifact, LocalArtifactPage,
+    ProcessExit, ProcessExitReason, ProcessList, ProcessOutput, ProcessOutputChunk, ProcessState,
+    ProcessStream, RunxProcess, TerminalSize,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAdmission,

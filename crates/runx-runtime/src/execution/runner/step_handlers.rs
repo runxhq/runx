@@ -927,6 +927,12 @@ where
             step_id: step.id.clone(),
             reason: "tool step missing tool reference".to_owned(),
         })?;
+    let call = crate::tool_catalogs::ToolCall::new(
+        runtime.options.run.run_id(),
+        &step.id,
+        attempt,
+        runtime.options.run_authority.as_ref(),
+    );
     let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
         tool_ref: Cow::Borrowed(tool_ref),
         inputs: Cow::Owned(inputs),
@@ -940,6 +946,7 @@ where
         allow_explicit_manifest_path: true,
         effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
         bounds: crate::services::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
+        call: Some(&call),
     };
     // Source the tool manifest's artifact contract so the wrapped packet the
     // dispatcher folds into the claim (e.g. `data_operation_result`) is
@@ -1120,6 +1127,7 @@ where
                 bounds: crate::services::WorkspaceBounds::of(
                     self.runtime.options.run_authority.as_ref(),
                 ),
+                call: None,
             },
             Instant::now(),
         )

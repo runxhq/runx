@@ -53,6 +53,9 @@ mod secret_refs;
 mod services;
 mod skill_package;
 mod time;
+pub use process::detached::{
+    ProcessError, SUPERVISOR_FLAG, list_processes, read_process, stop_process, supervise_from_args,
+};
 pub use time::now_iso8601;
 pub mod tool_catalogs;
 

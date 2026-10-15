@@ -17672,6 +17672,333 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.payment.parent_invocation_binding.v1"
   } as JsonSchema,
+  "process-list.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/process/list/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "processes": {
+        "items": {
+          "$id": "https://schemas.runx.ai/runx/process/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "actor": {
+              "type": "string"
+            },
+            "args": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "command": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "cwd": {
+              "type": "string"
+            },
+            "exit": {
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "exited",
+                    "stopped",
+                    "timed_out",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                "signal": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "reason",
+                "at"
+              ],
+              "type": "object"
+            },
+            "max_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pid": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "process_id": {
+              "type": "string"
+            },
+            "started_at": {
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "starting",
+                "running",
+                "exited"
+              ],
+              "type": "string"
+            },
+            "tty": {
+              "additionalProperties": false,
+              "properties": {
+                "cols": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "rows": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "rows",
+                "cols"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "process_id",
+            "command",
+            "cwd",
+            "max_seconds",
+            "created_at",
+            "state"
+          ],
+          "type": "object",
+          "x-runx-schema": "runx.process.v1"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "processes"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.process.list.v1"
+  } as JsonSchema,
+  "process-output.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/process/output/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "chunks": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "stream": {
+              "enum": [
+                "stdout",
+                "stderr",
+                "terminal"
+              ],
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stream",
+            "text"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "dropped": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "exit": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "exited",
+              "stopped",
+              "timed_out",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "signal": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "at"
+        ],
+        "type": "object"
+      },
+      "from": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "next": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "process_id": {
+        "type": "string"
+      },
+      "state": {
+        "enum": [
+          "starting",
+          "running",
+          "exited"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "process_id",
+      "state",
+      "from",
+      "next",
+      "dropped",
+      "chunks"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.process.output.v1"
+  } as JsonSchema,
+  "process.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/process/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "args": {
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "command": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "exit": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "exited",
+              "stopped",
+              "timed_out",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "signal": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "at"
+        ],
+        "type": "object"
+      },
+      "max_seconds": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "pid": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "process_id": {
+        "type": "string"
+      },
+      "started_at": {
+        "type": "string"
+      },
+      "state": {
+        "enum": [
+          "starting",
+          "running",
+          "exited"
+        ],
+        "type": "string"
+      },
+      "tty": {
+        "additionalProperties": false,
+        "properties": {
+          "cols": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rows": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows",
+          "cols"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "process_id",
+      "command",
+      "cwd",
+      "max_seconds",
+      "created_at",
+      "state"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.process.v1"
+  } as JsonSchema,
   "project-artifact-ref.schema.json": {
     "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",

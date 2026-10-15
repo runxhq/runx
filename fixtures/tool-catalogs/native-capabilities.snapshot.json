@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 35,
+  "capability_count": 41,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -370,6 +370,96 @@
         "kind": "named",
         "output": "policy_lint",
         "packet": "runx.policy.lint.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.list",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process_list",
+        "packet": "runx.process.list.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.read",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process_output",
+        "packet": "runx.process.output.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.resize",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "mutate",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process",
+        "packet": "runx.process.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.start",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "mutate",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process",
+        "packet": "runx.process.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.stop",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "mutate",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process",
+        "packet": "runx.process.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "process.write",
+      "owner": "runx-runtime/process",
+      "scopes": [
+        "process.exec"
+      ],
+      "effect": "mutate",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "process",
+        "packet": "runx.process.v1"
       },
       "execution_boundary": "native_capability"
     },

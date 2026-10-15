@@ -10,6 +10,7 @@ mod windows_host_job;
 pub(crate) const STANDARD_PROCESS_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 
 mod capture;
+pub(crate) mod detached;
 mod resource_limits;
 mod spec;
 mod supervisor;

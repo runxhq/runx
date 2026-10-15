@@ -455,6 +455,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         };
         prepare(&invocation).expect("business token field remains valid");
 
@@ -469,6 +470,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         };
         let error = prepare(&invocation).expect_err("delivered credential value refused");
         assert!(error.to_string().contains("contains credential data"));

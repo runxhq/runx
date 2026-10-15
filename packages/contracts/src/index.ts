@@ -236,6 +236,23 @@ export {
 } from "./schemas/turn.js";
 
 export {
+  processSchema,
+  processOutputSchema,
+  processListSchema,
+  validateProcessContract,
+  validateProcessOutputContract,
+  validateProcessListContract,
+  type TerminalSizeContract,
+  type ProcessStateContract,
+  type ProcessExitReasonContract,
+  type ProcessExitContract,
+  type RunxProcessContract,
+  type ProcessStreamContract,
+  type ProcessOutputContract,
+  type ProcessListContract,
+} from "./schemas/process.js";
+
+export {
   runReadSchema,
   runEventSchema,
   validateRunReadContract,
@@ -703,6 +720,9 @@ export const runxContractSchemas = {
   turnCall: runxSchemaArtifacts["turn-call.schema.json"],
   turnStatus: runxSchemaArtifacts["turn-status.schema.json"],
   runRead: runxSchemaArtifacts["run-read.schema.json"],
+  process: runxSchemaArtifacts["process.schema.json"],
+  processOutput: runxSchemaArtifacts["process-output.schema.json"],
+  processList: runxSchemaArtifacts["process-list.schema.json"],
   runEvent: runxSchemaArtifacts["run-event.schema.json"],
   resume: runxSchemaArtifacts["resume.schema.json"],
   question: runxSchemaArtifacts["question.schema.json"],

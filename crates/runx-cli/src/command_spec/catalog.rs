@@ -76,6 +76,25 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
+        name: "process",
+        top_level_usage: &[],
+        usage: &[
+            "runx process list [--actor ref] [-j|--json]",
+            "runx process read <process-id> [--after cursor] [--max-bytes n] [-j|--json]",
+            "runx process stop <process-id> [-j|--json]",
+        ],
+        notes: &[
+            "The long-running processes the project's runs started with process.start, each under runx's supervision until it exits; a process outlives the run that started it.",
+            "read returns its output after --after, the cursor a previous read returned; stop terminates it, then kills it.",
+        ],
+        options: &[
+            "--actor ref     Only the processes this actor's runs started",
+            "--after cursor  Read the output after this cursor (default 0)",
+            "--max-bytes n   About how much output to read (default 65536)",
+            "-j, --json",
+        ],
+    },
+    CommandSpec {
         name: "resume",
         top_level_usage: &[],
         usage: &[

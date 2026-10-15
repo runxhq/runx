@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, StandingApprovalContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProcessListContract, ProcessOutputContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxProcessContract, StandingApprovalContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -103,6 +103,14 @@ export interface RunReadOptions extends InvocationOptions {
   readonly after?: string;
 }
 
+export interface ProcessReadOptions extends InvocationOptions {
+  readonly processId: string;
+  /** The `next` cursor a previous read returned; 0 by default. */
+  readonly after?: number;
+  /** About how much output to read. */
+  readonly maxBytes?: number;
+}
+
 export interface TurnServerOptions extends InvocationOptions {
   readonly runId: string;
   readonly receiptDir: string;
@@ -193,6 +201,15 @@ export interface RunxClient {
     resume(options: RunResumeOptions): Promise<SkillRunOutput>;
   };
   readonly turns: { server(options: TurnServerOptions): TurnServer };
+  /** The long-running processes the project's runs started, as the person sees them. */
+  readonly processes: {
+    /** Every process, or only `actor`'s, most recently changed first. */
+    list(options?: InvocationOptions & { readonly actor?: string }): Promise<ProcessListContract>;
+    /** What a process wrote after a cursor. */
+    read(options: ProcessReadOptions): Promise<ProcessOutputContract>;
+    /** Terminate it, then kill it; returns it once its exit is recorded. */
+    stop(options: InvocationOptions & { readonly processId: string }): Promise<RunxProcessContract>;
+  };
   readonly packages: {
     materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput>;
     materializeConnector(options: InvocationOptions & { readonly connectorPath: string }): Promise<NativeConnectorPackageOutput>;

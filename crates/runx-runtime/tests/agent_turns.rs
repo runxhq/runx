@@ -1152,6 +1152,39 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
 }
 
 #[test]
+fn the_floor_holds_a_process_start_on_its_exact_argv_and_reads_run_free() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let skill_dir = root.join("serve-demo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: serve-demo\ndescription: Serves the project.\n---\n# Serve demo\n\nServe it.\n",
+        "skill: serve-demo\ntools: [process.start, process.list]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: { type: string, required: true }\n    outputs:\n      answer: string\n",
+    )?;
+    let started = start_bounded(root, skill_dir, agents(serde_json::json!([]))?)?;
+    let turn = opened(root, &started)?;
+
+    let held = turn.call(
+        TURN,
+        "process_start",
+        None,
+        input(serde_json::json!({"command": "sh", "args": ["-c", "sleep 1"], "max_seconds": 30}))?,
+    )?;
+    let gate = floor_gate(&held, "answer/0/tool")?;
+    let payload = serde_json::to_value(gate.payload.ok_or("the gate carries what runs")?)?;
+    assert_eq!(payload["kind"], "process");
+    assert_eq!(payload["argv"], serde_json::json!(["sh", "-c", "sleep 1"]));
+    assert_eq!(payload["max_seconds"], 30);
+
+    let listed = turn.call(TURN, "process_list", None, JsonObject::new())?;
+    assert!(
+        matches!(&listed.outcome, TurnCallOutcome::Completed { output, .. } if output.contains_key("process_list")),
+        "{listed:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();

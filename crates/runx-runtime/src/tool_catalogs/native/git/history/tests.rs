@@ -69,6 +69,7 @@ where
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
         bounds,
+        call: None,
     })?;
     let value: JsonValue = serde_json::from_value(serde_json::to_value(output)?)?;
     Ok(value.as_object().ok_or("an object output")?.clone())

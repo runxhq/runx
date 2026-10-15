@@ -22,6 +22,7 @@ mod native_no_ts;
 mod new_skill_authoring;
 mod operator_journeys;
 mod policy;
+mod process;
 mod registry;
 mod router;
 mod runx_maintained_skill_admission;

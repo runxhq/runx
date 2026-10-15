@@ -496,8 +496,9 @@ with its user's rights.
 **The approval floor.** In the same run, at any depth, every step that changes
 the workspace or runs a process waits on an approval of gate type `tool`
 before it is claimed: a native tool that changes something (`fs.edit`,
-`fs.write`, `fs.apply_bundle`, `runx.skill.apply`, `command.execute`), a catalog tool runx
-runs as a process, and a graph's process step, whether an agent's turn call
+`fs.write`, `fs.apply_bundle`, `runx.skill.apply`, `command.execute`,
+`process.start`), a catalog tool runx runs as a process, and a graph's process
+step, whether an agent's turn call
 made it or a skill's graph reached it. Its gate carries exactly what executes:
 for an edit each file with its unified diff and the digests of what it replaces
 and becomes, for a command its argv, directory and digest. A person who
@@ -522,6 +523,29 @@ its `{reason}`. `summary.payload_digest` is that value's stable digest
 (`runx.stable-json.v1`); the value rides as `payload` up to 64 KiB and beyond
 that as `payload_ref`, a project artifact holding its canonical JSON. A host
 recomputes the digest before it offers Approve.
+
+**Processes that outlive a call.** `process.start {command, args, cwd, env,
+tty?: {rows, cols}, max_seconds}` starts a dev server, a watcher or an
+interactive program and returns its `process_id` (`runx.process.v1`); the floor
+holds it on its argv like a command. Each runs under a supervisor of its own,
+the runx binary run again in its own session, which owns the child (in a
+pseudo-terminal when `tty` is given, on Unix hosts), writes its output to a
+bounded log in the project's runx state, stops it at `max_seconds` (3600 by
+default, at most 86400), and records how it exited. It outlives the run that
+started it and belongs to that run's actor: any later run of the same actor in
+the project reaches it. `process.read {process_id, after?, max_bytes?}` returns
+the output after a cursor (`runx.process.output.v1`: stdout and stderr tagged,
+or the terminal's output, with the `next` cursor and the bytes the log no longer
+keeps), and whether it still runs; `process.write {process_id, input}` types to
+its stdin or terminal, control keys included, a write sent again under the same
+call applied once; `process.resize {process_id, rows, cols}`; `process.stop
+{process_id}` terminates it, then kills it; `process.list` lists them. A start
+is recorded, keyed by its call, before its supervisor is spawned, and the
+supervisor confirms it under a lock it holds for its life, so the same call
+sent again returns the same process and a start no supervisor confirmed is
+settled as failed once its lock is free. The person lists, reads and stops
+them with `runx process list [--actor ref]`, `runx process read <id> [--after
+cursor]` and `runx process stop <id>`.
 
 ### Local Process Boundary
 

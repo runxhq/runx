@@ -78,7 +78,8 @@ jsonschema = { version = "0.56.0", default-features = false }
 # compiled in. ring is then the single, unambiguous process-default provider.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-root-certs = "1.0.9"
-rustix = { version = "1.1.4", features = ["fs", "process"] }
+# `pty` and `termios`: the terminal a detached `tty` process runs in.
+rustix = { version = "1.1.4", features = ["fs", "process", "pty", "termios"] }
 rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
 # Parse a remote MCP server's bounded SSE body into rmcp's event stream; the same
 # version rmcp's client uses.

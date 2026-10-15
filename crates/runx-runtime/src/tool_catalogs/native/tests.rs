@@ -129,6 +129,7 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
         effect_admission: None,
         effects: &RuntimeEffectRegistry::default(),
         bounds: crate::services::WorkspaceBounds::Operator,
+        call: None,
     })
     .expect("capability should resolve");
 

@@ -22,6 +22,9 @@ pub const RUNX_HOME_ENV: &str = "RUNX_HOME";
 pub const RUNX_CWD_ENV: &str = "RUNX_CWD";
 pub const RUNX_PROJECT_DIR_ENV: &str = "RUNX_PROJECT_DIR";
 pub const RUNX_RECEIPT_DIR_ENV: &str = "RUNX_RECEIPT_DIR";
+
+/// Where a project keeps its detached processes, inside its runx directory.
+pub(crate) const PROCESSES_DIR: &str = "processes";
 /// The local registry directory registry refs resolve from.
 pub const RUNX_REGISTRY_DIR_ENV: &str = "RUNX_REGISTRY_DIR";
 
@@ -220,6 +223,13 @@ impl RunxPaths {
     #[must_use]
     pub fn harness_runs(&self) -> PathBuf {
         self.project.join("harness")
+    }
+
+    /// Each detached process's lock, control mailbox and output log, by its
+    /// id.
+    #[must_use]
+    pub fn processes(&self) -> PathBuf {
+        self.project.join(PROCESSES_DIR)
     }
 
     #[must_use]

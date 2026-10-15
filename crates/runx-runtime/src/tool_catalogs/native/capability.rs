@@ -53,6 +53,7 @@ pub(super) struct RawNativeInvocation<'a> {
     pub(super) local_artifacts: &'a crate::services::LocalArtifactService,
     pub(super) effects: &'a crate::RuntimeEffectRegistry,
     pub(super) bounds: crate::services::WorkspaceBounds,
+    pub(super) call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
 
 pub(super) struct TypedNativeCapability<I, O> {
@@ -175,6 +176,7 @@ where
             local_artifacts: invocation.local_artifacts,
             effects: invocation.effects,
             bounds: invocation.bounds,
+            call: invocation.call,
         })
     }
 
@@ -194,6 +196,7 @@ where
             local_artifacts: invocation.local_artifacts,
             effects: invocation.effects,
             bounds: invocation.bounds,
+            call: invocation.call,
         };
         let output = (self.handler)(&invocation)?;
         serde_json::to_value(output)

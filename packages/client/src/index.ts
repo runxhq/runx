@@ -1,5 +1,5 @@
 import path from "node:path";
-import { validateRunReadContract, validateRunxListReportContract } from "@runxhq/contracts";
+import { validateProcessContract, validateProcessListContract, validateProcessOutputContract, validateRunReadContract, validateRunxListReportContract } from "@runxhq/contracts";
 import { readProjectArtifact } from "./artifacts.js";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
@@ -78,6 +78,23 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         ),
         cwd: config.cwd,
       }),
+    },
+    processes: {
+      list: async (options = {}) => {
+        const output = parseJson(await execute(["process", "list", ...(options.actor ? [`--actor=${options.actor}`] : []), "--json"], options), [0]);
+        try { return validateProcessListContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native process listing.", { cause: error }); }
+      },
+      read: async (options) => {
+        for (const [name, value] of [["after", options.after], ["maxBytes", options.maxBytes]] as const) {
+          if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) throw new TypeError(`Invalid process read ${name}.`);
+        }
+        const output = parseJson(await execute(["process", "read", argument(options.processId), ...(options.after !== undefined ? ["--after", String(options.after)] : []), ...(options.maxBytes !== undefined ? ["--max-bytes", String(options.maxBytes)] : []), "--json"], options), [0]);
+        try { return validateProcessOutputContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native process read.", { cause: error }); }
+      },
+      stop: async (options) => {
+        const output = parseJson(await execute(["process", "stop", argument(options.processId), "--json"], options), [0]);
+        try { return validateProcessContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native process.", { cause: error }); }
+      },
     },
     packages: {
       materialize: async (options) => {

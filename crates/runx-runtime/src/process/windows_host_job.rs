@@ -19,7 +19,8 @@ pub(crate) fn ensure_windows_host_job() -> io::Result<()> {
 
 fn create() -> Result<Job, String> {
     let mut limits = ExtendedLimitInfo::new();
-    limits.limit_kill_on_job_close();
+    // A detached process's supervisor breaks away, so it outlives the host.
+    limits.limit_kill_on_job_close().limit_breakaway_ok();
     let job = Job::create_with_limit_info(&limits)
         .map_err(|error| format!("creating Runx host Job Object: {error}"))?;
     job.assign_current_process()

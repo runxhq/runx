@@ -61,6 +61,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   new: annotation("local-runtime", ["skill-authoring", "graph-runtime", "caller-mediated-resolution", "receipts", "cli-presentation"], ["new.validate"]),
   verify: annotation("none", ["receipts", "cli-presentation"], ["verify.validate"]),
   history: annotation("none", ["history", "ledger", "receipts"], ["history.execute"]),
+  process: annotation("local-runtime", ["processes", "cli-presentation"], ["process.list.execute"]),
   resume: annotation("local-runtime", ["caller-mediated-resolution", "graph-runtime", "receipts", "cli-presentation"], ["resume.validate"]),
   list: annotation("none", ["list", "tool-catalog"], ["list.tools.execute"]),
   login: annotation("filesystem", ["config", "cli-presentation"], ["login.validate"]),
@@ -86,6 +87,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("execution-boundary", "runx-contracts + runx-runtime", "schema-exact", "Runtime-observed execution boundaries remain explicit in operator and sealed evidence."),
   surface("harness", "runx-runtime harness via runx-cli", "fixture-backed", "Harness replay mode proves deterministic fixture execution and sealed receipt checks."),
   surface("history", "runx-cli + runx-runtime", "semantic", "Search/filter behavior is command-level parity with normalized output."),
+  surface("processes", "runx-cli + runx-runtime process supervisor", "schema-exact", "Processes process.start runs under the runx binary as their supervisor are listed, read by cursor and stopped natively."),
   surface("registry", "runx-cli + runx-runtime registry", "fixture-backed", "Local and hosted registry envelopes are exercised through native registry commands."),
   surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery, dispatch, and local tool builds use the canonical native or manifest-owned path."),
   surface("mcp", "runx-runtime adapters/mcp", "stubbed", "Protocol behavior uses local servers and deterministic clients."),
@@ -137,6 +139,7 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
       [],
     ),
     execute(commands, "list.tools.execute", "list", ["list", "tools", "--json"], 0, true, [], []),
+    execute(commands, "process.list.execute", "process", ["process", "list", "--json"], 0, true, ["\"processes\": []"], []),
     execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"runx/github\""], []),
   ];
   const executableCaseIds = new Set(executableCases.map((testCase) => testCase.id));

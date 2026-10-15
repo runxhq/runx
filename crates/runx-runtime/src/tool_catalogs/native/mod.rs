@@ -10,6 +10,7 @@ use crate::credentials::CredentialDelivery;
 use crate::effects::EffectToolRequest;
 use crate::effects::RuntimeEffectRegistry;
 
+mod argv;
 mod artifacts;
 mod attestation;
 mod authoring;
@@ -23,6 +24,7 @@ mod git;
 mod handoff;
 mod input;
 mod policy;
+mod process;
 mod receipt_tools;
 mod run_tools;
 mod snapshot;
@@ -54,6 +56,7 @@ const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
     receipt_tools::CAPABILITIES,
     run_tools::CAPABILITIES,
     policy::CAPABILITIES,
+    process::CAPABILITIES,
 ];
 
 fn core_capabilities() -> impl Iterator<Item = &'static dyn NativeCapability> {
@@ -95,6 +98,8 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub effects: &'a RuntimeEffectRegistry,
     /// How far the run's file, git, command and authoring tools reach.
     pub bounds: crate::services::WorkspaceBounds,
+    /// The call the tool is invoked for, when a run makes it.
+    pub call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
 
 pub(crate) struct NativeToolInvocation<'a> {
@@ -109,6 +114,7 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub effect_admission: Option<&'a crate::effects::EffectAdmission>,
     pub effects: &'a RuntimeEffectRegistry,
     pub bounds: crate::services::WorkspaceBounds,
+    pub call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
 
 pub(crate) struct NativeToolInvocationResult {
@@ -129,6 +135,7 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
             local_artifacts: request.local_artifacts,
             effects: request.effects,
             bounds: request.bounds,
+            call: request.call,
         };
         return Some(NativeToolInvocationResult {
             result: tool.invoke(invocation),
@@ -214,6 +221,7 @@ pub(crate) fn local_effect(
         local_artifacts: &crate::services::LocalArtifactService::default(),
         effects,
         bounds,
+        call: None,
     })
 }
 

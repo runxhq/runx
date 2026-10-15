@@ -11,13 +11,18 @@ use runx_cli::router::{HarnessPlan, RouterAction, command_help_text, help_text};
 const HARNESS_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/harness-receipts for an isolated project-local harness run.";
 
 fn main() -> ExitCode {
+    let args: Vec<OsString> = env::args_os().skip(1).collect();
+    // A detached process's supervisor is this binary run again; it is never
+    // a command.
+    if let Some(code) = runx_runtime::supervise_from_args(&args) {
+        return ExitCode::from(u8::try_from(code).unwrap_or(1));
+    }
     if let Err(error) = install_interrupt_handler() {
         let _ignored = write_stderr_line(&format!(
             "runx: failed to install terminal interrupt handler: {error}"
         ));
         return ExitCode::from(70);
     }
-    let args: Vec<OsString> = env::args_os().skip(1).collect();
     let workspace = match load_workspace(&args) {
         Ok(workspace) => workspace,
         Err(exit_code) => return exit_code,
@@ -80,6 +85,7 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
     match action {
         RouterAction::RunNew(plan) => runx_cli::run_native_new_with_workspace(plan, workspace),
         RouterAction::RunHistory(plan) => run_native_history(plan.args, workspace),
+        RouterAction::RunProcess(plan) => run_native_process(plan.args, workspace),
         RouterAction::RunVerify(plan) => run_native_verify(plan.args, workspace),
         RouterAction::RunList(plan) => run_native_list(plan, workspace),
         RouterAction::RunLogin(plan) => runx_cli::login::run_native_login(plan, workspace),
@@ -152,6 +158,24 @@ fn run_native_history(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEn
         Err(error) => {
             let exit_code = match error {
                 runx_cli::history::HistoryCliError::InvalidArgs(_) => 64,
+                _ => 1,
+            };
+            if json {
+                return write_json_failure(&error.to_string(), error.code(), exit_code);
+            }
+            let _ignored = write_stderr_line(&format!("runx: {error}"));
+            ExitCode::from(exit_code)
+        }
+    }
+}
+
+fn run_native_process(args: Vec<OsString>, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
+    let json = runx_cli::router::json_requested(&args);
+    match runx_cli::process::run_process_command(&args, workspace.env(), workspace.cwd()) {
+        Ok(output) => write_stdout(&output),
+        Err(error) => {
+            let exit_code = match error {
+                runx_cli::process::ProcessCliError::InvalidArgs(_) => 64,
                 _ => 1,
             };
             if json {

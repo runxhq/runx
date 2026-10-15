@@ -32,10 +32,6 @@ const TOOL: &str = "command.execute";
 const MIN_TIMEOUT_MS: u64 = 1_000;
 const MAX_TIMEOUT_MS: u64 = 3_600_000;
 const OUTPUT_LIMIT_BYTES: usize = STANDARD_PROCESS_OUTPUT_BYTES;
-const MAX_COMMAND_ARGS: usize = 128;
-const MAX_COMMAND_ARG_BYTES: usize = 8 * 1024;
-const MAX_ENV: usize = 64;
-const MAX_ENV_VALUE_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum OutputMode {
@@ -216,6 +212,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })?)?;
         let execution = output
             .as_object()
@@ -269,6 +266,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })?)?;
         let env_names = output
             .as_object()
@@ -305,6 +303,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })?;
 
         inputs.timeout_ms = 3_600_001;
@@ -317,6 +316,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })
         .expect_err("timeouts above one hour must remain bounded");
         assert!(error.to_string().contains("3600000"));
@@ -352,6 +352,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })
         .expect_err("generic command execution must reject delivered credentials");
 
@@ -382,6 +383,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })?)?;
         let digest = planned
             .as_object()
@@ -402,6 +404,7 @@ mod tests {
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
             bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
         })
         .expect_err("drifted execution must be rejected before spawning");
         assert!(error.to_string().contains("does not match"));

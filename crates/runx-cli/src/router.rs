@@ -29,6 +29,7 @@ pub enum RouterAction {
     RunMcp(McpPlan),
     RunNew(NewPlan),
     RunHistory(HistoryPlan),
+    RunProcess(ProcessPlan),
     RunVerify(VerifyPlan),
     RunHarness(HarnessPlan),
     RunConfig(ConfigPlan),
@@ -64,6 +65,11 @@ pub struct HarnessPlan {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct HistoryPlan {
+    pub args: Vec<OsString>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ProcessPlan {
     pub args: Vec<OsString>,
 }
 
@@ -235,6 +241,10 @@ fn route_args_with_optional_workspace(
 
     if first_arg_is(&args, "history") {
         return RouterAction::RunHistory(HistoryPlan { args });
+    }
+
+    if first_arg_is(&args, "process") {
+        return RouterAction::RunProcess(ProcessPlan { args });
     }
 
     if first_arg_is(&args, "resume") {
