@@ -622,6 +622,22 @@ fn a_connector_package_is_exactly_its_files_and_signed_manifest()
         "https://registry.example/v1/connectors/acme/ops-api/versions/1.0.0/package"
     );
 
+    // A withdrawn version is served as its stored bytes and refused, never read
+    // into the current contract.
+    let withdrawn = json!({
+        "ref": "acme/ops-api",
+        "version": "1.0.0",
+        "withdrawn_at": "2026-10-15T00:00:00.000Z",
+        "files": package["files"],
+        "signed_manifest": package["signed_manifest"]
+    });
+    let transport = MockTransport::with(json!({ "status": "success", "package": withdrawn }));
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    assert!(matches!(
+        client.connector_package(&connector_ref, "1.0.0"),
+        Err(RegistryClientError::Withdrawn { ref subject, .. }) if subject == "acme/ops-api@1.0.0"
+    ));
+
     let mut extra = package;
     extra["manifest_digest"] = json!(format!("sha256:{}", "b".repeat(64)));
     let transport = MockTransport::with(json!({ "status": "success", "package": extra }));

@@ -64,6 +64,20 @@ struct ConnectorPackageEnvelope {
     package: RegistryConnectorVersion,
 }
 
+/// Only whether a served package was withdrawn, read before its contract.
+#[derive(Deserialize)]
+struct WithdrawnProbe {
+    package: WithdrawnPackage,
+}
+
+#[derive(Deserialize)]
+struct WithdrawnPackage {
+    #[serde(rename = "ref")]
+    name: String,
+    version: String,
+    withdrawn_at: Option<String>,
+}
+
 pub(crate) fn parse_search(
     route: &str,
     body: &str,
@@ -113,6 +127,22 @@ pub(crate) fn parse_connector_package(
     route: &str,
     body: &str,
 ) -> Result<RegistryConnectorVersion, RegistryClientError> {
+    // A withdrawn version is served as its stored bytes, which no current
+    // contract reads and nothing installs.
+    if let Ok(WithdrawnProbe {
+        package:
+            WithdrawnPackage {
+                name,
+                version,
+                withdrawn_at: Some(withdrawn_at),
+            },
+    }) = serde_json::from_str::<WithdrawnProbe>(body)
+    {
+        return Err(RegistryClientError::Withdrawn {
+            subject: format!("{name}@{version}"),
+            withdrawn_at,
+        });
+    }
     decode::<ConnectorPackageEnvelope>(route, body).map(|envelope| envelope.package)
 }
 

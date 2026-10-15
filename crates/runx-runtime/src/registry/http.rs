@@ -293,6 +293,13 @@ pub enum RegistryClientError {
     InvalidSkillId(String),
     #[error("invalid registry root name '{0}'. A root name is one segment.")]
     InvalidRootName(String),
+    #[error(
+        "{subject} was withdrawn from the registry at {withdrawn_at}; it is kept as written and never installed"
+    )]
+    Withdrawn {
+        subject: String,
+        withdrawn_at: String,
+    },
     #[error("registry route {route} failed with HTTP {status}")]
     HttpStatus { route: String, status: u16 },
     #[error("registry route {route} returned invalid JSON: {message}")]
