@@ -65,6 +65,7 @@ pub(super) fn harness_transport(
         grant_connector,
         exchanges,
         mutation_keys: Arc::default(),
+        artifacts: Arc::default(),
     })
 }
 

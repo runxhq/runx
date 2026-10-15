@@ -23,6 +23,9 @@ pub(super) struct HarnessTransport {
     pub(super) grant_connector: Option<Arc<crate::kernel::connectors::LoadedConnector>>,
     pub(super) exchanges: Arc<HarnessExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
+    /// The fixture principal's artifact space, as runx keeps it: what the
+    /// case's artifact calls stored, by reference.
+    pub(super) artifacts: Arc<Mutex<BTreeMap<String, JsonObject>>>,
 }
 
 impl RuntimeHttpTransport for HarnessTransport {
@@ -78,6 +81,11 @@ impl RuntimeHttpTransport for HarnessTransport {
                 if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-requests") =>
             {
                 self.provider_request(fixture, request.body.as_deref())
+            }
+            (HttpMethod::Post, url)
+                if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/artifact-operations") =>
+            {
+                self.artifact_operation(fixture, request.body.as_deref())
             }
             _ => Err(transport_error(format!(
                 "the harness provider fixture has no response for {} {}",
@@ -363,6 +371,146 @@ impl HarnessTransport {
             ),
             ("body".to_owned(), JsonValue::String(answer.body)),
         ])))
+    }
+}
+
+/// When the harness states every artifact was stored.
+const HARNESS_ARTIFACT_CREATED_AT: &str = "2026-01-01T00:00:00.000Z";
+
+impl HarnessTransport {
+    /// Store or read one artifact in the fixture principal's space, as runx
+    /// does: an allocation is keyed by its idempotency key, holds exactly the
+    /// bytes whose digest the call states, and answers with the same
+    /// reference on every repeat; an inspection reads what is held.
+    fn artifact_operation(
+        &self,
+        fixture: &HarnessProviderResponsesFixture,
+        body: Option<&str>,
+    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+        use base64::Engine as _;
+
+        let request = serde_json::from_str::<JsonObject>(
+            body.ok_or_else(|| transport_error("artifact operation body is missing".to_owned()))?,
+        )
+        .map_err(|error| transport_error(format!("artifact operation body is invalid: {error}")))?;
+        let operation = required_string(&request, "operation")?;
+        let input = request
+            .get("input")
+            .and_then(JsonValue::as_object)
+            .ok_or_else(|| transport_error("artifact operation input is missing".to_owned()))?;
+        let principal_ref = format!("runx:principal:{}", fixture.principal_id);
+        let mut artifacts = self
+            .artifacts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (artifact_ref, evidence, idempotency_key) = match operation {
+            "artifact.allocate" => {
+                let key = required_string(input, "idempotency_key")?;
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(required_string(input, "data_base64")?)
+                    .map_err(|error| {
+                        transport_error(format!("artifact bytes are invalid: {error}"))
+                    })?;
+                let content_digest = runx_contracts::sha256_prefixed(&bytes);
+                if required_string(input, "content_digest")? != content_digest {
+                    return Err(transport_error(
+                        "artifact bytes do not match their stated digest".to_owned(),
+                    ));
+                }
+                let artifact_ref = format!(
+                    "runx:artifact:{}",
+                    runx_contracts::sha256_prefixed(format!("{principal_ref}\0{key}").as_bytes())
+                );
+                let evidence = JsonObject::from([
+                    (
+                        "artifact_ref".to_owned(),
+                        JsonValue::String(artifact_ref.clone()),
+                    ),
+                    (
+                        "content_digest".to_owned(),
+                        JsonValue::String(content_digest),
+                    ),
+                    (
+                        "media_type".to_owned(),
+                        JsonValue::String(required_string(input, "media_type")?.to_owned()),
+                    ),
+                    (
+                        "size_bytes".to_owned(),
+                        JsonValue::Number(runx_contracts::JsonNumber::from(bytes.len() as u64)),
+                    ),
+                    (
+                        "created_at".to_owned(),
+                        JsonValue::String(HARNESS_ARTIFACT_CREATED_AT.to_owned()),
+                    ),
+                ]);
+                match artifacts.get(&artifact_ref) {
+                    Some(held) if held != &evidence => {
+                        return Err(transport_error(format!(
+                            "artifact idempotency key {key:?} already holds other bytes"
+                        )));
+                    }
+                    Some(_) => {}
+                    None => {
+                        artifacts.insert(artifact_ref.clone(), evidence.clone());
+                    }
+                }
+                (artifact_ref, evidence, Some(key.to_owned()))
+            }
+            "artifact.inspect" => {
+                let artifact_ref = required_string(input, "artifact_ref")?.to_owned();
+                let evidence = artifacts.get(&artifact_ref).cloned().ok_or_else(|| {
+                    transport_error(format!("the case stored no artifact {artifact_ref:?}"))
+                })?;
+                (artifact_ref, evidence, None)
+            }
+            other => {
+                return Err(transport_error(format!(
+                    "the harness holds no artifact operation {other:?}"
+                )));
+            }
+        };
+        let mut packet = JsonObject::from([
+            (
+                "schema".to_owned(),
+                JsonValue::String("runx.provider.operation.v1".to_owned()),
+            ),
+            ("status".to_owned(), JsonValue::String("success".to_owned())),
+            ("provider".to_owned(), JsonValue::String("runx".to_owned())),
+            (
+                "operation".to_owned(),
+                JsonValue::String(operation.to_owned()),
+            ),
+            ("target".to_owned(), JsonValue::String(artifact_ref.clone())),
+            ("result".to_owned(), JsonValue::Object(evidence)),
+            (
+                "transport".to_owned(),
+                JsonValue::String("hosted_loopback".to_owned()),
+            ),
+            (
+                "readback_ref".to_owned(),
+                JsonValue::String(format!("runx:harness:artifact-readback:{artifact_ref}")),
+            ),
+            (
+                "access".to_owned(),
+                JsonValue::String(
+                    if idempotency_key.is_some() {
+                        "mutate"
+                    } else {
+                        "read"
+                    }
+                    .to_owned(),
+                ),
+            ),
+            ("principal_ref".to_owned(), JsonValue::String(principal_ref)),
+            (
+                "finality".to_owned(),
+                JsonValue::String("verified".to_owned()),
+            ),
+        ]);
+        if let Some(key) = idempotency_key {
+            packet.insert("idempotency_key".to_owned(), JsonValue::String(key));
+        }
+        json_response(JsonValue::Object(packet))
     }
 }
 

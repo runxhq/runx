@@ -17,6 +17,7 @@ mod doctor;
 mod execution_integrity;
 mod governance_witness;
 mod graph_context_materialization;
+mod harness_artifacts;
 mod harness_fixtures;
 mod hello_graph;
 mod javascript_worker;
