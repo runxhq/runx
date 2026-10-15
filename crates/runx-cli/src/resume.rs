@@ -173,6 +173,9 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
         Ok(driver) => driver,
         Err(error) => return write_resume_failure(&error, plan.json, 1),
     };
+    if let Err(error) = crate::runtime::stop_on_terminate() {
+        return write_resume_failure(&error, plan.json, 1);
+    }
     let orchestrator = match crate::runtime::local_orchestrator(workspace.env()) {
         Ok(orchestrator) => orchestrator,
         Err(error) => {

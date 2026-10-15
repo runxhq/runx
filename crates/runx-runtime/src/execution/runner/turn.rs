@@ -302,6 +302,7 @@ where
         mut host: AnsweringHost<'_>,
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
+        self.admits(made.index)?;
         let (step, act) = match self.refusal(&made.target)?.map_or_else(
             || self.call_step(made.index, &made.target, &made.input),
             Err,
@@ -354,6 +355,7 @@ where
         call: RecordedCall,
     ) -> Result<TurnCallResult, RuntimeError> {
         let made = Made::of(&call);
+        self.admits(made.index)?;
         let (step, act) = self
             .call_step(made.index, &made.target, &made.input)
             .map_err(|reason| RuntimeError::EngineInvariant {
@@ -368,6 +370,18 @@ where
             }
             Ran::Waiting(_) | Ran::Unconfirmed => self.result(&made, &call.outcome),
         }
+    }
+
+    /// A driver asked to stop admits no further call; the turn stays where
+    /// it is.
+    fn admits(&self, index: u32) -> Result<(), RuntimeError> {
+        if crate::interrupt::stop_requested() {
+            return Err(RuntimeError::Stopped {
+                run_id: self.scope.runtime.options.run.run_id().to_owned(),
+                step_id: format!("call {index} of {}", self.scope.step_id),
+            });
+        }
+        Ok(())
     }
 
     /// What a claimed call waits on until it settles: the person's

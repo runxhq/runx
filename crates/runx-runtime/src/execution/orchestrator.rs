@@ -300,19 +300,21 @@ impl LocalOrchestrator {
 
     /// Continue a paused run with the answers its host brings.
     pub fn resume(&self, request: &ResumeRequest) -> Result<RunResult, OrchestratorError> {
-        let run = super::skill_front::bind_paused_run(
-            super::skill_front::Continuation {
-                run_id: &request.run_id,
-                receipt_dir: request.receipt_dir.as_deref(),
-                env: &request.env,
-                cwd: &request.cwd,
-                answers: Some(&request.answers),
-                managed_agent: request.managed_agent.clone(),
-                package_digest: request.package_digest.as_deref(),
-                execution_closure_digest: request.execution_closure_digest.as_deref(),
-            },
-            &self.effects,
-        )?;
+        let continuation = super::skill_front::Continuation {
+            run_id: &request.run_id,
+            receipt_dir: request.receipt_dir.as_deref(),
+            env: &request.env,
+            cwd: &request.cwd,
+            answers: Some(&request.answers),
+            managed_agent: request.managed_agent.clone(),
+            package_digest: request.package_digest.as_deref(),
+            execution_closure_digest: request.execution_closure_digest.as_deref(),
+        };
+        // A close seals the run from its record, binding nothing.
+        if request.answers.close.is_some() {
+            return Ok(super::skill_front::close_run(continuation)?);
+        }
+        let run = super::skill_front::bind_paused_run(continuation, &self.effects)?;
         Ok(run.execute()?)
     }
 

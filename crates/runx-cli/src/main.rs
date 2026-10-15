@@ -29,6 +29,9 @@ fn main() -> ExitCode {
     let exit_code = dispatch(action, workspace.as_ref());
     if runx_runtime::interrupt::was_interrupted() {
         ExitCode::from(130)
+    } else if runx_runtime::interrupt::was_stopped() {
+        // A graceful stop on SIGTERM: the run stays where it stopped.
+        ExitCode::from(143)
     } else {
         exit_code
     }

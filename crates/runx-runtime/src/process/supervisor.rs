@@ -54,7 +54,7 @@ pub(crate) fn run_process(mut spec: ProcessSpec) -> Result<ProcessOutcome, Proce
     // is still bounded by its timeout.
     let stdin = write_stdin(&mut child, spec.stdin.take());
 
-    let (status, timed_out) = match wait_for_exit(&mut child, &spec) {
+    let (status, ending) = match wait_for_exit(&mut child, &spec) {
         Ok(outcome) => outcome,
         Err(error) => {
             cleanup_child_after_startup_error(&mut child, &spec, Some(stdout), Some(stderr));
@@ -70,7 +70,8 @@ pub(crate) fn run_process(mut spec: ProcessSpec) -> Result<ProcessOutcome, Proce
     cleaned?;
     Ok(ProcessOutcome {
         status,
-        timed_out,
+        timed_out: ending == Ending::TimedOut,
+        stopped: ending == Ending::Stopped,
         stdout,
         stderr,
         duration_ms: duration_ms(started),
@@ -207,10 +208,21 @@ fn join_stdin(
     }
 }
 
+/// How a supervised process ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ending {
+    /// It exited, or a forced interrupt killed it.
+    Exited,
+    /// It outlived its timeout and was terminated.
+    TimedOut,
+    /// Its driver was asked to stop, and it was terminated.
+    Stopped,
+}
+
 fn wait_for_exit(
     child: &mut OwnedProcess,
     spec: &ProcessSpec,
-) -> Result<(ExitStatus, bool), ProcessSupervisorError> {
+) -> Result<(ExitStatus, Ending), ProcessSupervisorError> {
     let deadline = spec.timeout.map(|timeout| Instant::now() + timeout);
     loop {
         if crate::interrupt::was_interrupted() {
@@ -220,14 +232,15 @@ fn wait_for_exit(
                 .map_err(|source| {
                     ProcessSupervisorError::supervise(wait_interrupted_context(spec.label), source)
                 })?;
-            return Ok((status, false));
+            return Ok((status, Ending::Exited));
         }
 
         let wait_for = deadline
             .map(|deadline| deadline.saturating_duration_since(Instant::now()))
             .map(|remaining| remaining.min(PROCESS_POLL_INTERVAL))
             .unwrap_or(PROCESS_POLL_INTERVAL);
-        if wait_for.is_zero() {
+        let stopped = crate::interrupt::stop_requested();
+        if wait_for.is_zero() || stopped {
             signal_process(child, ProcessSignal::Terminate, spec)?;
             thread::sleep(DEFAULT_FORCE_KILL_GRACE);
             signal_process(child, ProcessSignal::Force, spec)?;
@@ -236,7 +249,12 @@ fn wait_for_exit(
                 .map_err(|source| {
                     ProcessSupervisorError::supervise(wait_timed_out_context(spec.label), source)
                 })?;
-            return Ok((status, true));
+            let ending = if stopped {
+                Ending::Stopped
+            } else {
+                Ending::TimedOut
+            };
+            return Ok((status, ending));
         }
 
         if let Some(status) = child.wait_timeout(wait_for).map_err(|source| {
@@ -246,7 +264,7 @@ fn wait_for_exit(
             // alive after it exits is execution residue, so terminate the owned
             // tree before joining inherited stdout/stderr handles.
             signal_process(child, ProcessSignal::Force, spec)?;
-            return Ok((status, false));
+            return Ok((status, Ending::Exited));
         }
     }
 }
@@ -354,6 +372,37 @@ mod tests {
             .collect::<Vec<_>>();
         let expected = vec![expected_nofile.to_string(), expected_cpu.to_string()];
         assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    /// A call its host cancels terminates the command it supervises, and the
+    /// outcome says it was stopped, not that it timed out.
+    #[cfg(unix)]
+    #[test]
+    fn a_cancelled_call_terminates_its_command() -> Result<(), String> {
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let cancel = std::thread::spawn({
+            let stop = std::sync::Arc::clone(&stop);
+            move || {
+                thread::sleep(Duration::from_millis(200));
+                stop.store(true, std::sync::atomic::Ordering::Release);
+            }
+        });
+        let started = Instant::now();
+        let outcome = crate::interrupt::while_working(&stop, || {
+            run_process(
+                ProcessSpec::new("stop-test", "/bin/sh", 4096)
+                    .args(vec!["-c".to_owned(), "sleep 30".to_owned()])
+                    .timeout(Some(Duration::from_secs(30))),
+            )
+        })
+        .map_err(|error| error.to_string())?;
+        cancel
+            .join()
+            .map_err(|_| "the cancelling thread panicked")?;
+        assert!(outcome.stopped);
+        assert!(!outcome.timed_out);
+        assert!(started.elapsed() < Duration::from_secs(10));
         Ok(())
     }
 

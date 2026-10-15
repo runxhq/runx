@@ -1,21 +1,19 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{
-    JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RetryResend, RunClose,
-};
+use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RetryResend};
 
 use super::{SkillRunError, invalid};
 use crate::execution::run_record::{Answer, PendingRequest};
 
 /// What a host brings a paused run, by the address of the request each entry
 /// answers: an agent's answers and a person's decisions, each in its own lane
-/// and bound to the digest of the request it answers; or a close, which comes
-/// alone. Beside them, the answers the run's record holds that no step has
-/// used yet, which any driver of the run uses.
+/// and bound to the digest of the request it answers. Beside them, the
+/// decisions the run's record holds that no step has used yet, which any
+/// driver of the run uses. A close never reaches a driver: it seals the run
+/// from its record.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ResolutionAnswers {
     entries: BTreeMap<String, Entry>,
-    close: Option<RunClose>,
 }
 
 #[derive(Clone, Debug)]
@@ -29,11 +27,6 @@ struct Entry {
 
 impl ResolutionAnswers {
     pub(super) fn from_document(document: ResumeDocument) -> Result<Self, SkillRunError> {
-        if document.close.is_some()
-            && (!document.answers.is_empty() || !document.approvals.is_empty())
-        {
-            return Err(invalid("a close comes alone, without answers or approvals"));
-        }
         let mut entries = document
             .answers
             .into_iter()
@@ -77,10 +70,7 @@ impl ResolutionAnswers {
                 )));
             }
         }
-        Ok(Self {
-            entries,
-            close: document.close,
-        })
+        Ok(Self { entries })
     }
 
     /// The answer to the request at `address` whose digest is `digest`; a
@@ -103,12 +93,8 @@ impl ResolutionAnswers {
             .any(|entry| entry.brought && !entry.human)
     }
 
-    pub(super) fn close(&self) -> Option<RunClose> {
-        self.close
-    }
-
     pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty() && self.close.is_none()
+        self.entries.is_empty()
     }
 
     /// Every entry answers a request the run waits on now, by its address
@@ -426,17 +412,5 @@ mod tests {
             ))
         );
         Ok(())
-    }
-
-    #[test]
-    fn a_close_comes_alone() {
-        assert!(answers(serde_json::json!({"close": {"disposition": "declined"}})).is_ok());
-        assert!(
-            answers(serde_json::json!({
-                "close": {"disposition": "superseded"},
-                "approvals": {"send.approval": {"request_digest": "sha256:b", "approved": true}}
-            }))
-            .is_err()
-        );
     }
 }

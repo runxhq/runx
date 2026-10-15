@@ -29,3 +29,12 @@ pub(crate) fn drive(
     runx_runtime::interrupt::end_with_parent();
     Ok(lock)
 }
+
+/// A process that drives a run to where it next waits stops gracefully on
+/// `SIGTERM`: it admits no further step or call, a command it supervises is
+/// terminated and recorded stopped, and the run stays where it stopped for
+/// its next driver.
+pub(crate) fn stop_on_terminate() -> Result<(), String> {
+    runx_runtime::interrupt::stop_on_terminate()
+        .map_err(|error| format!("failed to install the termination handler: {error}"))
+}

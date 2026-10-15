@@ -90,6 +90,8 @@ impl ProcessStdin {
 pub(crate) struct ProcessOutcome {
     pub(crate) status: ExitStatus,
     pub(crate) timed_out: bool,
+    /// Its driver was asked to stop, and terminated it.
+    pub(crate) stopped: bool,
     pub(crate) stdout: CapturedOutput,
     pub(crate) stderr: CapturedOutput,
     pub(crate) duration_ms: u64,

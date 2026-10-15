@@ -7,6 +7,8 @@ use crate::tool_catalogs::native::capability::decode_typed_output;
 pub(super) struct CommandObservation {
     exit_code: Option<i32>,
     timed_out: bool,
+    /// The run was asked to stop, and the command was terminated.
+    stopped: bool,
     duration_ms: u64,
     stdout: String,
     stderr: String,
@@ -38,6 +40,12 @@ pub(super) fn observe_command(
     if outcome.timed_out {
         errors.push(error("command.timeout", "command exceeded timeout_ms"));
     }
+    if outcome.stopped {
+        errors.push(error(
+            "command.stopped",
+            "the run was asked to stop, and the command was terminated",
+        ));
+    }
     if output_mode != OutputMode::Digest && (stdout_truncated || stderr_truncated) {
         errors.push(error(
             "command.output_truncated",
@@ -56,6 +64,7 @@ pub(super) fn observe_command(
     CommandObservation {
         exit_code: outcome.status.code(),
         timed_out: outcome.timed_out,
+        stopped: outcome.stopped,
         duration_ms: outcome.duration_ms,
         stdout_digest,
         stderr_digest,
@@ -113,7 +122,16 @@ pub(super) fn render_execution(
         ),
         (
             "decision".to_owned(),
-            JsonValue::String(if completed { "completed" } else { "failed" }.to_owned()),
+            JsonValue::String(
+                if observation.stopped {
+                    "stopped"
+                } else if completed {
+                    "completed"
+                } else {
+                    "failed"
+                }
+                .to_owned(),
+            ),
         ),
         (
             "command_digest".to_owned(),
@@ -197,6 +215,7 @@ mod tests {
         let outcome = ProcessOutcome {
             status: ExitStatus::from_raw(0),
             timed_out: false,
+            stopped: false,
             stdout: CapturedOutput {
                 bytes: complete[..8].to_vec(),
                 truncated: true,
@@ -226,5 +245,32 @@ mod tests {
             runx_contracts::sha256_prefixed(complete)
         );
         Ok(())
+    }
+
+    #[test]
+    fn a_command_terminated_by_a_stop_is_recorded_stopped() {
+        let empty = || CapturedOutput {
+            bytes: Vec::new(),
+            truncated: false,
+            total_bytes: 0,
+            sha256: runx_contracts::sha256_prefixed(&[]),
+        };
+        let observation = observe_command(
+            OutputMode::Text,
+            ProcessOutcome {
+                status: ExitStatus::from_raw(15),
+                timed_out: false,
+                stopped: true,
+                stdout: empty(),
+                stderr: empty(),
+                duration_ms: 1,
+            },
+            &crate::credentials::CredentialDelivery::none(),
+        );
+        assert!(observation.stopped);
+        assert!(observation.errors.iter().any(|error| {
+            error.as_object().and_then(|error| error.get("code"))
+                == Some(&JsonValue::String("command.stopped".to_owned()))
+        }));
     }
 }

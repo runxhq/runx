@@ -24,7 +24,7 @@
   ],
   "properties": {
     "schema": { "const": "runx.command.execution.v1" },
-    "decision": { "enum": ["completed", "failed"] },
+    "decision": { "enum": ["completed", "failed", "stopped"] },
     "command_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "cwd": { "type": "string", "minLength": 1 },
     "exit_code": { "type": ["integer", "null"] },

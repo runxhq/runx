@@ -64,6 +64,8 @@ regex.workspace = true
 # and search tools, the same rules ripgrep applies.
 ignore = "0.4.33"
 globset = "0.4.20"
+# Whether a lock's path still names the file a driver locked.
+same-file = "1.0.6"
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
 postgres = { version = "0.19.14", default-features = false, optional = true }
 tokio-postgres-rustls = { version = "0.14.0", optional = true }
@@ -98,6 +100,10 @@ tower-service = { version = "0.3.3", optional = true }
 url.workspace = true
 wait-timeout = "0.2.1"
 zeroize.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+# A graceful stop on SIGTERM, beside ctrlc's forced interrupt on SIGINT.
+signal-hook = { version = "0.4.5", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 # std::process does not expose race-free Job Object assignment. process-wrap

@@ -235,7 +235,7 @@ impl rmcp::ServerHandler for RmcpProofServer {
     fn call_tool(
         &self,
         request: rmcp::model::CallToolRequestParams,
-        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> impl Future<Output = Result<rmcp::model::CallToolResponse, rmcp::ErrorData>> + Send + '_
     {
         let prepared = (|| {
@@ -245,7 +245,7 @@ impl rmcp::ServerHandler for RmcpProofServer {
             };
             prepare_rmcp_tool_call(&self.state, &request.name, arguments)
         })();
-        execute_rmcp_tool_call(prepared)
+        execute_rmcp_tool_call(prepared, context)
     }
 
     fn get_tool(&self, name: &str) -> Option<rmcp::model::Tool> {
@@ -313,19 +313,34 @@ fn prepare_rmcp_tool_call(
 
 async fn execute_rmcp_tool_call(
     prepared: Result<PreparedMcpToolCall, rmcp::ErrorData>,
+    context: rmcp::service::RequestContext<rmcp::RoleServer>,
 ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
     match prepared? {
         PreparedMcpToolCall::Fixed(result) => rmcp_call_tool_result(result).map(Into::into),
+        // The host's cancellation (`notifications/cancelled`) stops the call
+        // gracefully: the run admits no further step or call, a command it
+        // supervises is terminated, and the call returns what it recorded.
         PreparedMcpToolCall::Turn {
             tool,
             arguments,
             served,
         } => {
+            let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let watch = tokio::spawn({
+                let stop = Arc::clone(&stop);
+                async move {
+                    context.ct.cancelled().await;
+                    stop.store(true, std::sync::atomic::Ordering::Release);
+                }
+            });
             let result = off_runtime(move || {
-                super::server_turn::execute_mcp_turn_tool(&tool, arguments, &served)
+                crate::interrupt::while_working(&stop, || {
+                    super::server_turn::execute_mcp_turn_tool(&tool, arguments, &served)
+                })
             })
-            .await?;
-            rmcp_call_tool_result(result).map(Into::into)
+            .await;
+            watch.abort();
+            rmcp_call_tool_result(result?).map(Into::into)
         }
         PreparedMcpToolCall::Skill {
             run_id,

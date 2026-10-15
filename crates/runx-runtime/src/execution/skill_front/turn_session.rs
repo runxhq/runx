@@ -226,6 +226,94 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn a_close_seals_a_run_that_stopped_between_steps_under_a_changed_package() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let (run_id, log) = paused_with_unsettled_call(root)?;
+        // The package changed since the run started, and its driver stopped
+        // between steps.
+        fs::write(
+            root.join("turn-demo/SKILL.md"),
+            "---\nname: turn-demo\ndescription: Digests, then answers.\n---\n# Turn demo\n\nChanged since.\n",
+        )?;
+        log.load()?;
+        log.record_skipped(vec!["elsewhere".to_owned()])?;
+        let close = |document: serde_json::Value| {
+            LocalOrchestrator::default()
+                .resume(&ResumeRequest {
+                    run_id: run_id.clone(),
+                    answers: serde_json::from_value(document)?,
+                    receipt_dir: Some(root.join("receipts")),
+                    env: env(root),
+                    cwd: root.to_path_buf(),
+                    managed_agent: ManagedAgentPolicy::HostDriven,
+                    package_digest: None,
+                    execution_closure_digest: None,
+                })
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+        };
+        let alone = close(serde_json::json!({
+            "close": {"disposition": "declined"},
+            "approvals": {"answer/0/retry": {"request_digest": "sha256:r", "value": {"retry": true}}}
+        }))
+        .err()
+        .ok_or("a close comes alone")?;
+        assert!(alone.to_string().contains("comes alone"), "{alone}");
+
+        let closed = close(serde_json::json!({"close": {"disposition": "declined"}}))?;
+        assert!(!closed.succeeded());
+        let sealed = log
+            .load()?
+            .ok_or("the run has a record")?
+            .sealed
+            .ok_or("the close seals the run")?;
+        assert_eq!(
+            sealed.receipt.seal.disposition,
+            ClosureDisposition::Declined
+        );
+        assert_eq!(sealed.receipt.seal.reason, Some(SealReason::HostClosed));
+        let again = close(serde_json::json!({"close": {"disposition": "declined"}}))
+            .err()
+            .ok_or("a sealed run does not close again")?;
+        assert!(again.to_string().contains("is sealed"), "{again}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_stopped_call_admits_nothing_and_the_next_call_runs() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let (run_id, log) = paused_with_unsettled_call(root)?;
+        let session = LocalOrchestrator::default().open_turns(&TurnRequest {
+            run_id,
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+        })?;
+        let input = || {
+            serde_json::from_value::<JsonObject>(
+                serde_json::json!({"value": "again", "encoding": "utf8_text"}),
+            )
+        };
+        let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let stopped = crate::interrupt::while_working(&cancelled, || {
+            session
+                .call("answer", "data_digest", Some("stopped"), input()?)
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+        })
+        .err()
+        .ok_or("a stopped driver admits no call")?;
+        assert!(stopped.to_string().contains("stopped before"), "{stopped}");
+        let record = log.load()?.ok_or("the run has a record")?;
+        assert_eq!(record.calls.len(), 1, "the stop recorded nothing");
+        assert!(record.sealed.is_none());
+
+        let next = session.call("answer", "data_digest", Some("next"), input()?)?;
+        assert_eq!(next.index, 1);
+        Ok(())
+    }
+
     /// A run paused at its turn, whose call 0 a driver claimed and stopped
     /// before it settled.
     fn paused_with_unsettled_call(root: &Path) -> TestResult<(String, RunLog)> {

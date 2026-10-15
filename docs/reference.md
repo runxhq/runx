@@ -178,11 +178,23 @@ consequential decision under `answers`; that section records agent or
 caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
 response presented to an approval request.
 
-A host ends a paused run instead with `{"close": {"disposition": "declined"}}`
+A host ends a run instead with `{"close": {"disposition": "declined"}}`
 (a person stopped it) or `"superseded"` (a new attempt replaced it). The close
-comes alone. The run seals with that disposition and the seal reason
+comes alone. It seals any run that is not sealed and that no process drives,
+whether it waits at an act or stopped between steps, from its record alone:
+nothing is bound first, so a package that changed since the run started never
+traps it open. The run seals with that disposition and the seal reason
 `host_closed`; it is allowed while a retry waits, and an effect the run left
 unconfirmed stays unconfirmed.
+
+A driver stops gracefully on `SIGTERM` (`runx resume`, and `runx skill` while
+it drives a run) and on MCP's cancellation of an in-flight call
+(`notifications/cancelled` to `runx mcp`): the run admits no further step or
+call, an operation already reaching its provider returns and is recorded, a
+command it supervises is terminated and recorded with decision `stopped`, and
+the run stays where it stopped for its next driver (`runx resume` exits 143).
+A second `SIGTERM`, `SIGINT`, and the death of the driver's parent interrupt at
+once.
 
 `runx mcp --run <run-id>` serves the agent turns a paused run waits on as MCP
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves

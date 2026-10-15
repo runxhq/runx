@@ -92,6 +92,10 @@ pub enum RuntimeError {
         "provider mutation was applied but independent readback is unavailable at graph step '{step_id}': {reason}"
     )]
     ProviderReadbackPending { step_id: String, reason: String },
+    /// The driver was asked to stop, so `step_id` was not admitted; the run
+    /// stays where it is, and its next driver continues it.
+    #[error("run {run_id} stopped before {step_id}; runx resume continues it")]
+    Stopped { run_id: String, step_id: String },
     #[error(transparent)]
     RunRecord(#[from] crate::execution::run_record::RunRecordError),
     #[error("unsupported adapter '{adapter_type}'")]
@@ -221,7 +225,8 @@ impl RuntimeError {
             | Self::ProviderEffectUnknown { .. }
             | Self::ProviderReadbackPending { .. }
             | Self::ReceiptInvalid { .. }
-            | Self::ContinuationRejected { .. } => true,
+            | Self::ContinuationRejected { .. }
+            | Self::Stopped { .. } => true,
             Self::Io { .. }
             | Self::ParseGraph(_)
             | Self::ValidateGraph(_)

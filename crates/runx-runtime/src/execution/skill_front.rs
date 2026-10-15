@@ -246,6 +246,119 @@ pub(crate) struct Continuation<'a> {
     pub(crate) execution_closure_digest: Option<&'a str>,
 }
 
+/// Seal run `run_id` with its host's close, from its record alone: any run
+/// that is not sealed, whether it waits at an act or stopped between steps.
+/// Nothing is bound first, so a package or execution closure that changed
+/// since the run started never traps it open, and an effect the run left
+/// unconfirmed stays unconfirmed. Its driver lock, which the caller holds,
+/// is what keeps a live driver out.
+pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, SkillRunError> {
+    use crate::execution::run_record::{Origin, Replayed, RunLog, validate_run_id};
+
+    let close = match continuation.answers {
+        Some(document) if !document.answers.is_empty() || !document.approvals.is_empty() => {
+            return Err(invalid("a close comes alone, without answers or approvals"));
+        }
+        Some(runx_contracts::ResumeDocument {
+            close: Some(close), ..
+        }) => *close,
+        _ => return Err(invalid("a close names its disposition")),
+    };
+    let run_id = validate_run_id(continuation.run_id)?;
+    let workspace = WorkspaceEnv::new(continuation.env.clone(), continuation.cwd.to_path_buf())
+        .map_err(RuntimeError::from)?;
+    let receipts = ReceiptServices::resolve(&workspace)
+        .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
+    let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
+        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    let log = RunLog::open(store, run_id)?;
+    let record = log
+        .load()?
+        .ok_or_else(|| invalid(format!("run {run_id} has no record in this workspace")))?;
+    let Origin::Run(started) = &record.origin else {
+        return Err(invalid("a child run closes only with its parent"));
+    };
+    if record.sealed.is_some() {
+        return Err(invalid(format!(
+            "run {run_id} is sealed; only an open run closes"
+        )));
+    }
+    for (label, pinned, recorded) in [
+        (
+            "package",
+            continuation.package_digest,
+            &started.package_digest,
+        ),
+        (
+            "execution closure",
+            continuation.execution_closure_digest,
+            &started.execution_closure_digest,
+        ),
+    ] {
+        if let Some(pinned) = pinned
+            && pinned != recorded
+        {
+            return Err(invalid(format!(
+                "the {label} digest {pinned} is not the one run {run_id} started under ({recorded})"
+            )));
+        }
+    }
+    let steps = record
+        .facts
+        .iter()
+        .filter_map(|fact| match fact {
+            Replayed::Step(run) => Some(run.as_ref().clone()),
+            Replayed::Skipped(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let receipt = crate::receipts::graph_receipt_with_closure(
+        RunScope {
+            run_id,
+            graph_name: &started.skill,
+        },
+        &steps,
+        &crate::time::now_iso8601(),
+        crate::receipts::GraphClosure {
+            disposition: close.disposition.into(),
+            reason: Some(runx_contracts::SealReason::HostClosed),
+        },
+        receipts.signature_config().signature_policy(),
+    )?;
+    // A closed run's result is nothing: it stopped before it produced one.
+    let result = JsonValue::Object(JsonObject::new());
+    log.record_sealed(&receipt, Some(&result))?;
+    let request = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: PathBuf::from(&started.skill_ref),
+        receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
+        run_id: Some(run_id.to_owned()),
+        answers: None,
+        inputs: BTreeMap::new(),
+        env: continuation.env.clone(),
+        cwd: continuation.cwd.to_path_buf(),
+        managed_agent: continuation.managed_agent,
+    };
+    for step in &steps {
+        for nested in &step.nested_receipts {
+            runner_manifest::write_skill_receipt(&request, &workspace, &receipts, nested)?;
+        }
+        runner_manifest::write_skill_receipt(&request, &workspace, &receipts, &step.receipt)?;
+    }
+    runner_manifest::write_skill_receipt(&request, &workspace, &receipts, &receipt)?;
+    Ok(sealed_output(
+        &started.skill,
+        &started.runner,
+        run_id,
+        &InvocationOutput::runtime_success(result.clone(), 0),
+        &result,
+        SkillOutputDiagnostics::default(),
+        &receipt,
+    ))
+}
+
 /// Bind a paused run again: its skill, runner and digests come from its
 /// record, never from the caller.
 pub(crate) fn bind_paused_run(
@@ -587,7 +700,7 @@ fn seal_refusal(
 }
 
 fn sealed_output(
-    manifest: &SkillRunnerManifest,
+    skill: &str,
     runner: &str,
     run_id: &str,
     skill_output: &InvocationOutput,
@@ -605,10 +718,7 @@ fn sealed_output(
         "outcome".to_owned(),
         JsonValue::String(outcome(&receipt.seal.disposition).to_owned()),
     );
-    output.insert(
-        "skill_name".to_owned(),
-        JsonValue::String(manifest.skill.clone()),
-    );
+    output.insert("skill_name".to_owned(), JsonValue::String(skill.to_owned()));
     output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
     output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
     output.insert(

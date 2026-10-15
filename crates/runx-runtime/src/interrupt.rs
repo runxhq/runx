@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::process::{ProcessSignal, signal_process_group_id};
 
@@ -12,6 +13,67 @@ fn active_process_groups() -> &'static Mutex<BTreeSet<u32>> {
 fn interrupt_requested() -> &'static AtomicBool {
     static INTERRUPTED: AtomicBool = AtomicBool::new(false);
     &INTERRUPTED
+}
+
+/// A graceful stop of the whole process, asked by `SIGTERM`.
+fn stop_asked() -> &'static Arc<AtomicBool> {
+    static STOPPING: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+    STOPPING.get_or_init(|| Arc::new(AtomicBool::new(false)))
+}
+
+thread_local! {
+    /// The stop of the call this thread works, set when its host cancels it.
+    static CALL_STOP: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+}
+
+/// Ask the process to stop gracefully: a driver admits no further step or
+/// call, a command it supervises is terminated and recorded stopped, and an
+/// operation already reaching its provider returns and is recorded.
+pub fn stop() {
+    stop_asked().store(true, Ordering::Release);
+}
+
+/// Whether `SIGTERM` asked the process to stop.
+#[must_use]
+pub fn was_stopped() -> bool {
+    stop_asked().load(Ordering::Acquire)
+}
+
+/// Do `work` as one call its host may cancel through `stop`: while it runs on
+/// this thread, a set `stop` stops it as [`stop`] stops the process, and the
+/// thread's next call starts clear.
+pub fn while_working<T>(stop: &Arc<AtomicBool>, work: impl FnOnce() -> T) -> T {
+    let previous = CALL_STOP.with(|call| call.replace(Some(Arc::clone(stop))));
+    let result = work();
+    CALL_STOP.with(|call| *call.borrow_mut() = previous);
+    result
+}
+
+/// Whether the work on this thread should stop: the process was asked to,
+/// or its host cancelled the call it serves.
+#[must_use]
+pub fn stop_requested() -> bool {
+    was_stopped()
+        || CALL_STOP.with(|call| {
+            call.borrow()
+                .as_ref()
+                .is_some_and(|stop| stop.load(Ordering::Acquire))
+        })
+}
+
+/// Stop gracefully on `SIGTERM`, for a process that drives a run; a second
+/// `SIGTERM` ends it at once. `SIGINT` and the death of the parent keep the
+/// forced [`interrupt`].
+pub fn stop_on_terminate() -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use signal_hook::consts::SIGTERM;
+        // Registered first, so it sees the flag the first signal sets only
+        // on the second.
+        signal_hook::flag::register_conditional_shutdown(SIGTERM, 143, Arc::clone(stop_asked()))?;
+        signal_hook::flag::register(SIGTERM, Arc::clone(stop_asked()))?;
+    }
+    Ok(())
 }
 
 fn lock_active_process_groups() -> std::sync::MutexGuard<'static, BTreeSet<u32>> {
@@ -108,6 +170,32 @@ pub fn end_with_parent() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cancelled_call_stops_only_while_it_is_worked() {
+        let stop = Arc::new(AtomicBool::new(false));
+        assert!(!stop_requested());
+        while_working(&stop, || {
+            assert!(!stop_requested());
+            stop.store(true, Ordering::Release);
+            assert!(stop_requested());
+        });
+        assert!(!stop_requested(), "the thread's next call starts clear");
+        let other = std::thread::spawn({
+            let stop = Arc::clone(&stop);
+            move || {
+                while_working(&Arc::new(AtomicBool::new(false)), || {
+                    let _cancelled = &stop;
+                    stop_requested()
+                })
+            }
+        });
+        assert_eq!(
+            other.join().ok(),
+            Some(false),
+            "another call is not stopped"
+        );
+    }
 
     #[test]
     fn active_process_groups_unregister_on_drop() {

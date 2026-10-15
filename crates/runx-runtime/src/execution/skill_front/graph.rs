@@ -167,21 +167,6 @@ impl BoundRun {
         let suspension = existing
             .as_ref()
             .and_then(|record| record.suspension.as_ref());
-        // A close seals the run where it waits, whatever it waits on: an
-        // effect it left unconfirmed stays unconfirmed.
-        if let Some(close) = host.answers.close() {
-            let suspension = suspension.ok_or_else(|| {
-                invalid(format!(
-                    "run {} is not paused; only a paused run closes",
-                    log.run_id()
-                ))
-            })?;
-            return run.seal_stopped(
-                &suspension.step_id,
-                Some(SealReason::HostClosed),
-                Stop::Closed(close.disposition.into()),
-            );
-        }
         // Every decision a person brings is the run's before it goes
         // further: recorded in the stream whose request it answers, so the
         // next driver to reach that request uses it, even after a crash.
@@ -380,7 +365,7 @@ impl BoundRun {
         };
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
-            &self.manifest,
+            &self.manifest.skill,
             &self.runner.name,
             log.run_id(),
             &output,
@@ -498,7 +483,7 @@ impl Driven<'_> {
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
-            &bound.manifest,
+            &bound.manifest.skill,
             &bound.runner.name,
             self.log.run_id(),
             &output,
@@ -560,7 +545,7 @@ impl Driven<'_> {
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;
         Ok(sealed_output(
-            &bound.manifest,
+            &bound.manifest.skill,
             &bound.runner.name,
             self.log.run_id(),
             &output,

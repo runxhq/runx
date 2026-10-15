@@ -2,14 +2,18 @@
 //!
 //! The process that drives a named run holds an exclusive lock on
 //! `.runx/drivers/<digest>.lock`, which the OS releases however the process
-//! ends. A driver that ends normally removes the file; one that is killed or
-//! interrupted leaves it unlocked, and the run's next driver removes it. The
-//! lock is the liveness signal a host waits on after a restart; the run
-//! record's stream versions remain what refuses a second writer.
+//! ends. A driver that ends normally removes the file while it still holds
+//! the lock; one that is killed or interrupted leaves it unlocked, and the
+//! run's next driver takes it. A driver that locked a file another driver
+//! had just removed holds nothing, so after locking it checks that the path
+//! still names the file it locked, and takes the path again if not: two
+//! drivers can never hold one run across a handoff. The lock is the liveness
+//! signal a host waits on after a restart; the run record's stream versions
+//! remain what refuses a second writer.
 
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::RunRecordError;
 use crate::paths::RunxPaths;
@@ -27,19 +31,38 @@ impl DriverLock {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(&failed)?;
         }
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&path)
-            .map_err(&failed)?;
-        match file.try_lock() {
-            Ok(()) => Ok(Self { file, path }),
-            Err(TryLockError::WouldBlock) => Err(RunRecordError::Driven {
-                run_id: run_id.to_owned(),
-            }),
-            Err(TryLockError::Error(error)) => Err(failed(error)),
+        loop {
+            let file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(&path)
+                .map_err(&failed)?;
+            match file.try_lock() {
+                Ok(()) if names(&path, &file).map_err(&failed)? => {
+                    return Ok(Self { file, path });
+                }
+                // The file was removed after this open: lock what the path
+                // names now.
+                Ok(()) => {}
+                Err(TryLockError::WouldBlock) => {
+                    return Err(RunRecordError::Driven {
+                        run_id: run_id.to_owned(),
+                    });
+                }
+                Err(TryLockError::Error(error)) => return Err(failed(error)),
+            }
         }
+    }
+}
+
+/// Whether `path` still names the open `file`.
+fn names(path: &Path, file: &File) -> io::Result<bool> {
+    let held = same_file::Handle::from_file(file.try_clone()?)?;
+    match same_file::Handle::from_path(path) {
+        Ok(named) => Ok(named == held),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
     }
 }
 
@@ -100,6 +123,26 @@ mod tests {
         drop(lock);
         assert!(!driven(&paths, "run_a")?);
         assert!(!lock_path(&paths, "run_a").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn a_lock_on_a_removed_file_is_taken_again() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let paths = RunxPaths::resolve(&Default::default(), root.path());
+        let path = lock_path(&paths, "run_a");
+        // A driver opened the file just before the one ending removed it,
+        // and a third driver made the path anew.
+        fs::create_dir_all(path.parent().ok_or("a parent")?)?;
+        let stale = File::create(&path)?;
+        fs::remove_file(&path)?;
+        let lock = DriverLock::acquire(&paths, "run_a")?;
+        assert!(names(&path, &lock.file)?);
+        assert!(!names(&path, &stale)?, "the removed file is held by no one");
+        assert!(matches!(
+            DriverLock::acquire(&paths, "run_a"),
+            Err(RunRecordError::Driven { .. })
+        ));
         Ok(())
     }
 }

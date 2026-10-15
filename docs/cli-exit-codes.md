@@ -115,3 +115,12 @@ configured interrupt shortcut). Runx terminates supervised tool, JavaScript,
 adapter, and MCP child process groups, allows at most two seconds for receipt
 and output cleanup, and then exits 130. A second interrupt exits immediately.
 On macOS, Cmd-C is normally copy; Ctrl-C is the interrupt.
+
+## Exit Code 143: Stopped
+
+A driver (`runx resume`, or `runx skill` while it drives a run) received
+`SIGTERM` and stopped gracefully: it admitted no further step or call, let an
+operation already reaching its provider return and be recorded, terminated a
+command it supervised and recorded it with decision `stopped`, and left the run
+where it stopped. `runx resume` continues it. A second `SIGTERM` exits
+immediately.

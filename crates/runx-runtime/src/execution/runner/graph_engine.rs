@@ -355,6 +355,14 @@ impl GraphExecution {
     where
         A: SkillAdapter,
     {
+        // A driver asked to stop admits no further step; the run stays where
+        // it is.
+        if crate::interrupt::stop_requested() {
+            return Err(RuntimeError::Stopped {
+                run_id: runtime.options.run.run_id().to_owned(),
+                step_id: format!("step {step_id}"),
+            });
+        }
         let plan = StepExecutionPlan { step_id, attempt };
         let step = self.find_step(graph, plan.step_id)?;
         let loaded_skill = self.cached_step_skill(runtime, graph_dir, step);

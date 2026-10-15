@@ -186,6 +186,15 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             );
         }
     };
+    if let Err(error) = crate::runtime::stop_on_terminate() {
+        return write_skill_failure(
+            &error,
+            plan.json,
+            "skill_error",
+            1,
+            entry_provenance(&resolved),
+        );
+    }
     let resume = ResumeHint {
         receipt_dir: plan.receipt_dir.as_deref(),
         answers_path: None,
