@@ -8,7 +8,7 @@
   },
   {
     "skill_id": "runx/attention-review",
-    "version": "sha-9c8ed6bde72f",
+    "version": "sha-2354a7e31635",
     "digest": "229148ef6d29aa05d98caaf9b995d355f4abcfec642c7da38355b47d8b79c4df",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -43,7 +43,7 @@
   },
   {
     "skill_id": "runx/contract-drafter",
-    "version": "sha-0a6923202ef6",
+    "version": "sha-d987076757eb",
     "digest": "73876754bc8bf550abeead296f0d756ea197c2c0012844467f3d0722593d957e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -71,14 +71,14 @@
   },
   {
     "skill_id": "runx/data-subject-request",
-    "version": "sha-9291ab78e862",
+    "version": "sha-f131606d1b91",
     "digest": "44a3edb82356525a45cf195563987c3469bcc60c8969b6a8a602965739d85268",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/deep-research",
-    "version": "sha-2faa8a8fd5ff",
+    "version": "sha-50586a01ebd0",
     "digest": "758aa80b2b710c41aa249e7aef22c16611c67f03306869693d33796fe14cdaaf",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -92,7 +92,7 @@
   },
   {
     "skill_id": "runx/dispute-respond",
-    "version": "sha-da0e907542a9",
+    "version": "sha-dfaf8da4dc43",
     "digest": "d8983097f5622263771a2de1494ae0247b746e1159440816c59572291a10826e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -106,7 +106,7 @@
   },
   {
     "skill_id": "runx/ghostwrite",
-    "version": "sha-28c211c6cab8",
+    "version": "sha-6effd6bc33cc",
     "digest": "bba553adeb3df24a28a79e941601080c10171fbace844c8ea66a2c7507b41261",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -120,35 +120,35 @@
   },
   {
     "skill_id": "runx/github-sync",
-    "version": "sha-371d1266dcb3",
+    "version": "sha-e8136442b267",
     "digest": "b5ce221b2ef0f7bf519f962bd149b8760d671659674c4d9e07a6fe95e9aaddfb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/google-analytics",
-    "version": "sha-2619250170c5",
+    "version": "sha-4125e9fac51b",
     "digest": "d6c23b6ec788fc4f06711c445ed8faa3121b2705568dcda805d4635cc29a8bd2",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/google-calendar",
-    "version": "sha-bbc36d8f8840",
+    "version": "sha-acdcc0043284",
     "digest": "5cae0833b3d93382cbe60f85739eea117055f1ae8eca418e5017dd6dd5166a7a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/google-search-console",
-    "version": "sha-a9368deadec5",
+    "version": "sha-c8f27379e55e",
     "digest": "bf6ab059b5f6e42f48c0370183f06945168e72f0d79f11293fc2304e850569c9",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/helpdesk",
-    "version": "sha-89a51b0f4847",
+    "version": "sha-108ae9eeda57",
     "digest": "e2ecb7455e786f4afc391842c29b3b804eecadd4c8444fe5dc4d4d2001016c39",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -162,7 +162,7 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-23427fce2309",
+    "version": "sha-a5d2ec078cf4",
     "digest": "a2363361f7d7cdd81c8202f1bd3cb7d2ee67704a69c321a88effae325c683865",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -197,14 +197,14 @@
   },
   {
     "skill_id": "runx/least-privilege",
-    "version": "sha-137e1affad5f",
+    "version": "sha-47c3c03f855a",
     "digest": "a4e95066042400dad0a8ba429addaacd769654a35c301ac0ca701c7b4f9f92bb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/list-hygiene-judge",
-    "version": "sha-8b1acfcfabb7",
+    "version": "sha-9292fe00bad1",
     "digest": "d05e078fa291a07afe069b24a0462245a7f7f730b2ceea2e32f2d56642ea6277",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -225,14 +225,14 @@
   },
   {
     "skill_id": "runx/nws-weather-forecast",
-    "version": "sha-b73ca191c77c",
+    "version": "sha-54c57727b909",
     "digest": "d868f1b6a1e7ed9a269d24fdf028dafb6f0d89ce91b19f685ee64772d8aec46e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/open-meteo-weather-forecast",
-    "version": "sha-273c1eabb030",
+    "version": "sha-18d4788a9001",
     "digest": "b687ed1d5ca87e66c148657a695f0b4484a2cf1c920992e1a0472b508206b2a3",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -267,7 +267,7 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-3bc84fbf4ab4",
+    "version": "sha-33f62d85a6e2",
     "digest": "15d985a86af57994ff8a3191fa79b648cd825b956254f76523162064e4c40904",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -316,7 +316,7 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-25f6db1e09fe",
+    "version": "sha-1d58de075e2a",
     "digest": "63e859c1b12b0f7dee8a33248f117b8bbeacc274fd76b2413863754dce165303",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -337,7 +337,7 @@
   },
   {
     "skill_id": "runx/research",
-    "version": "sha-d218369e041b",
+    "version": "sha-86491fb8ac48",
     "digest": "897e18a20a730bd551fd2eb1a71d6b0dc3ea59149600d8c65a37cd3ea8957bc3",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -386,7 +386,7 @@
   },
   {
     "skill_id": "runx/skill-build",
-    "version": "sha-519112c4e8b2",
+    "version": "sha-8bcb8c49ebb6",
     "digest": "6f90c3f9fef2da1a90464190dfb41efde3ae9e05f7467c8f1fc755c2736118a7",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -400,14 +400,14 @@
   },
   {
     "skill_id": "runx/slack",
-    "version": "sha-2f6ddedf536c",
+    "version": "sha-b04ef5296a8e",
     "digest": "6914e1367d2e9c8472f0de9614632f117863f72a5c4a486afb37b6b23b1fcb07",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/sql-analyst",
-    "version": "sha-6fabfc1d874a",
+    "version": "sha-77c5c22259e3",
     "digest": "c67787dde363858f8481f0c6d1861f05d4f10824ccb177b376a48c4cd472902a",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -428,7 +428,7 @@
   },
   {
     "skill_id": "runx/vuln-triage",
-    "version": "sha-51a29d570846",
+    "version": "sha-b24207f11cdb",
     "digest": "b07ece44309e621ef9a55e8a977c1da8b8b11ade7e75ec4b654d7015f0562f1e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
