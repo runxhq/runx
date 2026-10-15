@@ -48,6 +48,8 @@ pub struct RunReadSummary {
     pub state: RunState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disposition: Option<ClosureDisposition>,
+    /// The execution package digest of the package the run loaded, not the
+    /// registry's digest of the published package files a listing carries.
     pub package_digest: NonEmptyString,
     pub execution_closure_digest: NonEmptyString,
     pub driver: RunDriver,

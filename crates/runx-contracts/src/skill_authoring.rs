@@ -383,6 +383,8 @@ pub struct SkillApplyResult {
     pub verdict: SkillApplyVerdict,
     pub base_digest: NonEmptyString,
     pub plan_digest: NonEmptyString,
+    /// The execution package digest of the applied package, not the
+    /// registry's digest of its published package files.
     pub package_digest: NonEmptyString,
     pub changed_paths: Vec<NonEmptyString>,
     pub deleted_paths: Vec<NonEmptyString>,

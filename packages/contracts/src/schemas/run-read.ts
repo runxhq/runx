@@ -100,6 +100,10 @@ export type RunReadContract = DeepReadonly<{
     runner: string;
     state: RunStateContract;
     disposition?: ClosureDispositionContract;
+    /**
+     * The execution package digest of the package the run loaded, not the
+     * registry's digest of the published package files a listing carries.
+     */
     package_digest: string;
     execution_closure_digest: string;
     driver: RunDriverContract;

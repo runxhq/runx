@@ -335,6 +335,8 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<JsonObject, SkillInspe
             "manual_digest".to_owned(),
             JsonValue::String(package.manual_digest.clone()),
         ),
+        // The execution package digest, as a run records it; a listing's
+        // package_digest is the registry's digest of the published files.
         (
             "package_digest".to_owned(),
             JsonValue::String(package.package_digest.clone()),
