@@ -94,15 +94,15 @@ fn run_registry(
     if let RegistryAction::Package | RegistryAction::Publish = plan.action
         && let PackageKind::Connector(directory) = package_kind(&plan.subject, env, cwd)?
     {
-        // A connector's publisher is its plugin.json namespace, and it carries
-        // no harness profile; the skill flags name nothing here.
+        // A connector names itself and carries no harness profile; the skill
+        // flags name nothing here.
         if plan.publisher.is_some()
             || plan.profile.is_some()
             || plan.trust_tier.is_some()
             || plan.upsert
         {
             return Err(usage_error(
-                "a connector takes its publisher from plugin.json: package accepts only --json, publish only --registry, --version and --json",
+                "a connector names itself: package accepts only --json, publish only --registry, --version and --json",
             ));
         }
         return match plan.action {

@@ -140,7 +140,7 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
     ),
     execute(commands, "list.tools.execute", "list", ["list", "tools", "--json"], 0, true, [], []),
     execute(commands, "process.list.execute", "process", ["process", "list", "--json"], 0, true, ["\"processes\": []"], []),
-    execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"runx/github\""], []),
+    execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"github\""], []),
   ];
   const executableCaseIds = new Set(executableCases.map((testCase) => testCase.id));
 

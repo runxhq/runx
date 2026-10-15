@@ -98,7 +98,7 @@ encoding and page metadata would otherwise exceed the worker input boundary. A
 single record that cannot fit safely is rejected. These are runtime ceilings,
 not manifest profiles. Package code must keep continuation proportional to the
 bounded result it is building; durable progress belongs in the store, appended
-through `data-store` and resumed through `after_version` or a projection rather
+through the `store` connector's operations and resumed through `after_version` or a projection rather
 than an ever-growing array.
 
 Use `artifact.admit`/`artifact.read` directly when a graph or tool needs exact

@@ -20,12 +20,6 @@ workflows, or deploy commands. It routes to the existing interface with the smal
 sufficient context and stops before any consequential act that lacks the right
 gate.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#read_projection`
-
 ## What this skill does
 
 The default `operate_from_projection` runner reads bounded durable state before
@@ -46,7 +40,7 @@ must be a deterministic handoff to an existing skill runner, CLI command, hosted
 API route, workflow, or provider tool.
 
 When the desk should start from durable state, use `operate_from_projection`.
-That runner reads a projection through `data-store` first, then passes the
+That runner reads a projection through the store's `projection.read` first, then passes the
 projection as the dashboard snapshot. The storage provider is still selected by
 the logical `data_source_ref`; ops desk does not know whether state came from
 SQLite, Postgres, D1, Redis, or a product API.

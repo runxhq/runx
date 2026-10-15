@@ -2,7 +2,7 @@
 //!
 //! - `store`: the protected state store. Append-only streams with expected
 //!   versions, atomic multi-stream batches and a hash chain per stream. No
-//!   data-store binding, tool or grant can reach it.
+//!   `store` connector binding, tool or grant can reach it.
 //! - `connectors`: the registry of runx-maintained and plugin-local connectors.
 //! - `instances`: what a connector requirement resolves to, with no fallback.
 //! - `session`: tokens read from a tool the person is signed into.

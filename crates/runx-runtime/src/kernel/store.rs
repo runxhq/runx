@@ -17,8 +17,8 @@
 //! it and is verified against its digest on read, so a stream never refers to
 //! bytes that were not committed with it.
 //!
-//! The file carries its own SQLite `application_id`. A data-store binding
-//! cannot open it, and this store refuses any other database.
+//! The file carries its own SQLite `application_id`. A `store` connector
+//! binding cannot open it, and this store refuses any other database.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

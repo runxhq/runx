@@ -504,8 +504,8 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     }
 }
 
-/// A runx-maintained connector, one of the plugin runx was invoked in, or an
-/// installed version named by its qualified ref.
+/// A runtime capability, one of the plugin runx was invoked in, or an
+/// installed version, by name.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
     ConnectorScope::at(workspace.paths().cwd())
         .and_then(|scope| {

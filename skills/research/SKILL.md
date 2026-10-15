@@ -24,7 +24,7 @@ and content-digest index. URLs, paths, model memory, operator context, and targe
 names do not become evidence merely because they were supplied.
 
 The packet is a reusable primitive for `deep-research`, `content-pipeline`,
-`ecosystem-brief`, `ghostwrite`, product planning, and other decision workflows.
+`ghostwrite`, product planning, and other decision workflows.
 It does not publish, notify, or mutate a provider. Those later operations keep
 their own authority, approval, and readback boundary.
 

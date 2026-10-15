@@ -22,11 +22,10 @@ package, execution, authority, and receipt contracts. Bundling adds no privilege
 
 Users can load their own skills and connectors directly from local files.
 For example, `runx skill ./skills/my-skill` loads a local skill; its plugin can
-carry connector manifests in `connectors/<id>/connector.yaml` and their declared
-tool packages. The plugin declares its namespace in `plugin.json`
-(`{"namespace": "acme"}`), so its connectors are `acme/<id>`; the namespace
-names them and grants no publisher authority, which publication checks
-separately. Local use requires no publication or registry account. Bundled,
+carry connector manifests in `connectors/<name>/connector.yaml` and their
+declared tool packages. A connector names itself in its manifest `id`, such as
+`acme/notes`; the name grants no publisher authority, which publication checks
+separately against the namespace's owner. Local use requires no publication or registry account. Bundled,
 local and registry sources share native validation and execution contracts.
 `RUNX_SKILL_ROOTS` adds directories containing local skill packages, separated
 with the platform's path separator; execution and export read the same roots.
@@ -148,7 +147,7 @@ Name a skill so an agent instinctively reaches for the right one:
   `-analyst`, `-pipeline` suffixes.
 - One distinct **verb per pipeline layer** so sibling skills never blur. The
   security trio is the model: `cve-audit` (detect, deterministic) ->
-  `vuln-triage` (assess, agent) -> `vuln-disclosure` (publish, governed).
+  `vuln-triage` (assess, agent); publishing the advisory is the operator's step.
 - Keep provider rails and integrations descriptive (`stripe-pay`, `web-fetch`).
 - Retrieval beats cleverness: the searchable term wins, and keywords the name
   drops go in the `description`.
@@ -193,12 +192,12 @@ evidence, not copied into the repo by default.
 | `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-build`, `work-plan` |
 | `code` | `github-pr-review`, `release`, `schema-guard` |
 | `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
-| `data` | `data-store`, `product-analytics`, `run-history`, `sql-analyst` |
+| `data` | `product-analytics`, `run-history`, `sql-analyst` |
 | `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify` |
-| `ops` | `github-sync`, `issue-intake`, `issue-triage`, `n8n-handoff`, `ops-desk`, `postmortem-maker`, `send-as`, `zapier-handoff` |
+| `ops` | `github-sync`, `issue-intake`, `issue-triage`, `message-send`, `ops-desk`, `postmortem-maker`, `webhook-handoff` |
 | `payments` | `charge`, `dispute-respond`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
-| `research` | `ecosystem-brief`, `research`, `web-search` |
-| `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `vuln-disclosure`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt`, `vault-unseal` |
+| `research` | `deep-research`, `research`, `web-search` |
+| `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 
 Graph stages, harness fixtures, context-only packages, and provider bindings are
 not listed here unless they are meant to be run as catalog packages. Their

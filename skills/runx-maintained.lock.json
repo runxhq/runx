@@ -1,15 +1,15 @@
 [
   {
     "skill_id": "runx/agency",
-    "version": "sha-cfeb8623577d",
+    "version": "sha-e765d030fc52",
     "digest": "a9e044b94838bfa317c19ad4c934ffd28056cce092f077dbc2402fb062b2058a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/attention-review",
-    "version": "sha-d405c7cf6b3d",
-    "digest": "46cf2b769af4a945fb7b9b0f460cd74ecc3bf9849bca95708e70213ec5f25337",
+    "version": "sha-14e57a733068",
+    "digest": "ff5d05903127cc9dc54cb99acce0b92c6572f21280fd205b9553bb245426241b",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -43,15 +43,8 @@
   },
   {
     "skill_id": "runx/contract-drafter",
-    "version": "sha-da259e7c85c9",
-    "digest": "63d51951256ec45a7962b4a7bc03dc2e39404925510938ce7839234aa118f529",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/conversation-reply",
-    "version": "sha-2b9cf5baa1ce",
-    "digest": "1c486d4bf5bafc952b94c4732f9784492c10bbcf1aa7ebd344ef4c81dff526f5",
+    "version": "sha-0a6923202ef6",
+    "digest": "73876754bc8bf550abeead296f0d756ea197c2c0012844467f3d0722593d957e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -77,22 +70,15 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/data-store",
-    "version": "sha-a3daec893292",
-    "digest": "6189002404a43ce1526f2b03fd615243850d6b37ba0415e63f5467fdb32b6ba6",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/data-subject-request",
-    "version": "sha-eeb49c6b3249",
-    "digest": "65a6d4775a6e222554c53f1048efe7809093e9dd1f63a33146b5ce7c2acb5060",
+    "version": "sha-1392128c9f53",
+    "digest": "e65fa76532690ed933705b05d6c8fcdfd0753e107091d034d6e29749f3ad5fd2",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/deep-research",
-    "version": "sha-bb9acaea735e",
+    "version": "sha-2faa8a8fd5ff",
     "digest": "758aa80b2b710c41aa249e7aef22c16611c67f03306869693d33796fe14cdaaf",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -106,17 +92,10 @@
   },
   {
     "skill_id": "runx/dispute-respond",
-    "version": "sha-a2474a947625",
+    "version": "sha-da0e907542a9",
     "digest": "d8983097f5622263771a2de1494ae0247b746e1159440816c59572291a10826e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/ecosystem-brief",
-    "version": "sha-c7b1190561a0",
-    "digest": "2e1bb754bc118b932c58e13864df75e72ad37eef7699239988d80f14b488baee",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
   },
   {
     "skill_id": "runx/extract",
@@ -127,17 +106,10 @@
   },
   {
     "skill_id": "runx/ghostwrite",
-    "version": "sha-cae291d827bf",
-    "digest": "7f67e9387592755d36cc51a23425ec66ff20ca143258d316e31cd497fb018181",
+    "version": "sha-28c211c6cab8",
+    "digest": "bba553adeb3df24a28a79e941601080c10171fbace844c8ea66a2c7507b41261",
     "catalog_visibility": "public",
     "catalog_role": "context"
-  },
-  {
-    "skill_id": "runx/github-pr-comment",
-    "version": "sha-47e444b2ee2f",
-    "digest": "9683d81590031dba5f423c3625dc200ea404324c29fde0dd183740f899725864",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/github-pr-review",
@@ -148,36 +120,36 @@
   },
   {
     "skill_id": "runx/github-sync",
-    "version": "sha-dc5da5745ddc",
+    "version": "sha-c0ae0dc1df33",
     "digest": "d38fa7dc233e1e9a335eb3a1a09f73a001c33158b16a6ed4e1750cdaaee90120",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/google-analytics",
-    "version": "sha-26c711f45e26",
+    "version": "sha-2619250170c5",
     "digest": "d6c23b6ec788fc4f06711c445ed8faa3121b2705568dcda805d4635cc29a8bd2",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/google-calendar",
-    "version": "sha-225a5e6b7da3",
+    "version": "sha-bbc36d8f8840",
     "digest": "5cae0833b3d93382cbe60f85739eea117055f1ae8eca418e5017dd6dd5166a7a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/google-search-console",
-    "version": "sha-9e9c2cf59337",
+    "version": "sha-a9368deadec5",
     "digest": "bf6ab059b5f6e42f48c0370183f06945168e72f0d79f11293fc2304e850569c9",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/helpdesk",
-    "version": "sha-62ea3823881d",
-    "digest": "e394215075ae71918792bb63d79c210ed9536a2963a4613a46d0d3294ad881c2",
+    "version": "sha-89a51b0f4847",
+    "digest": "e2ecb7455e786f4afc391842c29b3b804eecadd4c8444fe5dc4d4d2001016c39",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -190,8 +162,8 @@
   },
   {
     "skill_id": "runx/issue-to-pr",
-    "version": "sha-3d7b3bef7924",
-    "digest": "eae16953ff145b514d4a990ee537a974d4db3e8c9e5123a4dc312c7433242754",
+    "version": "sha-23427fce2309",
+    "digest": "a2363361f7d7cdd81c8202f1bd3cb7d2ee67704a69c321a88effae325c683865",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -232,8 +204,8 @@
   },
   {
     "skill_id": "runx/list-hygiene-judge",
-    "version": "sha-1d65151c6786",
-    "digest": "31d6542ecd5c184cefc26acd982b2f782ed0050a96ddbb8fd5e7a4fc2143949b",
+    "version": "sha-b74f71dd9212",
+    "digest": "e41a3917683cede5bcd2ee0dee1ec7e6fd837c04b5ef759810ca750621a8f820",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -245,37 +217,37 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/moltbook",
-    "version": "sha-6eee5b32426d",
-    "digest": "b54d14eac04361efa4e78fe03c42194a8ad5366f52e947a0f001da0efb3e24e8",
+    "skill_id": "runx/message-send",
+    "version": "sha-1e8982e0afdf",
+    "digest": "4d876a6b2b2eda9a1e3144c26ddc65c7fa02bb365d2cc1b18cc7b58fafc47bfd",
     "catalog_visibility": "public",
-    "catalog_role": "context"
+    "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/n8n-handoff",
-    "version": "sha-9feb8742d555",
-    "digest": "e1f03f5a2599b9c5fca972345c360a2c8c8e5ef502f4d4eb3bb803360a7915eb",
+    "skill_id": "runx/moltbook",
+    "version": "sha-fd25274fecc2",
+    "digest": "2eb50b350e557c70875a5e9114c3d50de14f58163f78b32407a95c13057de5ff",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/nws-weather-forecast",
-    "version": "sha-0bdbe7500eaf",
-    "digest": "9eefa1de0a6d820fe1be951f0ac2f056c8c2148b39af2ee62dbc89adfea9a1c9",
+    "version": "sha-03ffd5b7e919",
+    "digest": "4208406bf351da571dbb3aba723cea9100714a4cb7ab793e9146807ff7365920",
     "catalog_visibility": "public",
-    "catalog_role": "branded"
+    "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/open-meteo-weather-forecast",
-    "version": "sha-90c115931f1d",
+    "version": "sha-273c1eabb030",
     "digest": "b687ed1d5ca87e66c148657a695f0b4484a2cf1c920992e1a0472b508206b2a3",
     "catalog_visibility": "public",
-    "catalog_role": "branded"
+    "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/ops-desk",
-    "version": "sha-30625cd0010b",
-    "digest": "c5bb364e756d84ec151633246451b55453e458936079540333e96d7493ec3285",
+    "version": "sha-647409772bf4",
+    "digest": "96cf8a04970a384a878604109d62715c313ec53c772545682ceb2b6c3d4c5615",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -295,8 +267,8 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-6cbfee544889",
-    "digest": "9708d6ea913c39c6cdb25d22ea03b1b70077b1fb168d4233df80d39857fd7c72",
+    "version": "sha-66735c956bc0",
+    "digest": "fd10fff5f8a52aa1d409b4f0bab6face0a2131e4e1b879c93900945784d19b22",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -344,8 +316,8 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-4b8758168b59",
-    "digest": "c33e3d324ca74d4e0d8ad8ca3c13ae963ecba84487f42b9b893ef672031c4f6c",
+    "version": "sha-82ff835eca66",
+    "digest": "eab5d5b295054d672cc8cd27510f04075685951267abdc295d55cc01720b59fc",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -392,13 +364,6 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/send-as",
-    "version": "sha-73505d2d80c3",
-    "digest": "e079a06fabc4f46a849d6c8e2d7c01fbc32f9274a847fd75e34518f31bdf4e06",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/settle-invoice",
     "version": "sha-42b2e2804fb6",
     "digest": "55f911381ee26a83f9e1140c555515520327921a4cd3aee302aa485915116239",
@@ -421,8 +386,8 @@
   },
   {
     "skill_id": "runx/skill-build",
-    "version": "sha-2b488fb2c051",
-    "digest": "b89156254798ecbb20f79108844d4dda49e7f8bca2d8e485907c1be3cc27b8ed",
+    "version": "sha-2a19545f26cd",
+    "digest": "ce2f79288426b691852355882650f557303bc5bc93810d5f303f104326b68a86",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -435,17 +400,10 @@
   },
   {
     "skill_id": "runx/slack",
-    "version": "sha-2286f9264920",
-    "digest": "07b77ec343808629a756a58a6b289fe27f923225f22883bc07cc530574225ca4",
+    "version": "sha-2f6ddedf536c",
+    "digest": "6914e1367d2e9c8472f0de9614632f117863f72a5c4a486afb37b6b23b1fcb07",
     "catalog_visibility": "public",
-    "catalog_role": "branded"
-  },
-  {
-    "skill_id": "runx/slack-notify",
-    "version": "sha-d3d9d8fc54ff",
-    "digest": "cff5954e5f479aefb27976602e3d57f845cd02514d6a66f542a2310bd638845b",
-    "catalog_visibility": "public",
-    "catalog_role": "branded"
+    "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/spend",
@@ -456,8 +414,8 @@
   },
   {
     "skill_id": "runx/sql-analyst",
-    "version": "sha-0230197b9ae9",
-    "digest": "ae823cbd6e43b77feedcc00a3279fae57482893e6cf6587b532224a4e99b57ad",
+    "version": "sha-6fabfc1d874a",
+    "digest": "c67787dde363858f8481f0c6d1861f05d4f10824ccb177b376a48c4cd472902a",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -477,36 +435,15 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-17dc445dd52f",
-    "digest": "04e98ef53db19a8df61f68010756e530538a3d7f69e1270e3d6ab3bbd1fb720a",
+    "version": "sha-54a1b3d2bc6a",
+    "digest": "0d200d16ecd919ae070d7d589b972f3b4221c0989b12c1f281acf32d384a3737",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
-    "skill_id": "runx/vault-unseal",
-    "version": "sha-6a8e4c0d59de",
-    "digest": "1d59778195068af24b4682b4fe9431b8c388c0de427ccc09fbcc4afa3960c083",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/vuln-disclosure",
-    "version": "sha-ecd01b9bfbc7",
-    "digest": "1cc697373a90ba67ac455b9dd1d33ad7cbe4cd140d4b8685c291b4fcef9a58cd",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/vuln-triage",
-    "version": "sha-ceef0e540c77",
-    "digest": "5a298b346c55fd3408e377ab25c7c5412a0c956d56797f57f15ac98475285a78",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
-    "skill_id": "runx/weather-forecast",
-    "version": "sha-41570c62979a",
-    "digest": "b1828f4187801fe5de29c48d515ede2ffd42cab8d2ace48aab98f4aeb28cd20c",
+    "version": "sha-51a29d570846",
+    "digest": "b07ece44309e621ef9a55e8a977c1da8b8b11ade7e75ec4b654d7015f0562f1e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -525,6 +462,13 @@
     "catalog_role": "canonical"
   },
   {
+    "skill_id": "runx/webhook-handoff",
+    "version": "sha-2219191bbdce",
+    "digest": "a5d93e7e96cada970167cc8b0a3d902314b775515bb41ebabf00e87fde7e23dd",
+    "catalog_visibility": "public",
+    "catalog_role": "context"
+  },
+  {
     "skill_id": "runx/work-plan",
     "version": "sha-57e864efe20f",
     "digest": "65aa6457645c6671e3eaa82da2d7e3c34d39336abb2393af19c61231d1a837c5",
@@ -537,12 +481,5 @@
     "digest": "2efb1975830d7ff0c88034d35503acaa9e4bfa9cb062493642d0d2b6b693d4fa",
     "catalog_visibility": "public",
     "catalog_role": "branded"
-  },
-  {
-    "skill_id": "runx/zapier-handoff",
-    "version": "sha-78c8e08defa4",
-    "digest": "73d1148ae7f051b4a48856a5def50242c3f6713d8802e74f51e165b8e9548c89",
-    "catalog_visibility": "public",
-    "catalog_role": "context"
   }
 ]

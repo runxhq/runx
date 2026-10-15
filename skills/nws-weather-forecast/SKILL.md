@@ -46,8 +46,8 @@ shapes them into the forecast it returns.
 3. Run the default `forecast` runner with `office`, `grid_x`, and `grid_y`.
 4. Confirm the HTTP status is 2xx and the response contains forecast periods.
 5. Preserve the NWS source URL, generated timestamp, gridpoint, and receipt refs.
-6. If an agent needs planning prose, pass the provider evidence to
-   `weather-forecast`. Do not invent guidance inside this provider fetch.
+6. Return the shaped forecast; planning prose belongs to the agent that uses
+   it. Do not invent guidance inside this provider fetch.
 7. Return `needs_input` for malformed coordinates or gridpoints; return
    `needs_more_evidence` for NWS outages, missing periods, or stale data.
 
@@ -69,7 +69,6 @@ shapes them into the forecast it returns.
 
 ```yaml
 decision: ready | needs_input | needs_more_evidence | refused
-canonical_skill: runx/weather-forecast
 runtime_path: http
 provider: national-weather-service
 provider_evidence:
@@ -92,8 +91,7 @@ stop_conditions: array
    `gridY: 71`, and a forecast URL.
 3. Run the default `forecast` runner with `office: LWX`, `grid_x: "97"`,
    `grid_y: "71"`.
-4. Use the sealed forecast JSON as `forecast_evidence` for `weather-forecast`
-   when a downstream agent needs a planning packet.
+4. Hand the sealed forecast JSON to the downstream agent that plans with it.
 
 ## Inputs
 

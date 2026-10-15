@@ -25,7 +25,7 @@ interface. The operator skill supplies judgment and governance:
 ## State Ownership
 
 Operator and domain skill state lives in the workspace's store. Use the
-provider-neutral `data-store` skill with a stable logical ref. With no store
+`store` connector's operations with a stable logical ref. With no store
 instance confirmed, the store is a SQLite file under `.runx/`; moving it to
 Postgres or Redis is a store instance (`runx connector use store --parameter
 url=...`), not a skill rewrite.
@@ -80,7 +80,7 @@ Projects should operate themselves through the same surfaces they ship:
 - use `release` for release preparation, approval, publication handoff, and
   verification;
 - use `receipt-query` and receipt skills for proof and after-action review;
-- use `send-as` for live communications;
+- use `message-send` for live communications;
 - use provider/branded skills for provider-specific work;
 - use project-owned operator skills as the desk that diagnoses, routes, and
   verifies.

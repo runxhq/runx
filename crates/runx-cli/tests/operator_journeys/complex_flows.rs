@@ -315,13 +315,61 @@ fn ambiguous_reply_holds_for_reconciliation_and_another_thread_needs_its_own_app
     Ok(())
 }
 
+const LEDGER: &str = r#"skill: ledger
+connectors:
+  store:
+    operations: [events.append, events.read]
+runners:
+  append_event:
+    default: true
+    inputs:
+      data_source_ref: { type: string, required: true }
+      resource: { type: string, required: true }
+      aggregate_id: { type: string, required: true }
+      expected_version: { type: number, required: true }
+      idempotency_key: { type: string, required: true }
+      event: { type: json, required: true }
+    result_from: [append]
+    steps:
+      - id: append
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          expected_version: $input.expected_version
+          event: $input.event
+  read_events:
+    inputs:
+      data_source_ref: { type: string, required: true }
+      resource: { type: string, required: true }
+      aggregate_id: { type: string, required: true }
+    result_from: [read]
+    steps:
+      - id: read
+        operation: store/events.read
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          limit: 50
+"#;
+
 #[test]
 fn a_store_append_replays_once_and_appends_one_event() -> TestResult {
     let root = crate::support::temp_root("runx-store-durable-journey");
-    let repo_root = crate::support::repo_root()?;
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(&root)?;
-    let store = repo_root.join("skills/data-store");
+    // A skill that appends to and reads one stream through the store's own
+    // operations.
+    let store = root.join("ledger");
+    fs::create_dir_all(&store)?;
+    fs::write(
+        store.join("SKILL.md"),
+        "---\nname: ledger\ndescription: Append to and read one store stream.\n---\n# Ledger\n",
+    )?;
+    fs::write(store.join("run.yaml"), LEDGER)?;
     let stream = [
         "--input",
         "data_source_ref=tenant://journey/launch",
@@ -355,13 +403,13 @@ fn a_store_append_replays_once_and_appends_one_event() -> TestResult {
     let committed = append()?;
     assert_eq!(committed["status"], "sealed");
     assert_eq!(
-        committed["result"]["data_operation_result"]["data"]["status"],
+        committed["result"]["provider_operation"]["data"]["result"]["status"],
         "committed"
     );
     let replayed = append()?;
     assert_eq!(replayed["status"], "sealed");
     assert_eq!(
-        replayed["result"]["data_operation_result"]["data"]["status"],
+        replayed["result"]["provider_operation"]["data"]["result"]["status"],
         "idempotent_replay"
     );
     for result in [&committed, &replayed] {
@@ -381,7 +429,7 @@ fn a_store_append_replays_once_and_appends_one_event() -> TestResult {
         .output()?;
     let read = assert_json(&read, 0)?;
     assert_eq!(
-        read["result"]["data_operation_result"]["data"]["events"]
+        read["result"]["provider_operation"]["data"]["result"]["events"]
             .as_array()
             .map(Vec::len),
         Some(1),

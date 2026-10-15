@@ -7,8 +7,8 @@ description: "Record a bounded multi-turn case and propose one roster-constraine
 
 Record and plan a standing case toward a mandate, one turn at a time.
 
-This skill stores a fixed roster, mandate, limits and event stream through
-`data-store`. Each `advance` asks `ops-desk` for one next move and checks that a
+This skill stores a fixed roster, mandate, limits and event stream through the
+`store` connector. Each `advance` asks `ops-desk` for one next move and checks that a
 proposed member and scope strings fit the stored roster. That check does not
 grant authority to a child run. The skill neither executes members nor verifies
 caller-supplied `member_result` receipts. Its own turns are receipted; member
@@ -25,8 +25,6 @@ queue. The local personal assistant does not compose this skill.
 
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
-- `data-store#append_event`
-- `data-store#read_events`
 - `ops-desk#advance`
 
 ## What this skill does
@@ -41,7 +39,7 @@ queue. The local personal assistant does not compose this skill.
   the previous dispatch or native receipt ledger.
 - `status` folds and returns the current case state.
 
-The case reducer is the agency's own code, because `data-store` carries events but
+The case reducer is the agency's own code, because the store carries events but
 does not fold domain state. Everything else is delegation.
 
 ## When to use this skill
@@ -58,7 +56,7 @@ does not fold domain state. Everything else is delegation.
 - To compute proposals (that is `ops-desk`) or product domain logic such as
   claim and clock rules (that is the product's own governed skill from the
   registry). Compose them.
-- To bake a storage backend. The case lives in `data-store` via `data_source_ref`.
+- To bake a storage backend. The case lives in the store via `data_source_ref`.
 - To let the model invent the roster, the mandate, or the limits. They are operator
   config, snapshotted into the case at `open`.
 
@@ -107,7 +105,7 @@ is implemented.
 ## Output schema
 
 The planner emits an `agency_turn` artifact; the graph's direct result is the
-`data-store` append result. Inspect the artifact and append receipt together:
+store's `events.append` result. Inspect the artifact and append receipt together:
 
 ```yaml
 agency_turn:
@@ -150,7 +148,7 @@ reviewer approves and the projection shows the docs current, `advance` returns
 - Name the member and verification expectation on every dispatch. The trusted
   external driver must verify the child receipt and effect before reporting it;
   this skill does not enforce that check.
-- Compose ops-desk, data-store, and the members; never reimplement them, and never
+- Compose ops-desk, the store's operations, and the members; never reimplement them, and never
   invent the roster or the mandate.
 - Stop cleanly with needs_input, awaiting_approval, refused, or failed; never a fake
   ready.

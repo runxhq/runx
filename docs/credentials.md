@@ -121,33 +121,33 @@ one place it is made. Six sources can back it:
 # name, never its value; every call reads it again, so a rotated key needs
 # no new binding.
 export EXA_API_KEY=...
-runx connector use runx/exa
+runx connector use exa
 
 # A secret a secrets manager keeps, read through the manager's own CLI and
 # your sign-in to it before every call. The instance records the reference
 # and where the read landed, never the value (see Secrets managers and CI).
-runx connector use runx/exa --from "aws-sm://team/keys#EXA_API_KEY"
+runx connector use exa --from "aws-sm://team/keys#EXA_API_KEY"
 
 # A secret you give: with its variable unset, use asks for it without
 # echoing on a terminal, or reads it from stdin when piped. It is stored as
 # a profile, named after the connector unless --profile names it.
-runx connector use runx/twitter --credential user --profile work
+runx connector use twitter --credential user --profile work
 
 # An instance, profile or grant confirmed earlier, by its id or name. It
 # serves what it was confirmed for; --scope narrows only a new one.
-runx connector use runx/twitter work
+runx connector use twitter work
 
 # The account a local CLI is signed in to (for example `gh auth token`),
 # serving every scope its credential serves, or only those --scope names.
 # The command comes from the connector's manifest, so binding it takes
 # --session; each call through the bound instance runs it again for a token.
-runx connector use runx/github --session --scope repo.read
+runx connector use github --session --scope repo.read
 
 # A new runx Connect grant: prints the authorization link, waits up to two
 # minutes, and binds the grant. If it is not authorized yet, use prints the
 # command that finishes it. With --json it returns at once with the link and
 # that command, for a program to hand on.
-runx connector use runx/github --hosted --scope repo.read --target acme/app
+runx connector use github --hosted --scope repo.read --target acme/app
 ```
 
 With nothing named, `runx connector use <connector>` takes the one available
@@ -176,9 +176,9 @@ another account, and runx never picks one.
 
 A plugin's own connectors are bound from inside the plugin: run these
 commands in the plugin root or below it, and the instance is recorded in the
-workspace store as any other. Its `plugin.json` names the plugin's namespace,
-and an instance is recorded for the qualified connector, such as `acme/notes`,
-at the exact manifest and connector digests it was confirmed for; a changed
+workspace store as any other. A connector names itself, such as `notes` or
+`acme/notes`, and an instance is recorded for that name at the exact manifest
+and connector digests it was confirmed for; a changed
 connector needs its instance confirmed again.
 
 `runx connector use` checks a credential against the declaration's `kind`
@@ -206,7 +206,7 @@ See every authority source, or remove one, without exposing material:
 
 ```bash
 runx connector list --json
-runx connector revoke runx/twitter
+runx connector revoke twitter
 ```
 
 `list` shows each connector in reach with the instance it uses, then every
@@ -276,12 +276,12 @@ runx reads a secret from where you already keep it. A reference names the
 manager and where the secret is; runx keeps the reference, never the value:
 
 ```bash
-runx connector use runx/exa --from "op://Private/Exa API/credential"
-runx connector use runx/exa --from "aws-sm://team/keys#EXA_API_KEY"
-runx connector use runx/exa --from "aws-ps:///team/exa-api-key"
-runx connector use runx/exa --from "vault://secret/team/exa#key"
-runx connector use runx/exa --from "keychain://exa/work"
-runx connector use runx/exa --from "file:///run/secrets/exa_api_key"
+runx connector use exa --from "op://Private/Exa API/credential"
+runx connector use exa --from "aws-sm://team/keys#EXA_API_KEY"
+runx connector use exa --from "aws-ps:///team/exa-api-key"
+runx connector use exa --from "vault://secret/team/exa#key"
+runx connector use exa --from "keychain://exa/work"
+runx connector use exa --from "file:///run/secrets/exa_api_key"
 runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 ```
 
@@ -338,7 +338,7 @@ runs anything, by reference or by variable:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 steps:
-  - run: runx connector use runx/github --credential token
+  - run: runx connector use github --credential token
   - run: runx skill ...
 ```
 
@@ -366,8 +366,8 @@ Connect credential forms for manifest-backed providers are projections of the
 same field declarations. Provider-specific verification does not imply account
 identity, paid entitlement or permissions the probe did not establish.
 
-A grant is bound to one connector identity: its publisher and id, its manifest
-digest and its connector digest. `runx connector use` refuses a grant bound to
+A grant is bound to one connector revision: its name, its manifest digest and
+its connector digest. `runx connector use` refuses a grant bound to
 any other, and admission reads the grant's status, binding, principal and
 scopes from Connect again for every call. Provider tokens never enter `.env`,
 skill inputs, command arguments, or receipts.

@@ -321,7 +321,7 @@ authoring.
   runner inputs; `runx skill --inputs` is only a bounded transport for one
   complete control object. Large immutable local content belongs behind
   `artifact.admit`/bounded pages. Durable history belongs behind
-  `data-store` `read_events` cursors or a compact projection. A graph must not carry an
+  the store's `events.read` cursors or a compact projection. A graph must not carry an
   archive, growing event history, or completed-id array simply because one CLI
   call can parse it.
 - Use deterministic `pages` only for irreducible record transforms over one

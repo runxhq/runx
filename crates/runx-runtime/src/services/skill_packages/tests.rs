@@ -626,7 +626,7 @@ fn skill_authoring_candidate_stage_preserves_relative_sibling_skill_context()
     let temp = tempfile::tempdir()?;
     let skills = temp.path().join("skills");
     let target = skills.join("twitter");
-    let dependency = skills.join("data-store");
+    let dependency = skills.join("ledger");
     fs::create_dir_all(&target)?;
     fs::create_dir_all(&dependency)?;
     fs::write(
@@ -645,7 +645,7 @@ fn skill_authoring_candidate_stage_preserves_relative_sibling_skill_context()
     )?;
 
     assert_eq!(stage.skill_dir.parent(), target.parent());
-    assert!(stage.skill_dir.join("../data-store").is_dir());
+    assert!(stage.skill_dir.join("../ledger").is_dir());
     drop(stage);
     assert!(target.is_dir());
     assert!(dependency.is_dir());

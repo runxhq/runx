@@ -1,6 +1,6 @@
 ---
 name: data-subject-request
-description: Judge a data subject erasure or export request against explicit policy evidence, record the verdict durably through data-store, and emit only a bounded handoff for a separate governed downstream run.
+description: Judge a data subject erasure or export request against explicit policy evidence, record the verdict durably through the store, and emit only a bounded handoff for a separate governed downstream run.
 ---
 
 # Data Subject Request
@@ -8,19 +8,13 @@ description: Judge a data subject erasure or export request against explicit pol
 Judge whether a data subject request is in policy without erasing, exporting,
 or sending anything. The skill reads a request packet, requestor proof, and
 policy bounds, decides eligibility deterministically, appends the verdict to
-the subject request event stream through `data-store`, and returns a bounded
+the subject request event stream through the store's `events.append`, and returns a bounded
 handoff that a separate governed operator run may consume.
 
 This is not a legal authority and does not replace counsel. It is an execution
 boundary for policy evidence: the receipt proves which inputs were inspected,
 which lawful basis was named, which scope was allowed or refused, and which
 durable verdict was appended.
-
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#append_event`
 
 ## Procedure
 
@@ -32,7 +26,7 @@ durable verdict was appended.
    requested data class must sit inside both `scope_bounds.data_classes` and
    the type-specific allowed list. Any failure refuses with every reason named;
    nothing is inferred.
-3. The verdict, eligible or refused, is appended to the pinned `data-store`
+3. The verdict, eligible or refused, is appended to the pinned store
    stream with optimistic concurrency and an idempotency key, so repeated runs
    cannot double-record.
 4. The final packet binds the append evidence and both digests. An eligible
@@ -49,6 +43,6 @@ actual erasure or export under its own authority and receipt.
 `decision`, `escalation`, `legal`, `requestor`, `scope_bounds`, `handoff` or
 null, `persistence` with the committed stream version, and both input digests.
 
-Inputs are `request_packet`, `requestor_proof`, `policy`, and the `data-store`
+Inputs are `request_packet`, `requestor_proof`, `policy`, and the store
 binding (`data_source_ref`, `resource`, `aggregate_id`, `expected_version`,
 `idempotency_key`).

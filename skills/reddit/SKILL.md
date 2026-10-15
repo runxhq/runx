@@ -18,14 +18,6 @@ stores a non-secret account binding, `accounts` lists configured accounts,
 `vote` gates one upvote, and `reconcile` resolves or explicitly closes a prior uncertain attempt
 without repeating it.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#append_event`
-- `data-store#list_stream_heads`
-- `data-store#read_events`
-
 ## Accounts, credentials, and sessions
 
 Use the lowercase Reddit username as `account_id`. Never select an account
@@ -37,8 +29,8 @@ Do not log one account out to operate another. Confirm the visible logged-in
 username after attachment, reconnect, navigation to a composer, and before
 submission. A profile label alone is not identity evidence.
 
-The canonical local source is `local://reddit`; `data-store` owns its SQLite
-storage. Account records, a durable per-action attempt index and the browser writer stream live there, outside
+The canonical local source is `local://reddit`; the `store` connector owns its
+SQLite storage. Account records, a durable per-action attempt index and the browser writer stream live there, outside
 the public package. Use a single shared source for every operator of these
 accounts. Its compare-and-swap writer reservation serializes submissions
 across all configured accounts, including aliases and shared browser windows.
@@ -389,7 +381,7 @@ The default output includes compared target candidates, observations, source
 URLs, reviewable drafts, unknowns and the next step. Reuse supplied evidence when its target and age
 are appropriate; disclose when it was supplied rather than freshly observed.
 `publish` consumes one exact action, not an entire idea list. `accounts`
-provides bounded discovery; `configure` manages local bindings. `data-store`
+provides bounded discovery; `configure` manages local bindings. The store
 owns durable event operations and concurrency. A connector credential profile
 is resolved by that connector's native credential boundary, not this skill.
 `message-send` owns normalized connector delivery through message.send/message.read.

@@ -108,7 +108,7 @@ runx skill deep-research local-files \
 
 # Maintainer operations: draft a useful issue response. Bind GitHub once
 # through your `gh` sign-in.
-runx connector use runx/github --session
+runx connector use github --session
 runx skill issue-triage \
   -i repository=runxhq/runx \
   -i issue_number=496 \
@@ -241,7 +241,7 @@ binds the connector to that variable and never copies the key; without it,
 ```bash
 runx registry install runx/web-search
 export EXA_API_KEY=...
-runx connector use runx/exa
+runx connector use exa
 
 runx skill runx/web-search -i query="receipt verification" --json
 ```

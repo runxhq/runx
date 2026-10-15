@@ -950,12 +950,12 @@ mod tests {
     {
         let temp = tempdir()?;
         let entry = temp.path().join("twitter");
-        let child = temp.path().join("data-store");
+        let child = temp.path().join("ledger");
         write_manual(&entry, "twitter", "# Twitter")?;
-        write_manual(&child, "data-store", "# Data store")?;
+        write_manual(&child, "ledger", "# Ledger")?;
         fs::write(
             child.join("run.yaml"),
-            "skill: data-store\nrunners:\n  read:\n    default: true\n    steps:\n      - id: read\n        tool: { module: run.mjs }\n        outputs:\n          version:\n            type: integer\n            required: true\n",
+            "skill: ledger\nrunners:\n  read:\n    default: true\n    steps:\n      - id: read\n        tool: { module: run.mjs }\n        outputs:\n          version:\n            type: integer\n            required: true\n",
         )?;
         fs::write(
             child.join("run.mjs"),
@@ -963,7 +963,7 @@ mod tests {
         )?;
         fs::write(
             entry.join("run.yaml"),
-            "skill: twitter\nrunners:\n  inspect:\n    default: true\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../data-store\n        runner: read\n",
+            "skill: twitter\nrunners:\n  inspect:\n    default: true\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../ledger\n        runner: read\n",
         )?;
         let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
             crate::load_validated_skill_package(&entry)?.into(),

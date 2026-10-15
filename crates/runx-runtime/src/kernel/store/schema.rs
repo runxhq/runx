@@ -6,7 +6,7 @@ use rusqlite::{Connection, TransactionBehavior};
 
 use super::{BUSY_TIMEOUT, KernelStoreError};
 
-/// `RUNK`: marks a kernel store. A data-store database never carries it.
+/// `RUNK`: marks a kernel store. A `store` connector's database never carries it.
 const APPLICATION_ID: i64 = 0x5255_4e4b;
 const SCHEMA_VERSION: i64 = 1;
 

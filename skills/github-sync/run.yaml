@@ -504,7 +504,7 @@ runners:
         direction: pull
         resources: { kind: issues, filters: { state: open, labels: [triage], limit: 25 } }
         scope: read
-    result_from: [append-cursor-event, readback]
+    result_from: [readback]
     steps:
       - id: read-cursor
         operation: store/projection.read

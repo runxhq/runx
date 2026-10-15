@@ -16,19 +16,12 @@ This skill never sends a message and never mutates a mailing provider. A later
 ledger records the operator's policy decision; it does not replace provider
 unsubscribe or bounce data.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#append_event`
-- `data-store#read_projection`
-
 ## Operating model
 
 The caller supplies one bounded engagement observation, the current consent
 observation, and the policy threshold that applies to the contact. The evidence
 must be marked `read` and versioned to the same ledger head that the runner
-reads through `data-store`'s `read_projection` runner. Missing, stale, ambiguous, or conflicting
+reads through the store's `projection.read`. Missing, stale, ambiguous, or conflicting
 evidence produces `human_review` without a write.
 
 The deterministic decision order is conservative:

@@ -24,13 +24,6 @@ to the smallest evidence-backed act set that satisfies the objective. Existing
 post and user ids must come from supplied evidence, never memory or guesswork;
 name missing evidence as a blocker.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#append_event`
-- `data-store#read_events`
-
 ## What this skill does
 
 Five runners:
@@ -77,7 +70,7 @@ Five runners:
 
 ### Resume and the execution ledger
 
-`execute` is stateless per turn; the state lives in a `data-store` stream keyed
+`execute` is stateless per turn; the state lives in a store stream keyed
 by the immutable plan digest. The latest `twitter.execution.progress.v1` event
 contains only the X account id the batch ran as, `next_act_index`,
 `total_act_count`, an optional in-progress thread segment cursor, and a bounded
@@ -103,8 +96,8 @@ fake state transition.
 Threads use one extra bounded cursor: each segment is its own batch, and
 progress records the next segment plus the confirmed reply id until the last
 one posts, so a resumed thread never reposts a confirmed segment. The operator binds
-`data_source_ref` to durable local SQLite or another declared `data-store`
-adapter; the skill never opens the database directly.
+`data_source_ref` to durable local SQLite or another store the `store`
+connector reaches; the skill never opens the database directly.
 
 Each runner emits exactly one packet for its lane: typed evidence with
 provenance and a content digest, a curated or bulk act plan bound by digest, or

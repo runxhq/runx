@@ -448,7 +448,7 @@ meaning, while the store connector keeps bounded reads, append-only event
 writes and projection reads.
 
 Graphs call the store's operations, `events.append`, `events.read`,
-`projection.read` and `heads.list`, usually through the `data-store` skill.
+`projection.read` and `heads.list`, as operation steps.
 Each call's `data_source_ref` names a logical source inside the workspace's
 store. With no store instance confirmed, that is the workspace store, a SQLite
 file at `.runx/store.sqlite`; `runx connector use store --parameter url=...`
@@ -648,7 +648,7 @@ parser-owned publish artifact without writing a registry row; given a
 `connector.yaml` or a directory holding one, it projects a connector instead. Hosted and
 third-party publishers should consume that output instead of implementing
 their own package-file discovery. A skill package carries each connector it
-declares at `connectors/<publisher>/<id>/` (its manifest, the tools its
+declares at `connectors/<name>/` (its manifest, the tools its
 process operations run, and its `README.md` and `mark.svg` when present), and
 its metadata binds every declared connector by `ref`, `version`,
 `manifest_digest`, `connector_digest` and `runtime_capability`. Every package
@@ -657,23 +657,23 @@ carries `runx.package.json`, which marks the installed package's root.
 `runx registry package <connector-dir> --json` projects a connector published
 on its own: the same files at the package root, the parsed manifest,
 its content digest (over every file, which names the version and which the
-registry signs), and its manifest, connector and operation digests. Its
-publisher is the namespace the nearest `plugin.json` declares.
+registry signs), and its manifest, connector and operation digests. The
+connector names itself: its manifest `id` is its whole name.
 
 Connectors are published only to a hosted registry: the runx catalog unless
 `--registry <url>` or `RUNX_REGISTRY_URL` names another.
 
 - `runx registry publish <connector-dir> [--version <label>]` sends that
-  package; the registry reads it natively, publishes it under the authenticated
-  publisher's namespace, and the CLI checks the recorded ref and content digest
+  package; the registry reads it natively, publishes it only when the
+  authenticated publisher owns the name's namespace, and the CLI checks the recorded ref and content digest
   are the package's. A missing label is `sha-` and the first 12 hex digits of
   the content digest.
-- `runx registry install <publisher>/<id>[@version] [--digest <content-digest>]`
+- `runx registry install <name>[@version] [--digest <content-digest>]`
   adds what is published under that name. For a connector, the version goes to
   the project's connectors directory,
-  `connectors/<publisher>/<id>/<version>/`. The signed manifest
+  `connectors/<name>/<version>/`. The signed manifest
   must name that connector (never a skill), version and content digest under a
-  trusted key scoped to its publisher, and the staged files must load and
+  trusted key scoped to its namespace, and the staged files must load and
   repackage as exactly those files before they are renamed into place. A
   version directory is written once and never rewritten: installing it again
   is `unchanged`, and other files under the same version are refused.
@@ -683,13 +683,14 @@ A project keeps every package it runs in two directories beside its source.
 from a registry by `runx registry install`, by running a registry ref or as a
 registry step's child (`skills/<owner>/<name>/<version>/`), and the core skills this
 release carries, added as `skills/runx/<name>/<version>/` when first used.
-`connectors/` holds your own connectors (`connectors/<id>/`), installed ones
-(`connectors/<publisher>/<id>/<version>/`) and the runtime capability
-connectors (`store`, `web`, `vault`, `artifact`) a skill uses, added as
-`connectors/runx/<id>/<version>/` from the release and checked against it on
-every read. Every other connector, runx-maintained ones included, is a
-published package: a published skill carries the connectors it binds, and a
-local skill names one by its publisher (`runx/github`) once
+`connectors/` holds your own connectors (`connectors/<name>/`), installed ones
+(`connectors/<name>/<version>/`) and the runtime capability connectors
+(`store`, `web`, `artifact`) a skill uses, added as
+`connectors/<name>/<version>/` from the release and checked against it on
+every read. A connector has one name, such as `github` or `google/calendar`.
+Every other connector, runx-maintained ones included, is a published package:
+a published skill carries the connectors it binds, and a local skill binding a
+connector outside its own plugin pins that connector's `manifest_digest` once
 `runx registry install` has added it. A version directory is written once;
 other bytes under it are refused. The runx home keeps keys, configuration and state, not packages.
 
@@ -849,9 +850,9 @@ The runx-maintained catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
   `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
-  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `send-as`, `spend`,
-  `weather-forecast`
-- branded provider skills: `nws-weather-forecast`, `stripe-pay`, `x402-pay`
+  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `message-send`, `spend`,
+  `nws-weather-forecast`, `open-meteo-weather-forecast`
+- branded provider skills: `stripe-pay`, `x402-pay`
 - context skills: `brand-voice`, `taste-profile`
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are

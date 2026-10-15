@@ -251,7 +251,7 @@ steps:
 ```
 
 The store can be SQLite, Postgres or Redis. The graph calls the store
-connector's declared operations, usually through `data-store`, and receives
+connector's declared operations, as operation steps, and receives
 `runx.data.operation_result.v1` with version movement, digests and provider
 evidence.
 

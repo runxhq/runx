@@ -370,9 +370,43 @@ fn inspect_without_an_instance_says_how_to_set_one_up_once() -> TestResult {
     result
 }
 
-/// Append one event through the data-store skill.
+/// A skill that appends one event through the store's own operation.
+const LEDGER: &str = r#"skill: ledger
+connectors:
+  store:
+    operations: [events.append]
+runners:
+  append_event:
+    default: true
+    inputs:
+      data_source_ref: { type: string, required: true }
+      resource: { type: string, required: true }
+      aggregate_id: { type: string, required: true }
+      expected_version: { type: number, required: true }
+      idempotency_key: { type: string, required: true }
+      event: { type: json, required: true }
+    result_from: [append]
+    steps:
+      - id: append
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          expected_version: $input.expected_version
+          event: $input.event
+"#;
+
+/// Append one event through the store's `events.append`.
 fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
-    let skill = crate::support::repo_root()?.join("skills/data-store");
+    let skill = root.join("ledger");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: ledger\ndescription: Append one event to the store.\n---\n# Ledger\n",
+    )?;
+    fs::write(skill.join("run.yaml"), LEDGER)?;
     let key = format!("idempotency_key={key}");
     runx(
         root,
@@ -398,7 +432,7 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
 }
 
 fn status(run: &serde_json::Value) -> &serde_json::Value {
-    &run["result"]["data_operation_result"]["data"]["status"]
+    &run["result"]["provider_operation"]["data"]["result"]["status"]
 }
 
 /// Without a store instance the streams live in the workspace store; a

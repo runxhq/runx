@@ -10,16 +10,16 @@ result distinguishes authority recorded in signed receipts from authority not
 recorded in that selection, and gives the reviewer a clear next action. It
 never changes a grant.
 
+Native Runx owns receipt lookup, signature verification and authority semantics.
+This skill binds the review subject, checks the completeness of the supplied
+proof and organizes the authority evidence. It does not implement a scope
+parser, wildcard matcher, permission hierarchy or policy engine.
+
 ## Composes
 
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
 - `receipt-query#read`
-
-Native Runx owns receipt lookup, signature verification and authority semantics.
-This skill binds the review subject, checks the completeness of the supplied
-proof and organizes the authority evidence. It does not implement a scope
-parser, wildcard matcher, permission hierarchy or policy engine.
 
 ## What the evidence can establish
 

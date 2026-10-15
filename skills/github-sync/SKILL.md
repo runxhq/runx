@@ -19,13 +19,6 @@ applied item. An item whose outcome is unknown holds the push for
 reconciliation and is never silently retried. No GitHub token enters this
 package.
 
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#append_event`
-- `data-store#read_projection`
-
 ## When to use it
 
 Use `github-sync` when an operator needs a reproducible pull or push contract for
@@ -52,8 +45,8 @@ evidence. Do not silently turn a denied push into a pull.
    `pullrequests.update`, `comments.create`, or `comments.update`. It rejects unknown fields,
    oversized content, and mixed kinds, then returns `ready_for_execution`;
    planning itself does not grant provider authority.
-4. Optional `plan_and_append_cursor` composes the canonical `data-store` skill
-   to append the bounded plan and read the projection back. That proves local
+4. Optional `plan_and_append_cursor` calls the store's `events.append` and
+   `projection.read` to append the bounded plan and read the projection back. That proves local
    cursor persistence, not GitHub synchronization; this package does not own a
    second cursor database or storage adapter.
 5. The default runner selects the same bounded read or write path from the

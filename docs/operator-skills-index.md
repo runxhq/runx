@@ -14,7 +14,8 @@ These three skills are the canonical examples referenced in the operator-skill p
 |---|---|
 | `release/` | Prepare, gate, publish, and verify a versioned release of a runx project through governed phases. |
 | `receipt-query/` | Answer a cross-run audit question against the receipt ledger and produce a sealed finding. |
-| `send-as/` | Govern a message or campaign send on behalf of a principal, with scoped egress and gating. |
+| `message-send/` | Post one approved message or reply in one conversation on behalf of a principal, with readback. |
+| `webhook-handoff/` | Validate a runx execution context and hand off a governed payload to an n8n workflow or a Zapier hook. |
 
 ## Agency & Operations
 
@@ -54,7 +55,6 @@ Skills that enforce policy, audit receipts, or review skill quality.
 | `content-pipeline/` | Research a topic, draft the content, and package the approved output. |
 | `ghostwrite/` | Turn evidence and operator intent into publication-ready drafts. |
 | `deep-research/` | Produce an approved deep-research brief from bounded research. |
-| `ecosystem-brief/` | Produce an approved ecosystem briefing from bounded research. |
 | `web-search/` | Discover bounded source candidates through an explicitly selected search provider. |
 | `product-analytics/` | Interpret comparable supplied funnel and retention measurements. |
 | `research/` | Produce bounded, source-backed research packets for product decisions. |
@@ -68,10 +68,7 @@ Skills that enforce policy, audit receipts, or review skill quality.
 |---|---|
 | `cve-audit/` | Audit exact npm dependency versions against OSV and emit reproducible, independently verified CVE evidence. |
 | `vuln-triage/` | Assess vulnerability risk and produce remediation guidance and an advisory draft. |
-| `vuln-disclosure/` | Publish a governed, human-approved security advisory from triaged risk. |
-| `github-pr-comment/` | Post one exact approved GitHub PR comment with retry safety and readback. |
 | `redact-pii/` | Scrub personal data out of content before it crosses a trust boundary. |
-| `vault-unseal/` | Plan a scoped, time-bounded unseal of a secret under explicit policy. |
 
 ## Payments & Settlement
 
@@ -91,11 +88,7 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `data-store/` | Govern provider-agnostic data reads and state transitions through a receipt. |
 | `github-sync/` | Read or execute a scoped pull or push of GitHub issues, threads, or PRs. |
-| `n8n-handoff/` | Validate a runx execution context and hand off a governed payload to n8n. |
-| `zapier-handoff/` | Validate a runx execution context and hand off a governed payload to Zapier. |
-| `slack-notify/` | Plan a governed Slack notification under scoped egress and gating. |
 | `web-fetch/` | Fetch and extract one web source within an explicit allowlist. |
 
 ## Communications & Campaigns
@@ -109,7 +102,6 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `weather-forecast/` | Normalize provider weather evidence into an action-safe forecast. |
 | `nws-weather-forecast/` | Fetch National Weather Service forecast evidence through the NWS API. |
 | `open-meteo-weather-forecast/` | Resolve a place and fetch global forecast and air-quality evidence. |
 

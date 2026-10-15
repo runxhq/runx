@@ -173,7 +173,7 @@ as the conceptual guide.
 Choose a skill by consequence, not by brand excitement alone.
 
 - For a full workflow, choose the domain skill: `spend`, `charge`, `refund`,
-  `send-as`, `release`, or another project skill.
+  `message-send`, `release`, or another project skill.
 - For provider-specific evidence, choose the branded implementation skill:
   `x402-pay`, `stripe-pay`, GitHub-backed sync, weather-provider
   skills, and similar lanes.

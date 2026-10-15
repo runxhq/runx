@@ -27,8 +27,8 @@ of this skill.
    grounded but incomplete one seals `needs_more_evidence` and publishes
    nothing.
 
-To build the fragment set from live systems, compose `web-fetch` or
-`data-store` reads upstream; the digest binds whatever evidence was supplied.
+To build the fragment set from live systems, compose `web-fetch` or store
+reads upstream; the digest binds whatever evidence was supplied.
 Running the incident belongs to its operator; this skill explains it afterward.
 
 ## Output

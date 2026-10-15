@@ -78,7 +78,7 @@ same digests.
 ## Domain example
 
 A domain skill decides whether a transition is allowed and emits a transition
-packet. Its graph calls `data-store` with `runner: append_event`, which appends
+packet. Its graph calls the store's `events.append` operation, which appends
 the packet only if the stream is still at the version the skill read. A later
 turn reads the events or the projection to resume.
 

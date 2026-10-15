@@ -164,7 +164,7 @@ describe("registry skill native fetch", () => {
   });
 
   it("runs cached registry graph skills through native data operations", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-data-store-"));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-store-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
     const env = testEnv(projectDir, globalHomeDir);
@@ -172,33 +172,41 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await runxMaintainedSkillLock("runx/data-store");
+      const lockEntry = await runxMaintainedSkillLock("runx/github-sync");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/data-store/SKILL.md"),
-        profile: path.resolve("skills/data-store/run.yaml"),
+        subject: path.resolve("skills/github-sync/SKILL.md"),
+        profile: path.resolve("skills/github-sync/run.yaml"),
         owner: "acme",
         version: lockEntry.version,
         env,
       });
 
+      // The cursor runner plans locally and persists through the store's own
+      // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
-        `acme/data-store@${lockEntry.version}`,
-        "append_event",
+        `acme/github-sync@${lockEntry.version}`,
+        "plan_and_append_cursor",
         "--registry",
         registryDir,
         "--input",
-        "data_source_ref=local://runx-data-store/maintained-cache",
+        "data_source_ref=local://runx-github-sync/maintained-cache",
         "--input",
-        "resource=board_events",
+        "resource=github_sync_events",
         "--input",
-        "aggregate_id=posting-123",
+        "aggregate_id=acme/app:triage-open",
         "--input",
         "expected_version=0",
         "--input",
-        "idempotency_key=posting-123:create:v1",
+        "idempotency_key=acme/app:triage-open:pull:v1",
         "--input",
-        "event={\"type\":\"posting.created\",\"payload\":{\"title\":\"cached data-store smoke\"}}",
+        "repo=acme/app",
+        "--input",
+        "direction=pull",
+        "--input",
+        "resources={\"kind\":\"issues\",\"filters\":{\"state\":\"open\",\"labels\":[\"triage\"],\"limit\":25}}",
+        "--input",
+        "scope=read",
         "--json",
       ]);
       const output = parseJsonOutput(result, 0) as { status?: string };

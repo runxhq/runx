@@ -26,11 +26,6 @@ The local CLI is the reference implementation for self-hosted orchestrators and
 operator dogfood. It should feel direct, literal, and governed:
 
 ```bash
-runx skill weather-forecast \
-  -i location="Sydney, AU" \
-  -i forecast_evidence='{"provider":"example","periods":[]}' \
-  --json
-
 runx skill nws-weather-forecast forecast \
   -i office=LWX \
   -i grid_x=97 \
@@ -88,7 +83,7 @@ Cloud orchestrator packages should call the hosted API, not shell out:
   v1 credential should start with only `runs:write`, `runs:read`, and
   `receipts:read`.
 - Directory clients should call real runx skills, not privileged special-case
-  routes. The local outbound skills are `n8n-handoff` and `zapier-handoff`; the
+  routes. The local outbound skill is `webhook-handoff`; the
   hosted n8n/Zapier clients should submit the same kind of governed skill run
   through `POST /v1/skills/{owner}/{name}/run`.
 - Do not add a new durable packet family just for orchestrator handoff. The
@@ -133,7 +128,7 @@ Proposed package:
 - `@runxhq/n8n-nodes-runx`
 - Node name: `Runx`
 - Credential: `Runx API`
-- Initial operation: `Run Skill`, with `runx/n8n-handoff` as the canonical
+- Initial operation: `Run Skill`, with `runx/webhook-handoff` as the canonical
   self-referential dogfood skill once hosted registry publication is ready.
 - Secondary operation after receipts API exists: `Get Receipt`
 - Backlink target: a stable runx-owned n8n integration page, not a GitHub file
@@ -175,7 +170,7 @@ Proposed public Zapier v1:
 
 - App name: `runx`
 - Authentication: API key/OAuth against hosted runx
-- Action: `Run Skill` for non-payment skills only, with `runx/zapier-handoff`
+- Action: `Run Skill` for non-payment skills only, with `runx/webhook-handoff`
   as the canonical self-referential dogfood skill once hosted registry
   publication is ready.
 - Action: `Get Receipt`
@@ -482,7 +477,7 @@ The existing local n8n guidance remains useful as dogfood:
 - self-hosted n8n can call `runx skill ... --json`
 - self-hosted n8n can consume local MCP HTTP on loopback
 - runx can call n8n/Zapier-style webhook URLs as outbound effects through the
-  `n8n-handoff` and `zapier-handoff` skills
+  `webhook-handoff` skill
 
 That work proves workflow value and receipt shape. It is not the backlink path.
 

@@ -57,7 +57,8 @@ const registry = registryArgument();
 const lockPath = path.join(workspaceRoot, "registry", "runx-maintained-connectors.lock.json");
 if (!existsSync(lockPath)) fail("registry/runx-maintained-connectors.lock.json is missing; run pnpm runx-maintained-connectors:generate");
 const { connectors } = JSON.parse(readFileSync(lockPath, "utf8"));
-const entries = connectors.map((entry) => ({ ...entry, directory: path.join("connectors", entry.ref.slice(entry.ref.indexOf("/") + 1)) }));
+// A connector lives at connectors/<name>/: its name is its path.
+const entries = connectors.map((entry) => ({ ...entry, directory: path.join("connectors", ...entry.ref.split("/")) }));
 
 // Nothing is published unless every package is the version the lock names.
 const stale = entries.flatMap((entry) => {

@@ -59,8 +59,8 @@ The local runner applies authority in this order:
 Connector `operation` steps on the hosted placement run under the connector
 instance the operator confirmed with `runx connector use <connector> --hosted`
 or `runx connector use <connector> <grant-id>`. Confirmation reads the grant from Connect and refuses one that is
-not active or is bound to another connector identity: another publisher or id,
-another manifest digest or another connector digest. Admission authenticates
+not active or is bound to another connector revision: another name, another
+manifest digest or another connector digest. Admission authenticates
 the operator and reads that grant from Connect again for every call; a grant
 that was revoked, rebound or is now held by another principal no longer admits
 the call. No provider token or credential body crosses into the skill, and

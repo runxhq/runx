@@ -16,7 +16,7 @@ const script = fileURLToPath(new URL("../scripts/publish-runx-maintained-connect
 const FAKE_RUNX = `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
-const [, , , , action, directory] = process.argv;
+const [, , , action, directory] = process.argv;
 const facts = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
 if (action === "package") {
   process.stdout.write(JSON.stringify({ status: "success", registry: { action: "connector_package", connector: facts } }));
@@ -34,7 +34,7 @@ process.stdout.write(JSON.stringify({ status: "success", registry: { action: "co
 `;
 
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
-const entry = (id: string, character: string) => ({ ref: `runx/${id}`, version: `sha-${character.repeat(12)}`, content_digest: digest(character) });
+const entry = (name: string, character: string) => ({ ref: name, version: `sha-${character.repeat(12)}`, content_digest: digest(character) });
 
 let roots: string[] = [];
 afterEach(() => {
@@ -54,8 +54,9 @@ function workspace(connectors: readonly ReturnType<typeof entry>[]) {
   mkdirSync(path.join(root, "registry"));
   writeFileSync(path.join(root, "registry/runx-maintained-connectors.lock.json"), JSON.stringify({ connectors }));
   for (const connector of connectors) {
-    const directory = path.join(root, "connectors", connector.ref.split("/")[1]!);
-    mkdirSync(directory);
+    // A connector lives at connectors/<name>/: its name is its path.
+    const directory = path.join(root, "connectors", ...connector.ref.split("/"));
+    mkdirSync(directory, { recursive: true });
     writeFileSync(path.join(directory, "package.json"), JSON.stringify(connector));
   }
   const run = (...args: string[]) => spawnSync(process.execPath, [path.join(root, "scripts/publish-runx-maintained-connectors.mjs"), ...args], {
@@ -71,11 +72,11 @@ describe("publish-runx-maintained-connectors", () => {
     const { root, run } = workspace([entry("apollo", "a"), entry("github", "b")]);
     const first = run("--registry", "https://registry.runx.test");
     expect(first.status, first.stderr).toBe(0);
-    expect(first.stdout).toContain("runx/apollo@sha-aaaaaaaaaaaa published");
+    expect(first.stdout).toContain("apollo@sha-aaaaaaaaaaaa published");
     expect(first.stdout).toContain("2 runx-maintained connectors: 2 published, 0 unchanged");
     expect(JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))).toEqual({
-      "runx/apollo@sha-aaaaaaaaaaaa": digest("a"),
-      "runx/github@sha-bbbbbbbbbbbb": digest("b"),
+      "apollo@sha-aaaaaaaaaaaa": digest("a"),
+      "github@sha-bbbbbbbbbbbb": digest("b"),
     });
 
     const again = run("--registry", "https://registry.runx.test");
@@ -89,7 +90,7 @@ describe("publish-runx-maintained-connectors", () => {
     writeFileSync(path.join(root, "connectors/github/package.json"), JSON.stringify(entry("github", "c")));
     const result = run("--registry", "https://registry.runx.test");
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("runx/github: version sha-cccccccccccc (lock: sha-bbbbbbbbbbbb)");
+    expect(result.stderr).toContain("github: version sha-cccccccccccc (lock: sha-bbbbbbbbbbbb)");
     expect(existsSync(path.join(root, "registry.json"))).toBe(false);
   });
 
@@ -98,7 +99,7 @@ describe("publish-runx-maintained-connectors", () => {
     writeFileSync(path.join(root, "connectors/apollo/recorded.json"), JSON.stringify({ ...entry("apollo", "a"), content_digest: digest("f") }));
     const result = run("--registry", "https://registry.runx.test");
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain(`runx/apollo: the registry recorded content_digest ${digest("f")}`);
+    expect(result.stderr).toContain(`apollo: the registry recorded content_digest ${digest("f")}`);
   });
 
   it("refuses to run without a registry, or without the lock", () => {
