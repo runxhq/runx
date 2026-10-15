@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{NonEmptyString, RunxSchema};
+use crate::paid_invocation::{
+    CurrencyCode, OfferRevisionRef, PortableAmountMinor, PrincipalReference, Sha256Digest,
+};
+use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{AgentContextEnvelope, JsonObject, JsonValue};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -103,6 +106,58 @@ pub enum ResolutionRequest {
         #[serde(default, skip_serializing_if = "crate::schema::is_default")]
         resend: RetryResend,
     },
+    /// A call reached a paid runner and waits on the person's exact decision
+    /// (N10): they answer `approved` and the method they pay with
+    /// (`choice`).
+    Purchase {
+        id: NonEmptyString,
+        purchase: Box<PurchaseRequest>,
+    },
+}
+
+/// What a person decides when a call reaches a paid runner (N10): one
+/// quote's exact offer, seller and price, and each payment method that can
+/// pay it. The request's digest binds all of it, so an answer pays only this
+/// quote, before it expires.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.purchase_request.v1")]
+pub struct PurchaseRequest {
+    pub skill: NonEmptyString,
+    pub runner: NonEmptyString,
+    pub offer: OfferRevisionRef,
+    /// The listing's package digest: the exact package the purchase runs.
+    pub package_digest: Sha256Digest,
+    pub seller: PrincipalReference,
+    pub amount_minor: PortableAmountMinor,
+    pub currency: CurrencyCode,
+    pub input_digest: Sha256Digest,
+    pub quote: PurchaseQuote,
+    /// Never empty: a call no method can pay fails instead of asking.
+    pub methods: Vec<PurchaseMethod>,
+}
+
+/// The quote decided on: the paid invocation Cloud admitted for these
+/// inputs, what its x402 requirement pays, and when it expires.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseQuote {
+    pub invocation_id: NonEmptyString,
+    pub expires_at: IsoDateTime,
+    pub network: NonEmptyString,
+    pub asset: NonEmptyString,
+    pub pay_to: NonEmptyString,
+}
+
+/// One way the payer can pay: a hosted payment grant whose connector pays on
+/// the quote's network and asset.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseMethod {
+    /// The connector instance an answer's `choice` names.
+    pub instance_id: NonEmptyString,
+    pub connector: NonEmptyString,
+    pub total_minor: PortableAmountMinor,
 }
 
 /// Whether sending a claimed call again could repeat its effect.

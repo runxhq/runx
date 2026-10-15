@@ -77,8 +77,7 @@
             },
             "required": [
               "kind",
-              "fields",
-              "delivery"
+              "fields"
             ],
             "type": "object"
           },
@@ -319,6 +318,40 @@
                 "type": "string"
               }
             },
+            "type": "object"
+          },
+          "holds": {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "take",
+                  "refresh",
+                  "release"
+                ],
+                "type": "string"
+              },
+              "credential": {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "expires_at": {},
+              "fields": {
+                "additionalProperties": {},
+                "minProperties": 1,
+                "propertyNames": {
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "type": "object"
+              },
+              "target": {}
+            },
+            "required": [
+              "action",
+              "credential",
+              "target"
+            ],
             "type": "object"
           },
           "hosted": {
@@ -1626,6 +1659,32 @@
     },
     "parameters": {
       "additionalProperties": {},
+      "type": "object"
+    },
+    "pays": {
+      "additionalProperties": false,
+      "properties": {
+        "x402": {
+          "additionalProperties": false,
+          "properties": {
+            "networks": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "networks"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "x402"
+      ],
       "type": "object"
     },
     "placements": {

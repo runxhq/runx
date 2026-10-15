@@ -198,7 +198,7 @@ pub(crate) fn invoke_provider_operation<T: Transport + ?Sized>(
 /// what the caller admitted, and sends it through the provider gateway.
 pub(crate) struct ProviderRequest<'a> {
     pub connector_binding: &'a ConnectorBinding,
-    pub grant_id: &'a str,
+    pub authority: ProviderAuthority<'a>,
     pub operation: &'a str,
     pub operation_digest: &'a str,
     pub implementation_digest: &'a str,
@@ -214,6 +214,17 @@ pub(crate) struct ProviderRequest<'a> {
     pub responses: Option<&'a std::collections::BTreeMap<String, JsonObject>>,
 }
 
+/// Whose credential runx Connect presents: a grant the principal holds, or
+/// what a purchase holds for it on one resource.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ProviderAuthority<'a> {
+    Grant(&'a str),
+    Held {
+        credential: &'a str,
+        target: &'a str,
+    },
+}
+
 /// The provider's answer to one declared request, whole.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -227,16 +238,28 @@ pub(crate) fn send_provider_request<T: Transport + ?Sized>(
     environment: &AuthenticatedHostedApiEnvironment,
     request: &ProviderRequest<'_>,
 ) -> Result<crate::http::RuntimeHttpResponse, ProviderOperationError> {
-    validate_provider_grant_id(request.grant_id)?;
     validate_provider_operation(request.operation)?;
     let text = |value: &str| JsonValue::String(value.to_owned());
+    let authority = match request.authority {
+        ProviderAuthority::Grant(grant_id) => {
+            validate_provider_grant_id(grant_id)?;
+            ("grant_id".to_owned(), text(grant_id))
+        }
+        ProviderAuthority::Held { credential, target } => (
+            "held".to_owned(),
+            JsonValue::Object(JsonObject::from([
+                ("credential".to_owned(), text(credential)),
+                ("target".to_owned(), text(target)),
+            ])),
+        ),
+    };
     let mut body = JsonObject::from([
         (
             "connector_binding".to_owned(),
             JsonValue::from_serialize(request.connector_binding)
                 .map_err(|error| ProviderOperationError::InvalidResponse(error.to_string()))?,
         ),
-        ("grant_id".to_owned(), text(request.grant_id)),
+        authority,
         ("operation".to_owned(), text(request.operation)),
         (
             "operation_digest".to_owned(),

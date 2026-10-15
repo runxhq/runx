@@ -24,6 +24,10 @@ use super::graph_index::PriorRunIndex;
 #[derive(Clone)]
 pub(crate) struct LoadedStepSkill {
     pub(crate) runner: SkillRunnerDefinition,
+    /// The package's version, as its `run.yaml` states it.
+    pub(crate) version: Option<String>,
+    /// The offer the runner is sold under, when its package sells it.
+    pub(crate) offer: Option<runx_contracts::PaidSkillOfferTerms>,
     pub(crate) requirements: runx_contracts::ExecutionRequirements,
     pub(crate) directory: PathBuf,
     /// What the skill says it does, as its manual declares.
@@ -423,7 +427,14 @@ pub(crate) fn load_step_skill(
     let manual_path = package.package_root.join("SKILL.md");
     let manual_markdown = package.package.manual_markdown.clone().into();
     let manual_digest = package.package.manual_digest.clone();
+    let offer = manifest
+        .marketplace
+        .as_ref()
+        .and_then(|marketplace| marketplace.offers.get(&runner.name))
+        .cloned();
     let loaded = LoadedStepSkill {
+        version: manifest.version.clone(),
+        offer,
         runner,
         requirements,
         directory,
@@ -443,6 +454,41 @@ pub(crate) fn load_step_skill(
     }
     Ok(loaded)
 }
+
+/// The graph a purchase runs: one step that calls `runner` through the
+/// registry reference the skill was reached by, with the run's inputs. The
+/// step reaches a runner the registry sells, so the kernel buys it (S10).
+pub(crate) fn purchase_graph(reference: &str, runner: &str, inputs: &JsonObject) -> ExecutionGraph {
+    ExecutionGraph {
+        name: format!("purchase {reference}#{runner}"),
+        owner: None,
+        result_from: vec![PURCHASE_STEP.to_owned()],
+        policy: None,
+        steps: vec![GraphStep {
+            id: PURCHASE_STEP.to_owned(),
+            label: None,
+            kind: StepKind::Skill(SkillTarget {
+                reference: reference.to_owned(),
+                runner: Some(runner.to_owned()),
+            }),
+            artifacts: None,
+            outputs: None,
+            inputs: inputs.clone(),
+            bindings: Vec::new(),
+            act: None,
+            context_skills: Vec::new(),
+            scopes: Vec::new(),
+            when: None,
+            duplicates: None,
+        }],
+        raw: runx_parser::RawGraphIr {
+            document: JsonObject::new(),
+        },
+    }
+}
+
+/// The one step of a purchase's graph.
+pub(crate) const PURCHASE_STEP: &str = "purchase";
 
 /// The child skills `step` may run, each as the skill step that runs it: a
 /// skill step its own target, and an agent turn one step per child skill its

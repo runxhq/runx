@@ -1271,6 +1271,214 @@ export const runxSchemaArtifacts = {
                   "retry_after_seconds"
                 ],
                 "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "purchase",
+                    "type": "string"
+                  },
+                  "purchase": {
+                    "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                      "amount_minor": {
+                        "maximum": 9007199254740991,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "pattern": "^[A-Z]{3}$",
+                        "type": "string"
+                      },
+                      "input_digest": {
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "methods": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "connector": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "instance_id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "total_minor": {
+                              "maximum": 9007199254740991,
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "instance_id",
+                            "connector",
+                            "total_minor"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "offer": {
+                        "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "additionalProperties": false,
+                        "properties": {
+                          "input_schema_digest": {
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                            "type": "string"
+                          },
+                          "offer_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "output_schema_digest": {
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                            "type": "string"
+                          },
+                          "revision": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "revision_digest": {
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "offer_id",
+                          "revision",
+                          "revision_digest",
+                          "input_schema_digest",
+                          "output_schema_digest"
+                        ],
+                        "type": "object",
+                        "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+                      },
+                      "package_digest": {
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "quote": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "asset": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "minLength": 1,
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                            "type": "string"
+                          },
+                          "invocation_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "network": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "pay_to": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "invocation_id",
+                          "expires_at",
+                          "network",
+                          "asset",
+                          "pay_to"
+                        ],
+                        "type": "object"
+                      },
+                      "runner": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "seller": {
+                        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "locator": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "observed_at": {
+                            "minLength": 1,
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                            "type": "string"
+                          },
+                          "proof_kind": {
+                            "enum": [
+                              "effect_evidence",
+                              "effect_finality",
+                              "credential_resolution"
+                            ],
+                            "type": "string"
+                          },
+                          "provider": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": {
+                            "const": "principal",
+                            "type": "string"
+                          },
+                          "uri": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "uri"
+                        ],
+                        "type": "object",
+                        "x-runx-schema": "runx.reference.v1"
+                      },
+                      "skill": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "skill",
+                      "runner",
+                      "offer",
+                      "package_digest",
+                      "seller",
+                      "amount_minor",
+                      "currency",
+                      "input_digest",
+                      "quote",
+                      "methods"
+                    ],
+                    "type": "object",
+                    "x-runx-schema": "runx.purchase_request.v1"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "purchase"
+                ],
+                "type": "object"
               }
             ],
             "x-runx-schema": "runx.resolution_request.v1"
@@ -6266,6 +6474,30 @@ export const runxSchemaArtifacts = {
           {
             "additionalProperties": false,
             "properties": {
+              "credential": {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "held",
+                "type": "string"
+              },
+              "target": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "credential",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
               "kind": {
                 "const": "public",
                 "type": "string"
@@ -6436,8 +6668,7 @@ export const runxSchemaArtifacts = {
               },
               "required": [
                 "kind",
-                "fields",
-                "delivery"
+                "fields"
               ],
               "type": "object"
             },
@@ -6678,6 +6909,40 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 }
               },
+              "type": "object"
+            },
+            "holds": {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "enum": [
+                    "take",
+                    "refresh",
+                    "release"
+                  ],
+                  "type": "string"
+                },
+                "credential": {
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                "expires_at": {},
+                "fields": {
+                  "additionalProperties": {},
+                  "minProperties": 1,
+                  "propertyNames": {
+                    "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                  },
+                  "type": "object"
+                },
+                "target": {}
+              },
+              "required": [
+                "action",
+                "credential",
+                "target"
+              ],
               "type": "object"
             },
             "hosted": {
@@ -7985,6 +8250,32 @@ export const runxSchemaArtifacts = {
       },
       "parameters": {
         "additionalProperties": {},
+        "type": "object"
+      },
+      "pays": {
+        "additionalProperties": false,
+        "properties": {
+          "x402": {
+            "additionalProperties": false,
+            "properties": {
+              "networks": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "networks"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "x402"
+        ],
         "type": "object"
       },
       "placements": {
@@ -16497,24 +16788,24 @@ export const runxSchemaArtifacts = {
               "type": "array",
               "uniqueItems": true
             },
-            "claim": {
+            "acts_on": {
               "additionalProperties": false,
               "properties": {
-                "bind": {
-                  "additionalProperties": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "minProperties": 1,
-                  "type": "object"
-                },
-                "url": {
+                "connector": {
                   "minLength": 1,
                   "type": "string"
-                }
+                },
+                "credential": {
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                "target": {}
               },
               "required": [
-                "url"
+                "connector",
+                "credential",
+                "target"
               ],
               "type": "object"
             },
@@ -17302,10 +17593,6 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "claim_url": {
-        "minLength": 1,
-        "type": "string"
-      },
       "failure": {
         "additionalProperties": false,
         "properties": {
@@ -17325,6 +17612,44 @@ export const runxSchemaArtifacts = {
           "message"
         ],
         "type": "object"
+      },
+      "holds": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "connector": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "credential": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expires_at": {
+              "minLength": 1,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            "target": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "value_digest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "connector",
+            "credential",
+            "target",
+            "expires_at",
+            "value_digest"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "invocation": {
         "$id": "https://schemas.runx.ai/runx/payment/paid-invocation/v1.json",
@@ -23735,6 +24060,214 @@ export const runxSchemaArtifacts = {
           "retry_after_seconds"
         ],
         "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "purchase",
+            "type": "string"
+          },
+          "purchase": {
+            "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "amount_minor": {
+                "maximum": 9007199254740991,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "currency": {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              "input_digest": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "methods": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "connector": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "instance_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "total_minor": {
+                      "maximum": 9007199254740991,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "instance_id",
+                    "connector",
+                    "total_minor"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "offer": {
+                "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "input_schema_digest": {
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "offer_id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "output_schema_digest": {
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "revision": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "revision_digest": {
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "offer_id",
+                  "revision",
+                  "revision_digest",
+                  "input_schema_digest",
+                  "output_schema_digest"
+                ],
+                "type": "object",
+                "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+              },
+              "package_digest": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "quote": {
+                "additionalProperties": false,
+                "properties": {
+                  "asset": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "minLength": 1,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                    "type": "string"
+                  },
+                  "invocation_id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "network": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "pay_to": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "invocation_id",
+                  "expires_at",
+                  "network",
+                  "asset",
+                  "pay_to"
+                ],
+                "type": "object"
+              },
+              "runner": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "seller": {
+                "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "locator": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "observed_at": {
+                    "minLength": 1,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                    "type": "string"
+                  },
+                  "proof_kind": {
+                    "enum": [
+                      "effect_evidence",
+                      "effect_finality",
+                      "credential_resolution"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "principal",
+                    "type": "string"
+                  },
+                  "uri": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "uri"
+                ],
+                "type": "object",
+                "x-runx-schema": "runx.reference.v1"
+              },
+              "skill": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "skill",
+              "runner",
+              "offer",
+              "package_digest",
+              "seller",
+              "amount_minor",
+              "currency",
+              "input_digest",
+              "quote",
+              "methods"
+            ],
+            "type": "object",
+            "x-runx-schema": "runx.purchase_request.v1"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "purchase"
+        ],
+        "type": "object"
       }
     ],
     "x-runx-schema": "runx.resolution_request.v1"
@@ -23790,6 +24323,10 @@ export const runxSchemaArtifacts = {
           "properties": {
             "approved": {
               "type": "boolean"
+            },
+            "choice": {
+              "minLength": 1,
+              "type": "string"
             },
             "reason": {
               "minLength": 1,
@@ -26518,6 +27055,214 @@ export const runxSchemaArtifacts = {
                     "id",
                     "reason",
                     "retry_after_seconds"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "purchase",
+                      "type": "string"
+                    },
+                    "purchase": {
+                      "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount_minor": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "pattern": "^[A-Z]{3}$",
+                          "type": "string"
+                        },
+                        "input_digest": {
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "methods": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "connector": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "instance_id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "total_minor": {
+                                "maximum": 9007199254740991,
+                                "minimum": 1,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "instance_id",
+                              "connector",
+                              "total_minor"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "offer": {
+                          "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "input_schema_digest": {
+                              "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "offer_id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "output_schema_digest": {
+                              "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "revision": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "revision_digest": {
+                              "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "offer_id",
+                            "revision",
+                            "revision_digest",
+                            "input_schema_digest",
+                            "output_schema_digest"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+                        },
+                        "package_digest": {
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "quote": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "asset": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "invocation_id": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "network": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "pay_to": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "invocation_id",
+                            "expires_at",
+                            "network",
+                            "asset",
+                            "pay_to"
+                          ],
+                          "type": "object"
+                        },
+                        "runner": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "seller": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": {
+                              "const": "principal",
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "skill": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "skill",
+                        "runner",
+                        "offer",
+                        "package_digest",
+                        "seller",
+                        "amount_minor",
+                        "currency",
+                        "input_digest",
+                        "quote",
+                        "methods"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.purchase_request.v1"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "purchase"
                   ],
                   "type": "object"
                 }
@@ -32439,6 +33184,214 @@ export const runxSchemaArtifacts = {
                         "retry_after_seconds"
                       ],
                       "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "const": "purchase",
+                          "type": "string"
+                        },
+                        "purchase": {
+                          "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "amount_minor": {
+                              "maximum": 9007199254740991,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "currency": {
+                              "pattern": "^[A-Z]{3}$",
+                              "type": "string"
+                            },
+                            "input_digest": {
+                              "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "methods": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "connector": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "instance_id": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "total_minor": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "instance_id",
+                                  "connector",
+                                  "total_minor"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "offer": {
+                              "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+                              "$schema": "https://json-schema.org/draft/2020-12/schema",
+                              "additionalProperties": false,
+                              "properties": {
+                                "input_schema_digest": {
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "offer_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "output_schema_digest": {
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "revision_digest": {
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "offer_id",
+                                "revision",
+                                "revision_digest",
+                                "input_schema_digest",
+                                "output_schema_digest"
+                              ],
+                              "type": "object",
+                              "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+                            },
+                            "package_digest": {
+                              "pattern": "^sha256:[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "quote": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "asset": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "expires_at": {
+                                  "minLength": 1,
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                  "type": "string"
+                                },
+                                "invocation_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "network": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "pay_to": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "invocation_id",
+                                "expires_at",
+                                "network",
+                                "asset",
+                                "pay_to"
+                              ],
+                              "type": "object"
+                            },
+                            "runner": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "seller": {
+                              "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                              "$schema": "https://json-schema.org/draft/2020-12/schema",
+                              "additionalProperties": false,
+                              "properties": {
+                                "label": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "locator": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "minLength": 1,
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                  "type": "string"
+                                },
+                                "proof_kind": {
+                                  "enum": [
+                                    "effect_evidence",
+                                    "effect_finality",
+                                    "credential_resolution"
+                                  ],
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "principal",
+                                  "type": "string"
+                                },
+                                "uri": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "uri"
+                              ],
+                              "type": "object",
+                              "x-runx-schema": "runx.reference.v1"
+                            },
+                            "skill": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "skill",
+                            "runner",
+                            "offer",
+                            "package_digest",
+                            "seller",
+                            "amount_minor",
+                            "currency",
+                            "input_digest",
+                            "quote",
+                            "methods"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.purchase_request.v1"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "purchase"
+                      ],
+                      "type": "object"
                     }
                   ],
                   "x-runx-schema": "runx.resolution_request.v1"
@@ -33711,6 +34664,214 @@ export const runxSchemaArtifacts = {
                               "id",
                               "reason",
                               "retry_after_seconds"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "kind": {
+                                "const": "purchase",
+                                "type": "string"
+                              },
+                              "purchase": {
+                                "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "amount_minor": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "currency": {
+                                    "pattern": "^[A-Z]{3}$",
+                                    "type": "string"
+                                  },
+                                  "input_digest": {
+                                    "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "type": "string"
+                                  },
+                                  "methods": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "connector": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "instance_id": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "total_minor": {
+                                          "maximum": 9007199254740991,
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        }
+                                      },
+                                      "required": [
+                                        "instance_id",
+                                        "connector",
+                                        "total_minor"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "offer": {
+                                    "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "input_schema_digest": {
+                                        "pattern": "^sha256:[0-9a-f]{64}$",
+                                        "type": "string"
+                                      },
+                                      "offer_id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "output_schema_digest": {
+                                        "pattern": "^sha256:[0-9a-f]{64}$",
+                                        "type": "string"
+                                      },
+                                      "revision": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "revision_digest": {
+                                        "pattern": "^sha256:[0-9a-f]{64}$",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "offer_id",
+                                      "revision",
+                                      "revision_digest",
+                                      "input_schema_digest",
+                                      "output_schema_digest"
+                                    ],
+                                    "type": "object",
+                                    "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+                                  },
+                                  "package_digest": {
+                                    "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "type": "string"
+                                  },
+                                  "quote": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "asset": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "expires_at": {
+                                        "minLength": 1,
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                        "type": "string"
+                                      },
+                                      "invocation_id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "network": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "pay_to": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "invocation_id",
+                                      "expires_at",
+                                      "network",
+                                      "asset",
+                                      "pay_to"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "runner": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "seller": {
+                                    "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "label": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "locator": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "observed_at": {
+                                        "minLength": 1,
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                        "type": "string"
+                                      },
+                                      "proof_kind": {
+                                        "enum": [
+                                          "effect_evidence",
+                                          "effect_finality",
+                                          "credential_resolution"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "const": "principal",
+                                        "type": "string"
+                                      },
+                                      "uri": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "uri"
+                                    ],
+                                    "type": "object",
+                                    "x-runx-schema": "runx.reference.v1"
+                                  },
+                                  "skill": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "skill",
+                                  "runner",
+                                  "offer",
+                                  "package_digest",
+                                  "seller",
+                                  "amount_minor",
+                                  "currency",
+                                  "input_digest",
+                                  "quote",
+                                  "methods"
+                                ],
+                                "type": "object",
+                                "x-runx-schema": "runx.purchase_request.v1"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "purchase"
                             ],
                             "type": "object"
                           }

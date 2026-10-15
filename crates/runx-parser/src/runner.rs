@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillOfferTerms,
-    PaidSkillPrice, TurnAllowance, canonical_json::canonical_stable_json,
+    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillActsOn,
+    PaidSkillOfferTerms, PaidSkillPrice, TurnAllowance, canonical_json::canonical_stable_json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -151,7 +151,7 @@ pub fn validate_runner_manifest(
         &turn_allowance(&connectors, &tools, &skills, asks),
         &connectors,
     );
-    let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners)?;
+    let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners, &connectors)?;
 
     let harness = validate_harness_manifest(
         FIELDS.optional_object(raw.document.get("harness"), "harness")?,
@@ -253,6 +253,7 @@ fn bind_turn_allowance(
 fn validate_marketplace(
     value: Option<&JsonValue>,
     runners: &BTreeMap<String, SkillRunnerDefinition>,
+    connectors: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<Option<MarketplaceManifest>, ValidationError> {
     let Some(marketplace) = FIELDS.optional_object(value, "marketplace")? else {
         return Ok(None);
@@ -279,6 +280,9 @@ fn validate_marketplace(
             FIELDS.validation_error(format!("marketplace.offers.{runner} is invalid: {error}"))
         })?;
         validate_priced_inputs(runner, &terms.price, &definition.inputs)?;
+        if let Some(acts_on) = &terms.acts_on {
+            validate_acts_on(runner, acts_on, &definition.inputs, connectors)?;
+        }
         offers.insert(runner.clone(), terms);
     }
     Ok(Some(MarketplaceManifest { offers }))
@@ -289,6 +293,35 @@ fn validate_marketplace(
 /// values, and the `artifact_bytes` input a JSON value holding the stored
 /// artifact's reference. A packet envelope (`artifact: true`) is not a stored
 /// artifact and has no committed size.
+/// What a paid runner acts on is held in one of the skill's own connectors,
+/// and named by inputs every purchase of the runner carries.
+fn validate_acts_on(
+    runner: &str,
+    acts_on: &PaidSkillActsOn,
+    inputs: &BTreeMap<String, SkillInput>,
+    connectors: &BTreeMap<String, ConnectorRequirement>,
+) -> Result<(), ValidationError> {
+    let field = format!("marketplace.offers.{runner}.acts_on");
+    if !connectors.contains_key(acts_on.connector.as_str()) {
+        return Err(FIELDS.validation_error(format!(
+            "{field} names connector {}, which the skill does not declare.",
+            acts_on.connector
+        )));
+    }
+    for pointer in acts_on.target.argument_pointers() {
+        let input = pointer
+            .strip_prefix('/')
+            .and_then(|rest| rest.split('/').next())
+            .unwrap_or_default();
+        if !inputs.get(input).is_some_and(|input| input.required) {
+            return Err(FIELDS.validation_error(format!(
+                "{field} reads input {input}, which runner {runner} does not require."
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn validate_priced_inputs(
     runner: &str,
     price: &PaidSkillPrice,

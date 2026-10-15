@@ -184,7 +184,7 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
             .auth
             .credentials
             .get(name)
-            .map(|declaration| declaration.delivery.env.clone()),
+            .and_then(|declaration| declaration.env().cloned()),
         runs: None,
     };
     let mut forms = Vec::new();
@@ -214,7 +214,7 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
                 .credential
                 .as_ref()
                 .and_then(|name| manifest.auth.credentials.get(name))
-                .map(|declaration| declaration.delivery.env.clone()),
+                .and_then(|declaration| declaration.env().cloned()),
             runs: None,
         });
     }
@@ -474,10 +474,10 @@ impl<'a> ConnectorSetup<'a> {
         }
         if local.contains(&LocalAuth::Credentials) {
             for (name, declaration) in &manifest.auth.credentials {
-                if self
-                    .variable(connector, name, &declaration.delivery.env)?
-                    .is_some()
-                {
+                let Some(variable) = declaration.env() else {
+                    continue;
+                };
+                if self.variable(connector, name, variable)?.is_some() {
                     paths.push(Path::Credential(name.clone()));
                 }
             }
@@ -529,7 +529,7 @@ impl<'a> ConnectorSetup<'a> {
         profile: Option<&str>,
         options: &UseOptions,
     ) -> Result<ConnectorInstance, String> {
-        let variable = &declared(connector, credential)?.delivery.env;
+        let variable = delivered(connector, credential)?;
         if self.variable(connector, credential, variable)?.is_some() {
             if profile.is_some() {
                 return Err(format!(
@@ -567,7 +567,7 @@ impl<'a> ConnectorSetup<'a> {
         credential: &CredentialName,
     ) -> Result<String, String> {
         let declaration = declared(connector, credential)?;
-        let variable = &declaration.delivery.env;
+        let variable = delivered(connector, credential)?;
         if let Some(value) = self.variable(connector, credential, variable)? {
             return Ok(value.to_owned());
         }
@@ -979,6 +979,20 @@ fn declared<'a>(
         .credentials
         .get(credential)
         .ok_or_else(|| format!("{} declares no credential {credential}", connector.name))
+}
+
+/// The variable a credential is delivered in. A purchase credential has
+/// none: a purchase fills it and runx Connect alone holds it.
+fn delivered<'a>(
+    connector: &'a LoadedConnector,
+    credential: &CredentialName,
+) -> Result<&'a EnvName, String> {
+    declared(connector, credential)?.env().ok_or_else(|| {
+        format!(
+            "{}'s {credential} credential is held by runx for what a purchase bought; nobody connects it",
+            connector.name
+        )
+    })
 }
 
 /// A session the runtime confirms by running the command that prints its

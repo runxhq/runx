@@ -172,9 +172,9 @@ describe("paid-invocation V1 contract facade", () => {
       ...listing,
       offers: { transcribe: {
         ...listing.offers.transcribe,
-        claim: { url: "https://{host}.example.com/claim", bind: { host: "/host" } },
+        acts_on: { connector: "acme/inbox", credential: "lease", target: { $result: "/inbox_id" } },
       } },
-    })).toThrow(/fixed host/u);
+    })).toThrow(/runner's inputs alone/u);
   });
 
   it("binds nested values through exact generated fragments without new ids", () => {

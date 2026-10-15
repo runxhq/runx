@@ -699,6 +699,7 @@ mod tests {
             idempotency_key: Some("key-1"),
             credential: None,
             env: &env,
+            held: Vec::new(),
             access,
             _sealed: Sealed,
         })
@@ -735,6 +736,7 @@ mod tests {
             idempotency_key: Some("key-1"),
             credential: Some(&secret),
             env: &env,
+            held: Vec::new(),
             access: OperationAccess::Mutate,
             _sealed: Sealed,
         };

@@ -34,6 +34,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         act: None,
         driver: RunDriver::Attached,
         prepared: None,
+        purchase: None,
         created_at: "2026-10-09T00:00:00.000Z",
     })
     .expect("begin");
@@ -230,6 +231,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 act: None,
                 driver: RunDriver::Attached,
                 prepared: None,
+                purchase: None,
                 created_at: "2026-10-09T00:00:00.000Z",
             }),
         Err(RunRecordError::Contended { .. })

@@ -45,6 +45,42 @@ pub(crate) fn send_json_idempotent<T: DeserializeOwned>(
     )
 }
 
+/// One request to the runx API under a bearer token, answered whole: the
+/// caller reads every status itself, such as a quote answered with 402. A
+/// keyed or read request may be resent by the transport.
+pub(crate) fn exchange(
+    transport: &(impl RuntimeHttpTransport + ?Sized),
+    base_url: &str,
+    bearer_token: &str,
+    method: HttpMethod,
+    path: &str,
+    body: Option<String>,
+    idempotency_key: Option<&str>,
+) -> Result<crate::http::RuntimeHttpResponse, crate::http::RuntimeHttpError> {
+    let mut headers = vec![
+        RuntimeHttpHeader::new("authorization", format!("Bearer {bearer_token}")),
+        RuntimeHttpHeader::new("accept", "application/json"),
+    ];
+    if body.is_some() {
+        headers.push(RuntimeHttpHeader::new("content-type", "application/json"));
+    }
+    if let Some(key) = idempotency_key {
+        headers.push(RuntimeHttpHeader::new("idempotency-key", key));
+    }
+    let resendable = idempotency_key.is_some() || method == HttpMethod::Get;
+    let request = RuntimeHttpRequest {
+        method,
+        url: format!("{}{}", base_url.trim_end_matches('/'), path),
+        headers,
+        body,
+    };
+    if resendable {
+        transport.send_idempotent(request)
+    } else {
+        transport.send(request)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn send_json_with<T: DeserializeOwned>(
     transport: &(impl RuntimeHttpTransport + ?Sized),

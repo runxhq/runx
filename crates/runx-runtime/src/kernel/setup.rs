@@ -142,9 +142,14 @@ pub(crate) fn bind_environment(
 ) -> Result<ConnectorInstance, String> {
     let parameters = instance_parameters(connector, parameters)?;
     let variable = credential_declaration(connector, credential)?
-        .delivery
-        .env
-        .clone();
+        .env()
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "connector {}'s {credential} credential is held by runx for a purchase; nobody binds it",
+                connector.manifest.id
+            )
+        })?;
     credentials::from_environment(workspace.env(), connector, credential, &variable)?;
     let scopes = credential_scopes(connector, credential, scopes)?;
     let mut instance = pinned(

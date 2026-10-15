@@ -236,6 +236,17 @@ where
         &request.inputs,
     )
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;
+    // A runner the registry sells is bought from its seller, never run here.
+    if let Some(paid) = request.step.skill().and_then(|target| {
+        crate::kernel::purchase::PaidRunner::reached(
+            &target.reference,
+            skill.version.as_deref(),
+            &skill.runner.name,
+            skill.offer.as_ref(),
+        )
+    }) {
+        return run_purchase_step(paid, StepHandlerCtx { inputs, ..request });
+    }
     let mut env = request.runtime.options.env.clone();
     merge_inferred_tool_roots(&mut env, &skill.directory);
     crate::execution_environment::resolve_declared_environment(
@@ -244,6 +255,96 @@ where
         &skill.directory,
     )?;
     run_nested_graph_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
+}
+
+/// A call that reaches a runner the registry sells: the kernel buys it
+/// (S10). The step's output is the purchase as its buyer reads it, and the
+/// act settles with the step's receipt.
+fn run_purchase_step<A>(
+    paid: crate::kernel::purchase::PaidRunner,
+    request: StepHandlerCtx<'_, A>,
+) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    use crate::kernel::purchase::{Bought, PurchaseCall};
+    let StepHandlerCtx {
+        runtime,
+        graph_dir,
+        graph_name,
+        step,
+        attempt,
+        inputs,
+        admission_refs,
+        host,
+        authority,
+        ..
+    } = request;
+    let started = Instant::now();
+    let address = runtime.options.run.address(&step.id);
+    let hosted = crate::kernel::operation::hosted::HostedClient::default();
+    let bought = crate::kernel::purchase::buy(
+        &PurchaseCall {
+            paid: &paid,
+            inputs: &inputs,
+            run_id: runtime.options.run.run_id(),
+            step_id: &step.id,
+            address: &address,
+            limit: runtime
+                .options
+                .run_authority
+                .as_ref()
+                .and_then(|authority| authority.max_cost_micro),
+            env: &runtime.options.env,
+            cwd: graph_dir,
+            hosted: &hosted,
+        },
+        host,
+    )?;
+    let projection = crate::adapter_pipeline::AdapterProjection::from_started(started);
+    let observations = crate::observations::Observations::default();
+    let (output, settlement) = match bought {
+        Bought::Fulfilled {
+            purchase,
+            settlement,
+        } => {
+            let value = serde_json::to_value(&*purchase)
+                .and_then(serde_json::from_value)
+                .map_err(|source| RuntimeError::json("reporting the purchase", source))?;
+            (
+                projection.runtime_output(
+                    crate::adapter::InvocationStatus::Success,
+                    value,
+                    None,
+                    observations,
+                ),
+                Some(settlement),
+            )
+        }
+        Bought::Refused { code, reason } => (
+            projection.failure(format!("{code}: {reason}"), observations),
+            None,
+        ),
+    };
+    let mut run = seal_effect_step(
+        EffectStepSeal {
+            runtime,
+            graph_dir,
+            graph_name,
+            step,
+            attempt,
+            admission_refs,
+            authority: authority.as_ref(),
+            skill: paid.skill_id.clone(),
+            call: None,
+        },
+        output,
+        None,
+    )?;
+    if let Some(settlement) = settlement {
+        run.settlement = Some(settlement.sealed(run.receipt.id.as_str().to_owned()));
+    }
+    Ok(run)
 }
 
 fn run_nested_graph_skill_step<A>(

@@ -694,10 +694,9 @@ pub enum GetPaidInvocationResult {
 }
 
 /// What a purchaser reads of its purchase (K13): the paid invocation, the
-/// purchase receipt once sealed, and the runner's public result once
-/// fulfilment won. Never the seller's run, step outputs or grants. An offer
-/// that names a claim endpoint gives `claim_url` once fulfilled, where the
-/// purchaser collects what runx never holds.
+/// purchase receipt once sealed, the runner's public result once fulfilment
+/// won, and what runx holds for it. Never the seller's run, step outputs or
+/// grants, and never a held value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.payment.purchase.v1")]
@@ -708,11 +707,25 @@ pub struct Purchase {
     pub receipt: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<JsonValue>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claim_url: Option<NonEmptyString>,
+    /// Each resource runx holds for the purchase's owner, once fulfilment won.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holds: Vec<PurchaseHold>,
     /// Why a refund won. Present only after refund won.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<PaidInvocationFailure>,
+}
+
+/// One resource a fulfilled purchase bought, held by runx for the purchase's
+/// owner (S10, N11): where it is held and until when, and the digest of the
+/// held value, which tells holds apart without showing one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseHold {
+    pub connector: NonEmptyString,
+    pub credential: NonEmptyString,
+    pub target: NonEmptyString,
+    pub expires_at: IsoDateTime,
+    pub value_digest: Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

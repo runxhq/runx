@@ -182,6 +182,9 @@ pub(crate) struct AdmittedCall<'a> {
     pub idempotency_key: Option<&'a str>,
     pub credential: Option<&'a credentials::CredentialSecret>,
     pub env: &'a BTreeMap<String, String>,
+    /// Where the write's answer holds what a purchase bought: runx Connect
+    /// answers with the hold's evidence there, never the value.
+    pub held: Vec<String>,
     access: OperationAccess,
     _sealed: Sealed,
 }
@@ -208,6 +211,7 @@ impl<'a> AdmittedCall<'a> {
             idempotency_key: Some("key-1"),
             credential: None,
             env,
+            held: Vec::new(),
             access,
             _sealed: Sealed,
         }
@@ -1201,6 +1205,19 @@ fn dispatch(
         idempotency_key: provider_key.as_deref(),
         credential: secret.as_ref(),
         env,
+        held: operation
+            .holds
+            .as_ref()
+            .filter(|hold| hold.action == runx_contracts::connector::HoldAction::Take)
+            .map(|hold| {
+                hold.fields
+                    .values()
+                    .filter_map(|binding| binding.response_reference())
+                    .filter_map(|reference| reference.strip_prefix("write."))
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default(),
         access: operation.access(),
         _sealed: Sealed,
     };
@@ -1233,7 +1250,7 @@ fn dispatch(
                     gateway = hosted::Gateway {
                         connector_binding: &connector_binding,
                         session,
-                        grant_id: hosted_grant(admitted)?,
+                        authority: provider_authority(admitted)?,
                         operation: admitted.operation.as_str(),
                         operation_digest: admitted.intent().operation_digest.as_str(),
                         implementation_digest: &implementation_digest,
@@ -1366,6 +1383,21 @@ fn dispatch(
     })
 }
 
+/// Whose credential runx Connect presents to the call's declared requests:
+/// the instance's grant, or what a purchase holds on the call's resource.
+fn provider_authority(
+    admitted: &Admitted,
+) -> Result<crate::provider_operations::ProviderAuthority<'_>, Failure> {
+    use crate::provider_operations::ProviderAuthority;
+    match &admitted.instance.authority {
+        InstanceAuthority::Held { credential, target } => Ok(ProviderAuthority::Held {
+            credential: credential.as_str(),
+            target: target.as_str(),
+        }),
+        _ => hosted_grant(admitted).map(ProviderAuthority::Grant),
+    }
+}
+
 /// The grant a hosted instance holds.
 fn hosted_grant(admitted: &Admitted) -> Result<&str, Failure> {
     match &admitted.instance.authority {
@@ -1479,10 +1511,16 @@ fn process_delivery(
             "the credential is incomplete".to_owned(),
         )
     })?;
+    let variable = declaration.env().ok_or_else(|| {
+        rejected(
+            "binding_unavailable",
+            "a purchase credential is presented only by runx Connect".to_owned(),
+        )
+    })?;
     crate::credentials::CredentialDelivery::process_env(
         manifest.id.as_str(),
         declaration.kind.as_str(),
-        declaration.delivery.env.as_str(),
+        variable.as_str(),
         instance.instance_id.as_str(),
         value,
     )

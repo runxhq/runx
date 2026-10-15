@@ -253,8 +253,8 @@
   },
   {
     "skill_id": "runx/pay",
-    "version": "sha-bd73faf5bc46",
-    "digest": "4752c312b2b1ce028e1326f7c95e5097289625904973c5fd52d4791fdaadd011",
+    "version": "sha-56d0719d70e1",
+    "digest": "daae94e450c447cb54bfc95cdd13f883ee10ea6c237f7191381be9708319f0ec",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

@@ -10,10 +10,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
-    CredentialName, Digest, HostedAuth, HttpAuth, HttpImplementation, HttpMethod, HttpReadback,
-    HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
-    OperationVerb, PrincipalRequest, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
-    ReferenceDeclaration, SessionAuth, Template, manifest_digest, operation_digest,
+    CredentialDeclaration, CredentialName, Digest, HoldAction, HostedAuth, HttpAuth,
+    HttpImplementation, HttpMethod, HttpReadback, HttpRequest, Implementation, LocalAuth,
+    McpServer, OperationAccess, OperationName, OperationVerb, PrincipalRequest,
+    ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration, SessionAuth,
+    Template, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -59,6 +60,7 @@ pub fn validate_connector_manifest(
     validate_mcp_multiplexing(&manifest, &mut errors);
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
+    validate_holds(&manifest, &mut errors);
     validate_enforced(&manifest, &mut errors);
     validate_invocation(&manifest, &mut errors);
     errors.finish()?;
@@ -685,9 +687,19 @@ fn validate_operation(
                         .values()
                         .all(|auth| matches!(auth, HttpAuth::Bearer { .. }))
             }
-            HostedAuth::Credential => placement
-                .credential
-                .as_ref()
+            // An operation on a held resource presents the credential the
+            // purchase holds; any other, the placement's own.
+            HostedAuth::Credential => operation
+                .credentials
+                .iter()
+                .find(|name| {
+                    manifest
+                        .auth
+                        .credentials
+                        .get(*name)
+                        .is_some_and(CredentialDeclaration::is_purchase)
+                })
+                .or(placement.credential.as_ref())
                 .and_then(|name| http.auth.get(name))
                 .is_some_and(|auth| {
                     !matches!(
@@ -948,6 +960,260 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
             );
         }
     }
+}
+
+/// A purchase credential is what a purchase bought (S10, N11). runx Connect
+/// takes it from the seller's answer to the operation that holds it, keeps it
+/// per resource for the purchase's owner, and presents it only to the hosted
+/// requests of operations on that resource, so the kernel never sees it.
+fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
+    let auth = &manifest.auth;
+    let purchase = |credential: &CredentialName| {
+        auth.credentials
+            .get(credential)
+            .is_some_and(CredentialDeclaration::is_purchase)
+    };
+    let mut held = false;
+    for (name, declaration) in &auth.credentials {
+        let field = format!("auth.credentials.{name}");
+        match (declaration.is_purchase(), declaration.delivery.is_some()) {
+            (true, true) => errors.push(
+                &format!("{field}.delivery"),
+                "a purchase credential never leaves runx Connect; declare no delivery",
+            ),
+            (false, false) => errors.push(
+                &format!("{field}.delivery"),
+                "declare the variable the local placement delivers the credential in",
+            ),
+            _ => {}
+        }
+        if !declaration.is_purchase() {
+            continue;
+        }
+        held = true;
+        if manifest
+            .placements
+            .hosted
+            .as_ref()
+            .and_then(|hosted| hosted.credential.as_ref())
+            == Some(name)
+        {
+            errors.push(
+                "placements.hosted.credential",
+                "a purchase credential is held per resource; the placement names the connector's own credential",
+            );
+        }
+        let taken = manifest.operations.values().any(|operation| {
+            operation
+                .holds
+                .as_ref()
+                .is_some_and(|hold| hold.action == HoldAction::Take && &hold.credential == name)
+        });
+        if !taken {
+            errors.push(
+                &field,
+                "a purchase credential is filled by an operation that holds it with action take",
+            );
+        }
+    }
+    if held && manifest.placements.local.is_some() {
+        errors.push(
+            "placements.local",
+            "a connector holding what a purchase bought runs only through runx Connect",
+        );
+    }
+
+    for (name, operation) in &manifest.operations {
+        let field = format!("operations.{name}");
+        let http = match &operation.implementation {
+            Some(Implementation::Http(http)) if operation.hosted.is_some() => Some(http),
+            _ => None,
+        };
+        if operation.credentials.iter().any(purchase) {
+            if operation.credentials.len() != 1 {
+                errors.push(
+                    &format!("{field}.credentials"),
+                    "an operation on a held resource is authorized by its purchase credential alone",
+                );
+            }
+            if !acts_on_arguments(&operation.target.template) {
+                errors.push(
+                    &format!("{field}.target"),
+                    "an operation on a held resource renders its target from the call's arguments alone, so the hold is found before the call",
+                );
+            }
+            match http {
+                None => errors.push(
+                    &field,
+                    "an operation on a held resource runs hosted declared requests",
+                ),
+                Some(http) => {
+                    for (credential, presentation) in &http.auth {
+                        if purchase(credential)
+                            && !matches!(
+                                presentation,
+                                HttpAuth::Bearer { .. } | HttpAuth::Header { .. }
+                            )
+                        {
+                            errors.push(
+                                &format!("{field}.implementation.http.auth.{credential}"),
+                                "runx Connect presents a held credential only as a header",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        let Some(hold) = &operation.holds else {
+            continue;
+        };
+        let field = format!("{field}.holds");
+        if !purchase(&hold.credential) {
+            errors.push(
+                &format!("{field}.credential"),
+                format!(
+                    "credential {} is not declared with kind purchase",
+                    hold.credential
+                ),
+            );
+        }
+        if operation.access() == OperationAccess::Read {
+            errors.push(&field, "a read changes no hold");
+        }
+        let Some(http) = http else {
+            errors.push(
+                &field,
+                "runx Connect applies a hold to the answer of hosted declared requests",
+            );
+            continue;
+        };
+        let single_result = |template: &Option<Template>| {
+            template
+                .as_ref()
+                .is_some_and(|template| template.result_pointer().is_some())
+        };
+        match hold.action {
+            HoldAction::Take => {
+                if !(operation.target.template.is_literal()
+                    || acts_on_arguments(&operation.target.template))
+                {
+                    errors.push(
+                        &format!("{field}.target"),
+                        "the operation that takes a hold renders its own target without instance parameters",
+                    );
+                }
+                let target = &hold.target;
+                if !target.binds_result()
+                    || target.binds_argument()
+                    || target.binds_parameter()
+                    || target.binds_exchange()
+                    || target.binds_runx()
+                {
+                    errors.push(
+                        &format!("{field}.target"),
+                        "a taken hold's target is rendered from the call's public result",
+                    );
+                }
+                if !single_result(&hold.expires_at) {
+                    errors.push(
+                        &format!("{field}.expires_at"),
+                        "a taken hold states its expiry as one $result binding",
+                    );
+                }
+                if !http.readbacks.is_empty() {
+                    errors.push(
+                        &field,
+                        "a readback would read the held value again; the operation that takes a hold declares none",
+                    );
+                }
+                let declared = auth
+                    .credentials
+                    .get(&hold.credential)
+                    .map(|declaration| {
+                        declaration
+                            .fields
+                            .iter()
+                            .map(|field| &field.name)
+                            .collect::<BTreeSet<_>>()
+                    })
+                    .unwrap_or_default();
+                if hold.fields.keys().collect::<BTreeSet<_>>() != declared {
+                    errors.push(
+                        &format!("{field}.fields"),
+                        format!(
+                            "a take fills every field of credential {}, and only those",
+                            hold.credential
+                        ),
+                    );
+                }
+                for (credential_field, binding) in &hold.fields {
+                    let path = binding
+                        .response_reference()
+                        .and_then(|reference| reference.strip_prefix("write."));
+                    let Some(path) = path else {
+                        errors.push(
+                            &format!("{field}.fields.{credential_field}"),
+                            "a held field is one $response binding on what the write returned (write.<path>)",
+                        );
+                        continue;
+                    };
+                    let held = format!("acknowledgement.{path}");
+                    let overlaps = |read: &str| {
+                        read == held
+                            || held.starts_with(&format!("{read}."))
+                            || read.starts_with(&format!("{held}."))
+                    };
+                    if http
+                        .result_paths
+                        .values()
+                        .any(|read| overlaps(read.as_str()))
+                        || http
+                            .operation_id_path
+                            .as_ref()
+                            .is_some_and(|read| overlaps(&format!("acknowledgement.{read}")))
+                    {
+                        errors.push(
+                            &format!("{field}.fields.{credential_field}"),
+                            "the call's result reads the held value; point result_paths at the public answer only",
+                        );
+                    }
+                }
+            }
+            HoldAction::Refresh | HoldAction::Release => {
+                if !acts_on_arguments(&hold.target) {
+                    errors.push(
+                        &format!("{field}.target"),
+                        "a hold is refreshed or released by the target the call's arguments name",
+                    );
+                }
+                if !hold.fields.is_empty() {
+                    errors.push(&format!("{field}.fields"), "only a take fills fields");
+                }
+                match hold.action {
+                    HoldAction::Refresh if !single_result(&hold.expires_at) => errors.push(
+                        &format!("{field}.expires_at"),
+                        "a refresh states the new expiry as one $result binding",
+                    ),
+                    HoldAction::Release if hold.expires_at.is_some() => errors.push(
+                        &format!("{field}.expires_at"),
+                        "a release ends the hold; it states no expiry",
+                    ),
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+/// A target rendered from the call's arguments alone, which admission can
+/// render before it knows which authority serves the call.
+fn acts_on_arguments(template: &Template) -> bool {
+    template.binds_argument()
+        && !template.binds_parameter()
+        && !template.binds_exchange()
+        && !template.binds_result()
+        && !template.binds_runx()
 }
 
 /// `enforced` means the provider deduplicates by the key the call carries,

@@ -3,19 +3,17 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  PaidSkillClaimError,
   PaidSkillPriceError,
-  paidSkillClaimProblem,
+  paidSkillActsOnProblem,
   paidSkillPriceAmount,
   paidSkillPricedArtifactRef,
   paidSkillPriceProblem,
-  resolvePaidSkillClaim,
 } from "./paid-skill-price.js";
-import type { PaidSkillClaimContract, PaidSkillPriceContract } from "./schemas/paid-invocation.js";
+import type { PaidSkillPriceContract } from "./schemas/paid-invocation.js";
 import { paidSkillListingV1Schema } from "./schemas/paid-invocation.js";
 import { validateContractSchema } from "./internal.js";
 
-type Expected = { readonly amount_minor?: number; readonly url?: string; readonly error?: string };
+type Expected = { readonly amount_minor?: number; readonly error?: string };
 
 interface PriceVector {
   readonly name: string;
@@ -30,17 +28,10 @@ interface PriceVector {
   }[];
 }
 
-interface ClaimVector {
-  readonly name: string;
-  readonly expectation: "valid" | "invalid";
-  readonly claim: PaidSkillClaimContract;
-  readonly resolutions?: readonly { readonly name: string; readonly result: unknown; readonly expected: Expected }[];
-}
-
 const vectors = JSON.parse(readFileSync(
   new URL("../../../fixtures/contracts/paid-skill-price/paid-skill-price-v1.vectors.json", import.meta.url),
   "utf8",
-)) as { readonly prices: readonly PriceVector[]; readonly claims: readonly ClaimVector[] };
+)) as { readonly prices: readonly PriceVector[] };
 
 /** A price is valid when its schema and its own invariants both accept it, as in Rust. */
 function priceIsValid(price: PaidSkillPriceContract): boolean {
@@ -81,15 +72,6 @@ function priced(vector: NonNullable<PriceVector["calls"]>[number], price: PaidSk
   }
 }
 
-function resolved(claim: PaidSkillClaimContract, result: unknown): Expected {
-  try {
-    return { url: resolvePaidSkillClaim(claim, result) };
-  } catch (error) {
-    if (error instanceof PaidSkillClaimError) return { error: error.code };
-    throw error;
-  }
-}
-
 describe("paid skill prices agree with the Rust contract", () => {
   for (const vector of vectors.prices) {
     it(`${vector.name} is ${vector.expectation}`, () => {
@@ -103,13 +85,18 @@ describe("paid skill prices agree with the Rust contract", () => {
   }
 });
 
-describe("paid skill claims agree with the Rust contract", () => {
-  for (const vector of vectors.claims) {
-    it(`${vector.name} is ${vector.expectation}`, () => {
-      expect(paidSkillClaimProblem(vector.claim) === undefined).toBe(vector.expectation === "valid");
-      for (const resolution of vector.resolutions ?? []) {
-        expect(resolved(vector.claim, resolution.result), resolution.name).toEqual(resolution.expected);
-      }
-    });
-  }
+describe("what a paid runner acts on", () => {
+  it("is named by the runner's inputs alone", () => {
+    const actsOn = (target: unknown) => ({ connector: "ausca/inbox", credential: "lease", target });
+    expect(paidSkillActsOnProblem(actsOn({ $concat: ["ausca:agent-inbox/", { $argument: "/inbox_id" }] })))
+      .toBeUndefined();
+    for (const target of [
+      "ausca:agent-inbox",
+      { $result: "/inbox_id" },
+      { $concat: ["ausca:agent-inbox/", { $parameter: "/inbox_id" }] },
+      { $concat: [{ $argument: "/inbox_id" }, { $runx: "invocation" }] },
+    ]) {
+      expect(paidSkillActsOnProblem(actsOn(target)), JSON.stringify(target)).toBeDefined();
+    }
+  });
 });

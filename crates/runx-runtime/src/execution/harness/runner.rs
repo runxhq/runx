@@ -523,7 +523,11 @@ fn seed_harness_instances(
             .auth
             .credentials
             .iter()
-            .filter(|(_, declaration)| fixture.env.contains_key(declaration.delivery.env.as_str()))
+            .filter(|(_, declaration)| {
+                declaration
+                    .env()
+                    .is_some_and(|env| fixture.env.contains_key(env.as_str()))
+            })
             .map(|(name, _)| name);
         let (Some(name), None) = (set.next(), set.next()) else {
             return Err(failed(format!(
@@ -896,7 +900,11 @@ impl Host for FixtureHost<'_> {
                 }
                 Ok(response)
             }
-            ResolutionRequest::Input { id, .. } | ResolutionRequest::Retry { id, .. } => {
+            // A purchase is bought from runx, which a case never reaches:
+            // a case tests the runner it sells from its own source.
+            ResolutionRequest::Input { id, .. }
+            | ResolutionRequest::Retry { id, .. }
+            | ResolutionRequest::Purchase { id, .. } => {
                 self.unanswered.push(id.to_string());
                 Ok(None)
             }

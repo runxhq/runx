@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 use thiserror::Error;
 
 use crate::canonical_json::canonical_stable_json;
+use crate::connector::{CredentialName, Template};
 use crate::paid_invocation::{
     CurrencyCode, EmbeddedOfferRevisionRef, OfferRevisionRef, PortableAmountMinor,
     PrincipalReference, SettlementFamilies, Sha256Digest,
@@ -358,219 +359,52 @@ fn stored_artifact_ref(reference: &str) -> bool {
         })
 }
 
-const MAX_CLAIM_URL_LENGTH: usize = 512;
-const MAX_CLAIM_POINTER_SEGMENTS: usize = 8;
-const MAX_CLAIM_VALUE_LENGTH: usize = 128;
-
-/// Where a buyer claims what a fulfilled purchase bought but runx never holds,
-/// such as a lease capability. The endpoint is https on the seller's own host,
-/// fixed by the offer; only path parameters are filled, each from the runner's
-/// public result by a JSON pointer.
+/// A resource an earlier purchase bought that a paid runner acts on, such as
+/// the inbox an extension extends. runx admits the purchase only while its
+/// owner holds that resource, so the seller's run needs no bearer from its
+/// buyer (S10).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PaidSkillClaim {
-    pub url: NonEmptyString,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub bind: BTreeMap<String, NonEmptyString>,
+pub struct PaidSkillActsOn {
+    /// The seller connector the resource is held in.
+    pub connector: NonEmptyString,
+    /// That connector's `kind: purchase` credential.
+    pub credential: CredentialName,
+    /// The held resource, rendered from the runner's inputs alone.
+    pub target: Template,
 }
 
-/// Why a claim endpoint cannot be stated or resolved.
-#[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum ClaimError {
-    #[error("{0}")]
-    Invalid(String),
-    #[error("claim parameter {0} is not a plain path segment in the result")]
-    Unresolved(String),
-}
-
-impl ClaimError {
-    /// The stable name of this refusal, the same in every implementation.
-    #[must_use]
-    pub fn code(&self) -> &'static str {
-        match self {
-            Self::Invalid(_) => "invalid",
-            Self::Unresolved(_) => "unresolved",
-        }
-    }
-}
-
-impl PaidSkillClaim {
-    pub fn new(
-        url: NonEmptyString,
-        bind: BTreeMap<String, NonEmptyString>,
-    ) -> Result<Self, ClaimError> {
-        let claim = Self { url, bind };
-        claim.validate()?;
-        Ok(claim)
-    }
-
-    fn validate(&self) -> Result<(), ClaimError> {
-        let url = self.url.as_str();
-        let invalid = |reason: &str| Err(ClaimError::Invalid(format!("claim url {reason}")));
-        if url.len() > MAX_CLAIM_URL_LENGTH {
-            return invalid("is too long");
-        }
-        let Some(rest) = url.strip_prefix("https://") else {
-            return invalid("must be https");
-        };
-        let Some((authority, path)) = rest.split_once('/') else {
-            return invalid("must have a path");
-        };
-        if !valid_authority(authority) {
-            return invalid("must name a fixed host");
-        }
-        let parameters = path_parameters(path)
-            .ok_or_else(|| ClaimError::Invalid("claim url path is invalid".to_owned()))?;
-        let bound = self
-            .bind
-            .keys()
-            .map(String::as_str)
-            .collect::<BTreeSet<_>>();
-        if parameters != bound {
-            return Err(ClaimError::Invalid(
-                "every claim url parameter is bound once, and only those".to_owned(),
-            ));
-        }
-        if let Some(pointer) = self
-            .bind
-            .values()
-            .find(|pointer| !valid_pointer(pointer.as_str()))
-        {
-            return Err(ClaimError::Invalid(format!(
-                "claim binding {pointer} is not a JSON pointer of one to eight segments"
-            )));
-        }
-        Ok(())
-    }
-
-    /// The claim endpoint for a fulfilled purchase whose public result is
-    /// `result`. A bound value must be a plain path segment, so the result
-    /// cannot redirect the claim.
-    pub fn resolve(&self, result: &JsonValue) -> Result<String, ClaimError> {
-        let mut url = self.url.as_str().to_owned();
-        for (parameter, pointer) in &self.bind {
-            let value = json_pointer(result, pointer.as_str())
-                .and_then(JsonValue::as_str)
-                .filter(|value| plain_segment(value))
-                .ok_or_else(|| ClaimError::Unresolved(parameter.clone()))?;
-            url = url.replace(&format!("{{{parameter}}}"), value);
-        }
-        Ok(url)
-    }
-}
-
-impl<'de> Deserialize<'de> for PaidSkillClaim {
+impl<'de> Deserialize<'de> for PaidSkillActsOn {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
-        struct WireClaim {
-            url: NonEmptyString,
-            #[serde(default)]
-            bind: BTreeMap<String, NonEmptyString>,
+        struct WireActsOn {
+            connector: NonEmptyString,
+            credential: CredentialName,
+            target: Template,
         }
 
-        let wire = WireClaim::deserialize(deserializer)?;
-        Self::new(wire.url, wire.bind).map_err(de::Error::custom)
-    }
-}
-
-fn valid_authority(authority: &str) -> bool {
-    let (host, port) = match authority.split_once(':') {
-        Some((host, port)) => (host, Some(port)),
-        None => (authority, None),
-    };
-    let labels = host.split('.').collect::<Vec<_>>();
-    let host_valid = labels.len() >= 2
-        && labels.iter().all(|label| {
-            !label.is_empty()
-                && label.len() <= 63
-                && !label.starts_with('-')
-                && !label.ends_with('-')
-                && label
-                    .bytes()
-                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        });
-    let port_valid = port.is_none_or(|port| {
-        (1..=5).contains(&port.len())
-            && port.bytes().all(|byte| byte.is_ascii_digit())
-            && port.parse::<u16>().is_ok_and(|port| port > 0)
-    });
-    host_valid && port_valid
-}
-
-/// The `{name}` parameters of a claim path, each named once, or None when the
-/// path holds anything but unreserved characters, `/` and parameters.
-fn path_parameters(path: &str) -> Option<BTreeSet<&str>> {
-    let mut parameters = BTreeSet::new();
-    let mut rest = path;
-    while let Some(open) = rest.find('{') {
-        if !rest[..open].bytes().all(path_byte) {
-            return None;
+        let wire = WireActsOn::deserialize(deserializer)?;
+        let target = &wire.target;
+        if !target.binds_argument()
+            || target.binds_parameter()
+            || target.binds_exchange()
+            || target.binds_result()
+            || target.binds_runx()
+        {
+            return Err(de::Error::custom(
+                "acts_on target is rendered from the runner's inputs alone",
+            ));
         }
-        let close = rest[open..].find('}')? + open;
-        let name = &rest[open + 1..close];
-        if !parameter_name(name) || !parameters.insert(name) {
-            return None;
-        }
-        rest = &rest[close + 1..];
-    }
-    rest.bytes().all(path_byte).then_some(parameters)
-}
-
-fn path_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'~' | b'-' | b'/')
-}
-
-fn parameter_name(name: &str) -> bool {
-    let mut bytes = name.bytes();
-    bytes.next().is_some_and(|first| first.is_ascii_lowercase())
-        && name.len() <= 32
-        && bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
-}
-
-fn valid_pointer(pointer: &str) -> bool {
-    let Some(rest) = pointer.strip_prefix('/') else {
-        return false;
-    };
-    let segments = rest.split('/').collect::<Vec<_>>();
-    segments.len() <= MAX_CLAIM_POINTER_SEGMENTS
-        && segments.iter().all(|segment| {
-            !segment.is_empty()
-                && segment.match_indices('~').all(|(index, _)| {
-                    matches!(segment.as_bytes().get(index + 1), Some(b'0' | b'1'))
-                })
+        Ok(Self {
+            connector: wire.connector,
+            credential: wire.credential,
+            target: wire.target,
         })
-}
-
-/// The value at an RFC 6901 pointer, if there is one.
-fn json_pointer<'a>(value: &'a JsonValue, pointer: &str) -> Option<&'a JsonValue> {
-    pointer
-        .strip_prefix('/')?
-        .split('/')
-        .try_fold(value, |value, segment| {
-            let key = segment.replace("~1", "/").replace("~0", "~");
-            match value {
-                JsonValue::Object(object) => object.get(&key),
-                JsonValue::Array(items) => key
-                    .parse::<usize>()
-                    .ok()
-                    .filter(|_| key == "0" || !key.starts_with('0'))
-                    .and_then(|index| items.get(index)),
-                _ => None,
-            }
-        })
-}
-
-fn plain_segment(value: &str) -> bool {
-    (1..=MAX_CLAIM_VALUE_LENGTH).contains(&value.len())
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'~' | b'-'))
-        && value != "."
-        && value != ".."
+    }
 }
 
 /// Provider-neutral commercial terms authored for one ordinary skill runner.
@@ -583,7 +417,7 @@ pub struct PaidSkillOfferTerms {
     pub input_schema_digest: Sha256Digest,
     pub output_schema_digest: Sha256Digest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claim: Option<PaidSkillClaim>,
+    pub acts_on: Option<PaidSkillActsOn>,
 }
 
 /// An exact execution package: the skill and runner, and the digests of the
@@ -606,7 +440,7 @@ pub struct PaidSkillRunnerOffer {
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claim: Option<PaidSkillClaim>,
+    pub acts_on: Option<PaidSkillActsOn>,
 }
 
 impl PaidSkillRunnerOffer {
@@ -618,7 +452,7 @@ impl PaidSkillRunnerOffer {
             price: terms.price.clone(),
             currency: terms.currency.clone(),
             accepted_settlement_families: terms.accepted_settlement_families.clone(),
-            claim: terms.claim.clone(),
+            acts_on: terms.acts_on.clone(),
         }
     }
 }
@@ -695,10 +529,6 @@ mod tests {
 
     fn inputs(value: Value) -> JsonObject {
         serde_json::from_value(value).unwrap_or_default()
-    }
-
-    fn result(value: Value) -> JsonValue {
-        serde_json::from_value(value).unwrap_or(JsonValue::Null)
     }
 
     fn amount(value: u64) -> PortableAmountMinor {
@@ -871,52 +701,8 @@ mod tests {
     }
 
     #[test]
-    fn a_claim_fills_only_path_segments_on_a_fixed_host() -> Result<(), serde_json::Error> {
-        let claim: PaidSkillClaim = serde_json::from_value(json!({
-            "url": "https://inbox.ausca.com/v1/agent-inboxes/{inbox_id}/claim",
-            "bind": {"inbox_id": "/resource_lease/inbox_id"}
-        }))?;
-        assert_eq!(
-            claim.resolve(&result(
-                json!({"resource_lease": {"inbox_id": "inb_abc-123"}})
-            )),
-            Ok("https://inbox.ausca.com/v1/agent-inboxes/inb_abc-123/claim".to_owned())
-        );
-        for result in [
-            json!({"resource_lease": {"inbox_id": "../admin"}}),
-            json!({"resource_lease": {"inbox_id": "a/b"}}),
-            json!({"resource_lease": {"inbox_id": ".."}}),
-            json!({"resource_lease": {"inbox_id": 7}}),
-            json!({"resource_lease": {}}),
-        ] {
-            assert_eq!(
-                claim.resolve(&super::tests::result(result)),
-                Err(ClaimError::Unresolved("inbox_id".to_owned()))
-            );
-        }
-
-        for invalid in [
-            json!({"url": "http://inbox.ausca.com/claim"}),
-            json!({"url": "https://{host}.ausca.com/claim", "bind": {"host": "/host"}}),
-            json!({"url": "https://inbox.ausca.com"}),
-            json!({"url": "https://localhost/claim"}),
-            json!({"url": "https://inbox.ausca.com/claim?inbox={id}", "bind": {"id": "/id"}}),
-            json!({"url": "https://inbox.ausca.com/{id}/claim"}),
-            json!({"url": "https://inbox.ausca.com/claim", "bind": {"id": "/id"}}),
-            json!({"url": "https://inbox.ausca.com/{id}/{id}", "bind": {"id": "/id"}}),
-            json!({"url": "https://inbox.ausca.com/{id}", "bind": {"id": "id"}}),
-            json!({"url": "https://user@inbox.ausca.com/claim"}),
-        ] {
-            assert!(
-                serde_json::from_value::<PaidSkillClaim>(invalid.clone()).is_err(),
-                "{invalid} must be refused"
-            );
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn a_runner_offer_carries_its_terms_price_and_claim() -> Result<(), serde_json::Error> {
+    fn a_runner_offer_carries_its_terms_price_and_what_it_acts_on() -> Result<(), serde_json::Error>
+    {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
             "price": {"model": "input_choice", "selectors": ["duration_seconds"], "cases": [
                 {"when": [3600], "amount_minor": 5}
@@ -925,9 +711,10 @@ mod tests {
             "accepted_settlement_families": ["x402"],
             "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
             "output_schema_digest": format!("sha256:{}", "e".repeat(64)),
-            "claim": {
-                "url": "https://inbox.ausca.com/v1/agent-inboxes/{inbox_id}/claim",
-                "bind": {"inbox_id": "/resource_lease/inbox_id"}
+            "acts_on": {
+                "connector": "ausca/inbox",
+                "credential": "lease",
+                "target": {"$concat": ["ausca:agent-inbox/", {"$argument": "/inbox_id"}]}
             }
         }))?;
         let offer = PaidSkillRunnerOffer::from_terms(
@@ -935,7 +722,22 @@ mod tests {
             &terms,
         );
         assert_eq!(offer.price, terms.price);
-        assert_eq!(offer.claim, terms.claim);
+        assert_eq!(offer.acts_on, terms.acts_on);
+        for target in [
+            json!("ausca:agent-inbox"),
+            json!({"$result": "/inbox_id"}),
+            json!({"$concat": ["ausca:agent-inbox/", {"$parameter": "/inbox_id"}]}),
+        ] {
+            assert!(
+                serde_json::from_value::<PaidSkillActsOn>(json!({
+                    "connector": "ausca/inbox",
+                    "credential": "lease",
+                    "target": target
+                }))
+                .is_err(),
+                "{target} must be refused"
+            );
+        }
         assert!(
             serde_json::from_value::<PaidSkillOfferTerms>(json!({
                 "currency": "USD",

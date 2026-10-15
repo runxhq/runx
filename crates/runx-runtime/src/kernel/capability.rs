@@ -161,6 +161,18 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             reachable_scopes(request.connector, public_may),
             Vec::new(),
         )),
+        // What a purchase holds serves the operations on its resource, and
+        // only that resource; runx Connect refuses a target it holds nothing
+        // for before anything is sent.
+        InstanceAuthority::Held { credential, target } => Ok(capability(
+            instance,
+            request.connector,
+            None,
+            reachable_scopes(request.connector, |operation| {
+                operation.credentials.contains(credential)
+            }),
+            vec![target.as_str().to_owned()],
+        )),
     }
 }
 

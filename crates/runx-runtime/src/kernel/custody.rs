@@ -232,6 +232,11 @@ impl EffectCustody {
         Self { store, key }
     }
 
+    /// The custody of an act the kernel names itself, such as a purchase.
+    pub(crate) fn for_key(store: Arc<KernelStore>, key: String) -> Self {
+        Self { store, key }
+    }
+
     /// The key of the use an attempt of `intent_digest` takes in `sequence`.
     pub(crate) fn use_key(&self, sequence: u64, intent_digest: &str) -> String {
         sha256_prefixed(format!("{}\0{sequence}\0{intent_digest}", self.key).as_bytes())
@@ -329,6 +334,18 @@ impl EffectCustody {
         bounded: &[UseCover],
         spend: Option<&super::spend::SpendCover>,
     ) -> Result<(), CustodyError> {
+        self.attempt_with(attempt, bounded, spend, Vec::new())
+    }
+
+    /// Record an attempt with appends of its own that commit with it, such as
+    /// what a purchase needs to be sent again.
+    pub(crate) fn attempt_with(
+        &self,
+        attempt: &Attempt<'_>,
+        bounded: &[UseCover],
+        spend: Option<&super::spend::SpendCover>,
+        with: Vec<Append>,
+    ) -> Result<(), CustodyError> {
         if let Some(pending) = self.pending()? {
             if pending.intent_digest != attempt.intent_digest
                 || pending.authority_term_id != attempt.authority_term_id
@@ -346,12 +363,13 @@ impl EffectCustody {
                 ));
             }
         }
-        let mut batch = Vec::with_capacity(2 + bounded.len());
+        let mut batch = Vec::with_capacity(2 + bounded.len() + with.len());
         for cover in bounded {
             if let Some(append) = cover.reservation()? {
                 batch.push(append);
             }
         }
+        batch.extend(with);
         if let Some(append) = spend
             .map(super::spend::SpendCover::reservation)
             .transpose()?

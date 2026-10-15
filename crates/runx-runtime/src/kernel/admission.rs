@@ -278,9 +278,15 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     reasons.1 = Some(operation_spec.verb.authority_verb());
 
     // Instance: the one binding the call runs under, with its pins current.
-    let instance = match evaluation.context.instances.resolve(&connector) {
-        Ok(instance) => instance,
-        Err(error) => return Err(reasons.refuse(AdmissionCheck::Instance, error.to_string())),
+    // An operation on a held resource runs under what a purchase holds for
+    // it, found by the target its arguments name, never a selected instance.
+    let instance = match held_resource(evaluation, &connector, operation_spec) {
+        Some(Ok(instance)) => instance,
+        Some(Err(detail)) => return Err(reasons.refuse(AdmissionCheck::Instance, detail)),
+        None => match evaluation.context.instances.resolve(&connector) {
+            Ok(instance) => instance,
+            Err(error) => return Err(reasons.refuse(AdmissionCheck::Instance, error.to_string())),
+        },
     };
     if let Err(detail) = pins_current(&connector, &operation_name, &operation_digest, &instance) {
         return Err(reasons.refuse(AdmissionCheck::Instance, detail));
@@ -992,6 +998,58 @@ fn pins_current(
 
 /// The rendered target and the request key, after the call's shape is
 /// checked against the operation.
+/// What a purchase holds for the call's resource, pinned for this call: the
+/// operation's purchase credential on the target its arguments render. None
+/// for an operation a connector instance serves.
+fn held_resource(
+    evaluation: &Evaluation<'_>,
+    connector: &LoadedConnector,
+    operation: &ConnectorOperation,
+) -> Option<Result<ConnectorInstance, String>> {
+    let credential = operation.credentials.iter().find(|name| {
+        connector
+            .manifest
+            .auth
+            .credentials
+            .get(*name)
+            .is_some_and(runx_contracts::connector::CredentialDeclaration::is_purchase)
+    })?;
+    Some((|| {
+        let arguments = JsonValue::Object(evaluation.call.input.clone());
+        let target = operation
+            .target
+            .template
+            .render_string(&TemplateInputs {
+                arguments: Some(&arguments),
+                ..TemplateInputs::default()
+            })
+            .map_err(|error| format!("the held resource cannot be named: {error}"))?;
+        let session = evaluation
+            .context
+            .hosted
+            .session(evaluation.context.env, evaluation.context.cwd)
+            .map_err(|error| {
+                format!("what a purchase holds is reached through a runx account: {error}")
+            })?;
+        Ok(super::instances::pinned(
+            connector,
+            super::instances::instance_id(&[
+                "held",
+                connector.name.as_str(),
+                credential.as_str(),
+                &target,
+            ])?,
+            runx_contracts::Placement::Hosted,
+            session.principal_ref,
+            None,
+            runx_contracts::InstanceAuthority::Held {
+                credential: credential.clone(),
+                target: target.into(),
+            },
+        ))
+    })())
+}
+
 fn call_shape(
     evaluation: &Evaluation<'_>,
     operation: &ConnectorOperation,

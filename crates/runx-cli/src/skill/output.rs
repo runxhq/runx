@@ -457,6 +457,9 @@ fn write_pending_requests(
             let id = object_string(request, "id").unwrap_or("<unknown>");
             let kind = object_string(request, "kind").unwrap_or("<unknown>");
             writeln!(writer, "- {kind}: {id}")?;
+            if let Some(purchase) = request.get("purchase").and_then(JsonValue::as_object) {
+                write_purchase(writer, purchase)?;
+            }
         }
     }
     if let Some(template) = answers_template(requests) {
@@ -471,6 +474,50 @@ fn write_pending_requests(
                 answers_path: resume.answers_path,
             });
         writeln!(writer, "next: resolve the request, then rerun: {command}")?;
+    }
+    Ok(())
+}
+
+/// What a purchase asks its buyer to decide (N10): what, from whom, for how
+/// much until when, and each method that can pay it.
+fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<()> {
+    let text = |key: &str| object_string(purchase, key).unwrap_or("<unknown>");
+    let amount = match purchase.get("amount_minor") {
+        Some(JsonValue::Number(amount)) => {
+            serde_json::to_string(amount).unwrap_or_else(|_| "<unknown>".to_owned())
+        }
+        _ => "<unknown>".to_owned(),
+    };
+    let seller = purchase
+        .get("seller")
+        .and_then(JsonValue::as_object)
+        .and_then(|seller| object_string(seller, "uri"))
+        .unwrap_or("<unknown>");
+    let expires = purchase
+        .get("quote")
+        .and_then(JsonValue::as_object)
+        .and_then(|quote| object_string(quote, "expires_at"))
+        .unwrap_or("<unknown>");
+    writeln!(
+        writer,
+        "  buys {}#{} from {seller} for {amount} {} minor units, quote expires {expires}",
+        text("skill"),
+        text("runner"),
+        text("currency"),
+    )?;
+    for method in purchase
+        .get("methods")
+        .and_then(JsonValue::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(JsonValue::as_object)
+    {
+        writeln!(
+            writer,
+            "  method {} ({})",
+            object_string(method, "instance_id").unwrap_or("<unknown>"),
+            object_string(method, "connector").unwrap_or("<unknown>"),
+        )?;
     }
     Ok(())
 }
@@ -510,6 +557,29 @@ fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
                 JsonValue::Object(JsonObject::from([
                     digest,
                     ("approved".to_owned(), JsonValue::Bool(false)),
+                ])),
+            );
+        } else if object_string(object, "kind") == Some("purchase") {
+            // A purchase is the person's: declined until they approve it and
+            // name the method they pay with.
+            let first_method = object
+                .get("purchase")
+                .and_then(JsonValue::as_object)
+                .and_then(|purchase| purchase.get("methods"))
+                .and_then(JsonValue::as_array)
+                .and_then(|methods| methods.first())
+                .and_then(JsonValue::as_object)
+                .and_then(|method| object_string(method, "instance_id"))
+                .unwrap_or_default();
+            approvals.insert(
+                id.to_owned(),
+                JsonValue::Object(JsonObject::from([
+                    digest,
+                    ("approved".to_owned(), JsonValue::Bool(false)),
+                    (
+                        "choice".to_owned(),
+                        JsonValue::String(first_method.to_owned()),
+                    ),
                 ])),
             );
         } else {

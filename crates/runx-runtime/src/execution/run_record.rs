@@ -125,6 +125,10 @@ pub(crate) struct Started {
     /// The operator context the run was prepared with, held for every pass.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepared: Option<crate::execution::prepared_skill::PreparedContext>,
+    /// The registry reference the run buys, when its runner is one the
+    /// registry sells: the kernel buys it rather than run it (S10).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purchase: Option<String>,
     pub created_at: String,
 }
 
@@ -703,6 +707,7 @@ impl RunLog {
             act: started.act.cloned(),
             driver: started.driver,
             prepared: started.prepared.cloned(),
+            purchase: started.purchase.map(str::to_owned),
             created_at: started.created_at.to_owned(),
         };
         let mut blobs = vec![inputs];
@@ -1206,6 +1211,7 @@ pub(crate) struct StartRequest<'a> {
     pub act: Option<&'a CallAct>,
     pub driver: RunDriver,
     pub prepared: Option<&'a crate::execution::prepared_skill::PreparedContext>,
+    pub purchase: Option<&'a str>,
     pub created_at: &'a str,
 }
 
@@ -1324,7 +1330,8 @@ fn request_blob(request: &ResolutionRequest) -> Result<(String, Blob, String), R
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::AgentAct { id, .. }
-        | ResolutionRequest::Retry { id, .. } => id.to_string(),
+        | ResolutionRequest::Retry { id, .. }
+        | ResolutionRequest::Purchase { id, .. } => id.to_string(),
     };
     Ok((id, Blob::new(bytes)?, digest))
 }
@@ -1926,6 +1933,8 @@ pub struct PausedRun {
     pub runner: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
+    /// The registry reference the run buys, when it is a purchase.
+    pub purchase: Option<String>,
     pub waiting: Vec<PendingRequest>,
 }
 
@@ -1957,6 +1966,7 @@ pub fn paused_run(
         runner: started.runner,
         package_digest: started.package_digest,
         execution_closure_digest: started.execution_closure_digest,
+        purchase: started.purchase,
         waiting: waiting_requests(&store, run_id)?,
     }))
 }

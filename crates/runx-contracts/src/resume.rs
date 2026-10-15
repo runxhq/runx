@@ -113,7 +113,8 @@ pub struct BoundAnswer {
 }
 
 /// A person's decision, validated against the request it answers: an
-/// approval takes `approved` and `reason`; a claimed call's retry takes
+/// approval takes `approved` and `reason`, and a purchase's (N10) also the
+/// `choice` of method it pays with; a claimed call's retry takes
 /// `value: {"retry": true}`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -123,6 +124,9 @@ pub struct BoundApproval {
     pub approved: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<NonEmptyString>,
+    /// The instance of the purchase request's method the person pays with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub choice: Option<NonEmptyString>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<JsonValue>,
 }

@@ -231,7 +231,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
         )?,
         valid::<Purchase>(
             "purchase-fulfilled.json",
-            "A purchaser reads its fulfilled purchase: the invocation, the purchase receipt, the runner's public result and where to claim. Never the seller's run.",
+            "A purchaser reads its fulfilled purchase: the invocation, the purchase receipt, the runner's public result and what runx holds for it, never a held value. Never the seller's run.",
             "Purchase",
             "runx.payment.purchase.v1",
             json!({
@@ -244,7 +244,13 @@ fn vectors() -> io::Result<Vec<Vector>> {
                     "signature": {"alg": "Ed25519", "value": "base64:fixture"}
                 },
                 "result": {"resource_lease": {"inbox_id": "inb_7Hq2x9", "address": "agent@inbox.example"}},
-                "claim_url": "https://inbox.example.com/v1/agent-inboxes/inb_7Hq2x9/claim"
+                "holds": [{
+                    "connector": "ausca/inbox",
+                    "credential": "lease",
+                    "target": "ausca:agent-inbox/inb_7Hq2x9",
+                    "expires_at": "2026-08-22T10:00:00Z",
+                    "value_digest": format!("sha256:{}", "a".repeat(64))
+                }]
             }),
         )?,
         valid::<GetPaidInvocationResult>(

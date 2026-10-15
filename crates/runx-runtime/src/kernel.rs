@@ -21,6 +21,7 @@ pub mod connectors;
 pub(crate) mod custody;
 pub mod instances;
 pub mod operation;
+pub(crate) mod purchase;
 pub(crate) mod session;
 pub mod setup;
 pub(crate) mod spend;

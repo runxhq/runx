@@ -18,6 +18,9 @@ placements:
   hosted:
     auth: credential
     credential: wallet
+pays:
+  x402:
+    networks: ["eip155:8453"]
 operations:
   payment.x402:
     description: Pay the x402 challenge of one HTTPS resource and return the paid result.

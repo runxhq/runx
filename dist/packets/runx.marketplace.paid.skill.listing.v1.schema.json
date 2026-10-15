@@ -21,24 +21,24 @@
             "type": "array",
             "uniqueItems": true
           },
-          "claim": {
+          "acts_on": {
             "additionalProperties": false,
             "properties": {
-              "bind": {
-                "additionalProperties": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "minProperties": 1,
-                "type": "object"
-              },
-              "url": {
+              "connector": {
                 "minLength": 1,
                 "type": "string"
-              }
+              },
+              "credential": {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "target": {}
             },
             "required": [
-              "url"
+              "connector",
+              "credential",
+              "target"
             ],
             "type": "object"
           },

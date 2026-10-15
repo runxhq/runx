@@ -202,6 +202,21 @@ impl Driver for Http<'_> {
         write: &JsonValue,
         confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
+        // What a purchase bought reaches the kernel only as runx Connect's
+        // evidence of the hold; a value there is refused, never recorded.
+        for path in &self.call.held {
+            let evidence = at_path(write, path)
+                .and_then(JsonValue::as_object)
+                .is_some_and(|value| {
+                    value.len() == 1
+                        && value.contains_key(runx_contracts::connector::HOLD_EVIDENCE_KEY)
+                });
+            if !evidence {
+                return Err(format!(
+                    "the answer carries no hold evidence at {path}; a held value never reaches the kernel"
+                ));
+            }
+        }
         let readbacks = if self.call.mutation() {
             confirmed.to_vec()
         } else {
@@ -1355,7 +1370,7 @@ mod tests {
                 let gateway = Gateway {
                     connector_binding: &binding,
                     session: &session,
-                    grant_id: "grant_sales",
+                    authority: crate::provider_operations::ProviderAuthority::Grant("grant_sales"),
                     operation: "sale.create",
                     operation_digest: "sha256:operation",
                     implementation_digest: "sha256:implementation",

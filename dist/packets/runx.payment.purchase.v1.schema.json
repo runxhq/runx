@@ -5,10 +5,6 @@
   "x-runx-generated-from": "schemas/purchase.schema.json",
   "additionalProperties": false,
   "properties": {
-    "claim_url": {
-      "minLength": 1,
-      "type": "string"
-    },
     "failure": {
       "additionalProperties": false,
       "properties": {
@@ -28,6 +24,44 @@
         "message"
       ],
       "type": "object"
+    },
+    "holds": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "credential": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expires_at": {
+            "minLength": 1,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+            "type": "string"
+          },
+          "target": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "value_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connector",
+          "credential",
+          "target",
+          "expires_at",
+          "value_digest"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
     },
     "invocation": {
       "$id": "https://schemas.runx.ai/runx/payment/paid-invocation/v1.json",

@@ -780,7 +780,7 @@ impl ConnectorScope {
         Ok(connectors
             .iter()
             .flat_map(|connector| connector.manifest.auth.credentials.values())
-            .map(|declaration| declaration.delivery.env.as_str().to_owned())
+            .filter_map(|declaration| declaration.env().map(|env| env.as_str().to_owned()))
             .collect())
     }
 

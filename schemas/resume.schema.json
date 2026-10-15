@@ -29,6 +29,10 @@
           "approved": {
             "type": "boolean"
           },
+          "choice": {
+            "minLength": 1,
+            "type": "string"
+          },
           "reason": {
             "minLength": 1,
             "type": "string"

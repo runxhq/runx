@@ -1,5 +1,5 @@
-//! Price and claim vectors for paid skill offers: every implementation that
-//! prices a purchase or resolves a claim agrees with these, computed by Rust.
+//! Price vectors for paid skill offers: every implementation that prices a
+//! purchase agrees with these, computed by Rust.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::canonical_json::canonical_stable_json;
-use runx_contracts::{JsonObject, JsonValue, PaidSkillClaim, PaidSkillPrice};
+use runx_contracts::{JsonObject, PaidSkillPrice};
 use serde_json::{Value, json};
 
 const FIXTURE: &str = "paid-skill-price-v1.vectors.json";
@@ -189,73 +189,7 @@ fn fixture_document() -> io::Result<Value> {
         )?,
     ];
 
-    let inbox_claim = json!({
-        "url": "https://inbox.ausca.com/v1/agent-inboxes/{inbox_id}/claim",
-        "bind": {"inbox_id": "/resource_lease/inbox_id"}
-    });
-    let claims = vec![
-        claim_case(
-            "inbox",
-            inbox_claim,
-            vec![
-                resolution(
-                    "plain",
-                    json!({"resource_lease": {"inbox_id": "inb_7Hq-2x_9"}}),
-                ),
-                resolution("traversal", json!({"resource_lease": {"inbox_id": ".."}})),
-                resolution("slash", json!({"resource_lease": {"inbox_id": "a/b"}})),
-                resolution("encoded", json!({"resource_lease": {"inbox_id": "a%2Fb"}})),
-                resolution("number", json!({"resource_lease": {"inbox_id": 7}})),
-                resolution("absent", json!({"resource_lease": {}})),
-            ],
-        )?,
-        claim_case(
-            "escaped-pointer",
-            json!({
-                "url": "https://claims.example.com/{id}",
-                "bind": {"id": "/a~1b/c~0d"}
-            }),
-            vec![resolution("escaped", json!({"a/b": {"c~d": "x1"}}))],
-        )?,
-        claim_case(
-            "fixed-path",
-            json!({"url": "https://claims.example.com:8443/v1/claim"}),
-            vec![resolution("no-parameters", json!({}))],
-        )?,
-        claim_case(
-            "http",
-            json!({"url": "http://claims.example.com/claim"}),
-            vec![],
-        )?,
-        claim_case(
-            "host-parameter",
-            json!({"url": "https://{id}.example.com/claim", "bind": {"id": "/id"}}),
-            vec![],
-        )?,
-        claim_case(
-            "query",
-            json!({"url": "https://claims.example.com/claim?id={id}", "bind": {"id": "/id"}}),
-            vec![],
-        )?,
-        claim_case(
-            "unbound-parameter",
-            json!({"url": "https://claims.example.com/{id}"}),
-            vec![],
-        )?,
-        claim_case(
-            "unused-binding",
-            json!({"url": "https://claims.example.com/claim", "bind": {"id": "/id"}}),
-            vec![],
-        )?,
-        claim_case(
-            "single-label-host",
-            json!({"url": "https://localhost/claim"}),
-            vec![],
-        )?,
-    ];
-
     Ok(json!({
-        "claims": claims,
         "prices": prices,
         "schema": "runx.paid_skill_price.fixtures.v1",
     }))
@@ -307,48 +241,6 @@ fn price_case(name: &str, price: Value, calls: Vec<Call>) -> io::Result<Value> {
         })
         .collect::<io::Result<Vec<_>>>()?;
     Ok(json!({"calls": calls, "expectation": "valid", "name": name, "price": price}))
-}
-
-struct Resolution {
-    name: &'static str,
-    result: Value,
-}
-
-fn resolution(name: &'static str, result: Value) -> Resolution {
-    Resolution { name, result }
-}
-
-fn claim_case(name: &str, claim: Value, resolutions: Vec<Resolution>) -> io::Result<Value> {
-    let Ok(parsed) = serde_json::from_value::<PaidSkillClaim>(claim.clone()) else {
-        if !resolutions.is_empty() {
-            return Err(io::Error::other(format!(
-                "claim fixture {name} is invalid but has resolutions"
-            )));
-        }
-        return Ok(json!({"claim": claim, "expectation": "invalid", "name": name}));
-    };
-    let resolutions = resolutions
-        .into_iter()
-        .map(|resolution| {
-            let result = serde_json::from_value::<JsonValue>(resolution.result.clone())
-                .map_err(io::Error::other)?;
-            let expected = match parsed.resolve(&result) {
-                Ok(url) => json!({"url": url}),
-                Err(error) => json!({"error": error.code()}),
-            };
-            Ok(json!({
-                "expected": expected,
-                "name": resolution.name,
-                "result": resolution.result,
-            }))
-        })
-        .collect::<io::Result<Vec<_>>>()?;
-    Ok(json!({
-        "claim": claim,
-        "expectation": "valid",
-        "name": name,
-        "resolutions": resolutions,
-    }))
 }
 
 /// Sorted keys at every depth, as the contract fixture checks require.

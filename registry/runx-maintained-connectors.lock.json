@@ -122,8 +122,8 @@
     },
     {
       "ref": "wallet/evm",
-      "version": "sha-86a56940620c",
-      "content_digest": "sha256:86a56940620cf6de09542c72331ccf760718befd09c83ddcf23d882929895ad1"
+      "version": "sha-0e9a67b02626",
+      "content_digest": "sha256:0e9a67b0262644edfddcc812b1c127961c316e791fd4ebb4982c335b5a4d6bfc"
     },
     {
       "ref": "web",

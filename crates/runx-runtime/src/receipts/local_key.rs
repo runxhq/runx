@@ -53,23 +53,6 @@ pub(crate) fn load_or_create_local_signer(
     Ed25519ReceiptSigner::local(&load_or_create_seed(paths)?)
 }
 
-/// A key seed the home derives for one purpose and one subject, such as the
-/// purchaser key of one purchase. The home seed never leaves this module, each
-/// purpose labels its own derivation, and the same home derives the same seed
-/// on every call.
-pub(crate) fn derive_home_seed(
-    paths: &RunxPaths,
-    purpose: &str,
-    subject: &str,
-) -> Result<Zeroizing<[u8; 32]>, RuntimeReceiptSigningError> {
-    let seed = load_or_create_seed(paths)?;
-    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &seed);
-    let tag = ring::hmac::sign(&key, format!("{purpose}\0{subject}").as_bytes());
-    let mut derived = Zeroizing::new([0_u8; 32]);
-    derived.copy_from_slice(tag.as_ref());
-    Ok(derived)
-}
-
 fn load_or_create_seed(
     paths: &RunxPaths,
 ) -> Result<Zeroizing<Vec<u8>>, RuntimeReceiptSigningError> {

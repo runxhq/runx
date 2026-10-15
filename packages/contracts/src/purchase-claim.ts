@@ -15,6 +15,7 @@ import {
  */
 
 export const PURCHASE_CLAIM_SCHEMA = "runx.payment.purchase_claim.v1";
+export const PURCHASE_READ_SCHEMA = "runx.payment.purchase_read.v1";
 export const PURCHASE_RECEIPT_SCHEMA = "runx.hosted_paid_invocation_terminal_receipt.v1";
 
 export type PurchaseClaimContract = DeepReadonly<{
@@ -36,6 +37,24 @@ const PURCHASER_KEY = /^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/u;
 /** An Ed25519 public key a purchaser holds, spelled the one way runx accepts. */
 export function isPurchaserKey(value: unknown): value is string {
   return typeof value === "string" && PURCHASER_KEY.test(value);
+}
+
+/**
+ * The bytes a purchaser signs to read its purchase, which may have no
+ * receipt yet: the read schema, the method and URL, and the time. runx
+ * refuses a read signed outside a short window around its clock.
+ */
+export function purchaseReadMessage(input: {
+  readonly method: string;
+  readonly url: string;
+  readonly issuedAt: string;
+}): Uint8Array<ArrayBuffer> {
+  return new TextEncoder().encode(canonicalJsonStringify({
+    schema: PURCHASE_READ_SCHEMA,
+    method: input.method,
+    url: input.url,
+    issued_at: input.issuedAt,
+  }));
 }
 
 /** The bytes a purchaser signs for one claim. */

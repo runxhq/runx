@@ -239,6 +239,27 @@ impl LocalOrchestrator {
         Ok(output)
     }
 
+    /// Run a skill reached through the registry by `registry_ref`. A runner
+    /// the registry sells is bought, not run here: the run is one step that
+    /// calls it, and the kernel buys it as it buys any call (S10).
+    pub fn buy_skill(
+        &self,
+        request: &SkillRunRequest,
+        registry_ref: &str,
+        runner: Option<&str>,
+    ) -> Result<RunResult, OrchestratorError> {
+        let overrides = super::skill_front::SkillRunOverrides {
+            runner: runner.map(str::to_owned),
+            purchase: Some(registry_ref.to_owned()),
+            ..Default::default()
+        };
+        Ok(super::skill_front::execute_skill_run_with_overrides(
+            request,
+            &overrides,
+            &self.effects,
+        )?)
+    }
+
     pub fn run_skill_with_runner(
         &self,
         request: &SkillRunRequest,
@@ -270,6 +291,7 @@ impl LocalOrchestrator {
             &super::skill_front::SkillRunOverrides {
                 runner: Some(runner.to_owned()),
                 javascript: Some(javascript),
+                purchase: None,
             },
             &self.effects,
             Some(package_digest),

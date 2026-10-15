@@ -1,8 +1,8 @@
-//! How a purchaser collects what a fulfilled purchase bought but runx never
-//! holds, such as a lease capability (S10). runx signs the purchase receipt,
-//! which binds the purchaser's key; the purchaser signs each claim with that
-//! key, so a receipt alone never claims. The seller verifies both against
-//! runx's published trust root and its own identity in the receipt.
+//! How a purchase owned by a purchaser key is read and claimed (S10). The
+//! purchase binds the key; runx holds what the purchase bought. The owner
+//! signs each read with the key, and each claim of a held value with the key
+//! over the purchase receipt, so neither a purchase id nor a receipt alone
+//! reads or claims anything.
 
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use crate::canonical_json::{CanonicalJsonError, canonical_stable_json};
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
 pub const PURCHASE_CLAIM_SCHEMA: &str = "runx.payment.purchase_claim.v1";
+pub const PURCHASE_READ_SCHEMA: &str = "runx.payment.purchase_read.v1";
 /// The receipt runx seals when a purchase's fulfilment wins.
 pub const PURCHASE_RECEIPT_SCHEMA: &str = "runx.hosted_paid_invocation_terminal_receipt.v1";
 
@@ -84,7 +85,8 @@ impl RunxSchema for PurchaserSignature {
     }
 }
 
-/// What a purchaser sends a seller's claim endpoint (`runx.payment.purchase_claim.v1`).
+/// What a purchaser sends runx's claim route for a held value
+/// (`runx.payment.purchase_claim.v1`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.payment.purchase_claim.v1")]
@@ -112,6 +114,23 @@ pub fn purchase_claim_message(
         "claim_url": claim_url,
         "issued_at": issued_at,
         "receipt_digest": receipt_digest,
+    }))
+    .map(String::into_bytes)
+}
+
+/// The bytes a purchaser signs to read its purchase, which may have no
+/// receipt yet: the read schema, the method and URL, and the time, as stable
+/// JSON. runx refuses a read signed outside a short window around its clock.
+pub fn purchase_read_message(
+    method: &str,
+    url: &str,
+    issued_at: &str,
+) -> Result<Vec<u8>, CanonicalJsonError> {
+    canonical_stable_json(&json!({
+        "schema": PURCHASE_READ_SCHEMA,
+        "method": method,
+        "url": url,
+        "issued_at": issued_at,
     }))
     .map(String::into_bytes)
 }

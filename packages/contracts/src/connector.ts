@@ -65,10 +65,36 @@ export interface CredentialField {
 }
 
 export interface CredentialDeclaration {
+  /** `api_key`, `oauth1_user`, ... or `purchase`: filled by a purchase, held by runx Connect. */
   readonly kind: string;
   readonly fields: readonly CredentialField[];
-  readonly delivery: { readonly env: string };
+  /** How the local placement delivers it; a purchase credential has none. */
+  readonly delivery?: { readonly env: string };
   readonly audience?: readonly string[];
+}
+
+/**
+ * What a hosted call does to a resource a purchase holds: runx Connect takes
+ * the credential's fields from the provider's answer, moves its expiry, or
+ * ends the hold, and the kernel sees only the hold's evidence.
+ */
+export interface OperationHold {
+  readonly action: "take" | "refresh" | "release";
+  /** The connector's `kind: purchase` credential. */
+  readonly credential: string;
+  /** The held resource: from the call's result on a take, its arguments otherwise. */
+  readonly target: Template;
+  /** One `$result` binding; a take and a refresh state it. */
+  readonly expires_at?: Template;
+  /** Each credential field and the `$response` binding on the write that fills it. */
+  readonly fields?: { readonly [field: string]: Template };
+}
+
+/** Where runx Connect put a held value in a provider answer, as `{"$held": ...}`. */
+export interface HoldEvidence {
+  readonly target: string;
+  readonly expires_at: string;
+  readonly value_digest: string;
 }
 
 export interface HttpRequest {
@@ -131,6 +157,8 @@ export interface ConnectorOperation {
    * arguments and result, one per element of the `each` result array.
    */
   readonly effect?: OperationEffect;
+  /** What the call does to a resource a purchase holds. */
+  readonly holds?: OperationHold;
   /** Present when the hosted placement offers the operation. */
   readonly hosted?: { readonly provider_scopes?: readonly string[] };
   readonly implementation?: {
@@ -183,6 +211,8 @@ export interface ConnectorManifest {
   };
   readonly operations: { readonly [name: string]: ConnectorOperation };
   readonly references?: readonly ReferenceDeclaration[];
+  /** What a payment connector pays in, so a purchase offers it only for a quote it can pay. */
+  readonly pays?: { readonly x402: { readonly networks: readonly string[] } };
 }
 
 /** The external reference kinds a connector's locators may name. */

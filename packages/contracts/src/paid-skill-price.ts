@@ -1,12 +1,12 @@
 import { canonicalJsonStringify } from "./canonical-json.js";
 import type {
-  PaidSkillClaimContract,
+  PaidSkillActsOnContract,
   PaidSkillPriceChoiceContract,
   PaidSkillPriceContract,
 } from "./schemas/paid-invocation.js";
 
 /**
- * Paid skill prices and claim endpoints, as the Rust contract computes them:
+ * Paid skill prices, as the Rust contract computes them:
  * `fixtures/contracts/paid-skill-price` holds the vectors both agree on.
  */
 
@@ -159,122 +159,36 @@ function artifactAmount(
   return amount >= 1n && amount <= MAX_PORTABLE_INTEGER ? Number(amount) : undefined;
 }
 
-const MAX_CLAIM_URL_LENGTH = 512;
-const MAX_CLAIM_POINTER_SEGMENTS = 8;
-const MAX_CLAIM_VALUE_LENGTH = 128;
-const PATH_TEXT = /^[A-Za-z0-9._~\/-]*$/u;
-const PARAMETER_NAME = /^[a-z][a-z0-9_]{0,31}$/u;
-const HOST_LABEL = /^[a-z0-9-]{1,63}$/u;
-const PLAIN_SEGMENT = /^[A-Za-z0-9._~-]{1,128}$/u;
-
-export type PaidSkillClaimErrorCode = "invalid" | "unresolved";
-
-export class PaidSkillClaimError extends Error {
-  constructor(readonly code: PaidSkillClaimErrorCode, message: string) {
-    super(message);
-    this.name = "PaidSkillClaimError";
-  }
-}
-
-/** Why a claim endpoint is not https on a fixed host with bound path parameters, or undefined. */
-export function paidSkillClaimProblem(claim: PaidSkillClaimContract): string | undefined {
-  const { url } = claim;
-  const bind = claim.bind ?? {};
-  if (url.length > MAX_CLAIM_URL_LENGTH) return "claim url is too long";
-  if (!url.startsWith("https://")) return "claim url must be https";
-  const rest = url.slice("https://".length);
-  const slash = rest.indexOf("/");
-  if (slash < 0) return "claim url must have a path";
-  if (!validAuthority(rest.slice(0, slash))) return "claim url must name a fixed host";
-  const parameters = pathParameters(rest.slice(slash + 1));
-  if (!parameters) return "claim url path is invalid";
-  const bound = Object.keys(bind);
-  if (bound.length !== parameters.size || bound.some((name) => !parameters.has(name))) {
-    return "every claim url parameter is bound once, and only those";
-  }
-  const pointer = Object.values(bind).find((value) => !validPointer(value));
-  if (pointer !== undefined) {
-    return `claim binding ${pointer} is not a JSON pointer of one to eight segments`;
+/**
+ * Why what a paid runner acts on breaks its contract, or undefined: its
+ * target binds the runner's inputs, and nothing else, so it names the held
+ * resource before the purchase.
+ */
+export function paidSkillActsOnProblem(actsOn: PaidSkillActsOnContract): string | undefined {
+  const bindings = new Set<string>();
+  collectBindings(actsOn.target, bindings);
+  if (!bindings.has("$argument") || [...bindings].some((binding) => binding !== "$argument")) {
+    return "acts_on target is rendered from the runner's inputs alone";
   }
   return undefined;
 }
 
-/**
- * The claim endpoint for a fulfilled purchase whose public result is
- * `result`. A bound value must be a plain path segment, so the result cannot
- * redirect the claim.
- */
-export function resolvePaidSkillClaim(claim: PaidSkillClaimContract, result: unknown): string {
-  let url = claim.url;
-  for (const [parameter, pointer] of Object.entries(claim.bind ?? {})) {
-    const value = jsonPointer(result, pointer);
-    if (typeof value !== "string" || !plainSegment(value)) {
-      throw new PaidSkillClaimError(
-        "unresolved",
-        `claim parameter ${parameter} is not a plain path segment in the result`,
-      );
-    }
-    url = url.replaceAll(`{${parameter}}`, value);
+function collectBindings(value: unknown, bindings: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectBindings(item, bindings);
+    return;
   }
-  return url;
-}
-
-function validAuthority(authority: string): boolean {
-  const colon = authority.indexOf(":");
-  const host = colon < 0 ? authority : authority.slice(0, colon);
-  const port = colon < 0 ? undefined : authority.slice(colon + 1);
-  const labels = host.split(".");
-  const hostValid = labels.length >= 2
-    && labels.every((label) => HOST_LABEL.test(label) && !label.startsWith("-") && !label.endsWith("-"));
-  const portValid = port === undefined
-    || (/^[0-9]{1,5}$/u.test(port) && Number(port) > 0 && Number(port) <= 65_535);
-  return hostValid && portValid;
-}
-
-function pathParameters(path: string): Set<string> | undefined {
-  const parameters = new Set<string>();
-  let rest = path;
-  for (;;) {
-    const open = rest.indexOf("{");
-    if (open < 0) return PATH_TEXT.test(rest) ? parameters : undefined;
-    if (!PATH_TEXT.test(rest.slice(0, open))) return undefined;
-    const close = rest.indexOf("}", open);
-    if (close < 0) return undefined;
-    const name = rest.slice(open + 1, close);
-    if (!PARAMETER_NAME.test(name) || parameters.has(name)) return undefined;
-    parameters.add(name);
-    rest = rest.slice(close + 1);
-  }
-}
-
-function validPointer(pointer: string): boolean {
-  if (!pointer.startsWith("/")) return false;
-  const segments = pointer.slice(1).split("/");
-  return segments.length <= MAX_CLAIM_POINTER_SEGMENTS
-    && segments.every((segment) => segment.length > 0 && !/~(?![01])/u.test(segment));
-}
-
-function jsonPointer(value: unknown, pointer: string): unknown {
-  if (!pointer.startsWith("/")) return undefined;
-  let current: unknown = value;
-  for (const segment of pointer.slice(1).split("/")) {
-    const key = segment.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (Array.isArray(current)) {
-      if (!/^(0|[1-9][0-9]*)$/u.test(key)) return undefined;
-      current = current[Number(key)];
-    } else if (typeof current === "object" && current !== null) {
-      if (!Object.hasOwn(current, key)) return undefined;
-      current = (current as Record<string, unknown>)[key];
+  if (typeof value !== "object" || value === null) return;
+  const entries = Object.entries(value);
+  const [first] = entries;
+  if (entries.length === 1 && first && first[0].startsWith("$")) {
+    const [key, argument] = first;
+    if (key === "$concat") {
+      collectBindings(argument, bindings);
     } else {
-      return undefined;
+      bindings.add(key);
     }
+    return;
   }
-  return current;
-}
-
-function plainSegment(value: string): boolean {
-  return value.length <= MAX_CLAIM_VALUE_LENGTH
-    && PLAIN_SEGMENT.test(value)
-    && value !== "."
-    && value !== "..";
+  for (const [, nested] of entries) collectBindings(nested, bindings);
 }

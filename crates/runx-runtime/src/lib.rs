@@ -47,7 +47,6 @@ pub use private_file::{DirectoryProblem, PrivateFileFault};
 mod process;
 pub mod process_invocation;
 mod provider_operations;
-pub mod purchase;
 pub mod receipts;
 pub mod registry;
 mod secret_refs;

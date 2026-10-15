@@ -196,26 +196,38 @@ fn a_prepared_offer_is_no_longer_accepted() -> Result<(), String> {
 }
 
 #[test]
-fn an_offer_names_where_its_buyer_claims() -> Result<(), String> {
-    let claimed = offer("{model: fixed, amount_minor: 5}").replace(
+fn an_offer_names_the_held_resource_it_acts_on() -> Result<(), String> {
+    let acting = offer("{model: fixed, amount_minor: 5}").replace(
         "      currency: USD\n",
-        "      currency: USD\n      claim: {url: \"https://inbox.ausca.com/v1/agent-inboxes/{inbox_id}/claim\", bind: {inbox_id: /lease/inbox_id}}\n",
+        "      currency: USD\n      acts_on: {connector: ausca/inbox, credential: lease, target: {$concat: [\"ausca:agent-inbox/\", {$argument: /language}]}}\n",
     );
-    let parsed = validate(&manifest(&claimed))?;
-    let claim = parsed
+    let declared = format!(
+        "{}\nconnectors:\n  ausca/inbox:\n    operations: [inbox.extend]",
+        manifest(&acting)
+    );
+    let parsed = validate(&declared)?;
+    let acts_on = parsed
         .marketplace
         .ok_or_else(|| "missing marketplace".to_owned())?
         .offers["transcribe"]
-        .claim
+        .acts_on
         .clone()
-        .ok_or_else(|| "missing claim".to_owned())?;
-    assert_eq!(claim.bind["inbox_id"].as_str(), "/lease/inbox_id");
+        .ok_or_else(|| "missing acts_on".to_owned())?;
+    assert_eq!(acts_on.credential.as_str(), "lease");
 
-    let redirectable = claimed.replace("https://inbox.ausca.com", "https://{inbox_id}.ausca.com");
-    let Err(error) = validate(&manifest(&redirectable)) else {
-        return Err("a claim host filled from the result unexpectedly passed".to_owned());
+    let Err(error) = validate(&manifest(&acting)) else {
+        return Err("acts_on an undeclared connector unexpectedly passed".to_owned());
     };
-    assert!(error.contains("must name a fixed host"), "{error}");
+    assert!(
+        error.contains("which the skill does not declare"),
+        "{error}"
+    );
+
+    let unrequired = declared.replace("/language", "/tier");
+    let Err(error) = validate(&unrequired) else {
+        return Err("acts_on an unrequired input unexpectedly passed".to_owned());
+    };
+    assert!(error.contains("does not require"), "{error}");
     Ok(())
 }
 

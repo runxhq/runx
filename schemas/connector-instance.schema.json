@@ -171,6 +171,30 @@
         {
           "additionalProperties": false,
           "properties": {
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "held",
+              "type": "string"
+            },
+            "target": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "credential",
+            "target"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
             "kind": {
               "const": "public",
               "type": "string"

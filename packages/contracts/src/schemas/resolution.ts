@@ -8,6 +8,7 @@ import type {
   ApprovalGateContract,
   QuestionContract,
 } from "./agent-act.js";
+import type { OfferRevisionRefContract, PrincipalReferenceContract } from "./paid-invocation.js";
 
 export const resolutionRequestSchema = generatedSchema("resolution-request.schema.json");
 export type InputResolutionRequestContract = DeepReadonly<{
@@ -41,11 +42,40 @@ export type RetryResolutionRequestContract = DeepReadonly<{
   /** Absent when safe: sending it again repeats nothing. */
   resend?: "safe" | "unsafe";
 }>;
+/**
+ * A call reached a paid runner and waits on the person's exact decision
+ * (N10): one quote's offer, seller and price, and each payment method that
+ * can pay it. A person answers in `approvals` with `approved` and `choice`.
+ */
+export type PurchaseResolutionRequestContract = DeepReadonly<{
+  id: string;
+  kind: "purchase";
+  purchase: PurchaseRequestContract;
+}>;
+export type PurchaseRequestContract = DeepReadonly<{
+  skill: string;
+  runner: string;
+  offer: OfferRevisionRefContract;
+  package_digest: string;
+  seller: PrincipalReferenceContract;
+  amount_minor: number;
+  currency: string;
+  input_digest: string;
+  quote: {
+    invocation_id: string;
+    expires_at: string;
+    network: string;
+    asset: string;
+    pay_to: string;
+  };
+  methods: readonly { instance_id: string; connector: string; total_minor: number }[];
+}>;
 export type ResolutionRequestContract =
   | InputResolutionRequestContract
   | ApprovalResolutionRequestContract
   | AgentActResolutionRequestContract
-  | RetryResolutionRequestContract;
+  | RetryResolutionRequestContract
+  | PurchaseResolutionRequestContract;
 
 export const resolutionResponseSchema = generatedSchema("resolution-response.schema.json");
 export type ResolutionResponseContract = DeepReadonly<{

@@ -141,9 +141,10 @@ pub use host_protocol::{
     AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, ExecutionEvent,
     HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
     HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, Question, QuestionOption, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor, RetryResend, TurnAllowance, TurnCallOutcome,
-    TurnCallResult, TurnStatus, TurnTarget, TurnTool, check_answer,
+    HostRunVerificationStatus, HostTerminalState, PurchaseMethod, PurchaseQuote, PurchaseRequest,
+    Question, QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    RetryResend, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
+    check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
@@ -209,7 +210,7 @@ pub use paid_invocation::{
     PaidInvocationExecutionState, PaidInvocationOutcomeGate, PaidInvocationPaymentChallenge,
     PaidInvocationPaymentState, PaidInvocationRefusalCode, PaidInvocationRefusalReason,
     PaymentIdempotencyBinding, PaymentReference, PortableAmountMinor, PrincipalReference, Purchase,
-    QUOTE_PAID_INVOCATION, QUOTE_PAID_INVOCATION_REQUEST_SCHEMA,
+    PurchaseHold, QUOTE_PAID_INVOCATION, QUOTE_PAID_INVOCATION_REQUEST_SCHEMA,
     QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationAdmission, QuotePaidInvocationRequest,
     QuotePaidInvocationResult, SettlementFamilies, SettlementFamily, Sha256Digest,
 };
@@ -218,14 +219,14 @@ pub use paid_invocation_fingerprint::{
     fingerprint_execute_paid_invocation_request, fingerprint_quote_paid_invocation_request,
 };
 pub use paid_skill_listing::{
-    ClaimError, PAID_SKILL_LISTING_SCHEMA, PaidSkillClaim, PaidSkillExecutorBinding,
-    PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase,
-    PaidSkillRunnerOffer, PriceChoice, PriceError,
+    PAID_SKILL_LISTING_SCHEMA, PaidSkillActsOn, PaidSkillExecutorBinding, PaidSkillListing,
+    PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PaidSkillRunnerOffer,
+    PriceChoice, PriceError,
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use purchase_claim::{
-    PURCHASE_CLAIM_SCHEMA, PURCHASE_RECEIPT_SCHEMA, PurchaseClaim, PurchaserKey,
-    PurchaserSignature, purchase_claim_message,
+    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_SCHEMA, PURCHASE_RECEIPT_SCHEMA, PurchaseClaim,
+    PurchaserKey, PurchaserSignature, purchase_claim_message, purchase_read_message,
 };
 pub use receipt::{
     Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,

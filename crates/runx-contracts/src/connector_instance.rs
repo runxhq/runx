@@ -145,6 +145,15 @@ pub enum InstanceAuthority {
         session: SessionKind,
         scopes: Vec<NonEmptyString>,
     },
+    /// What a purchase bought (S10, N11): one resource's credential, held by
+    /// runx Connect for the principal and presented only to the requests of
+    /// operations on that resource. Admission pins it for one call, by the
+    /// target the call names; it is never confirmed or selected. Hosted
+    /// placement only.
+    Held {
+        credential: CredentialName,
+        target: NonEmptyString,
+    },
     /// A public API; reads only.
     Public,
 }
@@ -158,6 +167,7 @@ impl InstanceAuthority {
             Self::Environment { .. } => "environment",
             Self::Reference { .. } => "reference",
             Self::Session { .. } => "session",
+            Self::Held { .. } => "held",
             Self::Public => "public",
         }
     }

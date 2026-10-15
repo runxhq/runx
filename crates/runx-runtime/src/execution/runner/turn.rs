@@ -1593,7 +1593,8 @@ fn pending_request(request: &ResolutionRequest) -> Result<PendingRequest, Runtim
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::AgentAct { id, .. }
-        | ResolutionRequest::Retry { id, .. } => id.to_string(),
+        | ResolutionRequest::Retry { id, .. }
+        | ResolutionRequest::Purchase { id, .. } => id.to_string(),
     };
     Ok(PendingRequest {
         id,

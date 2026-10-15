@@ -129,6 +129,25 @@ pub struct ConnectorManifest {
     /// classified without the runtime knowing the provider.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub references: Vec<ReferenceDeclaration>,
+    /// What a payment connector pays with, so a purchase offers it as a
+    /// method only for a quote it can pay (S8, N10).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pays: Option<ConnectorPays>,
+}
+
+/// The settlement families a payment connector pays in, each with the
+/// networks it pays on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorPays {
+    pub x402: X402Pays,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct X402Pays {
+    /// CAIP-2 networks, such as `eip155:8453`.
+    pub networks: NonEmptyVec<NonEmptyString>,
 }
 
 /// One kind of thing a connector's locators name.
@@ -190,20 +209,44 @@ pub struct DelegatedAuth {
 #[serde(deny_unknown_fields)]
 pub struct NoAuth {}
 
+/// The kind of a credential a purchase fills. runx Connect holds it per
+/// resource for the purchase's owner, taken from the seller's provider answer
+/// (`OperationHold`), so nobody connects it and nothing local delivers it.
+pub const PURCHASE_CREDENTIAL_KIND: &str = "purchase";
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialDeclaration {
-    /// The credential kind the hosted store checks (`api_key`, `oauth1_user`, ...).
+    /// The credential kind the hosted store checks (`api_key`, `oauth1_user`,
+    /// `purchase`, ...).
     pub kind: NonEmptyString,
-    /// The connect form.
+    /// The connect form, or for a purchase credential the fields its hold
+    /// fills.
     pub fields: NonEmptyVec<CredentialField>,
-    /// How the local placement delivers the secret to an implementation.
-    pub delivery: CredentialDelivery,
+    /// How the local placement delivers the secret to an implementation. A
+    /// purchase credential has none: it never leaves runx Connect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<CredentialDelivery>,
     /// Hosts the credential may be sent to. A credential only a `store`
     /// implementation uses has none: it goes only to the store its instance
     /// pins.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audience: Vec<NonEmptyString>,
+}
+
+impl CredentialDeclaration {
+    /// Whether a purchase fills this credential rather than a person.
+    #[must_use]
+    pub fn is_purchase(&self) -> bool {
+        self.kind.as_str() == PURCHASE_CREDENTIAL_KIND
+    }
+
+    /// The variable the local placement delivers the credential in; none
+    /// for a purchase credential, which runx Connect alone presents.
+    #[must_use]
+    pub fn env(&self) -> Option<&EnvName> {
+        self.delivery.as_ref().map(|delivery| &delivery.env)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -510,6 +553,10 @@ pub struct ConnectorOperation {
     /// carries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect: Option<OperationEffect>,
+    /// What the call does to a resource a purchase holds: takes it from the
+    /// provider's answer, moves its expiry, or ends it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub holds: Option<OperationHold>,
     /// Present when the hosted placement offers the operation: it runs an
     /// `http` implementation through the provider gateway, and any other
     /// operation through a private driver.
@@ -588,6 +635,58 @@ pub struct OperationEffect {
     /// A `$result` pointer to the array the effect repeats over.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub each: Option<Template>,
+}
+
+/// What a hosted call does to a resource a purchase holds (S10, N11). runx
+/// Connect applies it at the provider's answer: a held value never reaches
+/// the kernel, which sees only the hold's evidence (its target, expiry and
+/// the value's digest). A hold is keyed by connector, credential and target,
+/// so a seller holds resources only in its own connector.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OperationHold {
+    pub action: HoldAction,
+    /// The `kind: purchase` credential held.
+    pub credential: CredentialName,
+    /// The held resource. A take renders it from the call's public result;
+    /// a refresh or release from the call's arguments, as the operations
+    /// that use the credential render theirs.
+    pub target: Template,
+    /// When the resource ends, one `$result` binding. A take and a refresh
+    /// state it; a release does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<Template>,
+    /// Each field of the credential and the one `$result` binding that fills
+    /// it. Only a take fills fields.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fields: BTreeMap<CredentialName, Template>,
+}
+
+/// What runx Connect returns in place of a held value, at the value's place
+/// in the provider's answer, as `{"$held": {...}}`: the kernel records that
+/// a hold was taken and what it covers, never what it holds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HoldEvidence {
+    pub target: NonEmptyString,
+    pub expires_at: NonEmptyString,
+    /// `sha256:` over the held value's UTF-8 bytes.
+    pub value_digest: NonEmptyString,
+}
+
+/// The key a hold's evidence stands under in a provider answer.
+pub const HOLD_EVIDENCE_KEY: &str = "$held";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HoldAction {
+    /// Hold a new resource's credential for the owner of the purchase whose
+    /// run made the call.
+    Take,
+    /// Move a held resource's expiry.
+    Refresh,
+    /// End a hold: the resource is gone.
+    Release,
 }
 
 /// The target an operation acts on, rendered from the call's arguments and

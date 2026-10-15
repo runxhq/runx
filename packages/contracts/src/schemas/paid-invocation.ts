@@ -6,7 +6,7 @@ import {
   validateContractSchema,
 } from "../internal.js";
 import validatePaidSkillListing from "../generated/paid-skill-listing-validator.js";
-import { paidSkillClaimProblem, paidSkillPriceProblem } from "../paid-skill-price.js";
+import { paidSkillActsOnProblem, paidSkillPriceProblem } from "../paid-skill-price.js";
 import { RECEIPT_CANONICALIZATION } from "./receipt.js";
 import type { ReferenceContract } from "./spine.js";
 
@@ -106,13 +106,14 @@ export type PaidSkillPriceContract = DeepReadonly<
 >;
 
 /**
- * Where a buyer claims what a fulfilled purchase bought but runx never holds:
- * https on the seller's fixed host, path parameters bound to JSON pointers
- * into the runner's public result. `resolvePaidSkillClaim` fills it.
+ * A resource an earlier purchase bought that a paid runner acts on, such as
+ * the inbox an extension extends: runx admits the purchase only while its
+ * owner holds that resource. The target binds the runner's inputs alone.
  */
-export type PaidSkillClaimContract = DeepReadonly<{
-  url: string;
-  bind?: Record<string, string>;
+export type PaidSkillActsOnContract = DeepReadonly<{
+  connector: string;
+  credential: string;
+  target: unknown;
 }>;
 
 export type PaidSkillOfferTermsContract = DeepReadonly<{
@@ -121,7 +122,7 @@ export type PaidSkillOfferTermsContract = DeepReadonly<{
   accepted_settlement_families: readonly SettlementFamilyContract[];
   input_schema_digest: Sha256DigestContract;
   output_schema_digest: Sha256DigestContract;
-  claim?: PaidSkillClaimContract;
+  acts_on?: PaidSkillActsOnContract;
 }>;
 
 export type PaidSkillRunnerOfferContract = DeepReadonly<{
@@ -129,7 +130,7 @@ export type PaidSkillRunnerOfferContract = DeepReadonly<{
   price: PaidSkillPriceContract;
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
-  claim?: PaidSkillClaimContract;
+  acts_on?: PaidSkillActsOnContract;
 }>;
 
 export type PaidSkillListingContract = DeepReadonly<{
@@ -242,16 +243,25 @@ export type GetPaidInvocationResultContract =
   | PaidInvocationRefusalContract;
 /**
  * What a purchaser reads of its purchase (K13): the paid invocation, the
- * purchase receipt once sealed, and the runner's public result once
- * fulfilment won. Never the seller's run, step outputs or grants.
+ * purchase receipt once sealed, the runner's public result once fulfilment
+ * won, and what runx holds for it. Never the seller's run, step outputs or
+ * grants, and never a held value.
  */
 export type PurchaseContract = DeepReadonly<{
   invocation: PaidInvocationContract;
   /** runx's signed purchase receipt, once sealed: what a claim presents. */
   receipt?: Record<string, unknown>;
   result?: unknown;
-  claim_url?: string;
+  holds?: readonly PurchaseHoldContract[];
   failure?: PaidInvocationFailureContract;
+}>;
+/** One resource a fulfilled purchase bought, held by runx for its owner. */
+export type PurchaseHoldContract = DeepReadonly<{
+  connector: string;
+  credential: string;
+  target: string;
+  expires_at: string;
+  value_digest: Sha256DigestContract;
 }>;
 export type CancelPaidInvocationRequestContract = DeepReadonly<{
   invocation_id: string;
@@ -346,8 +356,8 @@ export function validatePaidSkillListingContract(value: unknown, label = "paid_s
   for (const [runner, offer] of Object.entries(listing.offers)) {
     const priceProblem = paidSkillPriceProblem(offer.price);
     if (priceProblem) throw new Error(`${label}.offers.${runner}.price: ${priceProblem}.`);
-    const claimProblem = offer.claim ? paidSkillClaimProblem(offer.claim) : undefined;
-    if (claimProblem) throw new Error(`${label}.offers.${runner}.claim: ${claimProblem}.`);
+    const actsOnProblem = offer.acts_on ? paidSkillActsOnProblem(offer.acts_on) : undefined;
+    if (actsOnProblem) throw new Error(`${label}.offers.${runner}.acts_on: ${actsOnProblem}.`);
   }
   return listing;
 }

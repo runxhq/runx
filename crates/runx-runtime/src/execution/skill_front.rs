@@ -81,6 +81,9 @@ pub(crate) struct SkillRunOverrides {
     pub(crate) runner: Option<String>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
+    /// The registry reference the skill was resolved through, when its runner
+    /// is one the registry sells: the run buys it (S10).
+    pub(crate) purchase: Option<String>,
 }
 
 pub(crate) struct ResolvedSkillRun<'a> {
@@ -427,6 +430,7 @@ pub(crate) fn bind_paused_run(
         },
         &SkillRunOverrides {
             runner: Some(paused.runner),
+            purchase: paused.purchase,
             ..SkillRunOverrides::default()
         },
         effects,
@@ -650,14 +654,17 @@ fn paused_output(
         .iter()
         .map(|request| request_for_public_loop(&request.id, request.value.clone()))
         .collect::<Vec<_>>();
-    // A run that waits only on approvals needs a person, not an agent.
+    // A run that waits only on approvals and purchases needs a person, not
+    // an agent.
     let approvals_only = !requests.is_empty()
         && requests.iter().all(|request| {
-            request
-                .as_object()
-                .and_then(|request| request.get("kind"))
-                .and_then(JsonValue::as_str)
-                == Some("approval")
+            matches!(
+                request
+                    .as_object()
+                    .and_then(|request| request.get("kind"))
+                    .and_then(JsonValue::as_str),
+                Some("approval" | "purchase")
+            )
         });
     let status = if approvals_only {
         "needs_approval"

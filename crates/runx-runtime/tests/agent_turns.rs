@@ -229,7 +229,8 @@ fn request_id(request: &ResolutionRequest) -> &str {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::AgentAct { id, .. }
-        | ResolutionRequest::Retry { id, .. } => id.as_str(),
+        | ResolutionRequest::Retry { id, .. }
+        | ResolutionRequest::Purchase { id, .. } => id.as_str(),
     }
 }
 

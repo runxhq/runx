@@ -73,6 +73,27 @@ impl HostedSession {
         )
     }
 
+    /// One request to the runx API as the session's principal, answered
+    /// whole: a purchase reads a quote from a 402, which is an answer to it,
+    /// not an error. A keyed or read request may be resent by the transport.
+    pub(crate) fn exchange(
+        &self,
+        method: crate::http::HttpMethod,
+        path: &str,
+        body: Option<String>,
+        idempotency_key: Option<&str>,
+    ) -> Result<crate::http::RuntimeHttpResponse, crate::http::RuntimeHttpError> {
+        crate::hosted_api::request::exchange(
+            self.transport.as_ref(),
+            self.environment.base_url(),
+            self.environment.token(),
+            method,
+            path,
+            body,
+            idempotency_key,
+        )
+    }
+
     /// One keyed request to the runx API as the session's principal. Its key
     /// makes it safe to repeat, so the transport may resend it.
     pub(crate) fn send<T: serde::de::DeserializeOwned>(
@@ -241,7 +262,7 @@ impl HostedClient {
 pub(crate) struct Gateway<'a> {
     pub connector_binding: &'a ConnectorBinding,
     pub session: &'a HostedSession,
-    pub grant_id: &'a str,
+    pub authority: crate::provider_operations::ProviderAuthority<'a>,
     pub operation: &'a str,
     pub operation_digest: &'a str,
     pub implementation_digest: &'a str,
@@ -270,7 +291,7 @@ impl Gateway<'_> {
             &self.session.environment,
             &crate::provider_operations::ProviderRequest {
                 connector_binding: self.connector_binding,
-                grant_id: self.grant_id,
+                authority: self.authority,
                 operation: self.operation,
                 operation_digest: self.operation_digest,
                 implementation_digest: self.implementation_digest,

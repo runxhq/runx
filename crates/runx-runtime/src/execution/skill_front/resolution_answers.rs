@@ -56,12 +56,19 @@ impl ResolutionAnswers {
                         decision
                             .insert("reason".to_owned(), JsonValue::String(reason.into_string()));
                     }
+                    // A purchase's answer names the method it pays with (N10).
+                    if let Some(choice) = approval.choice {
+                        decision
+                            .insert("choice".to_owned(), JsonValue::String(choice.into_string()));
+                    }
                     JsonValue::Object(decision)
                 }
-                (None, Some(value)) if approval.reason.is_none() => value,
+                (None, Some(value)) if approval.reason.is_none() && approval.choice.is_none() => {
+                    value
+                }
                 _ => {
                     return Err(invalid(format!(
-                        "{address} takes approved and a reason for an approval, or a value alone for a retry"
+                        "{address} takes approved, with a reason or a purchase's choice, for an approval, or a value alone for a retry"
                     )));
                 }
             };

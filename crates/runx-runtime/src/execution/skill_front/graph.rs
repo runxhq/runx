@@ -9,7 +9,7 @@ use super::{
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    JsonObject, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    CallAct, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
     RunDriver, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
@@ -138,6 +138,7 @@ impl BoundRun {
                         RunDriver::Attached
                     },
                     prepared: prepared.as_ref(),
+                    purchase: self.purchase(),
                     created_at: &crate::time::now_iso8601(),
                 })?;
                 (
@@ -180,12 +181,7 @@ impl BoundRun {
             prepared.as_ref(),
             host.gate.clone(),
         )?;
-        let graph = bind_run_inputs(
-            self.runner.graph.clone(),
-            &graph_inputs,
-            run_act.as_ref(),
-            log.run_id(),
-        )?;
+        let graph = self.graph(&graph_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
             bound: self,
             log: &log,
@@ -274,6 +270,38 @@ impl BoundRun {
         }
     }
 
+    /// The registry reference this run buys: its runner is one the registry
+    /// sells and it was reached through the registry, so the kernel buys it
+    /// rather than run it here (S10).
+    fn purchase(&self) -> Option<&str> {
+        let reference = self.overrides.purchase.as_deref()?;
+        self.manifest
+            .marketplace
+            .as_ref()?
+            .offers
+            .contains_key(&self.runner.name)
+            .then_some(reference)
+    }
+
+    /// The graph the run drives: the runner's own, or for a purchase one step
+    /// that calls the runner through the registry, which the kernel buys as
+    /// it buys any call.
+    fn graph(
+        &self,
+        inputs: &JsonObject,
+        act: Option<&CallAct>,
+        run_id: &str,
+    ) -> Result<ExecutionGraph, RuntimeError> {
+        match self.purchase() {
+            Some(reference) => Ok(crate::execution::graph::purchase_graph(
+                reference,
+                &self.runner.name,
+                inputs,
+            )),
+            None => bind_run_inputs(self.runner.graph.clone(), inputs, act, run_id),
+        }
+    }
+
     /// The run's runtime for one pass: the skill's environment, the run's
     /// identity, authority and prepared context, and its log.
     fn runtime(
@@ -358,12 +386,7 @@ impl BoundRun {
             .sealed
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
-        let graph = bind_run_inputs(
-            self.runner.graph.clone(),
-            &record.inputs,
-            record.act.as_ref(),
-            log.run_id(),
-        )?;
+        let graph = self.graph(&record.inputs, record.act.as_ref(), log.run_id())?;
         let run = sealed_graph_run(graph, record)?;
         write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
         let result = match sealed.terminal_result {
@@ -822,7 +845,8 @@ fn resolution_request_id(request: &ResolutionRequest) -> &str {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
         | ResolutionRequest::AgentAct { id, .. }
-        | ResolutionRequest::Retry { id, .. } => id.as_str(),
+        | ResolutionRequest::Retry { id, .. }
+        | ResolutionRequest::Purchase { id, .. } => id.as_str(),
     }
 }
 
@@ -990,6 +1014,7 @@ steps:
                 act: None,
                 driver: RunDriver::Managed,
                 prepared: None,
+                purchase: None,
                 created_at: "2026-07-24T00:00:00Z",
             })?;
             if suspended {

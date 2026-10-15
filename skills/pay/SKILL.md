@@ -18,9 +18,9 @@ USDC on Base. Other methods join as connectors when they are implemented.
 Runx Hosted owns challenge validation, authority attenuation and reservation,
 wallet credentials, payload signing, settlement recovery, finality, and the
 private ledger. The connector never sleeps or polls; durable continuation
-cadence belongs to Runx scheduling. The kernel buys a registry paid skill
-through `pay` too, then follows the purchase, which delivers its result and
-signed receipt.
+cadence belongs to Runx scheduling. `pay` never buys a runx paid skill: a
+paid skill is bought by running it, and the kernel asks its buyer for that
+purchase itself.
 
 ## Operator guide
 

@@ -1071,3 +1071,167 @@ fn a_body_credential_owns_its_pointer() {
         "is not a JSON pointer",
     );
 }
+
+/// A seller connector that provisions an inbox under its own token and holds
+/// the inbox's lease for whoever bought it.
+const INBOX: &str = r#"
+schema: runx.connector.v1
+id: acme/inbox
+name: Acme Inbox
+description: Agent inboxes.
+runtime_capability: false
+auth:
+  credentials:
+    service_token:
+      kind: api_key
+      fields: [{name: token}]
+      delivery: {env: ACME_INBOX_TOKEN}
+      audience: [inbox.acme.test]
+    lease:
+      kind: purchase
+      fields: [{name: capability}]
+      audience: [inbox.acme.test]
+placements:
+  hosted: {auth: credential, credential: service_token}
+operations:
+  inbox.provision:
+    description: Provision one inbox.
+    verb: create
+    scopes: [inbox.provision]
+    credentials: [service_token]
+    target: {template: "acme:inbox"}
+    guarantees: {provider_idempotency: inherent, readback: unavailable}
+    result_fields: [lease]
+    holds:
+      action: take
+      credential: lease
+      target: {"$concat": ["acme:inbox/", {"$result": "/lease/inbox_id"}]}
+      expires_at: {"$result": "/lease/expires_at"}
+      fields: {capability: {"$response": "write.capability"}}
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [inbox.acme.test]
+        auth: {service_token: {type: bearer, field: token}}
+        requests:
+          - {method: POST, url: "https://inbox.acme.test/internal/inboxes", body: {invocation_id: {"$runx": "invocation"}}}
+        result_paths: {lease: acknowledgement.lease}
+  inbox.delete:
+    description: Delete one inbox.
+    verb: delete
+    scopes: [inbox.delete]
+    credentials: [lease]
+    target: {template: {"$concat": ["acme:inbox/", {"$argument": "/inbox_id"}]}}
+    guarantees: {provider_idempotency: inherent, readback: unavailable}
+    input_schema: {type: object, required: [inbox_id], additionalProperties: false, properties: {inbox_id: {type: string}}}
+    result_fields: [inbox]
+    holds:
+      action: release
+      credential: lease
+      target: {"$concat": ["acme:inbox/", {"$argument": "/inbox_id"}]}
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [inbox.acme.test]
+        auth: {lease: {type: bearer, field: capability}}
+        requests:
+          - {method: DELETE, url: {"$concat": ["https://inbox.acme.test/v1/inboxes/", {"$argument": "/inbox_id"}]}}
+"#;
+
+#[test]
+fn a_purchase_credential_is_taken_from_the_answer_and_held_per_resource() {
+    let validated = validate(INBOX).expect("the inbox connector is valid");
+    let lease = validated
+        .manifest
+        .auth
+        .credentials
+        .iter()
+        .find_map(|(name, declaration)| (name.as_str() == "lease").then_some(declaration))
+        .expect("the lease credential");
+    assert!(lease.is_purchase());
+    assert!(lease.env().is_none(), "nothing delivers a held credential");
+}
+
+#[test]
+fn a_held_value_never_reaches_the_call_s_result() {
+    assert_rejects(
+        &INBOX.replace(
+            "result_paths: {lease: acknowledgement.lease}",
+            "result_paths: {lease: acknowledgement}",
+        ),
+        "the call's result reads the held value",
+    );
+    assert_rejects(
+        &INBOX.replace(
+            "        result_paths: {lease: acknowledgement.lease}",
+            "        result_paths: {lease: acknowledgement.lease}\n        readbacks:\n          - request: {method: GET, url: \"https://inbox.acme.test/internal/inboxes\"}",
+        ),
+        "a readback would read the held value again",
+    );
+}
+
+#[test]
+fn a_purchase_credential_is_held_by_runx_alone() {
+    assert_rejects(
+        &INBOX.replace(
+            "      fields: [{name: capability}]\n",
+            "      fields: [{name: capability}]\n      delivery: {env: ACME_LEASE}\n",
+        ),
+        "a purchase credential never leaves runx Connect",
+    );
+    assert_rejects(
+        &INBOX.replace("credential: service_token}", "credential: lease}"),
+        "a purchase credential is held per resource",
+    );
+    assert_rejects(
+        &INBOX.replace(
+            "    credentials: [lease]\n",
+            "    credentials: [lease, service_token]\n",
+        ),
+        "authorized by its purchase credential alone",
+    );
+}
+
+#[test]
+fn an_operation_on_a_held_resource_names_it_by_its_arguments() {
+    assert_rejects(
+        &INBOX.replace(
+            "    target: {template: {\"$concat\": [\"acme:inbox/\", {\"$argument\": \"/inbox_id\"}]}}\n    guarantees: {provider_idempotency: inherent, readback: unavailable}\n    input_schema",
+            "    target: {template: \"acme:inbox\"}\n    guarantees: {provider_idempotency: inherent, readback: unavailable}\n    input_schema",
+        ),
+        "renders its target from the call's arguments alone",
+    );
+}
+
+#[test]
+fn a_take_fills_every_field_from_what_the_write_returned() {
+    assert_rejects(
+        &INBOX.replace(
+            "fields: {capability: {\"$response\": \"write.capability\"}}",
+            "fields: {capability: {\"$result\": \"/lease/capability\"}}",
+        ),
+        "one $response binding on what the write returned",
+    );
+    assert_rejects(
+        &INBOX.replace(
+            "fields: {capability: {\"$response\": \"write.capability\"}}",
+            "fields: {}",
+        ),
+        "fills every field of credential lease",
+    );
+    assert_rejects(
+        &INBOX.replace(
+            "      expires_at: {\"$result\": \"/lease/expires_at\"}\n      fields",
+            "      fields",
+        ),
+        "states its expiry as one $result binding",
+    );
+}
+
+#[test]
+fn a_purchase_credential_no_operation_takes_is_refused() {
+    assert_rejects(
+        &INBOX.replace("      action: take\n", "      action: refresh\n"),
+        "filled by an operation that holds it with action take",
+    );
+}

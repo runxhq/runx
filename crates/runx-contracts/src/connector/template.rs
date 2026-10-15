@@ -49,6 +49,10 @@ const CONCAT: &str = "$concat";
 #[serde(transparent)]
 pub struct Template(JsonValue);
 
+// A template is only ever deserialized from JSON or YAML, where no value is
+// unequal to itself, so equality is total.
+impl Eq for Template {}
+
 /// What a template may bind. Absent sources make their bindings fail.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TemplateInputs<'a> {
@@ -184,6 +188,39 @@ impl Template {
     #[must_use]
     pub fn binds_parameter(&self) -> bool {
         binds(&self.0, PARAMETER)
+    }
+
+    /// Whether the template binds `$argument`, a value of the call input.
+    #[must_use]
+    pub fn binds_argument(&self) -> bool {
+        binds(&self.0, ARGUMENT)
+    }
+
+    /// The `$argument` pointers the template reads.
+    #[must_use]
+    pub fn argument_pointers(&self) -> BTreeSet<&str> {
+        let mut pointers = BTreeSet::new();
+        argument_pointers(&self.0, &mut pointers);
+        pointers
+    }
+
+    /// Whether the template binds anything runx fills (`$runx`).
+    #[must_use]
+    pub fn binds_runx(&self) -> bool {
+        binds(&self.0, RUNX)
+    }
+
+    /// The `<request id>.<path>` reference when the whole template is one
+    /// `$response` binding, as a held field is.
+    #[must_use]
+    pub fn response_reference(&self) -> Option<&str> {
+        match &self.0 {
+            JsonValue::Object(object) => match binding(object) {
+                Some((RESPONSE, JsonValue::String(reference))) => Some(reference),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// The request ids its `$response` bindings read from.
@@ -501,6 +538,33 @@ fn binds_matching(value: &JsonValue, matches: &dyn Fn(&str, &JsonValue) -> bool)
         },
         JsonValue::Array(values) => values.iter().any(|value| binds_matching(value, matches)),
         _ => false,
+    }
+}
+
+fn argument_pointers<'a>(value: &'a JsonValue, pointers: &mut BTreeSet<&'a str>) {
+    match value {
+        JsonValue::Object(object) => match binding(object) {
+            Some((ARGUMENT, JsonValue::String(pointer))) => {
+                pointers.insert(pointer);
+            }
+            Some((CONCAT, parts)) => {
+                for part in parts.as_array().into_iter().flatten() {
+                    argument_pointers(part, pointers);
+                }
+            }
+            Some(_) => {}
+            None => {
+                for value in object.values() {
+                    argument_pointers(value, pointers);
+                }
+            }
+        },
+        JsonValue::Array(values) => {
+            for value in values {
+                argument_pointers(value, pointers);
+            }
+        }
+        _ => {}
     }
 }
 

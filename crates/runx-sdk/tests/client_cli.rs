@@ -58,6 +58,7 @@ fn continue_run_sends_bound_answers_and_approvals_on_stdin()
                 request_digest: "sha256:gate".into(),
                 approved: Some(true),
                 reason: None,
+                choice: None,
                 value: None,
             },
         )]
