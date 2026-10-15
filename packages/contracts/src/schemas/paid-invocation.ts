@@ -77,6 +77,11 @@ export type OfferRevisionRefContract = DeepReadonly<{
 export type PaidSkillExecutorBindingContract = DeepReadonly<{
   skill: string;
   runner: string;
+  /**
+   * The execution package digest a run records (`runx.skill-package.v1` over
+   * the files a run loads), not the registry's digest of the published
+   * package files that a listing binds.
+   */
   package_digest: Sha256DigestContract;
   execution_closure_digest: Sha256DigestContract;
 }>;
@@ -138,6 +143,11 @@ export type PaidSkillListingContract = DeepReadonly<{
   version: string;
   skill_digest: Sha256DigestContract;
   profile_digest: Sha256DigestContract;
+  /**
+   * The registry's digest of the published package files
+   * (`registry_package_digest`), not the execution package digest a run
+   * records.
+   */
   package_digest: Sha256DigestContract;
   vendor_ref: PrincipalReferenceContract;
   offers: Readonly<Record<string, PaidSkillRunnerOfferContract>>;

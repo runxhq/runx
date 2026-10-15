@@ -427,6 +427,9 @@ pub struct PaidSkillOfferTerms {
 pub struct PaidSkillExecutorBinding {
     pub skill: NonEmptyString,
     pub runner: NonEmptyString,
+    /// The execution package digest a run records (`runx.skill-package.v1`
+    /// over the files a run loads), not the registry's digest of the
+    /// published package files that a listing binds.
     pub package_digest: Sha256Digest,
     pub execution_closure_digest: Sha256Digest,
 }
@@ -508,6 +511,9 @@ pub struct PaidSkillListing {
     pub version: NonEmptyString,
     pub skill_digest: Sha256Digest,
     pub profile_digest: Sha256Digest,
+    /// The registry's digest of the published package files
+    /// (`registry_package_digest`), not the execution package digest a run
+    /// records.
     pub package_digest: Sha256Digest,
     pub vendor_ref: PrincipalReference,
     pub offers: PaidSkillOffers,
