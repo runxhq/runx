@@ -49,7 +49,10 @@ Operator rules:
   resolves the generated source marker back to the governed runx skill; stale
   shims fail closed with an instruction to rerun `runx export`.
 - Runnable registry skills use explicit `owner/name@version` refs with optional
-  `--registry`; bare names stay local or resolve to the runx-maintained skills.
+  `--registry`. A bare name resolves a local path, then an installed or
+  workspace skill, then a bundled skill, then the registry's root name: one
+  segment the registry assigns to a verified publisher's skill, resolved to its
+  canonical `owner/name`. A package's `registry:` refs always name `owner/name`.
   Unsigned or digest-mismatched registry packages are search/read metadata only
   and fail before execution.
 - `runx registry search` and `runx registry install <ref>` print a compact

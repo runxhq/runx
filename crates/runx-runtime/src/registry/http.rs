@@ -8,10 +8,9 @@ use super::payload::{
     parse_acquire, parse_connector, parse_connector_package, parse_connector_search, parse_read,
     parse_record, parse_search,
 };
-use super::refs::{RegistryResolveError, resolve_remote_registry_ref};
 use super::types::{
     AcquiredRegistrySkill, RegistryConnectorDetail, RegistryConnectorSearchResult,
-    RegistrySearchResult, RegistrySkillDetail, RegistrySkillVersion, ResolvedRegistryRef,
+    RegistrySearchResult, RegistrySkillDetail, RegistrySkillVersion,
 };
 
 use crate::http::{
@@ -110,6 +109,38 @@ impl<T: Transport> RegistryClient<T> {
         }
         ensure_success(&route, response.status)?;
         parse_read(&route, &response.body).map(Some)
+    }
+
+    /// The skill a root name addresses, read as its canonical
+    /// `<owner>/<name>`. A root name is one segment the registry assigns to a
+    /// verified publisher's skill, and may move to another; `None` when no
+    /// skill holds it.
+    pub fn read_root(
+        &self,
+        root: &str,
+        version: Option<&str>,
+    ) -> Result<Option<RegistrySkillDetail>, RegistryClientError> {
+        if root.is_empty() || root.contains('/') {
+            return Err(RegistryClientError::InvalidRootName(root.to_owned()));
+        }
+        let suffix = version.map_or_else(|| root.to_owned(), |version| format!("{root}@{version}"));
+        let route = format!("/v1/skills/{}", encode_segment(&suffix));
+        let Some(detail) = self.get(&route, parse_read)? else {
+            return Ok(None);
+        };
+        if validated_skill_id(&detail.skill_id).is_err()
+            || version.is_some_and(|version| detail.version != version)
+        {
+            return Err(RegistryClientError::Contract {
+                route,
+                field_path: "skill".to_owned(),
+                message: format!(
+                    "the registry answered {}@{} for {suffix}",
+                    detail.skill_id, detail.version
+                ),
+            });
+        }
+        Ok(Some(detail))
     }
 
     pub fn acquire(
@@ -245,14 +276,6 @@ impl<T: Transport> RegistryClient<T> {
         ensure_success(route, response.status)?;
         parse(route, &response.body).map(Some)
     }
-
-    pub fn resolve_ref(
-        &self,
-        registry_ref: &str,
-        version_override: Option<&str>,
-    ) -> Result<Option<ResolvedRegistryRef>, RegistryResolveError> {
-        resolve_remote_registry_ref(self, registry_ref, version_override)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -268,6 +291,8 @@ pub enum RegistryClientError {
     RuntimeHttp(#[from] RuntimeHttpError),
     #[error("invalid registry skill id '{0}'. Expected '<owner>/<name>'.")]
     InvalidSkillId(String),
+    #[error("invalid registry root name '{0}'. A root name is one segment.")]
+    InvalidRootName(String),
     #[error("registry route {route} failed with HTTP {status}")]
     HttpStatus { route: String, status: u16 },
     #[error("registry route {route} returned invalid JSON: {message}")]

@@ -360,12 +360,6 @@ pub struct AcquiredRegistrySkill {
     pub install_count: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResolvedRegistryRef {
-    pub skill_id: String,
-    pub version: Option<String>,
-}
-
 /// A published connector as the registry reads it: its current version, or
 /// the one asked for.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

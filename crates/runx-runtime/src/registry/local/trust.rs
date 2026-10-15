@@ -4,7 +4,7 @@
 use runx_contracts::{JsonObject, JsonValue};
 
 use super::util::{display_sha256, trust_tier_string};
-use super::{FileRegistryStore, LocalRegistryError, runx_link_for_version, slugify};
+use super::{LocalRegistryError, runx_link_for_version};
 use crate::registry::types::{
     ProfileMode, RegistryAttestation, RegistryPublisher, RegistrySearchResult, RegistrySkillDetail,
     RegistrySkillVersion, RegistrySourceMetadata, TrustSignal, TrustTier,
@@ -334,26 +334,6 @@ pub(super) fn detail_for_version(
         install_command: link.install_command,
         run_command: link.run_command,
     })
-}
-
-pub(super) fn resolve_by_name(
-    store: &FileRegistryStore,
-    name: &str,
-    version: Option<&str>,
-) -> Result<Option<RegistrySkillVersion>, LocalRegistryError> {
-    let normalized = slugify(name)?;
-    let matches = store
-        .list_skills()?
-        .into_iter()
-        .filter(|skill| {
-            skill.name == normalized || skill.skill_id.ends_with(&format!("/{normalized}"))
-        })
-        .collect::<Vec<_>>();
-    match matches.len() {
-        0 => Ok(None),
-        1 => store.get_version(&matches[0].skill_id, version),
-        _ => Err(LocalRegistryError::Ambiguous(name.to_owned())),
-    }
 }
 
 pub(super) fn searchable_text(version: &RegistrySkillVersion) -> String {

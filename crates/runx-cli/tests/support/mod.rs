@@ -414,8 +414,9 @@ impl MockConnect {
     }
 }
 
-/// A hosted registry on loopback that answers fixed `GET` routes with JSON;
-/// any other request is a 404.
+/// A hosted registry on loopback that answers fixed routes with JSON: a path
+/// is read by `GET`, and `POST <path>` names another method. Any other
+/// request is a 404.
 pub struct MockRegistry {
     pub url: String,
 }
@@ -426,7 +427,14 @@ impl MockRegistry {
 
         let routes = routes
             .iter()
-            .map(|(path, body)| (format!("GET {path} "), body.to_string()))
+            .map(|(route, body)| {
+                let route = if route.starts_with('/') {
+                    format!("GET {route} ")
+                } else {
+                    format!("{route} ")
+                };
+                (route, body.to_string())
+            })
             .collect::<Vec<_>>();
         let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
         let url = format!("http://{}", listener.local_addr()?);

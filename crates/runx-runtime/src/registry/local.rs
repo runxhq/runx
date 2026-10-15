@@ -99,8 +99,6 @@ pub enum LocalRegistryError {
     UnsafePathComponent(String),
     #[error("registry version {skill_id}@{version} already exists with a different digest")]
     VersionConflict { skill_id: String, version: String },
-    #[error("Registry ref '{0}' is ambiguous. Use '<owner>/<name>' instead.")]
-    Ambiguous(String),
 }
 
 impl FileRegistryStore {
@@ -325,9 +323,7 @@ mod util;
 use build::{
     RegistrySkillVersionPayload, build_registry_skill_version, normalize_registry_skill_version,
 };
-use trust::{
-    detail_for_version, normalize, resolve_by_name, search_result_for_version, searchable_text,
-};
+use trust::{detail_for_version, normalize, search_result_for_version, searchable_text};
 use util::{
     decode_part, encode_part, io_error, is_unsafe_path_component, now_iso8601,
     reject_unsafe_path_component, safe_read_dir_names, write_registry_json,
@@ -394,12 +390,11 @@ pub fn resolve_registry_skill(
 ) -> Result<Option<RegistrySkillResolution>, LocalRegistryError> {
     let parsed = parse_registry_ref(registry_ref);
     let version = options.version.as_deref().or(parsed.version.as_deref());
-    let record = if parsed.skill_id.contains('/') {
-        store.get_version(&parsed.skill_id, version)?
-    } else {
-        resolve_by_name(store, &parsed.skill_id, version)?
-    };
-    record
+    // A registry directory holds skills by `<owner>/<name>`; root names are
+    // the hosted registry's.
+    split_skill_id(&parsed.skill_id)?;
+    store
+        .get_version(&parsed.skill_id, version)?
         .map(|record| {
             let link = runx_link_for_version(&record, options.registry_url.as_deref())?;
             Ok(RegistrySkillResolution {

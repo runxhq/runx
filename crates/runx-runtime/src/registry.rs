@@ -49,9 +49,7 @@ pub use publish_package::{
     RegistryPublishPackageParts, RegistryPublishPackageRequest, prepare_registry_connector_package,
     prepare_registry_publish_package, unheld_publish_registry_refs,
 };
-pub use refs::{
-    ParsedRegistryRef, RegistryResolveError, parse_registry_ref, safe_skill_package_parts,
-};
+pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};
 pub use source_authority::{
     RUNX_REGISTRY_SOURCE_AUTHORITY_ENV, RegistryManifestSourceAuthority, canonical_registry_url,
     is_official_runx_registry_url, registry_manifest_source_authority_from_env,
@@ -74,5 +72,5 @@ pub use types::{
     RegistryManifestSigner, RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher,
     RegistrySearchResult, RegistrySignedManifest, RegistrySkill, RegistrySkillDetail,
     RegistrySkillResolution, RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject,
-    RegistrySubjectKind, ResolvedRegistryRef, TrustSignal, TrustTier,
+    RegistrySubjectKind, TrustSignal, TrustTier,
 };

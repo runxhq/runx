@@ -6,9 +6,9 @@ use ring::signature::KeyPair;
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
     RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
-    RegistryManifestSourceAuthority, RegistryResolveError, RegistrySignedManifest, RegistrySubject,
-    RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_local_skill,
-    parse_registry_ref, skill_content_digest,
+    RegistryManifestSourceAuthority, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind,
+    TrustTier, TrustedRegistryManifestKey, install_local_skill, parse_registry_ref,
+    skill_content_digest,
 };
 use runx_runtime::{
     HttpMethod, RuntimeHttpError, RuntimeHttpRequest as HttpRequest,
@@ -222,35 +222,43 @@ fn acquire_requires_installation_id_and_posts_default_channel()
 }
 
 #[test]
-fn bare_ref_resolution_reports_zero_one_and_ambiguous() -> Result<(), Box<dyn std::error::Error>> {
-    let zero = MockTransport::with(json!({ "status": "success", "skills": [] }));
-    let zero_client = RegistryClient::with_transport("https://registry.example", &zero)?;
-    assert_eq!(zero_client.resolve_ref("echo", None)?, None);
-
-    let one = MockTransport::with(json!({
+fn a_root_name_reads_as_its_canonical_skill() -> Result<(), Box<dyn std::error::Error>> {
+    let held = MockTransport::with(json!({
         "status": "success",
-        "skills": [search_skill("acme/echo", "echo", "1.0.0")]
+        "skill": skill_detail("runx/web-search", "1.2.0")
     }));
-    let one_client = RegistryClient::with_transport("https://registry.example", &one)?;
+    let client = RegistryClient::with_transport("https://registry.example", &held)?;
+    let detail = client
+        .read_root("web-search", Some("1.2.0"))?
+        .ok_or("the root name should resolve")?;
+    assert_eq!(detail.skill_id, "runx/web-search");
     assert_eq!(
-        one_client
-            .resolve_ref("registry:echo", None)?
-            .map(|value| value.skill_id),
-        Some("acme/echo".to_owned())
+        held.requests()[0].url,
+        "https://registry.example/v1/skills/web-search%401.2.0"
     );
 
-    let ambiguous = MockTransport::with(json!({
+    let unheld = MockTransport::with_status(404, json!({ "status": "missing" }));
+    let client = RegistryClient::with_transport("https://registry.example", &unheld)?;
+    assert!(client.read_root("echo", None)?.is_none());
+
+    // An answer that is not a canonical id, or not the version asked for, is refused.
+    let moved = MockTransport::with(json!({
         "status": "success",
-        "skills": [
-            search_skill("acme/echo", "echo", "1.0.0"),
-            search_skill("runx/echo", "echo", "1.0.0")
-        ]
+        "skill": skill_detail("runx/web-search", "2.0.0")
     }));
-    let ambiguous_client = RegistryClient::with_transport("https://registry.example", &ambiguous)?;
+    let client = RegistryClient::with_transport("https://registry.example", &moved)?;
     assert!(matches!(
-        ambiguous_client.resolve_ref("echo", None),
-        Err(RegistryResolveError::Ambiguous(_))
+        client.read_root("web-search", Some("1.2.0")),
+        Err(RegistryClientError::Contract { .. })
     ));
+
+    let none = MockTransport::default();
+    let client = RegistryClient::with_transport("https://registry.example", &none)?;
+    assert!(matches!(
+        client.read_root("acme/echo", None),
+        Err(RegistryClientError::InvalidRootName(_))
+    ));
+    assert!(none.requests().is_empty());
     Ok(())
 }
 
@@ -394,18 +402,22 @@ fn ref_helpers_parse_cache_and_package_paths() {
     );
 }
 
-fn search_skill(skill_id: &str, name: &str, version: &str) -> serde_json::Value {
+fn skill_detail(skill_id: &str, version: &str) -> serde_json::Value {
+    let (owner, name) = skill_id.split_once('/').unwrap_or(("acme", skill_id));
     json!({
         "skill_id": skill_id,
+        "owner": owner,
         "name": name,
-        "owner": skill_id.split('/').next().unwrap_or("acme"),
         "version": version,
-        "profile_mode": "portable",
+        "digest": "sha256:fixture",
+        "markdown": format!("---\nname: {name}\n---\n"),
         "runner_names": [],
+        "trust_tier": "verified",
         "required_scopes": [],
         "tags": [],
-        "trust_tier": "community",
-        "install_command": command(&["runx", "add", &format!("{skill_id}@{version}")]),
+        "publisher": { "kind": "organization", "id": format!("pub_{owner}"), "handle": owner },
+        "attestations": [],
+        "install_command": command(&["runx", "registry", "install", &format!("{skill_id}@{version}")]),
         "run_command": command(&["runx", "skill", &format!("{skill_id}@{version}")])
     })
 }

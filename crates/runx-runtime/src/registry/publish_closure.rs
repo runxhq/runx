@@ -11,7 +11,7 @@ use super::local::{FileRegistryStore, LocalRegistryError, PutVersionOptions};
 use super::publish_package::{
     RegistryPublishPackageError, RegistryPublishPackageRequest, unheld_publish_registry_refs,
 };
-use super::refs::RegistryResolveError;
+use super::refs::parse_registry_ref;
 use crate::http::RuntimeHttpTransport;
 
 /// A closure deeper than this is a cycle or a fault, not a real graph.
@@ -23,8 +23,6 @@ pub enum PublishClosureError {
     Package(#[from] RegistryPublishPackageError),
     #[error(transparent)]
     Client(#[from] RegistryClientError),
-    #[error(transparent)]
-    Resolve(#[from] RegistryResolveError),
     #[error(transparent)]
     Store(#[from] LocalRegistryError),
     #[error("{0}")]
@@ -84,11 +82,9 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
             return Ok(Some(PublishClosure { directory, env }));
         }
         for reference in unheld {
-            let resolved = client.resolve_ref(&reference, None)?.ok_or_else(|| {
-                PublishClosureError::Unresolved(format!(
-                    "registry ref '{reference}' names no published skill"
-                ))
-            })?;
+            // A package binds an exact closure, so its refs name the canonical
+            // `<owner>/<name>`; a root name may move and is never one.
+            let resolved = parse_registry_ref(&reference);
             let version = match resolved.version {
                 Some(version) => version,
                 None => client

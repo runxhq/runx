@@ -1,6 +1,6 @@
 use runx_runtime::registry::{
-    FileRegistryStore, IngestSkillOptions, PublishSkillMarkdownOptions, PublishStatus,
-    RegistryResolveOptions, RegistrySearchOptions, TrustTier, ingest_skill_markdown,
+    FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
+    PublishStatus, RegistryResolveOptions, RegistrySearchOptions, TrustTier, ingest_skill_markdown,
     publish_skill_markdown, read_registry_skill, resolve_registry_skill, resolve_runx_link,
     search_registry_with_options,
 };
@@ -142,11 +142,21 @@ runners:
 
     let resolved = resolve_registry_skill(
         &store,
-        "registry:sourcey",
+        "registry:acme/sourcey",
         RegistryResolveOptions::default(),
     )?
     .ok_or_else(|| std::io::Error::other("missing registry resolution"))?;
     assert_eq!(resolved.skill_id, "acme/sourcey");
+    // A registry directory holds no root names: a bare ref is refused, never
+    // searched for across owners.
+    assert!(matches!(
+        resolve_registry_skill(
+            &store,
+            "registry:sourcey",
+            RegistryResolveOptions::default()
+        ),
+        Err(LocalRegistryError::InvalidSkillId(_))
+    ));
     assert_eq!(
         resolved.profile_document.as_deref(),
         Some(profile_document.as_str())
@@ -294,7 +304,7 @@ harness:
 
     let resolved = resolve_registry_skill(
         &store,
-        "registry:internal-pay-step",
+        "registry:runx/internal-pay-step",
         RegistryResolveOptions::default(),
     )?
     .ok_or_else(|| std::io::Error::other("missing internal registry resolution"))?;

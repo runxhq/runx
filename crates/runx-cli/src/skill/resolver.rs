@@ -82,6 +82,13 @@ fn fetch_unheld_registry_refs(
         for reference in unheld {
             let parsed =
                 parse_registry_ref(runx_parser::registry_ref(&reference).unwrap_or(&reference));
+            // A package binds an exact closure, so it names the canonical id;
+            // a root name may move and is never one.
+            split_skill_id(&parsed.skill_id).map_err(|_| {
+                format!(
+                    "fetching {reference}: a package names a registry skill as '<owner>/<name>'"
+                )
+            })?;
             resolve_registry_skill(
                 &parsed.skill_id,
                 parsed.version.as_deref(),
@@ -121,8 +128,8 @@ fn resolve_skill_ref(
     if runx_parser::registry_ref(&raw_ref).is_some() {
         if split_skill_id(&parsed.skill_id).is_err() {
             return Err(format!(
-                "Registry ref '{}' is ambiguous. Use '<owner>/<name>' instead.",
-                raw_ref
+                "Registry ref '{raw_ref}' names no publisher. A registry ref is '<owner>/<name>'; run a root name as `runx skill {}`.",
+                parsed.skill_id
             ));
         }
         return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options);
@@ -163,8 +170,15 @@ fn resolve_bare_skill_ref(
     {
         return Ok(resolved);
     }
+    // Then the registry, which a bare name reaches only as a root name.
+    let plan = registry_plan(&parsed.skill_id, parsed.version.as_deref(), &options);
+    if let Some(skill_id) = registry::resolve_root_name(&plan, options.env, cwd)
+        .map_err(|error| error.into_message())?
+    {
+        return resolve_registry_skill(&skill_id, parsed.version.as_deref(), cwd, options);
+    }
     Err(format!(
-        "could not resolve skill ref '{}'; tried {} and {}. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
+        "could not resolve skill ref '{}'; tried {}, {} and the registry's root names. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
         skill_ref.display(),
         cwd.join("skills").join(skill_ref).display(),
         runx_runtime::RunxPaths::resolve(options.env, cwd)
@@ -248,19 +262,7 @@ fn resolve_registry_skill(
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, String> {
     let env = options.env;
-    let plan = RegistryPlan {
-        action: RegistryAction::Install,
-        subject: skill_id.to_owned(),
-        registry: options.registry.map(ToOwned::to_owned),
-        version: version.map(ToOwned::to_owned),
-        expected_digest: options.expected_digest.map(ToOwned::to_owned),
-        publisher: None,
-        profile: None,
-        trust_tier: None,
-        limit: None,
-        upsert: false,
-        json: true,
-    };
+    let plan = registry_plan(skill_id, version, &options);
     let target = registry::resolve_registry_target(&plan, env, cwd);
     let source_description = registry::registry_source_description(&target);
     let hosted_registry_url = match &target {
@@ -361,6 +363,26 @@ fn registry_identity(candidate: &InstallCandidate) -> Result<RegistryIdentity, S
 struct RegistryIdentity {
     skill_id: Option<String>,
     version: Option<String>,
+}
+
+fn registry_plan(
+    subject: &str,
+    version: Option<&str>,
+    options: &SkillResolverOptions<'_>,
+) -> RegistryPlan {
+    RegistryPlan {
+        action: RegistryAction::Install,
+        subject: subject.to_owned(),
+        registry: options.registry.map(ToOwned::to_owned),
+        version: version.map(ToOwned::to_owned),
+        expected_digest: options.expected_digest.map(ToOwned::to_owned),
+        publisher: None,
+        profile: None,
+        trust_tier: None,
+        limit: None,
+        upsert: false,
+        json: true,
+    }
 }
 
 fn canonicalize_candidate_ref(candidate: &mut InstallCandidate) {

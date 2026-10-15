@@ -409,9 +409,20 @@ pub(crate) fn install_candidate(
     let source_authority = target.manifest_source_authority();
     match target {
         RegistryTarget::Remote { registry_url } => {
+            let client = remote_registry_client(&registry_url, env)?;
+            // One segment reaches the registry only as a root name, which it
+            // resolves to the canonical `<owner>/<name>` it installs.
+            let skill_id = if plan.subject.contains('/') {
+                plan.subject.clone()
+            } else {
+                match client.read_root(&plan.subject, plan.version.as_deref())? {
+                    Some(detail) => detail.skill_id,
+                    None => return Ok(None),
+                }
+            };
             let installation_id = remote_installation_id(env, cwd)?;
-            let acquired = match remote_registry_client(&registry_url, env)?.acquire(
-                &plan.subject,
+            let acquired = match client.acquire(
+                &skill_id,
                 AcquireOptions {
                     installation_id: &installation_id,
                     version: plan.version.as_deref(),
@@ -425,7 +436,7 @@ pub(crate) fn install_candidate(
                 acquired => acquired?,
             };
             Ok(Some((
-                candidate_from_acquired(&plan.subject, &acquired, source_authority),
+                candidate_from_acquired(&skill_id, &acquired, source_authority),
                 Some(acquired),
             )))
         }
@@ -451,6 +462,22 @@ pub(crate) fn install_candidate(
             )))
         }
     }
+}
+
+/// The canonical `<owner>/<name>` a root name addresses in the registry
+/// `plan` targets; `None` where no skill holds it, or the registry is a
+/// directory, which holds no root names.
+pub(crate) fn resolve_root_name(
+    plan: &RegistryPlan,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<Option<String>, RegistryCliError> {
+    let RegistryTarget::Remote { registry_url } = resolve_registry_target(plan, env, cwd) else {
+        return Ok(None);
+    };
+    Ok(remote_registry_client(&registry_url, env)?
+        .read_root(&plan.subject, plan.version.as_deref())?
+        .map(|detail| detail.skill_id))
 }
 
 fn remote_registry_client(
@@ -620,12 +647,6 @@ fn not_found_local(registry_ref: &str, registry_path: &Path) -> RegistryCliError
 
 impl From<runx_runtime::registry::RegistryClientError> for RegistryCliError {
     fn from(error: runx_runtime::registry::RegistryClientError) -> Self {
-        internal_error(error.to_string())
-    }
-}
-
-impl From<runx_runtime::registry::RegistryResolveError> for RegistryCliError {
-    fn from(error: runx_runtime::registry::RegistryResolveError) -> Self {
         internal_error(error.to_string())
     }
 }

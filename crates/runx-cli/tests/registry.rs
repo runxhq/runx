@@ -990,6 +990,92 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
 }
 
 #[test]
+fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-root-name");
+    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md");
+    let profile = include_str!("../../../fixtures/registry/install/echo-run.yaml");
+    let content_digest =
+        runx_runtime::registry::skill_content_digest(markdown, Some(profile), &[])?;
+    let command = |argv: &[&str]| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        Ok(serde_json::to_value(
+            runx_contracts::CopyableCommand::posix(
+                argv.iter().map(|word| (*word).to_owned()).collect(),
+            )?,
+        )?)
+    };
+    let publisher = json!({"kind": "organization", "id": "pub_acme", "handle": "acme"});
+    let registry = crate::support::MockRegistry::serve(&[
+        // The registry resolves the root name `echo` to acme's skill.
+        (
+            "/v1/skills/echo",
+            json!({"status": "success", "skill": {
+                "skill_id": "acme/echo",
+                "owner": "acme",
+                "name": "echo",
+                "version": "1.0.0",
+                "digest": "sha256:fixture",
+                "markdown": markdown,
+                "runner_names": ["default"],
+                "trust_tier": "verified",
+                "required_scopes": [],
+                "tags": [],
+                "publisher": publisher,
+                "attestations": [],
+                "install_command": command(&["runx", "registry", "install", "acme/echo@1.0.0"])?,
+                "run_command": command(&["runx", "skill", "acme/echo@1.0.0"])?,
+            }}),
+        ),
+        (
+            "POST /v1/skills/acme/echo/acquire",
+            json!({"status": "success", "install_count": 1, "acquisition": {
+                "skill_id": "acme/echo",
+                "owner": "acme",
+                "name": "echo",
+                "version": "1.0.0",
+                "digest": "sha256:fixture",
+                "markdown": markdown,
+                "profile_document": profile,
+                "runner_names": ["default"],
+                "trust_tier": "verified",
+                "publisher": publisher,
+                "attestations": [],
+                "signed_manifest": sign_envelope(
+                    runx_contracts::RegistrySubjectKind::Skill,
+                    "acme/echo",
+                    "1.0.0",
+                    content_digest,
+                )?,
+            }}),
+        ),
+    ])?;
+    let project = root.join("project");
+    fs::create_dir_all(&project)?;
+    let install = |subject: &str| -> Result<std::process::Output, Box<dyn std::error::Error>> {
+        Ok(runx_command()?
+            .env("RUNX_HOME", root.join("home"))
+            .env("RUNX_CWD", &project)
+            .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
+            .args(["registry", "install", subject, "--registry", &registry.url])
+            .arg("--json")
+            .output()?)
+    };
+
+    let installed = install("echo")?;
+    assert_success_contains(&installed, &["\"action\": \"install\""])?;
+    assert!(project.join("skills/acme/echo/1.0.0/SKILL.md").is_file());
+
+    // A name no skill holds as a root name is a connector's to answer, and
+    // never a search of every publisher for a skill of that name.
+    let unheld = install("ghost")?;
+    assert!(!unheld.status.success());
+    assert!(String::from_utf8_lossy(&unheld.stdout).contains("ghost"));
+
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
     let registry_dir = root.join("registry");

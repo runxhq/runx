@@ -1,20 +1,7 @@
-use crate::http::RuntimeHttpTransport;
-
-use super::http::{RegistryClient, RegistryClientError};
-use super::types::ResolvedRegistryRef;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParsedRegistryRef {
     pub skill_id: String,
     pub version: Option<String>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RegistryResolveError {
-    #[error("{0}")]
-    Client(#[from] RegistryClientError),
-    #[error("Registry ref '{0}' is ambiguous. Use '<owner>/<name>' instead.")]
-    Ambiguous(String),
 }
 
 /// A registry ref, `registry:<owner>/<name>[@<version>]`, or the same
@@ -36,41 +23,6 @@ pub fn parse_registry_ref(value: &str) -> ParsedRegistryRef {
     ParsedRegistryRef {
         skill_id: without_prefix[..at_index].to_owned(),
         version: non_empty(&without_prefix[at_index + 1..]),
-    }
-}
-
-pub fn resolve_remote_registry_ref<T: RuntimeHttpTransport>(
-    client: &RegistryClient<T>,
-    registry_ref: &str,
-    version_override: Option<&str>,
-) -> Result<Option<ResolvedRegistryRef>, RegistryResolveError> {
-    let parsed = parse_registry_ref(registry_ref);
-    if parsed.skill_id.contains('/') {
-        return Ok(Some(ResolvedRegistryRef {
-            skill_id: parsed.skill_id,
-            version: version_override.map(ToOwned::to_owned).or(parsed.version),
-        }));
-    }
-
-    let normalized = parsed.skill_id.trim().to_lowercase();
-    let matches = client
-        .search_with_limit(&parsed.skill_id, 100)?
-        .into_iter()
-        .filter(|candidate| candidate.name == normalized)
-        .collect::<Vec<_>>();
-    match matches.len() {
-        0 => Ok(None),
-        1 => {
-            let candidate = &matches[0];
-            Ok(Some(ResolvedRegistryRef {
-                skill_id: candidate.skill_id.clone(),
-                version: version_override
-                    .map(ToOwned::to_owned)
-                    .or(parsed.version)
-                    .or_else(|| candidate.version.clone()),
-            }))
-        }
-        _ => Err(RegistryResolveError::Ambiguous(parsed.skill_id)),
     }
 }
 
