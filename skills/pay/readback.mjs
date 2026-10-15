@@ -33,10 +33,16 @@ export function requireCompleteReadback(inputs) {
   if (status === "failed") {
     throw new Error(`x402 paid resource completed as ${boundedState(readback.resource_state)}.`);
   }
-  if (typeof readback.inner_receipt_ref !== "string"
-    || !readback.inner_receipt_ref.startsWith("runx:receipt:")
+  // Completion rests on payment evidence alone: a confirmed transaction and the
+  // resource's 2xx answer. It never waits on the resource's own product state.
+  if (typeof readback.transaction !== "string"
+    || !/^0x[0-9a-fA-F]{64}$/u.test(readback.transaction)
     || readback.finality !== "confirmed") {
-    throw new Error("x402 completed readback lacks confirmed receipt evidence.");
+    throw new Error("x402 completed readback lacks a confirmed transaction.");
+  }
+  if (!Number.isInteger(readback.resource_status)
+    || readback.resource_status < 200 || readback.resource_status > 299) {
+    throw new Error("x402 completed readback lacks a 2xx resource answer.");
   }
   return { verified: Object.freeze({ readback_status: "complete" }) };
 }

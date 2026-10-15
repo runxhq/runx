@@ -98,7 +98,6 @@ runners:
           type: x402_payment
         amount: { units: $input.payment_signal.amount_minor, unit: $input.parent_payment_authority.currency }
         result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest]
-        optional_result_fields: [inner_receipt_ref]
         input: { payment_signal: $input.payment_signal, parent_payment_authority: $input.parent_payment_authority }
   readback:
     inputs:
@@ -121,7 +120,7 @@ runners:
       - id: readback
         operation: wallet/evm/payment.x402.read
         result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, readback_status]
-        optional_result_fields: [resource_state, finality, block_number, inner_receipt_ref]
+        optional_result_fields: [resource_state, finality, block_number]
         ephemeral_result_paths: [/resource_result/resource_access]
         input: $steps.prepare.readback_request
         expected_result: $steps.prepare.expected_result

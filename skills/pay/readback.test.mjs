@@ -20,14 +20,28 @@ test("reads one payment against the resource it paid for", () => {
   }), /exact HTTPS URL/);
 });
 
-test("requires terminal confirmed receipt for synchronous pay", () => {
-  assert.deepEqual(requireCompleteReadback({
-    readback: {
-      readback_status: "complete",
-      finality: "confirmed",
-      inner_receipt_ref: `runx:receipt:sha256:${"a".repeat(64)}`,
-    },
-  }), { verified: { readback_status: "complete" } });
+test("completes on a confirmed transaction and a 2xx resource answer", () => {
+  const complete = {
+    readback_status: "complete",
+    finality: "confirmed",
+    transaction: `0x${"a".repeat(64)}`,
+    resource_status: 200,
+  };
+  assert.deepEqual(requireCompleteReadback({ readback: complete }), {
+    verified: { readback_status: "complete" },
+  });
+  assert.throws(
+    () => requireCompleteReadback({ readback: { ...complete, finality: "pending" } }),
+    /confirmed transaction/u,
+  );
+  assert.throws(
+    () => requireCompleteReadback({ readback: { ...complete, transaction: "0xabc" } }),
+    /confirmed transaction/u,
+  );
+  assert.throws(
+    () => requireCompleteReadback({ readback: { ...complete, resource_status: 502 } }),
+    /2xx resource answer/u,
+  );
   assert.throws(
     () => requireCompleteReadback({ readback: { readback_status: "pending" } }),
     /durable readback/u,

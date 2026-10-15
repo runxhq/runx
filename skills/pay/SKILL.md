@@ -18,8 +18,9 @@ USDC on Base. Other methods join as connectors when they are implemented.
 Runx Hosted owns challenge validation, authority attenuation and reservation,
 wallet credentials, payload signing, settlement recovery, finality, and the
 private ledger. The connector never sleeps or polls; durable continuation
-cadence belongs to Runx scheduling. Buying a registry paid skill never goes
-through `pay`: the kernel settles that purchase itself.
+cadence belongs to Runx scheduling. The kernel buys a registry paid skill
+through `pay` too, then follows the purchase, which delivers its result and
+signed receipt.
 
 ## Operator guide
 
@@ -32,9 +33,9 @@ before the paid POST, and reuses those exact bytes after an uncertain response.
 Stop on malformed or expired requirements, amount, currency, payee or resource
 drift, incomplete authority, missing approval, or inconsistent paid-resource
 readback. Never pass wallet keys, seed phrases, bearer tokens, or facilitator
-credentials in skill input. A 2xx response is not finality: the readback must
-return the provider transaction, confirmed chain block, and the paid resource's
-terminal Runx receipt reference.
+credentials in skill input. A 2xx response is not finality: a complete readback
+needs the transaction confirmed on chain and a 2xx answer from the resource. It
+never waits on the resource's own product state.
 
 Use `charge` to take a payment as the seller, `refund` to reverse one, and
 `settle-invoice` when an invoice needs validating before it is paid.
