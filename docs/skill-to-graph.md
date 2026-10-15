@@ -239,14 +239,13 @@ steps:
     skill: ./your-domain-skill
     runner: claim
   - id: append
-    skill: ./data-store
-    runner: append_event
-    inputs:
-      data_source_ref: "$input.data_source_ref"
+    operation: store/events.append
+    idempotency_key: $input.idempotency_key
+    input:
+      data_source_ref: $input.data_source_ref
       resource: board_events
-      aggregate_id: "$input.posting_id"
-      expected_version: "$input.expected_version"
-      idempotency_key: "$input.idempotency_key"
+      aggregate_id: $input.posting_id
+      expected_version: $input.expected_version
       event: $steps.decide.claim_packet
 ```
 
@@ -256,7 +255,7 @@ connector's declared operations, as operation steps, and receives
 evidence.
 
 Storage choice is not product logic. A graph passes `data_source_ref` such as
-`local://runx-data-store/dev-board`; the workspace's store instance decides
+`local://dev-board/events`; the workspace's store instance decides
 where the streams live. With none confirmed it is the workspace store, a SQLite
 file under `.runx/`. Moving to Postgres or Redis is a store instance, not a
 change to the domain skill.

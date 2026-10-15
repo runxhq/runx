@@ -7,9 +7,9 @@
       "command": "runx harness examples/hello-world"
     },
     {
-      "path": "skills/data-store",
-      "proof": "Provider-agnostic data operation appends and reads durable SQLite state through a governed adapter envelope.",
-      "command": "runx harness skills/data-store/fixtures/append-read-default-sqlite-event.yaml"
+      "path": "skills/sql-analyst",
+      "proof": "An analytics question becomes a validated plan, one declared store read through the store operation, and an interpretation bound to what that read returned.",
+      "command": "runx harness skills/sql-analyst/fixtures/forward-store-read.yaml"
     },
     {
       "path": "skills/nws-weather-forecast",
