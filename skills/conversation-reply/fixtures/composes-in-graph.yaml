@@ -1,7 +1,0 @@
-name: conversation-reply-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [conversation-reply, digest]
-  receipt: { schema: runx.receipt.v1 }

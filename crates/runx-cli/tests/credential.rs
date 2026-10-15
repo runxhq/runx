@@ -61,7 +61,6 @@ fn connector_use_binds_a_credential_for_a_connector_of_the_workspace_plugin()
     let root = crate::support::temp_root("runx-credential-plugin-connector");
     let home = root.join("home");
     fs::create_dir_all(root.join("connectors/notes"))?;
-    fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1
@@ -109,7 +108,7 @@ operations:
     let set = run_with_stdin(set, SECRET)?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
-    assert_eq!(set_json["selected"]["connector"], "acme/notes");
+    assert_eq!(set_json["selected"]["connector"], "notes");
     Ok(())
 }
 
@@ -118,7 +117,6 @@ operations:
 /// print the token; it is never the one that runs.
 fn write_notes_plugin(root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(root.join("connectors/notes"))?;
-    fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1

@@ -10,6 +10,9 @@ catalog:
   approval: conditional
   category: ops
 
+connectors:
+  store:
+    operations: [projection.read]
 runners:
   operate:
     inputs:
@@ -353,9 +356,8 @@ runners:
     result_from: [operate]
     steps:
       - id: read-state
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+        operation: store/projection.read
+        input:
           data_source_ref: "$input.data_source_ref"
           resource: "$input.resource"
           aggregate_id: "$input.aggregate_id"
@@ -371,7 +373,7 @@ runners:
           operator_policy: "$input.operator_policy"
           project_profile: "$input.project_profile"
           requested_action: "$input.requested_action"
-          dashboard_snapshot: $steps.read-state.data_operation_result.projection
+          dashboard_snapshot: $steps.read-state.provider_operation.result.projection
         artifacts:
           named_emits: { ops_desk_packet: ops_desk_packet }
           packets: { ops_desk_packet: runx.ops_desk.packet.v1 }

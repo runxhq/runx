@@ -1,15 +1,15 @@
 ---
 name: slack
-description: Read bounded Slack search and thread evidence, plan an exact reply, and deliver an approved reply through any compatible Slack binding with stable-message readback.
+description: Read bounded Slack search, thread, link and file evidence through any compatible Slack binding, ready for an operator's triage and for message-send to reply.
 ---
 
 # Slack
 
 Use Slack as a governed provider boundary without turning Slack—or Runx
 Cloud—into the owner of the operator's workflow. This skill owns the reusable
-Slack mechanics that an agent should not have to reconstruct: bounded message
-search, bounded thread hydration, digest-bound reply planning, explicit
-approval, idempotent delivery, and exact-message readback.
+Slack reading mechanics that an agent should not have to reconstruct: bounded
+message search, bounded thread hydration, permalink resolution and image reads.
+Delivering a post or a reply is `message-send`'s job.
 
 The operator-selected provider binding has one narrow role in this flow: retain
 credential custody and execute a fixed Slack operation. It may be local,
@@ -17,12 +17,6 @@ self-hosted, third-party, or Runx-hosted. The skill, its procedure, approval
 point, retry identity, and completion rule remain in Runx OSS. Any queue,
 team-specific routing rule, or durable action state belongs in a higher-level
 operator skill.
-
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `send-as#plan`
 
 ## Runners
 
@@ -72,31 +66,18 @@ caps decoded bytes at 5 MiB. The result contains the MIME type, content digest,
 and base64 bytes so the caller can inspect the image without receiving the
 Slack credential or private URL.
 
-`plan_reply` is safe and does not call Slack. It computes the text digest with
-Runx's native `data.digest` tool and passes the principal, exact thread
-audience, and digest-bound content to canonical `send-as`. The emitted
-`send_plan` is an authorization plan, not evidence of delivery.
-
-`deliver_reply` accepts that exact `send_plan`, thread locator, text, and a
-stable UUID idempotency key. It recomputes the digest and rejects any change to
-the plan decision, Slack provider, chat channel, thread audience, content
-digest, or human-approval requirement. After approval it calls the `slack`
-connector's `thread.reply` operation, then independently calls
-`thread.reply.read`. Completion requires the same workspace,
-channel, thread locator, message locator, content digest, and occurrence time
-from Slack. Provider acceptance alone is not completion.
-
-Use `slack-notify` for a proactive top-level channel post. Use this skill for
-search, thread context, and replies. A product-owned skill may add team-specific
-triage and compose these skills, but must not copy their provider transport,
-approval, idempotency, readback, or queue logic.
+Replies go through `message-send`: `plan_reply` binds a proposed reply to the
+exact canonical thread and its digest, and `deliver_reply` posts it once after
+approval and reads it back; `reply` delivers a reply bound to a source packet.
+Use `message-send` `send` for a proactive top-level channel post. A
+product-owned skill may add team-specific triage and compose these skills, but
+must not copy their provider transport, approval, idempotency, readback, or
+queue logic.
 
 ## Authority and privacy
 
 Reads resolve a compatible Slack binding for `messages.search`, `thread.read`,
-or `file.read` and do not ask for human approval. Reply delivery requires both `thread.reply` and
-`thread.reply.read`; the mutation stops at an explicit approval bound to the
-unchanged plan and content digest. Runx supplies the idempotency key once, and
+or `file.read` and do not ask for human approval. Runx supplies the idempotency key once, and
 the selected transport verifies the registered operation and its read/mutate
 class against the bound provider authority.
 
@@ -116,18 +97,15 @@ timestamps, and a content digest; they do not echo the delivered message.
   workspace, or resolves outside Slack's governed private-file origin.
 - Stop on malformed permalinks, unsupported permalink query fields,
   cross-workspace locators, or thread/message channel mismatch.
-- Stop on reply-plan drift, absent or denied approval, invalid idempotency, or
-  provider readback that does not match the exact delivered message.
 - Do not infer that a request is resolved from Slack prose. Record resolution,
   waiting, follow-up, or dismissal explicitly in the owning operator workflow.
-- Do not claim complete scan coverage while a cursor remains, or successful
-  delivery from a local plan, a provider acknowledgement, or a fixture.
+- Do not claim complete scan coverage while a cursor remains.
 
 ## Worked flow
 
 An operator can search for direct mentions or start from a pasted Slack
 permalink. They hydrate only the actionable thread, preserve its canonical
-locator, then pass that normalized observation to a team-specific triage skill. If a reply is needed, `plan_reply` binds the proposed text
+locator, then pass that normalized observation to a team-specific triage skill. If a reply is needed, `message-send` `plan_reply` binds the proposed text
 to the exact canonical thread. A changed draft fails before approval. An
 approved unchanged reply is posted once, then read back from the exact returned
 message locator before Runx seals the effect.

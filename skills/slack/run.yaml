@@ -5,8 +5,7 @@ catalog:
   kind: graph
   audience: operator
   visibility: public
-  role: branded
-  canonical_skill: runx/send-as
+  role: canonical
   provider: slack
   execution: execute
   completion: provider_readback
@@ -15,7 +14,7 @@ catalog:
 
 connectors:
   slack:
-    operations: [messages.search, thread.read, file.read, thread.reply, thread.reply.read]
+    operations: [messages.search, thread.read, file.read]
 runners:
   assistant_decide:
     inputs:
@@ -248,166 +247,6 @@ runners:
         result_fields: [external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
         input:
           file_locator: $input.file_locator
-
-  plan_reply:
-    inputs:
-      principal:
-        type: string
-        required: true
-        description: Principal represented by the connected Slack identity.
-      thread_locator:
-        type: string
-        required: true
-        description: Exact Slack thread that would receive the reply.
-        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$', maxLength: 300 }
-      text:
-        type: string
-        required: true
-        description: Exact proposed reply text.
-        schema: { minLength: 1, maxLength: 4000 }
-      provider_context:
-        type: json
-        required: false
-        description: Connector and workspace readiness supplied to send-as.
-      operator_context:
-        type: string
-        required: false
-        description: Purpose, constraints, and approval posture for this reply.
-    examples:
-      - principal: user:kam
-        thread_locator: slack://T123ABC/C123ABC/1750000000.000001
-        text: I’ll verify this now.
-        provider_context: { connector: runx-connect, workspace: T123ABC }
-        operator_context: Reply only in the supplied thread and require approval before delivery.
-    result_from: [authorize]
-    steps:
-      - id: digest
-        tool: data.digest
-        inputs:
-          value: $input.text
-          encoding: utf8_text
-      - id: authorize
-        skill: ../send-as
-        runner: plan
-        inputs:
-          objective: Authorize one exact Slack thread reply for later provider delivery.
-          principal: $input.principal
-          provider_context: $input.provider_context
-          audience:
-            type: thread
-            ref: $input.thread_locator
-            requires_reconfirmation: false
-          operator_context: $input.operator_context
-          content_ref: $steps.digest.digest_result
-
-  deliver_reply:
-    inputs:
-      send_plan:
-        type: json
-        packet: runx.send_as.plan.v1
-        required: true
-        description: Exact send_plan emitted by plan_reply.
-      thread_locator:
-        type: string
-        required: true
-        description: Exact Slack thread locator bound by the plan and Connect grant.
-        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$', maxLength: 300 }
-      text:
-        type: string
-        required: true
-        description: Exact reply text whose digest must match the plan.
-        schema: { minLength: 1, maxLength: 4000 }
-      idempotency_key:
-        type: string
-        required: true
-        description: Stable UUID for this exact Slack reply.
-        schema: { format: uuid }
-    examples:
-      - send_plan:
-          decision: ready
-          action_family: send-as
-          principal: { type: user, ref: "user:kam" }
-          provider: { name: slack, account_ref: "workspace:T123ABC", runtime_path: slack }
-          send_class: internal
-          channel: chat
-          audience: { type: thread, ref: 'slack://T123ABC/C123ABC/1750000000.000001', requires_reconfirmation: false }
-          content:
-            draft_ref: inline
-            digest: 'sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647'
-            subject_or_title: Slack thread reply
-          gates: { preflight_required: true, human_approval_required: true, approval_ref: slack.deliver-reply.approval }
-          blockers: []
-          provider_actions: [thread.reply]
-          evidence_refs: []
-          success_checkpoint:
-            milestone: plan_ready
-            description: Digest-bound Slack reply awaits approved provider execution.
-        thread_locator: slack://T123ABC/C123ABC/1750000000.000001
-        text: I’ll verify this now.
-        idempotency_key: 00000000-0000-4000-8000-000000000001
-    result_from: [readback]
-    steps:
-      - id: digest
-        tool: data.digest
-        inputs:
-          value: $input.text
-          encoding: utf8_text
-      - id: bind-plan
-        tool: data.compare
-        inputs:
-          actual:
-            decision: $input.send_plan.decision
-            provider: $input.send_plan.provider.name
-            channel: $input.send_plan.channel
-            audience: $input.send_plan.audience.ref
-            approval_required: $input.send_plan.gates.human_approval_required
-          expected:
-            decision: ready
-            provider: slack
-            channel: chat
-            audience: $input.thread_locator
-            approval_required: true
-      - id: bind-content
-        tool: data.compare
-        when:
-          value: $steps.bind-plan.comparison.equal
-          equals: true
-        inputs:
-          expected: $input.send_plan.content.digest
-          actual: $steps.digest.digest_result.digest
-      - id: deliver
-        operation: slack/thread.reply
-        idempotency_key: $input.idempotency_key
-        when:
-          value: $steps.bind-content.comparison.equal
-          equals: true
-        approval:
-          reason: Approve posting this exact digest-bound Slack thread reply.
-          type: slack_message
-        expected_result:
-          thread_locator: $input.thread_locator
-          content_digest: $input.send_plan.content.digest
-        result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
-        input:
-          thread_locator: $input.thread_locator
-          text: $input.text
-      - id: prepare-readback
-        when:
-          value: $steps.bind-content.comparison.equal
-          equals: true
-        inputs:
-          text: $input.text
-          delivery: $steps.deliver.provider_operation
-        tool: { module: reply-readback.mjs, export: prepareReplyReadback }
-        outputs: { read_request: object }
-      - id: readback
-        when:
-          value: $steps.bind-content.comparison.equal
-          equals: true
-        operation: slack/thread.reply.read
-        result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
-        expected_result: $steps.deliver.provider_operation.result
-        input: $steps.prepare-readback.read_request
 
 harness:
   files: [fixtures/support/composed.graph]

@@ -521,7 +521,6 @@ pub fn plugin_with_source_connectors(
     ids: &[&str],
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
-    std::fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
     for id in ids {
         copy_dir(&source.join(id), &root.join("connectors").join(id))?;

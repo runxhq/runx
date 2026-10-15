@@ -392,7 +392,7 @@ are appropriate; disclose when it was supplied rather than freshly observed.
 provides bounded discovery; `configure` manages local bindings. `data-store`
 owns durable event operations and concurrency. A connector credential profile
 is resolved by that connector's native credential boundary, not this skill.
-`send-as` owns normalized connector delivery through message.send/message.read.
+`message-send` owns normalized connector delivery through message.send/message.read.
 This host-assisted lane does not emit its sent result; a future native browser
 provider should integrate there. Brand-voice and taste-profile may supply
 approved voice evidence; this skill applies it to Reddit. Twitter's API

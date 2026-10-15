@@ -26,7 +26,7 @@ inputs:
     runx_api: ok
   approval_context:
     approvals: []
-  operator_policy: Route live sends through send-as and money movement through spend or refund.
+  operator_policy: Route live sends through message-send and money movement through spend or refund.
 caller:
   answers:
     operate:
@@ -46,11 +46,11 @@ caller:
             area: receipts
             summary: The projection is empty, so there is no receipt-backed operating state yet.
             evidence_refs:
-              - data-store.read_projection
+              - store/projection.read
         proposals: []
         ordered_next_steps:
           - step: Append a governed state event or provide a receipt summary before proposing live actions.
-            lane: data-store
+            lane: store
             requires_confirmation: false
         refused_reasons: []
         needs_input:
@@ -68,17 +68,18 @@ expect:
   step_outputs:
     read-state:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            schema: runx.data.operation_result.v1
-            operation: projection.read
-            aggregate_id: workspace-example
-            projection:
+            result:
+              schema: runx.data.operation_result.v1
+              operation: projection.read
               aggregate_id: workspace-example
-              event_count: 0
-              version: 0
-            provider_evidence:
-              backend: sqlite
+              projection:
+                aggregate_id: workspace-example
+                event_count: 0
+                version: 0
+              provider_evidence:
+                backend: sqlite
 metadata:
   public_skill: ops-desk
   source_case: operate-from-sqlite-projection

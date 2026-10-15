@@ -40,10 +40,11 @@ expect:
   step_outputs:
     open:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            operation: events.append
-            aggregate_id: case-open-1
-            after_version: 1
-            provider_evidence:
-              backend: sqlite
+            result:
+              operation: events.append
+              aggregate_id: case-open-1
+              after_version: 1
+              provider_evidence:
+                backend: sqlite

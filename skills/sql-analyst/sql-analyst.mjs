@@ -138,7 +138,7 @@ export function finalizePlan(inputs) {
 
   const ready = decision === "ready";
   const governedRead = object(context.governed_read);
-  const handoffReady = ready && text(governedRead.runner) && Object.keys(object(governedRead.inputs)).length > 0;
+  const handoffReady = ready && text(governedRead.operation) && Object.keys(object(governedRead.inputs)).length > 0;
   return {
     sql_analysis_plan: {
       decision,
@@ -157,7 +157,7 @@ export function finalizePlan(inputs) {
         executed: false,
         provider_receipt_ref: "",
         handoff: handoffReady
-          ? { skill: "data-store", runner: text(governedRead.runner), inputs: object(governedRead.inputs) }
+          ? { connector: "store", operation: text(governedRead.operation), inputs: object(governedRead.inputs) }
           : {},
       },
       validation: { status: ready ? "pass" : "fail", findings },
@@ -189,29 +189,29 @@ function admitSource(label, source, asOf, maxAgeDays, blockers) {
 
 function admitGovernedRead(context, blockers) {
   if (Object.keys(context).length === 0) return {};
-  const runner = text(context.runner);
+  const operation = text(context.operation);
   const dataSourceRef = text(context.data_source_ref);
   const resource = text(context.resource);
   const aggregateId = text(context.aggregate_id);
   const limit = Number(context.limit ?? 50);
-  if (!["read_projection", "read_events", "list_stream_heads"].includes(runner)) {
-    blockers.push("execution_context runner is unsupported");
+  if (!["projection.read", "events.read", "heads.list"].includes(operation)) {
+    blockers.push("execution_context operation is not a store read");
   }
   if (!dataSourceRef || !resource) blockers.push("execution_context requires data_source_ref and resource");
-  if (["read_projection", "read_events"].includes(runner) && !aggregateId) {
-    blockers.push("execution_context runner requires aggregate_id");
+  if (["projection.read", "events.read"].includes(operation) && !aggregateId) {
+    blockers.push("execution_context operation requires aggregate_id");
   }
-  if (["read_events", "list_stream_heads"].includes(runner)
+  if (["events.read", "heads.list"].includes(operation)
     && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
     blockers.push("execution_context limit must be from 1 to 100");
   }
   return {
-    runner,
+    operation,
     inputs: {
       data_source_ref: dataSourceRef,
       resource,
       ...(aggregateId ? { aggregate_id: aggregateId } : {}),
-      ...(["read_events", "list_stream_heads"].includes(runner) ? { limit } : {}),
+      ...(["events.read", "heads.list"].includes(operation) ? { limit } : {}),
     },
   };
 }

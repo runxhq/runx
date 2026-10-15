@@ -12,7 +12,7 @@ description: >-
 One account, three lanes: read evidence, plan typed acts, execute an approved
 plan.
 
-This is the public branded X (Twitter) catalog skill for the `send-as` action
+This is the public branded X (Twitter) catalog skill for the `message-send` action
 family. Its core invariant: the agent may read, audit, draft, and plan freely,
 but every act that publishes to a public timeline or mutates the account stops
 at a human approval gate, and the sealed receipt proves which acts ran, against
@@ -151,7 +151,7 @@ breaks either is refused before approval.
   criteria.
 - Gather timeline, mention, or search evidence for downstream research,
   triage, or lead skills that consume `twitter.evidence.v1`.
-- Route a `send-as` plan onto X as its provider delivery lane.
+- Route a `message-send` plan onto X as its provider delivery lane.
 
 ## When not to use this skill
 

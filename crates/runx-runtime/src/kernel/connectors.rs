@@ -701,12 +701,16 @@ impl ConnectorScope {
         match (self.in_reach(name), ConnectorName::new(name)) {
             (
                 Err(
-                    ConnectorRegistryError::NotInPlugin { .. }
+                    miss @ (ConnectorRegistryError::NotInPlugin { .. }
                     | ConnectorRegistryError::NoPlugin { .. }
-                    | ConnectorRegistryError::NotRuntimeCapability { .. },
+                    | ConnectorRegistryError::NotRuntimeCapability { .. }),
                 ),
                 Some(connector),
-            ) if self.installed.is_some() => self.installed(&connector, None),
+            ) if self.installed.is_some() => match self.installed(&connector, None) {
+                // Nothing installed: the miss says where it looked.
+                Err(ConnectorRegistryError::NotInstalledConnector { .. }) => Err(miss),
+                found => found,
+            },
             (result, _) => result,
         }
     }

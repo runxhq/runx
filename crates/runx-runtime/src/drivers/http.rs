@@ -1236,7 +1236,7 @@ mod tests {
         )
         .session(&connect_env, std::path::Path::new("/"))?;
         let binding = crate::kernel::connectors::source_scope()
-            .connector("runx/slack")
+            .connector("slack")
             .map_err(|error| error.to_string())?
             .binding();
         for case in corpus["cases"].as_array().ok_or("cases")? {

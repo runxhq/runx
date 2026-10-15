@@ -6,7 +6,7 @@ use super::*;
 
 fn slack_binding() -> ConnectorBinding {
     crate::kernel::connectors::source_scope()
-        .connector("runx/slack")
+        .connector("slack")
         .expect("slack is official")
         .binding()
 }

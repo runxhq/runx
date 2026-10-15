@@ -35,17 +35,19 @@ expect:
             provider_status: not_called
     append-cursor-event:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            operation: events.append
-            provider_evidence:
-              backend: sqlite
+            result:
+              operation: events.append
+              provider_evidence:
+                backend: sqlite
     readback:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            operation: projection.read
-            provider_evidence:
-              backend: sqlite
+            result:
+              operation: projection.read
+              provider_evidence:
+                backend: sqlite
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: github-sync, source_case: cursor-operation-proof, source: skills-fixture }

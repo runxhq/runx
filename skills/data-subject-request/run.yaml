@@ -138,6 +138,9 @@ harness:
       expect:
         status: failure
 
+connectors:
+  store:
+    operations: [events.append]
 runners:
   decide:
     default: true
@@ -244,21 +247,20 @@ runners:
             verdict_draft: verdict_draft
 
       - id: persist-verdict
-        skill: ../data-store
-        runner: append_event
-        inputs:
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
-          idempotency_key: $input.idempotency_key
           event: $steps.judge.verdict_draft.event
 
       - id: finalize
         label: bind the durable verdict and digests into one packet
         inputs:
           verdict_draft: $steps.judge.verdict_draft
-          append_result: $steps.persist-verdict.data_operation_result
+          append_result: $steps.persist-verdict.provider_operation.result
           request_digest: $steps.digest-request.digest_result.digest
           policy_digest: $steps.digest-policy.digest_result.digest
         tool: { module: data-subject-request.mjs, export: finalizeVerdict }

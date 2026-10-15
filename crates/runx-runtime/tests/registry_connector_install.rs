@@ -18,7 +18,7 @@ const KEY_ID: &str = "connector-test-key";
 const SEED: [u8; 32] = [9; 32];
 const SOURCE: &str = "https://registry.example";
 const ACME_OPS: &str = r#"schema: runx.connector.v1
-id: acme-ops
+id: acme/ops
 name: Acme Ops
 description: Syncs Acme items.
 category: dev-tools
@@ -46,7 +46,7 @@ fn a_signed_connector_version_installs_into_the_package_cache_once()
 
     let installed = install_registry_connector(&published, &options)?;
 
-    let destination = temp.path().join("connectors/acme/acme-ops/1.0.0");
+    let destination = temp.path().join("connectors/acme/ops/1.0.0");
     assert_eq!(installed.status, InstallStatus::Installed);
     assert_eq!(installed.destination, destination);
     assert_eq!(installed.content_digest, package.content_digest);
@@ -78,7 +78,7 @@ fn a_version_directory_is_never_rewritten() -> Result<(), Box<dyn std::error::Er
     readme(&mut other.files)?.content = "# Acme Ops, again\n".to_owned();
     other.signed_manifest = sign(
         RegistrySubjectKind::Connector,
-        "acme/acme-ops",
+        "acme/ops",
         "1.0.0",
         &other.files,
     )?;
@@ -92,7 +92,7 @@ fn a_version_directory_is_never_rewritten() -> Result<(), Box<dyn std::error::Er
         "{error}"
     );
     assert_eq!(
-        fs::read_to_string(temp.path().join("connectors/acme/acme-ops/1.0.0/README.md"))?,
+        fs::read_to_string(temp.path().join("connectors/acme/ops/1.0.0/README.md"))?,
         "# Acme Ops\n"
     );
     Ok(())
@@ -105,7 +105,7 @@ fn a_skill_envelope_never_installs_as_a_connector() -> Result<(), Box<dyn std::e
     // Trusted, over these exact files, for the same ref: only the kind differs.
     published.signed_manifest = sign(
         RegistrySubjectKind::Skill,
-        "acme/acme-ops",
+        "acme/ops",
         "1.0.0",
         &published.files,
     )?;
@@ -120,8 +120,8 @@ fn a_skill_envelope_never_installs_as_a_connector() -> Result<(), Box<dyn std::e
     else {
         return Err(format!("expected an identity mismatch, got {error}").into());
     };
-    assert_eq!(expected, "connector acme/acme-ops@1.0.0");
-    assert_eq!(actual, "skill acme/acme-ops@1.0.0");
+    assert_eq!(expected, "connector acme/ops@1.0.0");
+    assert_eq!(actual, "skill acme/ops@1.0.0");
     assert_nothing_installed(temp.path())
 }
 
@@ -146,25 +146,26 @@ fn files_changed_after_signing_fail_the_content_digest() -> Result<(), Box<dyn s
 fn files_that_load_as_another_connector_are_refused() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let (mut published, _) = published_version(temp.path())?;
-    published
+    // Signed as acme/ops, but its manifest names another connector.
+    let manifest = published
         .files
         .iter_mut()
-        .find(|file| file.path == "plugin.json")
-        .ok_or("plugin.json")?
-        .content = r#"{"namespace":"other"}"#.to_owned();
+        .find(|file| file.path == "connector.yaml")
+        .ok_or("connector.yaml")?;
+    manifest.content = manifest.content.replacen("id: acme/ops", "id: acme/other", 1);
     published.signed_manifest = sign(
         RegistrySubjectKind::Connector,
-        "acme/acme-ops",
+        "acme/ops",
         "1.0.0",
         &published.files,
     )?;
 
     let error = install_registry_connector(&published, &options(temp.path(), "acme")?)
         .err()
-        .ok_or("a package naming another publisher must be refused")?;
+        .ok_or("a package naming another connector must be refused")?;
 
     assert!(
-        matches!(&error, ConnectorInstallError::InvalidPackage { reason, .. } if reason.contains("other/acme-ops")),
+        matches!(&error, ConnectorInstallError::InvalidPackage { reason, .. } if reason.contains("acme/other")),
         "{error}"
     );
     assert_nothing_installed(temp.path())
@@ -180,7 +181,7 @@ fn a_file_the_packager_does_not_ship_is_refused() -> Result<(), Box<dyn std::err
     });
     published.signed_manifest = sign(
         RegistrySubjectKind::Connector,
-        "acme/acme-ops",
+        "acme/ops",
         "1.0.0",
         &published.files,
     )?;
@@ -239,7 +240,7 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
     let temp = tempdir()?;
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
     let mut files = prepare_registry_connector_package(&source)?.files;
-    // A later runx/github: its manifest, so its digest, differs from the source's.
+    // A later github: its manifest, so its digest, differs from the source's.
     let manifest = files
         .iter_mut()
         .find(|file| file.path == "connector.yaml")
@@ -248,12 +249,12 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
         .content
         .replacen("description: ", "description: Newer. ", 1);
     let published = RegistryConnectorVersion {
-        name: runx_contracts::connector::ConnectorName::new("runx/github").ok_or("ref")?,
+        name: runx_contracts::connector::ConnectorName::new("github").ok_or("ref")?,
         version: "9.0.0".to_owned(),
-        trust_tier: TrustTier::FirstParty,
+        trust_tier: TrustTier::Verified,
         signed_manifest: sign(
             RegistrySubjectKind::Connector,
-            "runx/github",
+            "github",
             "9.0.0",
             &files,
         )?,
@@ -279,7 +280,7 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
     Ok(())
 }
 
-/// The `acme/acme-ops` package as `prepare_registry_connector_package` emits
+/// The `acme/ops` package as `prepare_registry_connector_package` emits
 /// it, published as 1.0.0 with a trusted signature.
 fn published_version(
     root: &Path,
@@ -291,9 +292,8 @@ fn published_version(
     Box<dyn std::error::Error>,
 > {
     let source = root.join("source");
-    let connector = source.join("connectors/acme-ops");
+    let connector = source.join("connectors/acme/ops");
     fs::create_dir_all(connector.join("tools/acme/sync"))?;
-    fs::write(source.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(connector.join("connector.yaml"), ACME_OPS)?;
     fs::write(
         connector.join("tools/acme/sync/manifest.json"),
@@ -385,7 +385,7 @@ fn readme(files: &mut [RegistryPackageFile]) -> Result<&mut RegistryPackageFile,
 
 /// No version directory and no staging left behind.
 fn assert_nothing_installed(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let versions = root.join("connectors/acme/acme-ops");
+    let versions = root.join("connectors/acme/ops");
     if versions.exists() {
         assert_eq!(
             fs::read_dir(&versions)?.count(),
@@ -398,7 +398,7 @@ fn assert_nothing_installed(root: &Path) -> Result<(), Box<dyn std::error::Error
 }
 
 fn staging_entries(root: &Path) -> Result<usize, Box<dyn std::error::Error>> {
-    Ok(fs::read_dir(root.join("connectors/acme/acme-ops"))?
+    Ok(fs::read_dir(root.join("connectors/acme/ops"))?
         .filter_map(Result::ok)
         .filter(|entry| entry.file_name().to_string_lossy().starts_with(".staging-"))
         .count())

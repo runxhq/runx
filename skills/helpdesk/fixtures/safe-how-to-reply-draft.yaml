@@ -4,7 +4,7 @@ target: ..
 runner: triage
 operator_journeys:
   - mode: standalone
-    confusors: [issue-triage, send-as]
+    confusors: [issue-triage, message-send]
     request: Triage this domain-verification support request and draft the safest helpful reply.
     expected_outcome: Return a classified request and customer-ready draft only when the supplied policy permits it.
   - mode: composed

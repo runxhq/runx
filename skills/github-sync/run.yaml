@@ -311,6 +311,8 @@ input_definitions:
                           properties:
                             body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
 connectors:
+  store:
+    operations: [events.append, projection.read]
   github:
     operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
 runners:
@@ -505,9 +507,8 @@ runners:
     result_from: [append-cursor-event, readback]
     steps:
       - id: read-cursor
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+        operation: store/projection.read
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -528,20 +529,55 @@ runners:
             sync_plan: runx.github_sync.v1
 
       - id: append-cursor-event
-        skill: ../data-store
-        runner: append_event
-        inputs:
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
-          idempotency_key: $input.idempotency_key
           event: $steps.plan.sync_plan
 
       - id: readback
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+        operation: store/projection.read
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
+  comment:
+    inputs:
+      repository:
+        type: string
+        required: true
+        description: Exact GitHub repository slug as owner/name.
+        schema: { pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$', maxLength: 201 }
+      pr_number:
+        type: string
+        required: true
+        description: Positive decimal pull-request number.
+        schema: { pattern: '^[1-9][0-9]*$', maxLength: 20 }
+      body:
+        type: string
+        required: true
+        description: Exact review note body bound into approval and provider readback.
+        schema: { minLength: 1, maxLength: 65536 }
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key for this exact repository, pull request, and body.
+        schema: { minLength: 8, maxLength: 256, pattern: '^[A-Za-z0-9._:-]+$' }
+    examples:
+      - repository: runxhq/runx
+        pr_number: "42"
+        body: The reviewed path is sound; please add the missing harness case.
+        idempotency_key: runxhq-runx-pr-42-connect-note-v1
+    result_from: [post-comment]
+    steps:
+      - id: post-comment
+        operation: github/comments.create
+        idempotency_key: $input.idempotency_key
+        input:
+          repository: $input.repository
+          comments:
+            - number: $input.pr_number
+              body: $input.body

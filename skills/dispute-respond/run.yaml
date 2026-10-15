@@ -6,9 +6,9 @@ catalog:
   audience: operator
   visibility: public
   role: canonical
-  execution: execute
-  completion: provider_readback
-  approval: required
+  execution: read
+  completion: runtime_receipt
+  approval: none
   category: payments
 
 input_definitions:
@@ -51,53 +51,9 @@ input_definitions:
           kind: { type: string, enum: [delivery, consent, support, provider, contract, refund] }
           summary: { type: string, minLength: 1, maxLength: 1000 }
 
-connectors:
-  dispute:
-    operations: [dispute.file, dispute.read]
-    connector_from: $input.provider
-    allowed_connectors: [stripe]
 runners:
-  file-response:
-    default: true
-    inputs:
-      dispute_event:
-        definition: dispute_event
-      original_receipt_id:
-        type: string
-        required: true
-        description: Exact Runx receipt id for the original charge.
-        schema: { minLength: 1, maxLength: 256, pattern: '^\S+$' }
-      prior_refund_receipt_ids:
-        definition: receipt_ids
-      evidence_refs:
-        definition: evidence_refs
-      operator_posture:
-        type: string
-        required: false
-        schema: { enum: [accept, contest, refund_already_sent, needs_more_evidence, operator_review] }
-    result_from: [respond, file]
-    steps:
-      - id: respond
-        skill: .
-        runner: respond
-        inputs:
-          dispute_event: $input.dispute_event
-          original_receipt_id: $input.original_receipt_id
-          prior_refund_receipt_ids: $input.prior_refund_receipt_ids
-          evidence_refs: $input.evidence_refs
-          operator_posture: $input.operator_posture
-      - id: file
-        when:
-          value: $steps.respond.dispute_packet.decision
-          equals: ready_for_review
-        skill: .
-        runner: file
-        inputs:
-          provider: $input.dispute_event.provider
-          idempotency_key: $input.dispute_event.dispute_id
-          dispute_packet: $steps.respond.dispute_packet
-
   respond:
+    default: true
     inputs:
       dispute_event:
         definition: dispute_event
@@ -288,119 +244,6 @@ runners:
             dispute_packet: dispute_packet
           packets:
             dispute_packet: runx.payment.dispute_response.v1
-
-  file:
-    inputs:
-      dispute_packet:
-        type: json
-        packet: runx.payment.dispute_response.v1
-        required: true
-        description: Exact validated runx.payment.dispute_response.v1 packet produced by respond.
-      provider:
-        type: string
-        required: true
-        description: Expected configured payment provider name.
-      idempotency_key:
-        type: string
-        required: true
-        description: Stable retry key for this exact dispute filing.
-    examples:
-      - dispute_packet:
-          schema: runx.payment.dispute_response.v1
-          decision: ready_for_review
-          dispute:
-            dispute_id: dp_demo_001
-            provider: stripe
-            provider_charge_ref: ch_demo_001
-            amount_minor: 1250
-            currency: USD
-            reason_code: product_not_received
-            response_due_at: null
-          posture: contest
-          response_summary: Contest with the linked verified delivery evidence.
-          linked_receipts:
-            original_charge: receipt:charge:demo-001
-            prior_refunds: []
-            cited: [receipt:charge:demo-001]
-          evidence: { admitted: [], cited_refs: [] }
-          open_questions: []
-          receipt_verification:
-            matched_receipt_ids: [receipt:charge:demo-001]
-            original_receipt_status: verified
-            issuer_types: [hosted]
-            tree_status: intact
-          validation: { status: pass, findings: [] }
-          filing:
-            provider: stripe
-            dispute_id: dp_demo_001
-            status: not_filed
-            provider_status: not_called
-            approval_status: not_requested
-          next_action: review, then route through an approved provider dispute adapter
-        provider: stripe
-        idempotency_key: dispute:dp_demo_001:file:v1
-    result_from: [readback]
-    steps:
-      - id: validate
-        tool: data.compare
-        inputs:
-          actual:
-            schema: $input.dispute_packet.schema
-            decision: $input.dispute_packet.decision
-            validation_status: $input.dispute_packet.validation.status
-            provider: $input.dispute_packet.filing.provider
-            filing_status: $input.dispute_packet.filing.status
-            provider_status: $input.dispute_packet.filing.provider_status
-            approval_status: $input.dispute_packet.filing.approval_status
-          expected:
-            schema: runx.payment.dispute_response.v1
-            decision: ready_for_review
-            validation_status: pass
-            provider: $input.provider
-            filing_status: not_filed
-            provider_status: not_called
-            approval_status: not_requested
-
-      - id: digest-request
-        when:
-          value: $steps.validate.comparison.equal
-          equals: true
-        tool: data.digest
-        inputs:
-          value: $input.dispute_packet
-
-      - id: file-response
-        when:
-          value: $steps.validate.comparison.equal
-          equals: true
-        operation: dispute/dispute.file
-        idempotency_key: $input.idempotency_key
-        approval:
-          reason: Approve filing this exact dispute response with the provider.
-          type: dispute_response
-        expected_result:
-          dispute_id: $input.dispute_packet.dispute.dispute_id
-        result_fields: [dispute_id, filing_ref, request_digest, status]
-        input:
-          dispute_packet: $input.dispute_packet
-
-      - id: bind-request
-        when:
-          value: $steps.validate.comparison.equal
-          equals: true
-        tool: data.compare
-        inputs:
-          expected: $steps.digest-request.digest_result.digest
-          actual: $steps.file-response.provider_operation.result.request_digest
-
-      - id: readback
-        when:
-          value: $steps.bind-request.comparison.equal
-          equals: true
-        operation: dispute/dispute.read
-        result_fields: [dispute_id, filing_ref, request_digest, status]
-        expected_result: $steps.file-response.provider_operation.result
-        input: $steps.file-response.provider_operation.result
 
 harness:
   files: [fixtures/support/composed.graph]

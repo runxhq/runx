@@ -45,7 +45,7 @@ evidence binding, or with a claim citing a source it is not bound to, is held.
 `handoff` binds that payload's digest to the exact target and records whether
 delivery crosses outside the team, whether it then needs the delivering lane's
 approval, and the next actor. Neither runner grants external authority.
-Delivery belongs to `send-as`, a publication skill, or the relevant provider
+Delivery belongs to `message-send`, a publication skill, or the relevant provider
 connector.
 
 ## Inputs and result

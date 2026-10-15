@@ -23,7 +23,7 @@ of this skill.
    run. Action items must carry an action and an owner.
 4. The verdict separates completeness from honesty: a fully cited postmortem
    with a supported root cause and no open unknowns is `publishable` and
-   carries a publish proposal gated on a human approver through `send-as`; a
+   carries a publish proposal gated on a human approver through `message-send`; a
    grounded but incomplete one seals `needs_more_evidence` and publishes
    nothing.
 

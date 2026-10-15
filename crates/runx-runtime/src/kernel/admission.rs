@@ -1130,18 +1130,13 @@ mod tests {
     use crate::ConnectorScope;
     use crate::kernel::instances::pinned;
 
-    /// Two plugins ship a connector of the same id and the same operations.
+    /// Two plugins ship a connector of the same name and the same operations.
     /// Its process tool is each plugin's own code, so an account confirmed
     /// for one plugin's connector never serves the other's.
     #[test]
-    fn an_instance_serves_only_the_connector_identity_it_was_confirmed_for() {
-        let plugin = |namespace: &str| {
+    fn an_instance_serves_only_the_connector_revision_it_was_confirmed_for() {
+        let plugin = |tool_source: &str| {
             let root = tempfile::tempdir().unwrap();
-            std::fs::write(
-                root.path().join("plugin.json"),
-                format!(r#"{{"namespace":"{namespace}"}}"#),
-            )
-            .unwrap();
             let skill = root.path().join("skills/sync");
             std::fs::create_dir_all(&skill).unwrap();
             let connector = root.path().join("connectors/acme");
@@ -1180,15 +1175,17 @@ operations:
                 r#"{"schema": "runx.tool.manifest.v1", "name": "acme.records", "version": "0.1.0", "description": "Reads records.", "source": {"command": "node", "args": ["./records.mjs"]}}"#,
             )
             .unwrap();
+            std::fs::write(tool.join("records.mjs"), tool_source).unwrap();
             let loaded = ConnectorScope::at(&skill)
                 .unwrap()
                 .connector("acme")
                 .unwrap();
             (root, loaded)
         };
-        let (_first_root, first) = plugin("acme");
-        let (_second_root, second) = plugin("other");
+        let (_first_root, first) = plugin("process.stdout.write('{}');\n");
+        let (_second_root, second) = plugin("process.stdout.write('{\"other\":true}');\n");
         assert_eq!(first.operation_digests, second.operation_digests);
+        assert_ne!(first.connector_digest, second.connector_digest);
 
         let instance = pinned(
             &first,
@@ -1206,6 +1203,6 @@ operations:
         let (name, _, digest) = first.operation("records.read").unwrap();
         pins_current(&first, name, digest, &instance).unwrap();
         let refused = pins_current(&second, name, digest, &instance).unwrap_err();
-        assert!(refused.contains("not other/acme"), "{refused}");
+        assert!(refused.contains("changed since instance"), "{refused}");
     }
 }

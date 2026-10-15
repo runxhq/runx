@@ -103,7 +103,7 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
         assert!(
             refused["error"]["message"]
                 .as_str()
-                .is_some_and(|message| message.contains("belongs to connector runx/github")),
+                .is_some_and(|message| message.contains("belongs to connector github")),
             "{refused}"
         );
         let (_, listed) = connector(&root, &["list"])?;
@@ -112,9 +112,9 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
             .and_then(|connectors| {
                 connectors
                     .iter()
-                    .find(|connector| connector["connector_binding"]["connector"] == "runx/slack")
+                    .find(|connector| connector["connector_binding"]["connector"] == "slack")
             })
-            .ok_or("runx/slack is listed")?;
+            .ok_or("slack is listed")?;
         assert_eq!(slack["selected_instance"], serde_json::Value::Null);
         Ok(())
     })();
@@ -208,13 +208,13 @@ fn a_session_command_runs_only_once_the_operator_names_it() -> TestResult {
         let message = refused["error"]["message"].as_str().unwrap_or_default();
         assert!(
             message.contains(
-                "`runx connector use runx/github --session` (runs `gh auth token --hostname github.com`)"
+                "`runx connector use github --session` (runs `gh auth token --hostname github.com`)"
             ),
             "{refused}"
         );
         assert!(
             message.contains(
-                "`runx connector use runx/github --credential token` (reads GITHUB_TOKEN, else asks for it)"
+                "`runx connector use github --credential token` (reads GITHUB_TOKEN, else asks for it)"
             ),
             "{refused}"
         );
@@ -333,7 +333,7 @@ fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
             refused["error"]["message"]
                 .as_str()
                 .is_some_and(|message| message
-                    .contains("credential profile shared holds runx/github's token")),
+                    .contains("credential profile shared holds github's token")),
             "{refused}"
         );
         let (_, inspected) = connector(&root, &["inspect", "github"])?;
@@ -464,7 +464,6 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
     fs::create_dir_all(&manifest)?;
     fs::create_dir_all(root.join(".runx"))?;
     fs::write(root.join("pnpm-workspace.yaml"), "packages: []\n")?;
-    fs::write(plugin.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     fs::write(
         manifest.join("connector.yaml"),
         "schema: runx.connector.v1\nid: acme\nname: Acme\ndescription: Read Acme widgets.\nruntime_capability: false\n\
@@ -497,7 +496,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
         let (ok, bound) = runx(&plugin, &set, Some("acme_token"))?;
         assert!(ok, "{bound}");
         let instance = &bound["selected"];
-        assert_eq!(instance["connector"], "acme/acme", "{bound}");
+        assert_eq!(instance["connector"], "acme", "{bound}");
         let (ok, listed) = connector(&root, &["list"])?;
         assert!(ok, "{listed}");
         assert_eq!(

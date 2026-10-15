@@ -541,7 +541,7 @@ mod tests {
 
         assert_eq!(
             refused,
-            "EXA_API_KEY is set in the environment and in the workspace .env with different values; unset one so runx/exa reads one api_key"
+            "EXA_API_KEY is set in the environment and in the workspace .env with different values; unset one so exa reads one api_key"
         );
     }
 

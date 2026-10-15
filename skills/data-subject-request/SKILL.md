@@ -37,7 +37,7 @@ durable verdict was appended.
    cannot double-record.
 4. The final packet binds the append evidence and both digests. An eligible
    verdict carries a bounded handoff (erasure operator, or
-   read-projection through `redact-pii` into `send-as` for export); a refusal
+   read-projection through `redact-pii` into `message-send` for export); a refusal
    carries escalation to `human_privacy_review` and no handoff.
 
 `downstream_effect_performed` is always false; the downstream operator owns the

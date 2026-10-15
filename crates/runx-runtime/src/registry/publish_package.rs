@@ -744,7 +744,6 @@ operations:
     fn plugin_repository(
         root: &std::path::Path,
     ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-        fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
         let skill = root.join("skills/sync");
         fs::create_dir_all(&skill)?;
         fs::write(
@@ -815,28 +814,28 @@ operations:
             .map(|file| (file.path.as_str(), file.content.as_str()))
             .collect::<BTreeMap<_, _>>();
         assert_eq!(
-            files.get("connectors/acme/acme-ops/connector.yaml"),
+            files.get("connectors/acme-ops/connector.yaml"),
             Some(&ACME_OPS)
         );
         assert_eq!(
-            files.get("connectors/acme/acme-ops/tools/acme/sync/manifest.json"),
+            files.get("connectors/acme-ops/tools/acme/sync/manifest.json"),
             Some(&ACME_SYNC_MANIFEST)
         );
-        assert!(files.contains_key("connectors/acme/acme-ops/tools/acme/sync/sync.mjs"));
+        assert!(files.contains_key("connectors/acme-ops/tools/acme/sync/sync.mjs"));
         assert_eq!(
-            files.get("connectors/acme/acme-ops/README.md"),
+            files.get("connectors/acme-ops/README.md"),
             Some(&"# Acme Ops\n")
         );
-        assert_eq!(files.get("connectors/acme/acme-ops/mark.svg"), Some(&MARK));
+        assert_eq!(files.get("connectors/acme-ops/mark.svg"), Some(&MARK));
         // Only what the connector is: no stray file, no undeclared connector,
         // while the runx-maintained connector is pinned as a snapshot too.
-        assert!(!files.contains_key("connectors/acme/acme-ops/notes.txt"));
+        assert!(!files.contains_key("connectors/acme-ops/notes.txt"));
         assert!(
             !files
                 .keys()
                 .any(|path| path.starts_with("connectors/acme/acme-extra/"))
         );
-        assert!(files.contains_key("connectors/runx/web/connector.yaml"));
+        assert!(files.contains_key("connectors/web/connector.yaml"));
 
         let scope = crate::ConnectorScope::at(&skill)?;
         let acme = scope.connector("acme-ops")?;
@@ -870,7 +869,7 @@ operations:
                         .metadata
                         .connectors
                         .iter()
-                        .find(|binding| binding.name == "runx/web")
+                        .find(|binding| binding.name == "web")
                         .ok_or("web binding missing")?
                         .version
                         .clone(),
@@ -974,7 +973,6 @@ operations:
                 "README.md",
                 "connector.yaml",
                 "mark.svg",
-                "plugin.json",
                 "tools/acme/sync/manifest.json",
                 "tools/acme/sync/sync.mjs"
             ]
@@ -984,7 +982,7 @@ operations:
             .metadata
             .connectors
             .into_iter()
-            .find(|binding| binding.name.as_str() == "acme/acme-ops")
+            .find(|binding| binding.name.as_str() == "acme-ops")
             .ok_or("binding missing")?;
         assert_eq!(connector.manifest_digest, binding.manifest_digest);
         assert_eq!(connector.connector_digest, binding.connector_digest);

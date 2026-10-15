@@ -634,7 +634,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
     let (_root, store) = store();
     let digest = |text: &str| runx_contracts::connector::Digest::of(text.as_bytes());
     let intent = runx_contracts::OperationIntent {
-        connector: runx_contracts::connector::ConnectorName::new("runx/slack").unwrap(),
+        connector: runx_contracts::connector::ConnectorName::new("slack").unwrap(),
         manifest_digest: digest("manifest"),
         connector_digest: digest("connector"),
         operation: runx_contracts::connector::OperationName::new("channel.post").unwrap(),

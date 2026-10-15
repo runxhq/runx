@@ -2,6 +2,19 @@ name: dispute-respond-needs-native-receipt
 kind: skill
 target: ..
 runner: respond
+operator_journeys:
+  - mode: standalone
+    confusors: [refund, charge]
+    request: Respond to this payment dispute using the original receipt evidence.
+    expected_outcome: Return the evidence-bound response packet and its actionable missing-evidence state without claiming a filing.
+  - mode: composed
+    request: Continue the dispute response from this verified dispute event and original receipt.
+    expected_outcome: Reuse dispute and receipt evidence without re-fetching payment history or fabricating a filing claim.
+    prior_evidence:
+      - The dispute event and original receipt reference supplied in the fixture.
+    must_not_repeat:
+      - Do not reacquire dispute or charge evidence.
+      - Do not claim a filing; this skill drafts and never files.
 env:
   RUNX_RECEIPT_DIR: .runx/harness/dispute-respond-missing-receipts
 inputs:

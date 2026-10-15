@@ -1,0 +1,67 @@
+name: github-sync-comment-posts-and-verifies
+kind: skill
+target: ..
+runner: comment
+operator_journeys:
+  - mode: standalone
+    confusors: [github-pr-review, issue-triage]
+    request: Post this exact review comment to the selected GitHub pull request.
+    expected_outcome: Post the approved comment once and return independent GitHub readback for the exact body.
+  - mode: composed
+    request: Post the final comment produced by this completed PR review.
+    expected_outcome: Reuse the supplied final review body and target, create it once, and return readback without repeating review.
+    prior_evidence:
+      - The final review body, repository, pull-request number, and stable idempotency key supplied by the upstream review.
+    must_not_repeat:
+      - Do not rerun the pull-request review.
+      - Do not create a second comment when provider readback already proves the mutation.
+inputs:
+  repository: runxhq/runx
+  pr_number: "42"
+  body: The reviewed path is sound; please add the missing harness case.
+  idempotency_key: runxhq-runx-pr-42-connect-note-v1
+setup:
+  sessions: [github]
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.github.com/repos/runxhq/runx/issues/42/comments
+        body:
+          json:
+            body: The reviewed path is sound; please add the missing harness case.
+      response:
+        status: 201
+        headers: { content-type: application/json }
+        body: '{"id": 1001, "body": "The reviewed path is sound; please add the missing harness case.", "html_url": "https://github.com/runxhq/runx/pull/42#issuecomment-1001"}'
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator-fixture"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/comments/1001", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 1001, "body": "The reviewed path is sound; please add the missing harness case.", "html_url": "https://github.com/runxhq/runx/pull/42#issuecomment-1001"}'
+expect:
+  status: sealed
+  steps: [post-comment]
+  step_outputs:
+    post-comment:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: github
+            operation: comments.create
+            finality: confirmed
+            result:
+              comments:
+                - status: applied
+                  acknowledgement:
+                    id: 1001
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata: { public_skill: github-sync, source_case: comment-success, source: skills-fixture }

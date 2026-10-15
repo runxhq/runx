@@ -1,0 +1,26 @@
+name: message-send-plan-composed
+steps:
+  - id: plan
+    skill: ../..
+    runner: plan
+    inputs:
+      objective: Schedule the June newsletter to the subscribers list.
+      principal: account:growth-demo
+      provider_context:
+        provider: slack
+        account_ref: acct_demo
+        runtime_path: provider.send
+        domain_verified: true
+      audience:
+        type: list
+        ref: newsletter-subscribers
+      content_ref:
+        draft_ref: campaign:jun-newsletter
+        digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        subject_or_title: June product update
+      consent_basis: Subscribers opted in to the newsletter list.
+      operator_context: Live delivery requires explicit operator approval.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.plan

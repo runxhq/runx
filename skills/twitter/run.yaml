@@ -5,7 +5,7 @@ catalog:
   audience: public
   visibility: public
   role: branded
-  canonical_skill: runx/send-as
+  canonical_skill: runx/message-send
   provider: twitter
   execution: read
   completion: provider_readback
@@ -20,6 +20,8 @@ harness:
   cases: []
 
 connectors:
+  store:
+    operations: [events.append, events.read]
   twitter:
     operations: [account.snapshot, account.posts.read, account.mentions.read, account.following.read, account.followers.read, posts.read, mentions.read, following.read, followers.read, posts.search, post.create, post.reply, post.quote, posts.delete, users.unfollow, users.follow, users.mute, users.block, posts.like, posts.repost]
 runners:
@@ -708,9 +710,8 @@ runners:
     result_from: [apply, apply_noop, persist]
     steps:
       - id: ledger
-        skill: ../data-store
-        runner: read_events
-        inputs:
+        operation: store/events.read
+        input:
           data_source_ref: "$input.data_source_ref"
           resource: twitter_execution
           aggregate_id: "$input.plan_digest"
@@ -727,7 +728,7 @@ runners:
           idempotency_key: "$input.idempotency_key"
           max_acts: "$input.max_acts"
           digest_result: $steps.digest.digest_result
-          execution_ledger: $steps.ledger.data_operation_result
+          execution_ledger: $steps.ledger.provider_operation.result
         tool: { module: twitter-execution.mjs, export: prepareExecution }
         outputs:
           twitter_execution_plan: object
@@ -862,17 +863,14 @@ runners:
           packets:
             twitter_execution: twitter.execution.v1
       - id: persist
-        skill: ../data-store
-        runner: append_event
-        scopes:
-          - runx:data:append
+        operation: store/events.append
+        idempotency_key: $steps.prepare.twitter_execution_plan.idempotency_key
         when:
           value: $steps.prepare.twitter_execution_plan.decision
           equals: ready
-        inputs:
+        input:
           data_source_ref: "$input.data_source_ref"
           resource: twitter_execution
           aggregate_id: $steps.prepare.twitter_execution_plan.plan_digest
           expected_version: $steps.prepare.twitter_execution_plan.expected_version
-          idempotency_key: $steps.prepare.twitter_execution_plan.idempotency_key
           event: $steps.apply.twitter_execution.ledger_delta

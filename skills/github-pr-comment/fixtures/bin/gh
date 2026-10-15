@@ -1,8 +1,0 @@
-#!/bin/sh
-# The signed-in GitHub CLI, as far as a session needs it: a token.
-if [ "$1 $2" = "auth token" ]; then
-  echo gho_fixture_token
-  exit 0
-fi
-echo "fixture gh does not implement: gh $*" >&2
-exit 1

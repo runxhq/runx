@@ -6,8 +6,8 @@ description: Answer a bounded data question from one declared governed read; use
 # SQL Analyst
 
 Use this skill to answer a bounded data question from one declared, typed data
-source operation. The default validates the plan, performs the exact
-`data-store` read, and interprets only that returned evidence. The explicit
+source operation. The default validates the plan, performs the exact `store`
+read, and interprets only that returned evidence. The explicit
 `plan` runner stops at a reviewable read-only plan.
 
 The schema and optional sample snapshot must carry stable upstream SHA-256
@@ -20,17 +20,10 @@ invented tables and fields, untyped joins, unstructured filters, literal filter
 values, invalid limits, incomplete interpretation, and write tokens.
 
 This skill never emits or executes raw SQL. The default requires a validated
-`execution_context` for `data-store.read_projection`, `read_events`, or
-`list_stream_heads`; it performs that read and returns an interpretation. The
+`execution_context` naming the `store` operation `projection.read`,
+`events.read`, or `heads.list`; it performs that read and returns an
+interpretation. The
 explicit `plan` runner may omit the context and returns `planned_only`.
-
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `data-store#list_stream_heads`
-- `data-store#read_events`
-- `data-store#read_projection`
 
 ## Inputs
 
@@ -41,13 +34,13 @@ explicit `plan` runner may omit the context and returns `planned_only`.
 - `sample_rows`: optional source-bound snapshot containing at most 20
   non-sensitive rows.
 - `constraints`: allowed tables, maximum rows, and privacy limits.
-- `execution_context`: required for the default; an exact governed data-store
-  read runner and bounded resource inputs. It is optional only for `plan`.
+- `execution_context`: required for the default; an exact `store` read
+  operation and bounded resource inputs. It is optional only for `plan`.
 
 ## Output
 
 The default returns `analysis_result` from the validated plan and actual
-`runx.data.operation_result.v1` evidence. `plan` returns the existing
+store read evidence. `plan` returns the existing
 `runx.data.sql_analysis_plan.v1` packet.
 
 ## Agent task contracts

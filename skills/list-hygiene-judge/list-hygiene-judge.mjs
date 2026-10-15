@@ -144,7 +144,7 @@ export function finalizeListHygiene(inputs) {
         ? { lane: "human:list-hygiene-reviewer", reason_code: plan.reason_code, status: "required_before_any_write" }
         : null,
       downstream_send: {
-        skill: "send-as",
+        skill: "message-send",
         status: "not_run",
         requirement: "read current consent evidence again and enforce it at delivery time",
       },

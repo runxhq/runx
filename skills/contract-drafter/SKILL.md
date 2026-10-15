@@ -29,7 +29,7 @@ drafted, which terms were bound, and which deviations were declared.
    baseline anyway, unknown clause targets, unresolved placeholders, and
    missing clauses all refuse.
 5. A drafted verdict carries the document and a send proposal gated on a human
-   approver through `send-as`. `delivery_performed` is always false.
+   approver through `message-send`. `delivery_performed` is always false.
 
 ## Output
 

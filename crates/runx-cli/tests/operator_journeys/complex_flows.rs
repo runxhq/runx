@@ -35,7 +35,7 @@ impl SlackConnect {
             "operator:test",
             &[(
                 SLACK_GRANT,
-                "runx/slack",
+                "slack",
                 &["thread.reply", "thread.reply.read"],
             )],
             Box::new(move |request| {
@@ -113,7 +113,7 @@ fn reply_inputs(thread_locator: &str, idempotency_key: &str) -> Value {
     serde_json::json!({
         "send_plan": {
             "decision": "ready",
-            "action_family": "send-as",
+            "action_family": "message-send",
             "principal": {"type": "user", "ref": "user:kam"},
             "provider": {"name": "slack", "account_ref": "workspace:T123ABC", "runtime_path": "slack"},
             "send_class": "internal",
@@ -145,7 +145,7 @@ fn deliver_reply(
     Ok(connect
         .command(root)
         .arg("skill")
-        .arg(repo_root.join("skills/slack"))
+        .arg(repo_root.join("skills/message-send"))
         .arg("deliver_reply")
         .arg("--inputs")
         .arg(inputs)

@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: refusal
-    confusors: [slack-notify, send-as]
+    confusors: [message-send, conversation-review]
     request: Find Slack messages about release readiness without configuring a Slack account.
     expected_outcome: Refuse immediately with one binding message before claiming message evidence.
 inputs:

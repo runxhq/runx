@@ -36,20 +36,22 @@ expect:
   step_outputs:
     open:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            operation: events.append
-            aggregate_id: case-journey-1
-            after_version: 1
-            provider_evidence:
-              backend: sqlite
+            result:
+              operation: events.append
+              aggregate_id: case-journey-1
+              after_version: 1
+              provider_evidence:
+                backend: sqlite
     advance:
       subset:
-        data_operation_result:
+        provider_operation:
           data:
-            operation: events.append
-            aggregate_id: case-journey-1
-            after_version: 2
+            result:
+              operation: events.append
+              aggregate_id: case-journey-1
+              after_version: 2
     status:
       subset:
         reduction:

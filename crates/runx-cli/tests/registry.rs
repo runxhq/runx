@@ -317,7 +317,7 @@ runners:
         .output()?;
     assert_success_contains(&add, &["\"status\": \"installed\""])?;
 
-    let versions = fs::read_dir(workspace.join("connectors/runx/github"))?
+    let versions = fs::read_dir(workspace.join("connectors/github"))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .collect::<Vec<_>>();
@@ -327,9 +327,9 @@ runners:
     // The workspace is in no plugin; the carried copy is reached by its ref.
     let inspect = runx_command()?
         .current_dir(&workspace)
-        .args(["connector", "inspect", "runx/github", "--json"])
+        .args(["connector", "inspect", "github", "--json"])
         .output()?;
-    assert_success_contains(&inspect, &["\"connector\": \"runx/github\""])?;
+    assert_success_contains(&inspect, &["\"connector\": \"github\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
 }
@@ -341,10 +341,10 @@ runners:
 fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-publish-plugin-harness");
-    crate::support::plugin_with_source_connectors(&root, &["mpp"])?;
-    let skill_dir = root.join("skills/charge");
+    crate::support::plugin_with_source_connectors(&root, &["google/calendar"])?;
+    let skill_dir = root.join("skills/google-calendar");
     crate::support::copy_dir(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/charge"),
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/google-calendar"),
         &skill_dir,
     )?;
     let registry_dir = root.join("registry");
@@ -369,12 +369,21 @@ fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
 fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn std::error::Error>>
 {
     let root = temp_root("registry-publish-composed-grant");
-    crate::support::plugin_with_source_connectors(&root, &["mpp", "stripe-spt"])?;
+    crate::support::plugin_with_source_connectors(&root, &["google/calendar"])?;
     let skills = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills");
-    for name in ["stripe-pay", "spend"] {
-        crate::support::copy_dir(&skills.join(name), &root.join("skills").join(name))?;
-    }
-    let skill_dir = root.join("skills/stripe-pay");
+    crate::support::copy_dir(
+        &skills.join("google-calendar"),
+        &root.join("skills/google-calendar"),
+    )?;
+    // A skill that binds no connector itself: its case reaches the calendar
+    // grant only through the skill it composes.
+    let skill_dir = root.join("skills/calendar-digest");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: calendar-digest\ndescription: Digest one day of calendar events.\n---\n# Calendar digest\n",
+    )?;
+    fs::write(skill_dir.join("run.yaml"), CALENDAR_DIGEST)?;
     let registry_dir = root.join("registry");
     let publish = runx_command()?
         .args([
@@ -390,6 +399,56 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
     fs::remove_dir_all(&root)?;
     Ok(())
 }
+
+const CALENDAR_DIGEST: &str = r#"skill: calendar-digest
+harness:
+  cases:
+    - name: digest-reaches-the-composed-calendar-grant
+      inputs:
+        calendar_id: primary
+        time_min: "2026-10-04T00:00:00Z"
+        time_max: "2026-10-05T00:00:00Z"
+      caller:
+        provider_responses:
+          principal_id: operator-fixture
+          grant:
+            grant_id: calendar-events-fixture
+            provider: google/calendar
+            scopes: [events.read]
+          operations:
+            - operation: events.list
+              target: primary
+              access: read
+              result:
+                calendar_id: primary
+                time_min: "2026-10-04T00:00:00Z"
+                time_max: "2026-10-05T00:00:00Z"
+                fetched_at: "2026-10-04T01:00:00Z"
+                complete: true
+                events: []
+      expect:
+        status: sealed
+        steps: [events, digest]
+runners:
+  digest:
+    default: true
+    inputs:
+      calendar_id: { type: string, required: true }
+      time_min: { type: string, required: true }
+      time_max: { type: string, required: true }
+    steps:
+      - id: events
+        skill: ../google-calendar
+        runner: events
+        inputs:
+          calendar_id: $input.calendar_id
+          time_min: $input.time_min
+          time_max: $input.time_max
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.events
+"#;
 
 /// A case's provider grant reaches a connector only a registry child carries:
 /// the case's package names the child, the child's bundle carries the
@@ -423,7 +482,7 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
         String::from_utf8_lossy(&publish.stderr)
     );
     assert!(
-        output.contains("connector runx/google-calendar reaches more than one revision"),
+        output.contains("connector google/calendar reaches more than one revision"),
         "{output}"
     );
     fs::remove_dir_all(&root)?;
@@ -431,19 +490,19 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
 }
 
 /// Publishes the google-calendar skill as acme's at each version, each
-/// carrying its own revision of the runx/google-calendar connector.
+/// carrying its own revision of the google/calendar connector.
 fn publish_calendar_revisions(
     root: &std::path::Path,
     versions: &[&str],
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let source = root.join("source");
-    crate::support::plugin_with_source_connectors(&source, &["google-calendar"])?;
+    crate::support::plugin_with_source_connectors(&source, &["google/calendar"])?;
     let skill_dir = source.join("skills/google-calendar");
     crate::support::copy_dir(
         &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/google-calendar"),
         &skill_dir,
     )?;
-    let manifest = source.join("connectors/google-calendar/connector.yaml");
+    let manifest = source.join("connectors/google/calendar/connector.yaml");
     let registry_dir = root.join("registry");
     let original = fs::read_to_string(&manifest)?;
     for version in versions {
@@ -475,7 +534,7 @@ fn publish_calendar_revisions(
 }
 
 /// A package in no plugin whose one case reads events through each named
-/// version of acme's google-calendar, granting runx/google-calendar.
+/// version of acme's google-calendar, granting google/calendar.
 fn calendar_consumer(
     root: &std::path::Path,
     versions: &[&str],
@@ -526,7 +585,7 @@ caller:
     principal_id: operator-fixture
     grant:
       grant_id: calendar-events-fixture
-      provider: runx/google-calendar
+      provider: google/calendar
       scopes: [events.read]
     operations:
 {operations}expect:
@@ -566,7 +625,7 @@ fn publish_consumer(
 fn a_graph_case_binds_the_connectors_its_composed_skill_calls()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("harness-graph-binding");
-    crate::support::plugin_with_source_connectors(&root, &["exa", "google-calendar"])?;
+    crate::support::plugin_with_source_connectors(&root, &["exa", "google/calendar"])?;
     let skills = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills");
     for name in ["web-search", "google-calendar"] {
         crate::support::copy_dir(&skills.join(name), &root.join("skills").join(name))?;
@@ -621,7 +680,7 @@ caller:
     principal_id: operator-fixture
     grant:
       grant_id: calendar-events-fixture
-      provider: google-calendar
+      provider: google/calendar
       scopes: [events.read]
     operations:
       - operation: events.list
@@ -662,7 +721,7 @@ caller:
 fn registry_package_metadata_names_the_declared_connectors()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-package-connectors");
-    crate::support::plugin_with_source_connectors(&root, &["github", "stripe-spt", "mpp"])?;
+    crate::support::plugin_with_source_connectors(&root, &["github", "n8n", "zapier"])?;
     let skill_dir = root.join("connected");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -675,10 +734,10 @@ fn registry_package_metadata_names_the_declared_connectors()
 connectors:
   github:
     operations: [issues.read, issue.read]
-  pay:
-    operations: [payment.spend]
+  webhook:
+    operations: [handoff.deliver]
     connector_from: $input.provider
-    allowed_connectors: [stripe-spt, mpp]
+    allowed_connectors: [zapier, n8n]
 runners:
   default:
     default: true
@@ -720,7 +779,7 @@ runners:
     );
     // A run-time choice names each connector it may choose; refs are sorted
     // and operations keep the order the package lists them. Each connector is
-    // named by its publisher and the digests a closure binds it by.
+    // named by its name and the digests a closure binds it by.
     let connectors = output["registry"]["package"]["metadata"]["connectors"]
         .as_array()
         .ok_or("connectors missing")?;
@@ -737,9 +796,9 @@ runners:
     assert_eq!(
         named,
         [
-            json!({"ref": "runx/github", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
-            json!({"ref": "runx/mpp", "runtime_capability": false, "operations": ["payment.spend"]}),
-            json!({"ref": "runx/stripe-spt", "runtime_capability": false, "operations": ["payment.spend"]}),
+            json!({"ref": "github", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"ref": "n8n", "runtime_capability": false, "operations": ["handoff.deliver"]}),
+            json!({"ref": "zapier", "runtime_capability": false, "operations": ["handoff.deliver"]}),
         ]
     );
     for connector in connectors {
@@ -765,10 +824,9 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     fs::create_dir_all(&connector)?;
     fs::write(
         connector.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: acme-ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+        "schema: runx.connector.v1\nid: acme/ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
-    fs::write(connector.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
 
     let package = runx_command()?
         .args([
@@ -787,30 +845,17 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
     let packaged = &output["registry"]["connector"];
     assert_eq!(output["registry"]["action"], "connector_package");
-    assert_eq!(packaged["ref"], "acme/acme-ops");
-    assert_eq!(packaged["manifest"]["id"], "acme-ops");
+    assert_eq!(packaged["ref"], "acme/ops");
+    assert_eq!(packaged["manifest"]["id"], "acme/ops");
     assert_eq!(packaged["manifest"]["runtime_capability"], false);
-    // The package carries the namespace it was published under, so it loads
-    // under that publisher wherever it is installed.
+    // The connector names itself, so its package carries no namespace file.
     let files = packaged["files"].as_array().ok_or("files missing")?;
     assert_eq!(
         files
             .iter()
             .map(|file| file["path"].clone())
             .collect::<Vec<_>>(),
-        [
-            json!("README.md"),
-            json!("connector.yaml"),
-            json!("plugin.json")
-        ]
-    );
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(
-            files[2]["content"]
-                .as_str()
-                .ok_or("plugin.json has no content")?
-        )?,
-        json!({"namespace": "acme"})
+        [json!("README.md"), json!("connector.yaml")]
     );
     assert!(
         packaged["digests"]["item.read"]["operation"]
@@ -840,10 +885,9 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     fs::create_dir_all(&connector)?;
     fs::write(
         connector.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: acme-ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+        "schema: runx.connector.v1\nid: acme/ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
-    fs::write(connector.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
     let package = runx_runtime::registry::prepare_registry_connector_package(&connector)?;
     let content_digest =
         runx_contracts::registry_content_digest(package.files.iter().map(|file| {
@@ -856,10 +900,10 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         "runx".to_owned(),
         "registry".to_owned(),
         "install".to_owned(),
-        "acme/acme-ops@1.0.0".to_owned(),
+        "acme/ops@1.0.0".to_owned(),
     ])?;
     let detail = json!({"status": "success", "connector": {
-        "ref": "acme/acme-ops",
+        "ref": "acme/ops",
         "version": "1.0.0",
         "name": "Acme Ops",
         "description": "Reads Acme items.",
@@ -873,18 +917,18 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     }});
     // No skill holds the name, so `registry install` installs the connector.
     let registry = crate::support::MockRegistry::serve(&[
-        ("/v1/connectors/acme/acme-ops", detail.clone()),
-        ("/v1/connectors/acme/acme-ops/versions/1.0.0", detail),
+        ("/v1/connectors/acme/ops", detail.clone()),
+        ("/v1/connectors/acme/ops/versions/1.0.0", detail),
         (
-            "/v1/connectors/acme/acme-ops/versions/1.0.0/package",
+            "/v1/connectors/acme/ops/versions/1.0.0/package",
             json!({"status": "success", "package": {
-                "ref": "acme/acme-ops",
+                "ref": "acme/ops",
                 "version": "1.0.0",
                 "trust_tier": "community",
                 "files": package.files,
                 "signed_manifest": sign_envelope(
                     runx_contracts::RegistrySubjectKind::Connector,
-                    "acme/acme-ops",
+                    "acme/ops",
                     "1.0.0",
                     content_digest.clone(),
                 )?,
@@ -908,7 +952,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
 
     let install = connector_command(&[
         "install",
-        "acme/acme-ops",
+        "acme/ops",
         "--registry",
         &registry.url,
         "--json",
@@ -920,7 +964,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
             "\"status\": \"installed\"",
         ],
     )?;
-    let destination = project.join("connectors/acme/acme-ops/1.0.0");
+    let destination = project.join("connectors/acme/ops/1.0.0");
     let output: serde_json::Value = serde_json::from_slice(&install.stdout)?;
     assert_eq!(
         output["registry"]["install"]["destination"],
@@ -937,7 +981,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
 
     let again = connector_command(&[
         "install",
-        "acme/acme-ops@1.0.0",
+        "acme/ops@1.0.0",
         "--registry",
         &registry.url,
         "--digest",

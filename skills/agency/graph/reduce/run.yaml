@@ -16,7 +16,7 @@ runners:
       events:
         type: json
         required: false
-        description: The case event stream from data-store read_events.
+        description: The case event stream from store events.read.
       member_result:
         type: json
         required: false

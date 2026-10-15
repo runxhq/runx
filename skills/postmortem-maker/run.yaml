@@ -74,7 +74,7 @@ harness:
                   decision: publishable
                   publish_proposal:
                     gate: human-approver
-                    delivery_skill: send-as
+                    delivery_skill: message-send
                     sent: false
                   publish_performed: false
                   validation: { status: pass, findings: [] }
@@ -171,7 +171,7 @@ runners:
       incident_fragments:
         type: json
         required: true
-        description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or data-store reads to gather them.
+        description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or store reads to gather them.
     examples:
       - incident_ref: inc-checkout-2026-08-09
         incident_fragments:
@@ -254,7 +254,7 @@ runners:
                   additionalProperties: false
                   properties:
                     gate: { const: human-approver }
-                    delivery_skill: { const: send-as }
+                    delivery_skill: { const: message-send }
                     sent: { const: false }
                 publish_performed: { const: false }
                 fragments_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }

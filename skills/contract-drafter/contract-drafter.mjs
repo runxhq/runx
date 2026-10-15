@@ -110,7 +110,7 @@ export function finalizeDraft(inputs) {
       : null,
     deviations: confirmedDeviations,
     send_proposal: drafted
-      ? { gate: "human-approver", delivery_skill: "send-as", sent: false }
+      ? { gate: "human-approver", delivery_skill: "message-send", sent: false }
       : null,
     validation: { status: drafted ? "pass" : "fail", findings },
     template_digest: requiredDigest(inputs.template_digest),

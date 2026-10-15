@@ -61,20 +61,20 @@
         "handoff": {
           "additionalProperties": false,
           "properties": {
+            "connector": {
+              "const": "store"
+            },
             "inputs": {
               "additionalProperties": true,
               "type": "object"
             },
-            "runner": {
+            "operation": {
               "enum": [
-                "read_projection",
-                "read_events",
-                "list_stream_heads"
+                "projection.read",
+                "events.read",
+                "heads.list"
               ],
               "type": "string"
-            },
-            "skill": {
-              "const": "data-store"
             }
           },
           "type": "object"

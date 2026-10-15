@@ -50,8 +50,8 @@
     "downstream_handoff": {
       "type": "object",
       "properties": {
-        "skill": { "const": "slack-notify" },
-        "runner": { "const": "deliver" },
+        "skill": { "const": "message-send" },
+        "runner": { "const": "post" },
         "state": { "const": "ready_for_approval" }
       },
       "additionalProperties": false

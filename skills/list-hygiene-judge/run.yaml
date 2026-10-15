@@ -76,12 +76,12 @@ harness:
       runner: judge
       operator_journeys:
         - mode: standalone
-          confusors: [send-as, crm-cleanup]
+          confusors: [message-send, crm-cleanup]
           request: Decide whether this contact needs re-permission or suppression before a campaign.
           expected_outcome: Record only a justified consent-ledger transition, verify the exact event, and leave delivery unattempted.
         - mode: composed
           request: Continue from the supplied contact engagement and consent evidence without collecting it again.
-          expected_outcome: Reuse the supplied evidence, record any justified transition once, and leave delivery to send-as.
+          expected_outcome: Reuse the supplied evidence, record any justified transition once, and leave delivery to message-send.
           prior_evidence:
             - Current bounded engagement, bounce, and consent evidence supplied by the upstream contact review.
           must_not_repeat:
@@ -106,7 +106,7 @@ harness:
                 data:
                   decision: { state: re_permission }
                   recorded_transition: { recorded: true, state: re_permission, write_status: committed, after_version: 1 }
-                  downstream_send: { skill: send-as, status: not_run }
+                  downstream_send: { skill: message-send, status: not_run }
         receipt: { schema: runx.receipt.v1 }
 
     - name: list-hygiene-suppresses-hard-bounce
@@ -240,6 +240,9 @@ harness:
       expect:
         status: failure
 
+connectors:
+  store:
+    operations: [events.append, projection.read]
 runners:
   judge:
     default: true
@@ -264,9 +267,8 @@ runners:
     result_from: [finalize-written, finalize-unchanged]
     steps:
       - id: read-contact
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+        operation: store/projection.read
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -281,7 +283,7 @@ runners:
           engagement_evidence: $input.engagement_evidence
           hygiene_policy: $input.hygiene_policy
           consent_evidence: $input.consent_evidence
-          contact_readback: $steps.read-contact.data_operation_result
+          contact_readback: $steps.read-contact.provider_operation.result
         tool: { module: list-hygiene-judge.mjs, export: decideListHygiene }
         outputs:
           decision_plan:
@@ -334,20 +336,18 @@ runners:
         when:
           value: $steps.decide.decision_plan.append_allowed
           equals: true
-        skill: ../data-store
-        runner: append_event
-        inputs:
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
-          idempotency_key: $input.idempotency_key
           event: $steps.decide.decision_plan.event
 
       - id: readback
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+        operation: store/projection.read
+        input:
           data_source_ref: $input.data_source_ref
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -358,8 +358,8 @@ runners:
           equals: true
         inputs:
           decision_plan: $steps.decide.decision_plan
-          write_result: $steps.append-transition.data_operation_result
-          recorded_readback: $steps.readback.data_operation_result
+          write_result: $steps.append-transition.provider_operation.result
+          recorded_readback: $steps.readback.provider_operation.result
         tool: { module: list-hygiene-judge.mjs, export: finalizeListHygiene }
         outputs:
           list_hygiene_result:
@@ -406,7 +406,7 @@ runners:
                   additionalProperties: false
                   required: [skill, status, requirement]
                   properties:
-                    skill: { const: send-as }
+                    skill: { const: message-send }
                     status: { const: not_run }
                     requirement: { type: string, minLength: 1, maxLength: 500 }
         artifacts:
@@ -419,7 +419,7 @@ runners:
           equals: false
         inputs:
           decision_plan: $steps.decide.decision_plan
-          recorded_readback: $steps.readback.data_operation_result
+          recorded_readback: $steps.readback.provider_operation.result
         tool: { module: list-hygiene-judge.mjs, export: finalizeListHygiene }
         outputs:
           list_hygiene_result:
@@ -466,7 +466,7 @@ runners:
                   additionalProperties: false
                   required: [skill, status, requirement]
                   properties:
-                    skill: { const: send-as }
+                    skill: { const: message-send }
                     status: { const: not_run }
                     requirement: { type: string, minLength: 1, maxLength: 500 }
         artifacts:

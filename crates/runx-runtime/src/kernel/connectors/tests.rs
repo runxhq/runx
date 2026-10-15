@@ -44,7 +44,7 @@ fn a_connector_outside_a_plugin_is_an_installed_version_a_skill_pins() {
 
     let missing = scope.connector("github").unwrap_err();
     assert!(
-        matches!(missing, ConnectorRegistryError::NotInstalledConnector { .. })
+        matches!(missing, ConnectorRegistryError::NoPlugin { .. })
             && missing
                 .to_string()
                 .contains("runx registry install github"),

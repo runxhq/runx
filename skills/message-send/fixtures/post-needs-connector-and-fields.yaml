@@ -1,0 +1,12 @@
+name: message-send-blocks-unbound-content
+kind: skill
+target: ..
+runner: plan_post
+inputs:
+  channel: "#ops"
+  content:
+    content_ref: draft:mutable
+  principal: team:operations
+expect:
+  status: failure
+metadata: { public_skill: message-send, source_case: content-binding-stop, source: skills-fixture }

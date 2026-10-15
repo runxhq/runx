@@ -12,7 +12,7 @@ catalog:
   category: data
 
 harness:
-  files: [fixtures/support/forward-data-store-read.graph]
+  files: [fixtures/support/forward-store-read.graph]
   cases:
     - name: sql-analyst-validates-readonly-plan
       operator_journeys:
@@ -184,6 +184,9 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
+connectors:
+  store:
+    operations: [events.read, projection.read, heads.list]
 runners:
   analyst:
     default: true
@@ -216,7 +219,7 @@ runners:
       execution_context:
         type: json
         required: true
-        description: Exact data-store read runner and bounded resource inputs; raw SQL is never accepted.
+        description: Exact store read operation and bounded resource inputs; raw SQL is never accepted.
     result_from: [interpret-projection, interpret-events, interpret-heads]
     steps:
       - id: plan
@@ -234,22 +237,20 @@ runners:
 
       - id: read-projection
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: read_projection
-        skill: ../data-store
-        runner: read_projection
-        inputs:
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: projection.read
+        operation: store/projection.read
+        input:
           data_source_ref: $steps.plan.sql_analysis_plan.execution.handoff.inputs.data_source_ref
           resource: $steps.plan.sql_analysis_plan.execution.handoff.inputs.resource
           aggregate_id: $steps.plan.sql_analysis_plan.execution.handoff.inputs.aggregate_id
 
       - id: read-events
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: read_events
-        skill: ../data-store
-        runner: read_events
-        inputs:
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: events.read
+        operation: store/events.read
+        input:
           data_source_ref: $steps.plan.sql_analysis_plan.execution.handoff.inputs.data_source_ref
           resource: $steps.plan.sql_analysis_plan.execution.handoff.inputs.resource
           aggregate_id: $steps.plan.sql_analysis_plan.execution.handoff.inputs.aggregate_id
@@ -257,26 +258,25 @@ runners:
 
       - id: read-heads
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: list_stream_heads
-        skill: ../data-store
-        runner: list_stream_heads
-        inputs:
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: heads.list
+        operation: store/heads.list
+        input:
           data_source_ref: $steps.plan.sql_analysis_plan.execution.handoff.inputs.data_source_ref
           resource: $steps.plan.sql_analysis_plan.execution.handoff.inputs.resource
           limit: $steps.plan.sql_analysis_plan.execution.handoff.inputs.limit
 
       - id: interpret-projection
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: read_projection
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: projection.read
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
           validated_plan: $steps.plan.sql_analysis_plan
-          governed_data: $steps.read-projection.data_operation_result
+          governed_data: $steps.read-projection.provider_operation.result
           schema_summary: $input.schema_summary
           dialect: $input.dialect
           as_of: $input.as_of
@@ -290,15 +290,15 @@ runners:
 
       - id: interpret-events
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: read_events
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: events.read
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
           validated_plan: $steps.plan.sql_analysis_plan
-          governed_data: $steps.read-events.data_operation_result
+          governed_data: $steps.read-events.provider_operation.result
           schema_summary: $input.schema_summary
           dialect: $input.dialect
           as_of: $input.as_of
@@ -312,15 +312,15 @@ runners:
 
       - id: interpret-heads
         when:
-          value: $steps.plan.sql_analysis_plan.execution.handoff.runner
-          equals: list_stream_heads
+          value: $steps.plan.sql_analysis_plan.execution.handoff.operation
+          equals: heads.list
         agent: { role: analyst, task: sql-interpret }
         outputs:
           analysis_result: object
         inputs:
           question: $input.question
           validated_plan: $steps.plan.sql_analysis_plan
-          governed_data: $steps.read-heads.data_operation_result
+          governed_data: $steps.read-heads.provider_operation.result
           schema_summary: $input.schema_summary
           dialect: $input.dialect
           as_of: $input.as_of
@@ -367,7 +367,7 @@ runners:
       execution_context:
         type: json
         required: false
-        description: Optional exact data-store read runner and bounded resource inputs for a governed downstream read.
+        description: Optional exact store read operation and bounded resource inputs for a governed downstream read.
     result_from: [reject, finalize]
     steps:
       - id: prepare
@@ -484,8 +484,8 @@ runners:
                       type: object
                       additionalProperties: false
                       properties:
-                        skill: { const: data-store }
-                        runner: { type: string, enum: [read_projection, read_events, list_stream_heads] }
+                        connector: { const: store }
+                        operation: { type: string, enum: [projection.read, events.read, heads.list] }
                         inputs: { type: object, additionalProperties: true }
                 validation:
                   type: object

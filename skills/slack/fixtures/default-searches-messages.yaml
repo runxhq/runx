@@ -3,9 +3,17 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [slack-notify, send-as]
+    confusors: [message-send, conversation-review]
     request: Find the bounded Slack messages about release readiness.
     expected_outcome: Search the configured Slack account once and return bounded provider evidence.
+  - mode: composed
+    request: Continue a release-readiness review with the Slack evidence it needs.
+    expected_outcome: Run one bounded search for the review's exact keywords and hand back the provider evidence for the reviewer to judge.
+    prior_evidence:
+      - The review's exact keywords, channel types and page limit, supplied in the fixture.
+    must_not_repeat:
+      - Do not search again for a page already read.
+      - Do not post or reply from a search.
 inputs:
   query: { keywords: release readiness, channel_types: [public_channel, private_channel], limit: 20 }
 caller:

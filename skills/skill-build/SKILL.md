@@ -110,7 +110,7 @@ authoring.
   only when the objective genuinely requires provider-specific behavior; otherwise
   return a stable handoff that an operator can route to the selected connector.
   For example, a meeting skill may produce grounded task proposals and a
-  follow-up message; communication then goes through `send-as`, while task
+  follow-up message; communication then goes through `message-send`, while task
   creation goes through the operator's selected task adapter. n8n, Zapier, or
   any other automation provider is optional unless the requested capability is
   explicitly about that provider.

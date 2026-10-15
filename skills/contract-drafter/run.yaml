@@ -16,7 +16,7 @@ harness:
     - name: contract-drafter-complete-draft-seals
       operator_journeys:
         - mode: standalone
-          confusors: [ghostwrite, send-as]
+          confusors: [ghostwrite, message-send]
           request: Draft this services agreement from the approved template with every required term bound.
           expected_outcome: Return a sealed draft where every clause reconciles with the rendered template and delivery stays behind a human gate.
         - mode: composed
@@ -71,7 +71,7 @@ harness:
                   deviations: []
                   send_proposal:
                     gate: human-approver
-                    delivery_skill: send-as
+                    delivery_skill: message-send
                     sent: false
                   delivery_performed: false
                   validation: { status: pass, findings: [] }
@@ -344,7 +344,7 @@ runners:
                   additionalProperties: false
                   properties:
                     gate: { const: human-approver }
-                    delivery_skill: { const: send-as }
+                    delivery_skill: { const: message-send }
                     sent: { const: false }
                 validation:
                   type: object

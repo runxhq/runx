@@ -80,7 +80,7 @@ it.
 - To duplicate a CLI command, release script, GitHub workflow, hosted endpoint,
   registry client, or provider SDK.
 - To bypass a human gate because the agent or UI believes the action is obvious.
-- To replace a domain skill from the registry, such as `send-as` or `release`,
+- To replace a domain skill from the registry, such as `message-send` or `release`,
   a payments lane, or a connector.
 - To operate from stale, missing, or unverifiable state while claiming readiness.
 - To put secrets, private keys, raw customer lists, or provider dumps into the
@@ -105,7 +105,7 @@ Ops desk packets name existing execution surfaces; they do not implement them.
 - `release` owns release preparation, approval, publish handoff, and
   post-release verification.
 - `receipt-query`, `receipt-audit`, and `run-history` own proof questions.
-- `send-as` owns authority for live communications; branded provider skills and
+- `message-send` owns authority for live communications; branded provider skills and
   their connectors own provider-specific execution details.
 - `spend`, `charge`, `refund`, and branded payment skills own money movement.
 - Project skills own product vocabulary and product-specific actions.
@@ -143,7 +143,7 @@ product gap. Do not invent a private workaround.
      existing release workflow/commands.
    - Audit questions route to `receipt-query`, `receipt-audit`, `run-history`,
      or `least-privilege`.
-   - Live communication routes through `send-as` and then the provider's
+   - Live communication routes through `message-send` and then the provider's
      connector.
    - Payment collection, payout, refund, chargeback, or target changes route to
      the matching payment lane.

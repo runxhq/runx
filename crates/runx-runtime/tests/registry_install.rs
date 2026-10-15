@@ -405,7 +405,7 @@ fn registry_install_rejects_third_party_key_outside_owner_namespace()
     assert!(matches!(
         error,
         InstallError::ManifestTrustScopeViolation { reason, .. }
-            if reason.contains("other/*")
+            if reason.contains("in the other namespace")
     ));
     assert!(!temp.path().join("skills").exists());
     Ok(())

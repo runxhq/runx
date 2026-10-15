@@ -2,7 +2,7 @@ name: dispute-respond-composed
 steps:
   - id: dispute-respond
     skill: ../..
-    runner: file-response
+    runner: respond
     inputs:
       dispute_event:
         dispute_id: dp_demo_001

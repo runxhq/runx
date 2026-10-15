@@ -23,7 +23,7 @@ decision: answer, ask for more information, route to engineering, route to
 billing, route to account review, or route to abuse review.
 
 It is useful where support triage fans out from inbox
-intake, then hands off only safe drafts to `send-as` or another provider-backed
+intake, then hands off only safe drafts to `message-send` or another provider-backed
 send lane. It also works for dry-run review of support queues because it has no
 external side effects.
 
@@ -62,7 +62,7 @@ credential recovery instructions, return `refused`.
 The authority scope is classification and draft preparation only. The proof
 surface is the sealed receipt containing the request summary, matched signals,
 recommended path, draft proposal if any, and send gate. Any live customer send
-requires a separate `send-as` receipt.
+requires a separate `message-send` receipt.
 
 ## Output schema
 

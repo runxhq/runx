@@ -1,0 +1,16 @@
+name: message-send-composed
+steps:
+  - id: message-send
+    skill: ../..
+    runner: plan_post
+    inputs:
+      channel: "#ops"
+      content:
+        message: Deploy completed and health checks are green.
+      principal: team:operations
+      provider_context:
+        connector: unavailable
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.message-send

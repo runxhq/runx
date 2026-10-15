@@ -250,18 +250,18 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let root = crate::support::temp_root("runx-operator-provider-readiness-journey");
     let skill_dir = crate::support::repo_root()?.join("skills/google-analytics");
     let receipt_dir = root.join(".runx/receipts");
-    crate::support::plugin_with_source_connectors(&root, &["google-analytics"])?;
+    crate::support::plugin_with_source_connectors(&root, &["google/analytics"])?;
     let connect = crate::support::MockConnect::serve(
         "operator-1",
         &[
             (
                 "grant_google_read",
-                "runx/google-analytics",
+                "google/analytics",
                 &["properties.read", "reports.read"],
             ),
             (
                 "grant_google_wrong_scope",
-                "runx/google-analytics",
+                "google/analytics",
                 &["reports.read"],
             ),
         ],
@@ -290,7 +290,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
 
     let confirm = |grant: &str| {
         operator(&root)
-            .args(["connector", "use", "google-analytics", grant, "--json"])
+            .args(["connector", "use", "google/analytics", grant, "--json"])
             .output()
     };
     assert_json(&confirm("grant_google_read")?, 0)?;
@@ -311,7 +311,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
                 .find(|operation| operation["operation"] == "properties.list")
         })
         .ok_or("properties.list readiness missing")?;
-    assert_eq!(readiness["connector"], "runx/google-analytics");
+    assert_eq!(readiness["connector"], "google/analytics");
     assert!(
         readiness["instance_id"]
             .as_str()
@@ -355,11 +355,11 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     let receipt_dir = root.join(".runx/receipts");
     crate::support::plugin_with_source_connectors(
         &root,
-        &["slack", "github", "mpp", "stripe-spt"],
+        &["slack", "github"],
     )?;
 
     for (skill, expected_runner) in [
-        ("send-as", "send"),
+        ("message-send", "send"),
         ("github-sync", "github-sync"),
         ("spend", "spend"),
     ] {
@@ -376,81 +376,6 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
             serde_json::json!([])
         );
     }
-
-    let send_inputs = root.join("send-apply.json");
-    fs::write(
-        &send_inputs,
-        serde_json::json!({
-            "send_plan": {
-                "decision": "ready",
-                "action_family": "send-as",
-                "principal": { "type": "account", "ref": "account:release-bot" },
-                "provider": { "name": "slack", "account_ref": "workspace:demo", "runtime_path": "channel.post" },
-                "send_class": "status",
-                "channel": "chat",
-                "audience": { "type": "channel", "ref": "slack://T123/C456", "requires_reconfirmation": false },
-                "content": {
-                    "draft_ref": "release:notice",
-                    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    "subject_or_title": "Release notice"
-                },
-                "gates": { "preflight_required": true, "human_approval_required": true, "approval_ref": "send-as.live" },
-                "blockers": [],
-                "provider_actions": ["channel.post"],
-                "evidence_refs": ["release:notice"],
-                "success_checkpoint": {
-                    "milestone": "provider_delivery_required",
-                    "description": "Apply must deliver and preserve provider evidence."
-                }
-            },
-            "connector": {
-                "provider": "slack",
-                "target": "slack://T123/C456"
-            }
-        })
-        .to_string(),
-    )?;
-    // Slack declares message.send but no placement implements it yet, so the
-    // send refuses at admission, before any approval or request.
-    let connect = crate::support::MockConnect::serve(
-        "operator-1",
-        &[(
-            "grant_slack_send",
-            "runx/slack",
-            &["message.send", "message.read"],
-        )],
-    )?;
-    let operator = || {
-        let mut command = command(&root);
-        connect.apply(&mut command);
-        command
-    };
-    assert_json(
-        &operator()
-            .args(["connector", "use", "slack", "grant_slack_send", "--json"])
-            .output()?,
-        0,
-    )?;
-    let send = operator()
-        .arg("skill")
-        .arg(repo_root.join("skills/send-as"))
-        .arg("apply")
-        .arg("--inputs")
-        .arg("send-apply.json")
-        .arg("--receipt-dir")
-        .arg(&receipt_dir)
-        .arg("--json")
-        .output()?;
-    let send = assert_json(&send, 1)?;
-    assert_eq!(send["outcome"], "blocked", "{send}");
-    // Why admission refused rides the run's output, outside the signed receipt.
-    assert!(
-        send["refusal"]["message"]
-            .as_str()
-            .is_some_and(|message| message
-                .contains("slack/message.send: the hosted placement does not implement it")),
-        "{send}"
-    );
 
     // With no GitHub instance selected, the pull plans its read and refuses
     // it before any request leaves.
@@ -479,7 +404,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     );
     assert!(
         github["refusal"]["message"].as_str().is_some_and(
-            |message| message.contains("no instance is selected for connector runx/github")
+            |message| message.contains("no instance is selected for connector github")
         ),
         "{github}"
     );

@@ -1,0 +1,85 @@
+name: plan-campaign-send-plan-ready
+kind: skill
+target: ..
+runner: plan
+inputs:
+  objective: Schedule the June newsletter to the subscribers list.
+  principal: account:growth-demo
+  provider_context:
+    provider: slack
+    account_ref: acct_demo
+    runtime_path: provider.send
+    domain_verified: true
+  audience:
+    type: list
+    ref: newsletter-subscribers
+  content_ref:
+    draft_ref: campaign:jun-newsletter
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    subject_or_title: June product update
+  consent_basis: Subscribers opted in to the newsletter list.
+  operator_context: Live delivery requires explicit operator approval.
+caller:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: message-send
+        principal:
+          type: account
+          ref: account:growth-demo
+        provider:
+          name: slack
+          account_ref: acct_demo
+          runtime_path: provider.send
+        send_class: campaign
+        channel: email
+        audience:
+          type: list
+          ref: newsletter-subscribers
+          requires_reconfirmation: false
+        content:
+          draft_ref: campaign:jun-newsletter
+          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          subject_or_title: June product update
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_ref: approval:pending
+        blockers: []
+        provider_actions:
+          - provider.review_delivery
+          - provider.send_test
+          - provider.schedule_or_send
+        evidence_refs:
+          - provider_context:slack
+        success_checkpoint:
+          milestone: send_ready_for_approval
+          description: A digest-bound campaign send is ready for preflight and explicit approval.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  output:
+    subset:
+      send_plan:
+        data:
+          decision: ready
+          action_family: message-send
+          audience:
+            type: list
+            ref: newsletter-subscribers
+            requires_reconfirmation: false
+          content:
+            digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          gates:
+            preflight_required: true
+            human_approval_required: true
+            approval_ref: approval:pending
+          blockers: []
+          success_checkpoint:
+            milestone: send_ready_for_approval
+metadata:
+  public_skill: message-send
+  source_case: campaign-send-plan-ready
+  source: skills-fixture

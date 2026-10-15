@@ -12,7 +12,7 @@ transition, it records that decision in the operator's consent ledger with
 optimistic concurrency and verifies the exact event through a second read.
 
 This skill never sends a message and never mutates a mailing provider. A later
-`send-as` run must read the current consent state again at delivery time. The
+`message-send` run must read the current consent state again at delivery time. The
 ledger records the operator's policy decision; it does not replace provider
 unsubscribe or bounce data.
 
@@ -58,7 +58,7 @@ data-source binding owns storage and credentials.
 A sealed result proves the ledger reads and any exact recorded transition. It
 does not prove provider state, re-subscription, campaign approval, or delivery.
 Every result therefore keeps `downstream_send.status` at `not_run` and names
-`send-as` as the separate delivery boundary.
+`message-send` as the separate delivery boundary.
 
 ## Decisions and recovery
 

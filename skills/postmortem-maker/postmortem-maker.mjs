@@ -70,7 +70,7 @@ export function finalizePostmortem(inputs) {
       unknowns,
       action_items: failed ? [] : actionItems,
       publish_proposal: publishable
-        ? { gate: "human-approver", delivery_skill: "send-as", sent: false }
+        ? { gate: "human-approver", delivery_skill: "message-send", sent: false }
         : null,
       publish_performed: false,
       fragments_digest: requiredDigest(inputs.fragments_digest),

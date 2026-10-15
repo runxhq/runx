@@ -35,7 +35,7 @@ connectors:
   github:
     operations: [issues.update, issues.read]
   n8n:
-    operations: [workflow.invoke]
+    operations: [handoff.deliver]
   artifact:
     operations: [artifact.allocate]
 runners:
@@ -55,7 +55,7 @@ runners:
       - id: issues
         operation: github/issues.read
       - id: deliver
-        operation: n8n/workflow.invoke
+        operation: n8n/handoff.deliver
       - id: allocate
         operation: artifact/artifact.allocate
 "#;
@@ -334,7 +334,7 @@ struct Fixture {
 
 impl Fixture {
     fn new(scopes: &[&str]) -> Self {
-        Self::for_connector("runx/slack", scopes)
+        Self::for_connector("slack", scopes)
     }
 
     fn for_connector(connector: &str, scopes: &[&str]) -> Self {
@@ -684,14 +684,14 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         principal_ref: actor_ref,
         resource_ref: Reference::runx(
             ReferenceType::ConnectorInstance,
-            crate::kernel::instances::instance_id(&["hosted", "runx/slack", "grant_slack"])
+            crate::kernel::instances::instance_id(&["hosted", "slack", "grant_slack"])
                 .unwrap()
                 .as_str(),
         ),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
         bounds: AuthorityBounds {
-            operations: vec!["runx/slack/channel.post.read".into()],
+            operations: vec!["slack/channel.post.read".into()],
             scopes: vec!["channel.post.read".into()],
             targets: vec!["slack://T123/C456".into()],
             uses: None,
@@ -777,7 +777,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
 fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     let fixture = Fixture::new(&["channel.post"]);
     let slack = crate::kernel::connectors::source_scope()
-        .connector("runx/slack")
+        .connector("slack")
         .unwrap();
     let mut binding = slack.binding();
     binding.connector_digest =
@@ -799,14 +799,14 @@ fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     ]);
 
     let other = fixture
-        .try_select_grant("grant_slack_other", "runx/slack")
+        .try_select_grant("grant_slack_other", "slack")
         .unwrap_err();
     assert!(
-        other.contains("does not bind connector runx/slack"),
+        other.contains("does not bind connector slack"),
         "{other}"
     );
     let unbound = fixture
-        .try_select_grant("grant_slack_unbound", "runx/slack")
+        .try_select_grant("grant_slack_unbound", "slack")
         .unwrap_err();
     assert!(unbound.contains("names no connector"), "{unbound}");
 }
@@ -938,7 +938,7 @@ fn the_approval_carries_what_executes_bound_by_its_digest() {
 
 #[test]
 fn an_enforced_operation_resends_after_an_unknown_outcome() {
-    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -967,7 +967,7 @@ fn an_enforced_operation_resends_after_an_unknown_outcome() {
 /// holds it, even where resending would be safe, and nothing is sent.
 #[test]
 fn an_unknown_write_is_held_when_its_instance_was_rebound() {
-    let mut fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
+    let mut fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -980,7 +980,7 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
     // The same grant is confirmed again, now held by another account, and
     // the run resumes in a new process.
     *fixture.provider.principal.lock().unwrap() = "operator-2".to_owned();
-    fixture.select_grant("grant_slack", "runx/aws");
+    fixture.select_grant("grant_slack", "aws");
     fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
     fixture.provider.answer(Answer::Succeed);
     let error = fixture.run("transcribe", &start, None).expect_err("held");
@@ -990,7 +990,7 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
 
 #[test]
 fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
-    let fixture = Fixture::for_connector("runx/aws", &["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"target": "s3://media/interview.mp3"},
         "idempotency_key": "transcribe-1",
@@ -1016,7 +1016,7 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
 
 #[test]
 fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back() {
-    let fixture = Fixture::for_connector("runx/github", &["repo.write"]);
+    let fixture = Fixture::for_connector("github", &["repo.write"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
         "idempotency_key": "update-1",
@@ -1059,7 +1059,7 @@ fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back(
 
 #[test]
 fn a_hosted_declared_read_sends_one_request_per_item() {
-    let fixture = Fixture::for_connector("runx/github", &["repo.read"]);
+    let fixture = Fixture::for_connector("github", &["repo.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "numbers": [7, 8]},
     }))
@@ -1086,7 +1086,7 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
     // call reaches only that URL.
     let fixture = Fixture::new(&["channel.post"]);
     fixture.set_credential(
-        "runx/n8n",
+        "n8n",
         "webhook",
         "https://acme.app.n8n.cloud/webhook/runx-effect",
     );

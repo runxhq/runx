@@ -79,7 +79,7 @@ mod tests {
     fn request() -> Result<ResolutionRequest, serde_json::Error> {
         let envelope: AgentContextEnvelope = serde_json::from_value(serde_json::json!({
             "run_id": "run_1",
-            "skill": "slack-notify",
+            "skill": "message-send",
             "instructions": "Plan a notification",
             "instructions_sha256": "sha256:d264e5fb6c699b5793b06863a0c2d1e77beb6f01e8a7263da65a3986c3836c26",
             "inputs": {},

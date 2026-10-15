@@ -180,7 +180,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     let slack =
         runx_runtime::ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
             .unwrap()
-            .connector("runx/slack")
+            .connector("slack")
             .unwrap();
     assert_eq!(operation.connector, slack.name);
     assert_eq!(operation.manifest_digest, slack.manifest_digest);

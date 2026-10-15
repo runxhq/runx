@@ -363,7 +363,7 @@ fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     );
     let message = json_failure_message(&output.stdout)?;
     assert!(
-        message.contains("no runx/github token was given on stdin (or set GITHUB_TOKEN)"),
+        message.contains("no github token was given on stdin (or set GITHUB_TOKEN)"),
         "expected an error about the empty secret value, got: {message}"
     );
 

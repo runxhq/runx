@@ -114,8 +114,8 @@ function buildHandoff(requestType, subjectId, dataClasses, requestedScopes) {
   if (requestType === "export") {
     return {
       ...base,
-      path: "downstream.read_projection.redact-pii.send-as",
-      scopes: { ...base.scopes, read_operation: "projection.read", redaction_skill: "redact-pii", delivery_skill: "send-as" },
+      path: "downstream.read_projection.redact-pii.message-send",
+      scopes: { ...base.scopes, read_operation: "projection.read", redaction_skill: "redact-pii", delivery_skill: "message-send" },
     };
   }
   return {

@@ -1,0 +1,61 @@
+name: message-send-thread-slack-plans-one-digest-bound-thread-reply
+kind: skill
+target: ..
+runner: plan_reply
+operator_journeys:
+  - mode: standalone
+    confusors: [slack, webhook-handoff]
+    request: Prepare the exact reply for this Slack thread and stop before delivery.
+    expected_outcome: Return a digest-bound reply plan with exact target, body, principal, and approval boundary.
+  - mode: composed
+    request: Prepare the final Slack reply from this completed support or operations decision.
+    expected_outcome: Reuse final text and thread locator without rereading the thread or sending it.
+    prior_evidence:
+      - The final reply text, exact thread locator, principal, and provider context supplied in the fixture.
+    must_not_repeat:
+      - Do not reread or re-summarize the Slack thread.
+      - Do not send the reply from the planning runner.
+inputs:
+  principal: user:kam
+  thread_locator: slack://T123ABC/C123ABC/1750000000.000001
+  text: I’ll verify this now.
+  provider_context:
+    connector: runx-connect
+    workspace: T123ABC
+  operator_context: Reply only in the supplied thread and require approval before delivery.
+caller:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: message-send
+        principal: { type: user, ref: "user:kam" }
+        provider: { name: slack, account_ref: "workspace:T123ABC", runtime_path: slack }
+        send_class: internal
+        channel: chat
+        audience:
+          type: thread
+          ref: slack://T123ABC/C123ABC/1750000000.000001
+          requires_reconfirmation: false
+        content:
+          draft_ref: inline
+          digest: sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647
+          subject_or_title: Slack thread reply
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_ref: slack.deliver-reply.approval
+        blockers: []
+        provider_actions: [thread.reply]
+        evidence_refs: []
+        success_checkpoint:
+          milestone: plan_ready
+          description: Digest-bound Slack reply awaits approved provider execution.
+expect:
+  status: sealed
+  steps: [digest, authorize]
+  receipt: { schema: runx.receipt.v1 }
+metadata:
+  public_skill: message-send
+  source_case: plan-reply
+  source: skills-fixture

@@ -180,7 +180,7 @@ fn grant_of(outcome: UseOutcome) -> Result<String, String> {
 
 #[test]
 fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
-    let slack = source_scope().connector("runx/slack").unwrap();
+    let slack = source_scope().connector("slack").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[pending()]);
     let created = connect.issue("grant_slack_1", &slack);
     connect.statuses.lock().unwrap().push_back(created);
@@ -226,7 +226,7 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
 
 #[test]
 fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), String> {
-    let slack = source_scope().connector("runx/slack").unwrap();
+    let slack = source_scope().connector("slack").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[]);
     let project = Project::new();
 
@@ -254,7 +254,7 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
         authorization_url.as_deref(),
         Some("https://connect.runx.invalid/authorize/sess_1")
     );
-    assert_eq!(finish, "runx connector use runx/slack sess_1");
+    assert_eq!(finish, "runx connector use slack sess_1");
     // The target goes as one locator; Connect reads it per provider.
     let started = connect.sent("/v1/connect/sessions");
     assert_eq!(started[0]["target_locator"], "C0123");
@@ -277,7 +277,7 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
 
 #[test]
 fn a_new_grant_shows_its_link_once_before_it_waits() {
-    let slack = source_scope().connector("runx/slack").unwrap();
+    let slack = source_scope().connector("slack").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[pending(), pending()]);
     let created = connect.issue("grant_slack_1", &slack);
     connect.statuses.lock().unwrap().push_back(created);
@@ -307,13 +307,13 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
     assert_eq!(grant_of(outcome).unwrap(), "grant_slack_1");
     assert_eq!(
         *shown.borrow(),
-        vec!["runx/slack https://connect.runx.invalid/authorize/sess_1".to_owned()]
+        vec!["slack https://connect.runx.invalid/authorize/sess_1".to_owned()]
     );
 }
 
 #[test]
 fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
@@ -346,7 +346,7 @@ fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect()
 
 #[test]
 fn a_plain_use_refuses_a_variable_the_env_file_disagrees_on_even_when_blank() {
-    let exa = source_scope().connector("runx/exa").unwrap();
+    let exa = source_scope().connector("exa").unwrap();
     let connect = Connect::new(Value::Null, &[]);
     // A blank export over a `.env` value is still two values.
     let project = Project::with(&[
@@ -370,7 +370,7 @@ fn a_plain_use_refuses_a_variable_the_env_file_disagrees_on_even_when_blank() {
 
 #[test]
 fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(Value::Null, &[]);
     let project = Project::new();
     crate::hosted_api::store_authenticated_hosted_environment(
@@ -397,7 +397,7 @@ fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
 
 #[test]
 fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
@@ -416,7 +416,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
     let asked = |wanted: &str| {
         assert_eq!(
             wanted,
-            "runx/aws access_key, a JSON object of region, account_id, access_key_id, secret_access_key, session_token"
+            "aws access_key, a JSON object of region, account_id, access_key_id, secret_access_key, session_token"
         );
         Ok(secret.clone())
     };
@@ -444,7 +444,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
 
 #[test]
 fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
@@ -479,7 +479,7 @@ fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() 
 
 #[test]
 fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         awaiting_authorization(),
         &[json!({"status": "credential_required", "session_id": "sess_1"})],
@@ -498,7 +498,7 @@ fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
 
     assert!(
         refused.contains(
-            "run `runx connector use runx/aws --hosted` (reads AWS_CREDENTIALS, else asks for it)"
+            "run `runx connector use aws --hosted` (reads AWS_CREDENTIALS, else asks for it)"
         ),
         "{refused}"
     );
@@ -511,7 +511,7 @@ fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
 
 #[test]
 fn a_failed_connect_session_is_refused_with_its_reason() {
-    let slack = source_scope().connector("runx/slack").unwrap();
+    let slack = source_scope().connector("slack").unwrap();
     let connect = Connect::new(
         awaiting_authorization(),
         &[json!({"status": "failed", "session_id": "sess_1", "error": "access denied"})],
@@ -533,7 +533,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
 
     assert_eq!(
         refused,
-        "runx Connect could not grant runx/slack: access denied"
+        "runx Connect could not grant slack: access denied"
     );
     assert!(project.instances.list().unwrap().is_empty());
 }
@@ -551,7 +551,7 @@ fn never_asked(wanted: &str) -> Result<String, String> {
 
 #[test]
 fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), String> {
-    let exa = source_scope().connector("runx/exa").unwrap();
+    let exa = source_scope().connector("exa").unwrap();
     let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
     let connect = Connect::new(Value::Null, &[]);
 
@@ -587,11 +587,11 @@ fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), S
 #[test]
 fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() -> Result<(), String>
 {
-    let exa = source_scope().connector("runx/exa").unwrap();
+    let exa = source_scope().connector("exa").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
     let asked = |wanted: &str| {
-        assert_eq!(wanted, "runx/exa api_key");
+        assert_eq!(wanted, "exa api_key");
         Ok("exa-typed-key".to_owned())
     };
 
@@ -608,13 +608,13 @@ fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() ->
             instance.authority
         ));
     };
-    assert_eq!(profile.as_str(), "runx/exa");
+    assert_eq!(profile.as_str(), "exa");
     Ok(())
 }
 
 #[test]
 fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> Result<(), String> {
-    let apollo = source_scope().connector("runx/apollo").unwrap();
+    let apollo = source_scope().connector("apollo").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
@@ -636,7 +636,7 @@ fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> 
 
 #[test]
 fn a_credential_that_cannot_be_asked_for_names_its_variable() {
-    let exa = source_scope().connector("runx/exa").unwrap();
+    let exa = source_scope().connector("exa").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
@@ -651,7 +651,7 @@ fn a_credential_that_cannot_be_asked_for_names_its_variable() {
 
 #[test]
 fn a_connector_with_several_credentials_names_each_and_its_variable() {
-    let twitter = source_scope().connector("runx/twitter").unwrap();
+    let twitter = source_scope().connector("twitter").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
@@ -664,13 +664,13 @@ fn a_connector_with_several_credentials_names_each_and_its_variable() {
 
     assert!(
         refused.contains(
-            "`runx connector use runx/twitter --credential app` (reads TWITTER_BEARER_TOKEN, else asks for it)"
+            "`runx connector use twitter --credential app` (reads TWITTER_BEARER_TOKEN, else asks for it)"
         ),
         "{refused}"
     );
     assert!(
         refused.contains(
-            "`runx connector use runx/twitter --credential user` (reads TWITTER_USER_AUTH, else asks for it)"
+            "`runx connector use twitter --credential user` (reads TWITTER_USER_AUTH, else asks for it)"
         ),
         "{refused}"
     );
@@ -678,7 +678,7 @@ fn a_connector_with_several_credentials_names_each_and_its_variable() {
 
 #[test]
 fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
-    let exa = source_scope().connector("runx/exa").unwrap();
+    let exa = source_scope().connector("exa").unwrap();
     let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
     let connect = Connect::new(Value::Null, &[]);
 
@@ -704,7 +704,7 @@ fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
 
 #[test]
 fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
@@ -750,7 +750,7 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
 
 #[test]
 fn a_reference_cannot_seed_a_delegated_sign_in() {
-    let github = source_scope().connector("runx/github").unwrap();
+    let github = source_scope().connector("github").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[]);
     let project = Project::new();
     let reference =
@@ -778,7 +778,7 @@ fn a_reference_cannot_seed_a_delegated_sign_in() {
 
 #[test]
 fn a_reference_that_cannot_be_read_sends_nothing_to_connect() {
-    let aws = source_scope().connector("runx/aws").unwrap();
+    let aws = source_scope().connector("aws").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],

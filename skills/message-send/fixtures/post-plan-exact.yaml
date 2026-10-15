@@ -1,0 +1,25 @@
+name: message-send-plan-exact
+kind: skill
+target: ..
+runner: plan_post_exact
+inputs:
+  channel: slack://T123/C456
+  content: { message: A bounded personal update needs attention. }
+  principal: runx:principal:operator
+expect:
+  status: sealed
+  steps: [prepare, digest-content, bind-content, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        notify_plan:
+          data:
+            schema: runx.notify.v1
+            decision: ready_for_provider
+            principal: runx:principal:operator
+            channel: slack://T123/C456
+            provider_status: not_called
+            delivery_status: not_sent
+            send_plan: { decision: ready, origin: message-send.exact, authority: native_delivery_gate }
+            validation: { status: pass, findings: [] }
+  receipt: { schema: runx.receipt.v1 }

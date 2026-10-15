@@ -10,7 +10,7 @@ policy basis, provider readiness, and approval. Drafting is not sending.
 
 ## Common Lanes
 
-- `send.plan`: route through `send-as`; no live delivery.
+- `send.plan`: route through `message-send`; no live delivery.
 - `send.test`: provider test or preview; usually no live approval.
 - `send.approve`: human approval for live delivery.
 - `send.schedule`: live/public delivery; approval required.
@@ -38,5 +38,5 @@ policy basis, provider readiness, and approval. Drafting is not sending.
 - Request to send from a provider preview or draft without approval.
 
 Route provider-specific execution to the selected provider's connector; keep
-the authority model in `send-as`. Branded providers belong in their own skills
+the authority model in `message-send`. Branded providers belong in their own skills
 and connectors, not in this ops desk spine.

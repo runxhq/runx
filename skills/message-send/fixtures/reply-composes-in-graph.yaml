@@ -1,0 +1,7 @@
+name: reply-composes-in-graph
+kind: graph
+target: support/reply.graph
+expect:
+  status: sealed
+  steps: [reply, digest]
+  receipt: { schema: runx.receipt.v1 }
