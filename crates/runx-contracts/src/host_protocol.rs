@@ -151,15 +151,39 @@ pub struct PurchaseQuote {
     pub pay_to: NonEmptyString,
 }
 
-/// One way the payer can pay: a hosted payment grant whose connector pays on
-/// the quote's network and asset.
+/// What an answer's `choice` names to pay from the account's runx balance. No
+/// connector instance id can take this value.
+pub const PURCHASE_BALANCE_CHOICE: &str = "runx:balance";
+
+/// One way the payer can pay. An answer's `choice` names it: the balance by
+/// [`PURCHASE_BALANCE_CHOICE`], a payment grant by its instance id.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PurchaseMethod {
-    /// The connector instance an answer's `choice` names.
-    pub instance_id: NonEmptyString,
-    pub connector: NonEmptyString,
-    pub total_minor: PortableAmountMinor,
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PurchaseMethod {
+    /// The account's runx balance, which covers the price: the price moves
+    /// inside runx's ledger, with no settlement per call.
+    Balance {
+        available_micro: u64,
+        total_minor: PortableAmountMinor,
+    },
+    /// A hosted payment grant whose connector pays on the quote's network
+    /// and asset.
+    Grant {
+        instance_id: NonEmptyString,
+        connector: NonEmptyString,
+        total_minor: PortableAmountMinor,
+    },
+}
+
+impl PurchaseMethod {
+    /// What an answer's `choice` names to pay with this method.
+    #[must_use]
+    pub fn choice(&self) -> &str {
+        match self {
+            Self::Balance { .. } => PURCHASE_BALANCE_CHOICE,
+            Self::Grant { instance_id, .. } => instance_id.as_str(),
+        }
+    }
 }
 
 /// Whether sending a claimed call again could repeat its effect.

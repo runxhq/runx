@@ -20,6 +20,11 @@ export type RunxPrincipalId = string & {
 export type Sha256DigestContract = `sha256:${string}`;
 export type CurrencyCodeContract = string;
 export type SettlementFamilyContract = string;
+/**
+ * The settlement family runx's own ledger settles: an account buyer pays from
+ * its runx balance, and the price moves inside runx.
+ */
+export const RUNX_BALANCE_SETTLEMENT_FAMILY = "runx_balance";
 export type PaidInvocationCanonicalizerVersionContract =
   typeof RECEIPT_CANONICALIZATION;
 export type PaidInvocationPaymentStateContract =
@@ -274,6 +279,11 @@ export type PurchaseContract = DeepReadonly<{
   result?: unknown;
   holds?: readonly PurchaseHoldContract[];
   failure?: PaidInvocationFailureContract;
+  /**
+   * What the reading account's runx balance holds, in micro-USD, while the
+   * purchase can still be paid from it. Never shown to a purchaser key.
+   */
+  balance_micro?: number;
 }>;
 /** One resource a fulfilled purchase bought, held by runx for its owner. */
 export type PurchaseHoldContract = DeepReadonly<{

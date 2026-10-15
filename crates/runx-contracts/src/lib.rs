@@ -141,10 +141,10 @@ pub use host_protocol::{
     AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, ExecutionEvent,
     HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
     HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, PurchaseMethod, PurchaseQuote, PurchaseRequest,
-    Question, QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
-    RetryResend, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
-    check_answer,
+    HostRunVerificationStatus, HostTerminalState, PURCHASE_BALANCE_CHOICE, PurchaseMethod,
+    PurchaseQuote, PurchaseRequest, Question, QuestionOption, ResolutionRequest,
+    ResolutionResponse, ResolutionResponseActor, RetryResend, TurnAllowance, TurnCallOutcome,
+    TurnCallResult, TurnStatus, TurnTarget, TurnTool, check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
@@ -212,7 +212,8 @@ pub use paid_invocation::{
     PaymentIdempotencyBinding, PaymentReference, PortableAmountMinor, PrincipalReference, Purchase,
     PurchaseHold, QUOTE_PAID_INVOCATION, QUOTE_PAID_INVOCATION_REQUEST_SCHEMA,
     QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationAdmission, QuotePaidInvocationRequest,
-    QuotePaidInvocationResult, SettlementFamilies, SettlementFamily, Sha256Digest,
+    QuotePaidInvocationResult, RUNX_BALANCE_SETTLEMENT_FAMILY, SettlementFamilies,
+    SettlementFamily, Sha256Digest,
 };
 pub use paid_invocation_fingerprint::{
     PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA, fingerprint_cancel_paid_invocation_request,

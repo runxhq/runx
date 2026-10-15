@@ -5,6 +5,10 @@
   "x-runx-generated-from": "schemas/purchase.schema.json",
   "additionalProperties": false,
   "properties": {
+    "balance_micro": {
+      "minimum": 0,
+      "type": "integer"
+    },
     "failure": {
       "additionalProperties": false,
       "properties": {

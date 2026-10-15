@@ -161,6 +161,10 @@ impl RunxSchema for CurrencyCode {
     }
 }
 
+/// The settlement family runx's own ledger settles: an account buyer pays
+/// from its runx balance, and the price moves inside runx.
+pub const RUNX_BALANCE_SETTLEMENT_FAMILY: &str = "runx_balance";
+
 /// A bounded, provider-neutral settlement-family identifier.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
@@ -218,6 +222,10 @@ impl SettlementFamilies {
 
     pub fn as_slice(&self) -> &[SettlementFamily] {
         &self.0
+    }
+
+    pub fn accepts(&self, family: &str) -> bool {
+        self.0.iter().any(|accepted| accepted.as_str() == family)
     }
 }
 
@@ -719,6 +727,10 @@ pub struct Purchase {
     /// Why a refund won. Present only after refund won.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<PaidInvocationFailure>,
+    /// What the reading account's runx balance holds, in micro-USD, while the
+    /// purchase can still be paid from it. Never shown to a purchaser key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance_micro: Option<u64>,
 }
 
 /// One resource a fulfilled purchase bought, held by runx for the purchase's

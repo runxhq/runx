@@ -510,14 +510,24 @@ fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<(
         .and_then(JsonValue::as_array)
         .into_iter()
         .flatten()
-        .filter_map(JsonValue::as_object)
+        .filter_map(|method| {
+            serde_json::to_value(method)
+                .and_then(serde_json::from_value::<runx_contracts::PurchaseMethod>)
+                .ok()
+        })
     {
-        writeln!(
-            writer,
-            "  method {} ({})",
-            object_string(method, "instance_id").unwrap_or("<unknown>"),
-            object_string(method, "connector").unwrap_or("<unknown>"),
-        )?;
+        match &method {
+            runx_contracts::PurchaseMethod::Balance {
+                available_micro, ..
+            } => writeln!(
+                writer,
+                "  method {} (runx balance, {available_micro} micro-USD available)",
+                method.choice(),
+            )?,
+            runx_contracts::PurchaseMethod::Grant { connector, .. } => {
+                writeln!(writer, "  method {} ({connector})", method.choice())?;
+            }
+        }
     }
     Ok(())
 }
@@ -568,18 +578,19 @@ fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
                 .and_then(|purchase| purchase.get("methods"))
                 .and_then(JsonValue::as_array)
                 .and_then(|methods| methods.first())
-                .and_then(JsonValue::as_object)
-                .and_then(|method| object_string(method, "instance_id"))
+                .and_then(|method| {
+                    serde_json::to_value(method)
+                        .and_then(serde_json::from_value::<runx_contracts::PurchaseMethod>)
+                        .ok()
+                })
+                .map(|method| method.choice().to_owned())
                 .unwrap_or_default();
             approvals.insert(
                 id.to_owned(),
                 JsonValue::Object(JsonObject::from([
                     digest,
                     ("approved".to_owned(), JsonValue::Bool(false)),
-                    (
-                        "choice".to_owned(),
-                        JsonValue::String(first_method.to_owned()),
-                    ),
+                    ("choice".to_owned(), JsonValue::String(first_method)),
                 ])),
             );
         } else {
@@ -660,8 +671,9 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::{
-        ResumeHint, closure_disposition_exit_code, persist_json_artifact, read_json_artifact,
-        run_result_exit_code, serialize_json_output, write_skill_text,
+        ResumeHint, answers_template, closure_disposition_exit_code, persist_json_artifact,
+        read_json_artifact, run_result_exit_code, serialize_json_output, write_purchase,
+        write_skill_text,
     };
 
     #[cfg(unix)]
@@ -1027,5 +1039,61 @@ mod tests {
         let rendered = String::from_utf8(output);
         assert!(rendered.is_ok(), "text output is utf8");
         rendered.unwrap_or_default()
+    }
+
+    fn balance_first_purchase() -> JsonValue {
+        let request = serde_json::json!({
+            "kind": "purchase",
+            "id": "buy",
+            "purchase": {
+                "skill": "acme/inbox",
+                "runner": "create",
+                "amount_minor": 5,
+                "currency": "USD",
+                "seller": {"type": "principal", "uri": "runx:principal:acme"},
+                "quote": {"expires_at": "2026-10-15T00:00:00Z"},
+                "methods": [
+                    {"kind": "balance", "available_micro": 80000, "total_minor": 5},
+                    {"kind": "grant", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5}
+                ]
+            }
+        });
+        serde_json::from_value(request).unwrap_or(JsonValue::Null)
+    }
+
+    #[test]
+    fn a_purchase_template_names_the_first_method_by_its_choice() {
+        let template = answers_template(&[balance_first_purchase()])
+            .and_then(|template| serde_json::to_value(template).ok())
+            .unwrap_or_default();
+        assert_eq!(
+            template
+                .pointer("/approvals/buy/choice")
+                .and_then(serde_json::Value::as_str),
+            Some(runx_contracts::PURCHASE_BALANCE_CHOICE)
+        );
+    }
+
+    #[test]
+    fn a_purchase_lists_the_balance_and_each_grant_by_their_choices() {
+        let purchase = match balance_first_purchase() {
+            JsonValue::Object(request) => match request.get("purchase") {
+                Some(JsonValue::Object(purchase)) => purchase.clone(),
+                _ => JsonObject::new(),
+            },
+            _ => JsonObject::new(),
+        };
+        assert!(!purchase.is_empty(), "the request carries its purchase");
+        let mut output = Vec::new();
+        assert!(write_purchase(&mut output, &purchase).is_ok());
+        let rendered = String::from_utf8(output).unwrap_or_default();
+        assert!(
+            rendered.contains("method runx:balance (runx balance, 80000 micro-USD available)"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("method hosted.wallet (wallet/evm)"),
+            "{rendered}"
+        );
     }
 }

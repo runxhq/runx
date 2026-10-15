@@ -4,10 +4,12 @@
 //! at any depth: a top-level `runx skill`, a `skill:` step, an agent's skill
 //! call. The kernel takes Cloud's quote for the call's inputs, and the call
 //! waits on the person's exact decision: the quote's offer, seller and price,
-//! and each payment method that can pay it. On their answer the kernel
-//! reserves the amount against the run's limit, charged to the method, in the
-//! commit that claims the purchase, then makes one keyed purchase that runx
-//! pays from that method. A purchase is an effect: claimed before it is sent,
+//! and each payment method that can pay it: the account's runx balance, when
+//! the purchase takes it and it covers the price, and each hosted payment
+//! grant that pays on the quote's network. On their answer the kernel reserves
+//! the amount against the run's limit, whichever method pays, in the commit
+//! that claims the purchase, then makes one keyed purchase that runx pays from
+//! that method. A purchase is an effect: claimed before it is sent,
 //! resent under its key when its outcome is unknown, settled when it is read
 //! back fulfilled or refunded. What it bought stays in runx custody: the call
 //! returns the purchase as its buyer reads it, with what runx holds for it,
@@ -21,7 +23,7 @@ use std::time::{Duration, Instant};
 use runx_contracts::{
     InstanceAuthority, JsonObject, PaidInvocation, PaidInvocationOutcomeGate, PaidSkillOfferTerms,
     Placement, PortableAmountMinor, Purchase, PurchaseMethod, PurchaseQuote, PurchaseRequest,
-    ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
+    RUNX_BALANCE_SETTLEMENT_FAMILY, ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
 };
 use serde::{Deserialize, Serialize};
 
@@ -137,8 +139,7 @@ enum PurchaseEvent {
     Decided {
         idempotency_key: String,
         invocation_id: String,
-        instance_id: String,
-        grant_id: String,
+        method: Paid,
         /// The run whose ledger reserved the amount, and its key there.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         spend: Option<(String, String)>,
@@ -160,21 +161,32 @@ impl StreamEvent for PurchaseEvent {
     }
 }
 
-/// Cloud's quote for one call's inputs: the paid invocation it admitted and
-/// the x402 requirement that pays it.
+/// Cloud's quote for one call's inputs: the paid invocation it admitted, the
+/// x402 requirement that pays it, and what the account's balance holds when
+/// the purchase takes it.
 struct Quote {
     invocation: PaidInvocation,
     network: String,
     asset: String,
     pay_to: String,
     expires_at: String,
+    balance_micro: Option<u64>,
+}
+
+/// What pays a decided purchase, as the attempt records and sends it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case", deny_unknown_fields)]
+enum Paid {
+    /// The account's runx balance.
+    Balance,
+    /// A hosted payment grant.
+    Grant { grant_id: String },
 }
 
 /// A payment method the payer holds that can pay the quote.
 struct Method {
-    instance_id: String,
-    connector: String,
-    grant_id: String,
+    offered: PurchaseMethod,
+    paid: Paid,
 }
 
 #[derive(Deserialize)]
@@ -253,12 +265,12 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
             ));
         }
     }
-    let methods = methods(call, &store, &quote)?;
+    let methods = methods(call, &store, &quote, amount_micro)?;
     if methods.is_empty() {
         return Ok(refused(
             "payment_method_unavailable",
             format!(
-                "no payment method this account holds pays on {}; connect one, such as `runx connector use wallet/evm --hosted`",
+                "nothing this account holds pays {amount_micro} micro-USD: add funds to its runx balance, or connect a payment grant that pays on {}, such as `runx connector use wallet/evm --hosted`",
                 quote.network
             ),
         ));
@@ -306,11 +318,11 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
                 .unwrap_or_else(|| "the buyer declined the purchase".to_owned()),
         ));
     }
-    let Some(method) = decision
-        .choice
-        .as_deref()
-        .and_then(|choice| methods.iter().find(|method| method.instance_id == choice))
-    else {
+    let Some(method) = decision.choice.as_deref().and_then(|choice| {
+        methods
+            .iter()
+            .find(|method| method.offered.choice() == choice)
+    }) else {
         return Ok(refused(
             "purchase_choice_invalid",
             "an approved purchase names one of the request's methods as its choice",
@@ -343,8 +355,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     let decided = PurchaseEvent::Decided {
         idempotency_key: purchase_key.clone(),
         invocation_id: quote.invocation.invocation_id.as_str().to_owned(),
-        instance_id: method.instance_id.clone(),
-        grant_id: method.grant_id.clone(),
+        method: method.paid.clone(),
         spend: spend.clone(),
     };
     let approval = ApprovalRecord::new(ApprovalActor::Human, request_digest.clone());
@@ -355,7 +366,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
                 authority_term_id: PURCHASE_TERM,
                 mandate_ref: None,
                 idempotency_key: &purchase_key,
-                instance_binding: &method.instance_id,
+                instance_binding: method.offered.choice(),
                 attempt: 1,
                 approval: Some(&approval),
                 implementation_digest: None,
@@ -369,7 +380,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     let sent = Sent {
         idempotency_key: purchase_key,
         invocation_id: quote.invocation.invocation_id.as_str().to_owned(),
-        grant_id: method.grant_id.clone(),
+        method: method.paid.clone(),
         spend,
     };
     send(call, &route, &session, &store, &custody, &key, &sent)
@@ -379,7 +390,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
 struct Sent {
     idempotency_key: String,
     invocation_id: String,
-    grant_id: String,
+    method: Paid,
     spend: Option<(String, String)>,
 }
 
@@ -401,14 +412,13 @@ fn recover(
             PurchaseEvent::Decided {
                 idempotency_key,
                 invocation_id,
-                grant_id,
+                method,
                 spend,
-                ..
             } if idempotency_key == pending.idempotency_key => {
                 sent = Some(Sent {
                     idempotency_key,
                     invocation_id,
-                    grant_id,
+                    method,
                     spend,
                 });
             }
@@ -442,13 +452,18 @@ fn send(
     key: &str,
     sent: &Sent,
 ) -> Result<Bought, RuntimeError> {
+    let mut account_payment = serde_json::to_value(&sent.method)
+        .map_err(|error| RuntimeError::json("writing the purchase", error))?;
+    if let Some(object) = account_payment.as_object_mut() {
+        object.insert(
+            "invocation_id".to_owned(),
+            serde_json::json!(sent.invocation_id),
+        );
+    }
     let mut body = serde_json::json!({
         "runner": call.paid.runner,
         "inputs": call.inputs,
-        "account_payment": {
-            "invocation_id": sent.invocation_id,
-            "grant_id": sent.grant_id,
-        },
+        "account_payment": account_payment,
     });
     if let (Some(version), Some(object)) = (&call.paid.version, body.as_object_mut()) {
         object.insert("version".to_owned(), serde_json::json!(version));
@@ -712,12 +727,19 @@ fn quote(
             format!("the quoted purchase is not runx's: {error}"),
         )
     })?;
+    let balance_micro = purchase.balance_micro.filter(|_| {
+        purchase
+            .invocation
+            .accepted_settlement_families
+            .accepts(RUNX_BALANCE_SETTLEMENT_FAMILY)
+    });
     Ok(Quote {
         network: field("network")?,
         asset: field("asset")?,
         pay_to: field("payTo")?,
         expires_at: purchase.invocation.expires_at.as_str().to_owned(),
         invocation: purchase.invocation,
+        balance_micro,
     })
 }
 
@@ -750,18 +772,34 @@ fn disagreement(call: &PurchaseCall<'_>, quote: &Quote) -> Option<Bought> {
     })
 }
 
-/// Every hosted payment grant the payer holds whose connector pays on the
-/// quote's network.
+/// The account's runx balance when the purchase takes it and it covers the
+/// price, then every hosted payment grant the payer holds whose connector pays
+/// on the quote's network.
 fn methods(
     call: &PurchaseCall<'_>,
     store: &Arc<KernelStore>,
     quote: &Quote,
+    amount_micro: u64,
 ) -> Result<Vec<Method>, RuntimeError> {
+    let total = PortableAmountMinor::new(quote.invocation.amount_minor.get())
+        .ok_or_else(|| engine("the quoted amount is not a portable amount"))?;
     let records = super::instances::Instances::new(Arc::clone(store))
         .list()
         .map_err(state)?;
     let scope = super::connectors::ConnectorScope::at(call.cwd).ok();
     let mut methods = Vec::new();
+    if let Some(available_micro) = quote
+        .balance_micro
+        .filter(|available| *available >= amount_micro)
+    {
+        methods.push(Method {
+            offered: PurchaseMethod::Balance {
+                available_micro,
+                total_minor: total,
+            },
+            paid: Paid::Balance,
+        });
+    }
     for record in records.into_iter().filter(|record| !record.revoked) {
         let instance = record.instance;
         let (Placement::Hosted, InstanceAuthority::HostedGrant { grant_id }) =
@@ -781,9 +819,14 @@ fn methods(
             });
         if pays {
             methods.push(Method {
-                instance_id: instance.instance_id.as_str().to_owned(),
-                connector: instance.connector.as_str().to_owned(),
-                grant_id: grant_id.as_str().to_owned(),
+                offered: PurchaseMethod::Grant {
+                    instance_id: instance.instance_id.as_str().into(),
+                    connector: instance.connector.as_str().into(),
+                    total_minor: total,
+                },
+                paid: Paid::Grant {
+                    grant_id: grant_id.as_str().to_owned(),
+                },
             });
         }
     }
@@ -796,8 +839,6 @@ fn purchase_request(
     methods: &[Method],
 ) -> Result<PurchaseRequest, RuntimeError> {
     let invocation = &quote.invocation;
-    let total = PortableAmountMinor::new(invocation.amount_minor.get())
-        .ok_or_else(|| engine("the quoted amount is not a portable amount"))?;
     serde_json::from_value(serde_json::json!({
         "skill": call.paid.skill_id,
         "runner": call.paid.runner,
@@ -816,11 +857,7 @@ fn purchase_request(
         },
         "methods": methods
             .iter()
-            .map(|method| PurchaseMethod {
-                instance_id: method.instance_id.clone().into(),
-                connector: method.connector.clone().into(),
-                total_minor: total,
-            })
+            .map(|method| &method.offered)
             .collect::<Vec<_>>(),
     }))
     .map_err(|error| RuntimeError::json("writing the purchase request", error))

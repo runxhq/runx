@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{
-    ExecutionEvent, InstanceAuthority, JsonObject, PaidSkillOfferTerms, Placement,
-    ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    ExecutionEvent, InstanceAuthority, JsonObject, PURCHASE_BALANCE_CHOICE, PaidSkillOfferTerms,
+    Placement, PurchaseMethod, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 use serde_json::{Value, json};
 
@@ -51,8 +51,9 @@ fn quote(network: &str, amount: u64) -> Value {
     })
 }
 
-/// The quoted invocation as its buyer reads it, before payment.
-fn quoted(amount: u64) -> Value {
+/// The quoted invocation as its buyer reads it, before payment: an account
+/// with a balance reads it beside a purchase that takes the balance.
+fn quoted(amount: u64, balance_micro: Option<u64>) -> Value {
     let mut purchase = fixture("purchase-fulfilled.json");
     let object = purchase.as_object_mut().unwrap();
     object.remove("receipt");
@@ -68,6 +69,13 @@ fn quoted(amount: u64) -> Value {
     let invocation = invocation.as_object_mut().unwrap();
     for field in ["execution_ref", "payment_ref", "settlement_family"] {
         invocation.remove(field);
+    }
+    if let Some(balance_micro) = balance_micro {
+        invocation.insert(
+            "accepted_settlement_families".to_owned(),
+            json!(["x402", "runx_balance"]),
+        );
+        purchase["balance_micro"] = json!(balance_micro);
     }
     purchase
 }
@@ -100,6 +108,8 @@ fn purchase(outcome: &str) -> Value {
 #[derive(Clone, Default)]
 struct Runx {
     quote: Arc<Mutex<Value>>,
+    /// What the buyer's runx balance holds, when the purchase takes it.
+    balance_micro: Arc<Mutex<Option<u64>>>,
     /// Whether the quoted purchase has been paid, which its read then shows.
     paid: Arc<Mutex<bool>>,
     /// What each paid purchase answers, in order; the last repeats.
@@ -111,10 +121,16 @@ impl Runx {
     fn new(quote: Value, bought: Vec<(u16, Value)>) -> Self {
         Self {
             quote: Arc::new(Mutex::new(quote)),
+            balance_micro: Arc::default(),
             paid: Arc::default(),
             bought: Arc::new(Mutex::new(bought)),
             sent: Arc::default(),
         }
+    }
+
+    fn with_balance(self, balance_micro: u64) -> Self {
+        *self.balance_micro.lock().unwrap() = Some(balance_micro);
+        self
     }
 
     fn purchases(&self) -> Vec<(Value, Option<String>)> {
@@ -174,7 +190,7 @@ impl RuntimeHttpTransport for Runx {
                         .and_then(|amount| amount.parse::<u64>().ok())
                         .unwrap_or_default()
                         / 10_000;
-                    body(200, &quoted(amount))
+                    body(200, &quoted(amount, *self.balance_micro.lock().unwrap()))
                 }
             }
             _ => body(404, &json!({"code": "not_found"})),
@@ -367,8 +383,18 @@ fn a_purchase_waits_on_its_buyer_with_the_quote_and_each_method_that_pays_it() {
     assert_eq!(purchase.quote.invocation_id.as_str(), "paid_1");
     assert_eq!(purchase.quote.network.as_str(), NETWORK);
     assert_eq!(purchase.methods.len(), 1);
-    assert_eq!(purchase.methods[0].instance_id.as_str(), project.wallet);
-    assert_eq!(purchase.methods[0].connector.as_str(), "wallet/evm");
+    let PurchaseMethod::Grant {
+        instance_id,
+        connector,
+        total_minor,
+    } = &purchase.methods[0]
+    else {
+        panic!("the method is the hosted payment grant");
+    };
+    assert_eq!(instance_id.as_str(), project.wallet);
+    assert_eq!(connector.as_str(), "wallet/evm");
+    assert_eq!(total_minor.get(), 5);
+    assert_eq!(purchase.methods[0].choice(), project.wallet);
     assert!(
         runx.purchases().is_empty(),
         "nothing is bought before the decision"
@@ -404,7 +430,7 @@ fn an_approved_purchase_reserves_its_amount_and_buys_from_the_chosen_method() {
     assert_eq!(body["version"], "1.0.0");
     assert_eq!(
         body["account_payment"],
-        json!({"invocation_id": "paid_1", "grant_id": "grant_wallet"})
+        json!({"invocation_id": "paid_1", "method": "grant", "grant_id": "grant_wallet"})
     );
     assert!(key.is_some(), "a purchase is sent under its key");
     assert_eq!(project.committed(), 50_000, "five cents is reserved");
@@ -572,4 +598,92 @@ fn a_run_no_person_answers_cannot_buy() {
     };
     assert_eq!(code, "purchase_unattended");
     assert!(runx.sent.lock().unwrap().is_empty(), "runx is never asked");
+}
+
+#[test]
+fn a_balance_that_covers_the_price_is_offered_first() {
+    let project = Project::new();
+    let runx =
+        Runx::new(quote(NETWORK, 5), vec![(201, purchase("fulfilled"))]).with_balance(80_000);
+    let mut buyer = Buyer::pending();
+    let Err(RuntimeError::ResolutionPending { request, .. }) =
+        project.buy(&runx, &mut buyer, Some(1_000_000))
+    else {
+        panic!("a purchase waits on its buyer's decision");
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("the request is a purchase");
+    };
+    assert_eq!(purchase.methods.len(), 2);
+    assert_eq!(
+        purchase.methods[0],
+        PurchaseMethod::Balance {
+            available_micro: 80_000,
+            total_minor: runx_contracts::PortableAmountMinor::new(5).unwrap(),
+        }
+    );
+    assert_eq!(purchase.methods[0].choice(), PURCHASE_BALANCE_CHOICE);
+    assert_eq!(purchase.methods[1].choice(), project.wallet);
+}
+
+#[test]
+fn a_balance_short_of_the_price_is_not_offered() {
+    let project = Project::new();
+    let runx =
+        Runx::new(quote(NETWORK, 5), vec![(201, purchase("fulfilled"))]).with_balance(49_999);
+    let mut buyer = Buyer::pending();
+    let Err(RuntimeError::ResolutionPending { request, .. }) = project.buy(&runx, &mut buyer, None)
+    else {
+        panic!("a purchase waits on its buyer's decision");
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("the request is a purchase");
+    };
+    assert_eq!(purchase.methods.len(), 1);
+    assert_eq!(purchase.methods[0].choice(), project.wallet);
+}
+
+#[test]
+fn a_purchase_paid_from_the_balance_names_the_balance_and_counts_against_the_limit() {
+    let project = Project::new();
+    let runx =
+        Runx::new(quote(NETWORK, 5), vec![(201, purchase("fulfilled"))]).with_balance(80_000);
+    let mut buyer = Buyer::answering(
+        ResolutionResponseActor::Human,
+        json!({"approved": true, "choice": PURCHASE_BALANCE_CHOICE}),
+    );
+    let Ok(Bought::Fulfilled { .. }) = project.buy(&runx, &mut buyer, Some(1_000_000)) else {
+        panic!("a purchase paid from the balance is bought");
+    };
+    let purchases = runx.purchases();
+    assert_eq!(purchases.len(), 1);
+    assert_eq!(
+        purchases[0].0["account_payment"],
+        json!({"invocation_id": "paid_1", "method": "balance"})
+    );
+    assert_eq!(
+        project.committed(),
+        50_000,
+        "the run's limit counts the price whichever method pays"
+    );
+}
+
+#[test]
+fn a_balance_alone_pays_where_no_grant_does() {
+    let project = Project::new();
+    let runx = Runx::new(
+        quote("solana:mainnet", 5),
+        vec![(201, purchase("fulfilled"))],
+    )
+    .with_balance(50_000);
+    let mut buyer = Buyer::pending();
+    let Err(RuntimeError::ResolutionPending { request, .. }) = project.buy(&runx, &mut buyer, None)
+    else {
+        panic!("the balance pays where no grant does");
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("the request is a purchase");
+    };
+    assert_eq!(purchase.methods.len(), 1);
+    assert_eq!(purchase.methods[0].choice(), PURCHASE_BALANCE_CHOICE);
 }

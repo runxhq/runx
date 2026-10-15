@@ -73,8 +73,18 @@ export type PurchaseRequestContract = DeepReadonly<{
     asset: string;
     pay_to: string;
   };
-  methods: readonly { instance_id: string; connector: string; total_minor: number }[];
+  /** Never empty: a call no method can pay fails instead of asking. */
+  methods: readonly PurchaseMethodContract[];
 }>;
+/** What an answer's `choice` names to pay from the account's runx balance. */
+export const PURCHASE_BALANCE_CHOICE = "runx:balance";
+/**
+ * One way the payer can pay. An answer's `choice` names it: the balance by
+ * `PURCHASE_BALANCE_CHOICE`, a payment grant by its instance id.
+ */
+export type PurchaseMethodContract =
+  | DeepReadonly<{ kind: "balance"; available_micro: number; total_minor: number }>
+  | DeepReadonly<{ kind: "grant"; instance_id: string; connector: string; total_minor: number }>;
 export type ResolutionRequestContract =
   | InputResolutionRequestContract
   | ApprovalResolutionRequestContract

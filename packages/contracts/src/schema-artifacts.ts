@@ -1303,28 +1303,61 @@ export const runxSchemaArtifacts = {
                       },
                       "methods": {
                         "items": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "connector": {
-                              "minLength": 1,
-                              "type": "string"
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "available_micro": {
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "kind": {
+                                  "const": "balance",
+                                  "type": "string"
+                                },
+                                "total_minor": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "available_micro",
+                                "total_minor"
+                              ],
+                              "type": "object"
                             },
-                            "instance_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "total_minor": {
-                              "maximum": 9007199254740991,
-                              "minimum": 1,
-                              "type": "integer"
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "connector": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "instance_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "const": "grant",
+                                  "type": "string"
+                                },
+                                "total_minor": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "instance_id",
+                                "connector",
+                                "total_minor"
+                              ],
+                              "type": "object"
                             }
-                          },
-                          "required": [
-                            "instance_id",
-                            "connector",
-                            "total_minor"
-                          ],
-                          "type": "object"
+                          ]
                         },
                         "type": "array"
                       },
@@ -17593,6 +17626,10 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "balance_micro": {
+        "minimum": 0,
+        "type": "integer"
+      },
       "failure": {
         "additionalProperties": false,
         "properties": {
@@ -24092,28 +24129,61 @@ export const runxSchemaArtifacts = {
               },
               "methods": {
                 "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "connector": {
-                      "minLength": 1,
-                      "type": "string"
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "available_micro": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "const": "balance",
+                          "type": "string"
+                        },
+                        "total_minor": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "available_micro",
+                        "total_minor"
+                      ],
+                      "type": "object"
                     },
-                    "instance_id": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "total_minor": {
-                      "maximum": 9007199254740991,
-                      "minimum": 1,
-                      "type": "integer"
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "connector": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "instance_id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "kind": {
+                          "const": "grant",
+                          "type": "string"
+                        },
+                        "total_minor": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "instance_id",
+                        "connector",
+                        "total_minor"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "instance_id",
-                    "connector",
-                    "total_minor"
-                  ],
-                  "type": "object"
+                  ]
                 },
                 "type": "array"
               },
@@ -27089,28 +27159,61 @@ export const runxSchemaArtifacts = {
                         },
                         "methods": {
                           "items": {
-                            "additionalProperties": false,
-                            "properties": {
-                              "connector": {
-                                "minLength": 1,
-                                "type": "string"
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "available_micro": {
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "kind": {
+                                    "const": "balance",
+                                    "type": "string"
+                                  },
+                                  "total_minor": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "available_micro",
+                                  "total_minor"
+                                ],
+                                "type": "object"
                               },
-                              "instance_id": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "total_minor": {
-                                "maximum": 9007199254740991,
-                                "minimum": 1,
-                                "type": "integer"
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "connector": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "instance_id": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "const": "grant",
+                                    "type": "string"
+                                  },
+                                  "total_minor": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "instance_id",
+                                  "connector",
+                                  "total_minor"
+                                ],
+                                "type": "object"
                               }
-                            },
-                            "required": [
-                              "instance_id",
-                              "connector",
-                              "total_minor"
-                            ],
-                            "type": "object"
+                            ]
                           },
                           "type": "array"
                         },
@@ -33216,28 +33319,61 @@ export const runxSchemaArtifacts = {
                             },
                             "methods": {
                               "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "connector": {
-                                    "minLength": 1,
-                                    "type": "string"
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "available_micro": {
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "kind": {
+                                        "const": "balance",
+                                        "type": "string"
+                                      },
+                                      "total_minor": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "available_micro",
+                                      "total_minor"
+                                    ],
+                                    "type": "object"
                                   },
-                                  "instance_id": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "total_minor": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 1,
-                                    "type": "integer"
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "connector": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "instance_id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "const": "grant",
+                                        "type": "string"
+                                      },
+                                      "total_minor": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "instance_id",
+                                      "connector",
+                                      "total_minor"
+                                    ],
+                                    "type": "object"
                                   }
-                                },
-                                "required": [
-                                  "instance_id",
-                                  "connector",
-                                  "total_minor"
-                                ],
-                                "type": "object"
+                                ]
                               },
                               "type": "array"
                             },
@@ -34698,28 +34834,61 @@ export const runxSchemaArtifacts = {
                                   },
                                   "methods": {
                                     "items": {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "connector": {
-                                          "minLength": 1,
-                                          "type": "string"
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "available_micro": {
+                                              "minimum": 0,
+                                              "type": "integer"
+                                            },
+                                            "kind": {
+                                              "const": "balance",
+                                              "type": "string"
+                                            },
+                                            "total_minor": {
+                                              "maximum": 9007199254740991,
+                                              "minimum": 1,
+                                              "type": "integer"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "available_micro",
+                                            "total_minor"
+                                          ],
+                                          "type": "object"
                                         },
-                                        "instance_id": {
-                                          "minLength": 1,
-                                          "type": "string"
-                                        },
-                                        "total_minor": {
-                                          "maximum": 9007199254740991,
-                                          "minimum": 1,
-                                          "type": "integer"
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "connector": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "instance_id": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "const": "grant",
+                                              "type": "string"
+                                            },
+                                            "total_minor": {
+                                              "maximum": 9007199254740991,
+                                              "minimum": 1,
+                                              "type": "integer"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "instance_id",
+                                            "connector",
+                                            "total_minor"
+                                          ],
+                                          "type": "object"
                                         }
-                                      },
-                                      "required": [
-                                        "instance_id",
-                                        "connector",
-                                        "total_minor"
-                                      ],
-                                      "type": "object"
+                                      ]
                                     },
                                     "type": "array"
                                   },
