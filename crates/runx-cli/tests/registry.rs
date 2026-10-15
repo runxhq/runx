@@ -465,9 +465,9 @@ fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn 
     Ok(())
 }
 
-/// A grant binds one revision: a closure whose registry children carry two
-/// manifests of the same connector is refused, never settled by whichever
-/// child was found first.
+/// A closure binds one revision of a name (S15): a package whose registry
+/// children carry two manifests of the same connector is refused at
+/// publication, never settled by whichever child was found first.
 #[test]
 fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -482,7 +482,7 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
         String::from_utf8_lossy(&publish.stderr)
     );
     assert!(
-        output.contains("connector google/calendar reaches more than one revision"),
+        output.contains("the closure reaches two revisions of connector google/calendar"),
         "{output}"
     );
     fs::remove_dir_all(&root)?;

@@ -479,14 +479,22 @@ impl<'a> ExecutionClosureInspector<'a> {
                 let connector = scope
                     .requirement(reference, requirement)
                     .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
-                walk.closure.connector_bindings.insert(
-                    ExecutionConnectorBinding {
-                        connector: connector.name.clone(),
-                        manifest_digest: connector.manifest_digest.clone(),
-                        connector_digest: connector.connector_digest.clone(),
-                    },
-                    connector,
-                );
+                let binding = ExecutionConnectorBinding {
+                    connector: connector.name.clone(),
+                    manifest_digest: connector.manifest_digest.clone(),
+                    connector_digest: connector.connector_digest.clone(),
+                };
+                // A closure binds one revision of a name (S15): a grant binds
+                // one revision, and nothing chooses between two.
+                if let Some(other) = walk.closure.connector_bindings.keys().find(|existing| {
+                    existing.connector == binding.connector && **existing != binding
+                }) {
+                    return Err(SkillInspectionError::ConnectorBinding(format!(
+                        "the closure reaches two revisions of connector {} (manifest {} and {}); one closure binds one revision of a name",
+                        binding.connector, other.manifest_digest, binding.manifest_digest
+                    )));
+                }
+                walk.closure.connector_bindings.insert(binding, connector);
             }
         }
         let runner = loaded
