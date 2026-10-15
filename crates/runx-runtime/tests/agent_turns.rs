@@ -815,6 +815,7 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         delegations: Vec::new(),
         max_fanout: fanout,
         max_child_depth: depth,
+        agent_bounds: false,
     }
 }
 
@@ -931,6 +932,82 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
         text(refusal, "message").is_some_and(|message| message.contains("nest at most 0 deep")),
         "{refusal:?}"
     );
+    Ok(())
+}
+
+/// A one-turn skill whose agent may read, list and write files.
+fn write_file_turn_skill(root: &Path) -> TestResult<PathBuf> {
+    let skill_dir = root.join("files-demo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: files-demo\ndescription: Reads the project, then answers.\n---\n# Files demo\n\nRead what you need, then answer.\n",
+        r#"skill: files-demo
+tools: [fs.read, fs.list, fs.write]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
+fn completed(call: &TurnCallResult) -> bool {
+    matches!(call.outcome, TurnCallOutcome::Completed { .. })
+}
+
+#[test]
+fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -> TestResult {
+    let temp = tempdir()?;
+    let elsewhere = tempdir()?;
+    std::fs::write(temp.path().join("README.md"), "# Project\n")?;
+    std::fs::write(temp.path().join(".env"), "TOKEN=1\n")?;
+    std::fs::write(elsewhere.path().join("notes.md"), "elsewhere\n")?;
+    let skill_dir = write_file_turn_skill(temp.path())?;
+    let mut authority = bounded(None, None);
+    authority.agent_bounds = true;
+    let started = start_bounded(temp.path(), skill_dir.clone(), authority)?;
+    let turn = opened(temp.path(), &started)?;
+    let read = |inputs: serde_json::Value| -> TestResult<TurnCallResult> {
+        Ok(turn.call(TURN, "fs_read", input(inputs)?)?)
+    };
+
+    assert!(completed(&read(
+        serde_json::json!({ "path": "README.md" })
+    )?));
+    let secret = read(serde_json::json!({ "path": ".env" }))?;
+    assert!(!completed(&secret), "{secret:?}");
+    let outside = read(serde_json::json!({
+        "repo_root": elsewhere.path().to_string_lossy(),
+        "path": "notes.md",
+    }))?;
+    assert!(!completed(&outside), "{outside:?}");
+    let listed = turn.call(TURN, "fs_list", input(serde_json::json!({}))?)?;
+    assert!(completed(&listed));
+    assert!(!format!("{listed:?}").contains(".env"));
+    let written = turn.call(
+        TURN,
+        "fs_write",
+        input(serde_json::json!({ "path": ".env", "contents": "TOKEN=2" }))?,
+    )?;
+    assert!(!completed(&written), "{written:?}");
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join(".env"))?,
+        "TOKEN=1\n"
+    );
+
+    // An operator's run of the same skill reads what its inputs name.
+    let operator = start_bounded(temp.path(), skill_dir, bounded(None, None))?;
+    let operator = opened(temp.path(), &operator)?;
+    let read = operator.call(
+        TURN,
+        "fs_read",
+        input(serde_json::json!({ "path": ".env" }))?,
+    )?;
+    assert!(completed(&read), "{read:?}");
     Ok(())
 }
 

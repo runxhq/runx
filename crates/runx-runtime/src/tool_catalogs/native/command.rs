@@ -172,6 +172,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })?)?;
         let execution = output
             .as_object()
@@ -224,6 +225,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })?)?;
         let env_names = output
             .as_object()
@@ -259,6 +261,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })?;
 
         inputs.timeout_ms = 3_600_001;
@@ -270,6 +273,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })
         .expect_err("timeouts above one hour must remain bounded");
         assert!(error.to_string().contains("3600000"));
@@ -304,6 +308,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })
         .expect_err("generic command execution must reject delivered credentials");
 
@@ -333,6 +338,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })?)?;
         let digest = planned
             .as_object()
@@ -352,6 +358,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })
         .expect_err("drifted execution must be rejected before spawning");
         assert!(error.to_string().contains("does not match"));

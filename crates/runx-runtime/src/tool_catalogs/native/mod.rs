@@ -93,6 +93,8 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub credential_delivery: &'a CredentialDelivery,
     pub local_artifacts: &'a crate::services::LocalArtifactService,
     pub effects: &'a RuntimeEffectRegistry,
+    /// How far the run's file, git, command and authoring tools reach.
+    pub bounds: crate::services::WorkspaceBounds,
 }
 
 pub(crate) struct NativeToolInvocation<'a> {
@@ -106,6 +108,7 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub local_artifacts: &'a crate::services::LocalArtifactService,
     pub effect_admission: Option<&'a crate::effects::EffectAdmission>,
     pub effects: &'a RuntimeEffectRegistry,
+    pub bounds: crate::services::WorkspaceBounds,
 }
 
 pub(crate) struct NativeToolInvocationResult {
@@ -125,6 +128,7 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
             credential_delivery: request.credential_delivery,
             local_artifacts: request.local_artifacts,
             effects: request.effects,
+            bounds: request.bounds,
         };
         return Some(NativeToolInvocationResult {
             result: tool.invoke(invocation),

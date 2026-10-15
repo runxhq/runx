@@ -170,6 +170,164 @@ pub(super) struct AppliedDelete {
     pub(super) status: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileListInput {
+    pub(super) repo_root: String,
+    pub(super) path_scope: String,
+    pub(super) path: String,
+    pub(super) depth: u64,
+    pub(super) max_entries: u64,
+}
+
+impl CapabilityInput for FileListInput {
+    fn defaults() -> JsonObject {
+        JsonObject::from([
+            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            (
+                "path_scope".to_owned(),
+                JsonValue::String("workspace".to_owned()),
+            ),
+            ("path".to_owned(), JsonValue::String(".".to_owned())),
+            ("depth".to_owned(), JsonValue::Number(JsonNumber::U64(2))),
+            (
+                "max_entries".to_owned(),
+                JsonValue::Number(JsonNumber::U64(500)),
+            ),
+        ])
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileListEntry {
+    pub(super) path: String,
+    pub(super) kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) bytes: Option<u64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileListOutput {
+    pub(super) repo_root: String,
+    pub(super) path: String,
+    pub(super) entries: Vec<FileListEntry>,
+    pub(super) truncated: bool,
+}
+
+impl CapabilityOutput for FileListOutput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileSearchInput {
+    pub(super) repo_root: String,
+    pub(super) path_scope: String,
+    pub(super) path: String,
+    pub(super) pattern: String,
+    pub(super) regex: bool,
+    pub(super) case_sensitive: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) glob: Option<String>,
+    pub(super) max_results: u64,
+    pub(super) context_lines: u64,
+}
+
+impl CapabilityInput for FileSearchInput {
+    fn defaults() -> JsonObject {
+        JsonObject::from([
+            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            (
+                "path_scope".to_owned(),
+                JsonValue::String("workspace".to_owned()),
+            ),
+            ("path".to_owned(), JsonValue::String(".".to_owned())),
+            ("regex".to_owned(), JsonValue::Bool(false)),
+            ("case_sensitive".to_owned(), JsonValue::Bool(true)),
+            (
+                "max_results".to_owned(),
+                JsonValue::Number(JsonNumber::U64(100)),
+            ),
+            (
+                "context_lines".to_owned(),
+                JsonValue::Number(JsonNumber::U64(1)),
+            ),
+        ])
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileSearchMatch {
+    pub(super) path: String,
+    pub(super) line: u64,
+    pub(super) text: String,
+    pub(super) before: Vec<String>,
+    pub(super) after: Vec<String>,
+    pub(super) content_digest: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileSearchOutput {
+    pub(super) repo_root: String,
+    pub(super) matches: Vec<FileSearchMatch>,
+    pub(super) files_searched: u64,
+    pub(super) truncated: bool,
+}
+
+impl CapabilityOutput for FileSearchOutput {}
+
+const LIST_FIELDS: &[CapabilityField] = &[
+    root_field(),
+    path_scope_field(),
+    CapabilityField {
+        name: "path",
+        description: "Directory to list, relative to the resolved trusted root.",
+    },
+    CapabilityField {
+        name: "depth",
+        description: "How many directory levels to descend, 1-16.",
+    },
+    CapabilityField {
+        name: "max_entries",
+        description: "The most entries to return, 1-5000; more marks the listing truncated.",
+    },
+];
+
+const SEARCH_FIELDS: &[CapabilityField] = &[
+    root_field(),
+    path_scope_field(),
+    CapabilityField {
+        name: "path",
+        description: "Directory to search under, relative to the resolved trusted root.",
+    },
+    CapabilityField {
+        name: "pattern",
+        description: "Text to find in each line; a regular expression when regex is true.",
+    },
+    CapabilityField {
+        name: "regex",
+        description: "Whether pattern is a regular expression rather than literal text.",
+    },
+    CapabilityField {
+        name: "case_sensitive",
+        description: "Whether the match respects case.",
+    },
+    CapabilityField {
+        name: "glob",
+        description: "Optional glob a file's root-relative path must match, such as **/*.rs.",
+    },
+    CapabilityField {
+        name: "max_results",
+        description: "The most matching lines to return, 1-1000; more marks the search truncated.",
+    },
+    CapabilityField {
+        name: "context_lines",
+        description: "Lines of context before and after each match, 0-3.",
+    },
+];
+
 const READ_FIELDS: &[CapabilityField] = &[
     root_field(),
     path_scope_field(),
@@ -308,5 +466,40 @@ static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundleOutput>
         super::apply_files,
     );
 
+static LIST: TypedNativeCapability<FileListInput, FileListOutput> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "fs.list",
+        owner: "runx-runtime/filesystem",
+        summary: "List entries under a directory to a bounded depth, honouring the project's ignore files.",
+        scopes: &["fs.read"],
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "file_list",
+            packet: "runx.fs.file_list.v1",
+        },
+        fields: LIST_FIELDS,
+    },
+    super::walk::list,
+);
+
+static SEARCH: TypedNativeCapability<FileSearchInput, FileSearchOutput> =
+    TypedNativeCapability::new(
+        CapabilityDefinition {
+            id: "fs.search",
+            owner: "runx-runtime/filesystem",
+            summary: "Search text files for a literal or regular expression, honouring the project's ignore files.",
+            scopes: &["fs.read"],
+            effect: CapabilityEffect::Read,
+            approval: CapabilityApproval::None,
+            artifacts: CapabilityArtifacts::Wrapped {
+                output: "file_search",
+                packet: "runx.fs.file_search.v1",
+            },
+            fields: SEARCH_FIELDS,
+        },
+        super::walk::search,
+    );
+
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
-    &[&READ, &READ_BUNDLE, &WRITE, &APPLY];
+    &[&READ, &READ_BUNDLE, &LIST, &SEARCH, &WRITE, &APPLY];

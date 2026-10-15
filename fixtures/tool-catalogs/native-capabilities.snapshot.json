@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 29,
+  "capability_count": 34,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -168,6 +168,21 @@
       "execution_boundary": "native_capability"
     },
     {
+      "id": "fs.list",
+      "owner": "runx-runtime/filesystem",
+      "scopes": [
+        "fs.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "file_list",
+        "packet": "runx.fs.file_list.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
       "id": "fs.read",
       "owner": "runx-runtime/filesystem",
       "scopes": [
@@ -194,6 +209,21 @@
         "kind": "wrapped",
         "output": "file_read_bundle",
         "packet": "runx.fs.file_read_bundle.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "fs.search",
+      "owner": "runx-runtime/filesystem",
+      "scopes": [
+        "fs.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "file_search",
+        "packet": "runx.fs.file_search.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -241,6 +271,21 @@
       "execution_boundary": "native_capability"
     },
     {
+      "id": "git.diff",
+      "owner": "runx-runtime/git",
+      "scopes": [
+        "git.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "git_patch",
+        "packet": "runx.git.patch.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
       "id": "git.diff_name_only",
       "owner": "runx-runtime/git",
       "scopes": [
@@ -252,6 +297,36 @@
         "kind": "wrapped",
         "output": "git_diff",
         "packet": "runx.git.diff.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "git.log",
+      "owner": "runx-runtime/git",
+      "scopes": [
+        "git.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "git_log",
+        "packet": "runx.git.log.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "git.show",
+      "owner": "runx-runtime/git",
+      "scopes": [
+        "git.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "git_show",
+        "packet": "runx.git.show.v1"
       },
       "execution_boundary": "native_capability"
     },

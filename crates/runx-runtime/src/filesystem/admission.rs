@@ -6,6 +6,7 @@ use super::{
     MAX_BUNDLE_OPERATIONS, MAX_FILESYSTEM_MUTATION_BUNDLE_BYTES, TextBundle, invalid_bundle,
 };
 use crate::RuntimeError;
+use crate::services::WorkspaceBounds;
 
 pub(super) struct AdmittedWrite {
     pub(super) relative: String,
@@ -32,6 +33,7 @@ pub(super) fn admit_text_bundle(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
+    bounds: WorkspaceBounds,
 ) -> Result<AdmittedBundle, RuntimeError> {
     let operation_count = bundle.writes.len() + bundle.deletes.len();
     if operation_count > MAX_BUNDLE_OPERATIONS {
@@ -47,8 +49,8 @@ pub(super) fn admit_text_bundle(
         return Err(invalid_bundle(operation, "bundle root must be a directory"));
     }
     let mut seen = std::collections::BTreeSet::new();
-    let writes = admit_writes(operation, &root, bundle, &mut seen)?;
-    let deletes = admit_deletes(operation, &root, bundle, &mut seen)?;
+    let writes = admit_writes(operation, &root, bundle, bounds, &mut seen)?;
+    let deletes = admit_deletes(operation, &root, bundle, bounds, &mut seen)?;
     Ok(AdmittedBundle {
         operation: operation.to_owned(),
         root,
@@ -61,12 +63,13 @@ fn admit_writes(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
+    bounds: WorkspaceBounds,
     seen: &mut std::collections::BTreeSet<String>,
 ) -> Result<Vec<AdmittedWrite>, RuntimeError> {
     let mut total_bytes = 0usize;
     let mut writes = Vec::with_capacity(bundle.writes.len());
     for write in &bundle.writes {
-        let (relative, absolute) = admit_file_target(operation, root, &write.path)?;
+        let (relative, absolute) = admit_file_target(operation, root, &write.path, bounds)?;
         admit_unique_path(operation, seen, &relative)?;
         total_bytes = total_bytes
             .checked_add(write.contents.len())
@@ -91,11 +94,12 @@ fn admit_deletes(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
+    bounds: WorkspaceBounds,
     seen: &mut std::collections::BTreeSet<String>,
 ) -> Result<Vec<(String, PathBuf)>, RuntimeError> {
     let mut deletes = Vec::with_capacity(bundle.deletes.len());
     for delete in &bundle.deletes {
-        let (relative, absolute) = admit_file_target(operation, root, delete)?;
+        let (relative, absolute) = admit_file_target(operation, root, delete, bounds)?;
         admit_unique_path(operation, seen, &relative)?;
         reject_directory_target(operation, &absolute, &relative)?;
         deletes.push((relative, absolute));
@@ -122,6 +126,7 @@ pub(super) fn admit_file_target(
     operation: &str,
     root: &Path,
     value: &str,
+    bounds: WorkspaceBounds,
 ) -> Result<(String, PathBuf), RuntimeError> {
     if value.trim() != value || value.is_empty() || value.contains('\\') {
         return Err(invalid_bundle(
@@ -148,6 +153,9 @@ pub(super) fn admit_file_target(
     if normalized.as_os_str().is_empty() {
         return Err(invalid_bundle(operation, "bundle path must name a file"));
     }
+    bounds
+        .admit(&normalized)
+        .map_err(|error| invalid_bundle(operation, error.to_string()))?;
     if normalized.file_name().is_some_and(|name| {
         let name = name.to_string_lossy().to_ascii_lowercase();
         name.starts_with(crate::kernel::store::KERNEL_STORE_FILE)

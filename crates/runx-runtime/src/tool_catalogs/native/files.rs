@@ -8,8 +8,10 @@ use super::capability::decode_typed_output;
 use super::{NativeInvocation, invalid_input, required_string, resolve_repo_root_for};
 use crate::RuntimeError;
 use crate::filesystem::{TextBundle, TextFileWrite, apply_text_bundle};
+use crate::services::WorkspaceBounds;
 
 mod capability;
+mod walk;
 
 pub(super) use capability::CAPABILITIES;
 use capability::{
@@ -37,6 +39,7 @@ fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileReadOutp
         &root,
         &invocation.inputs.path,
         max_bytes(READ_TOOL, invocation.inputs.max_bytes)?,
+        invocation.bounds,
     )?;
     Ok(file)
 }
@@ -53,7 +56,8 @@ fn read_bundle(
     let paths = bundle_paths(&invocation.inputs.paths)?;
     let max_bytes = max_bytes(READ_BUNDLE_TOOL, invocation.inputs.max_bytes)?;
     let report_missing = report_missing(&invocation.inputs.on_missing)?;
-    let (files, missing, total_bytes) = read_bundle_files(&root, paths, max_bytes, report_missing)?;
+    let (files, missing, total_bytes) =
+        read_bundle_files(&root, paths, max_bytes, report_missing, invocation.bounds)?;
     Ok(FileReadBundleOutput {
         repo_root: root.to_string_lossy().into_owned(),
         file_count: files.len() as u64,
@@ -89,6 +93,7 @@ fn read_bundle_files(
     paths: &[String],
     max_bytes: usize,
     report_missing: bool,
+    bounds: WorkspaceBounds,
 ) -> Result<(Vec<FileReadOutput>, Vec<MissingFile>, u64), RuntimeError> {
     let mut seen = std::collections::BTreeSet::new();
     let mut total_bytes = 0u64;
@@ -101,7 +106,7 @@ fn read_bundle_files(
                 format!("paths contains a duplicate: {path}"),
             ));
         }
-        let file = match read_one(READ_BUNDLE_TOOL, root, path, max_bytes) {
+        let file = match read_one(READ_BUNDLE_TOOL, root, path, max_bytes, bounds) {
             Ok(file) => file,
             Err(_) if report_missing => {
                 missing.push(MissingFile {
@@ -133,8 +138,9 @@ fn read_one(
     root: &Path,
     requested: &str,
     max_bytes: usize,
+    bounds: WorkspaceBounds,
 ) -> Result<FileReadOutput, RuntimeError> {
-    let file = crate::services::WorkspaceFile::resolve(root, Path::new(requested))
+    let file = crate::services::WorkspaceFile::resolve(root, Path::new(requested), bounds)
         .map_err(|error| invalid_input(tool, error.to_string()))?;
     let file = file
         .read_text(max_bytes as u64)
@@ -157,6 +163,7 @@ fn write(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let report = apply_text_bundle(
         WRITE_TOOL,
@@ -168,6 +175,7 @@ fn write(
             }],
             deletes: Vec::new(),
         },
+        invocation.bounds,
     )?;
     let write = report
         .get("writes")
@@ -213,6 +221,7 @@ fn apply_files(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let writes = invocation
         .inputs
@@ -230,6 +239,7 @@ fn apply_files(
             writes,
             deletes: invocation.inputs.deletes.clone(),
         },
+        invocation.bounds,
     )?;
     decode_typed_output(APPLY_BUNDLE_TOOL, JsonValue::Object(report))
 }
@@ -245,6 +255,7 @@ pub(super) fn root<I: ?Sized>(
         path_scope,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )
     .map_err(|error| invalid_input(tool, error.to_string()))
 }

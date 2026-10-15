@@ -43,6 +43,7 @@ fn capture_help(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let cwd = working_directory(&invocation.inputs.cwd, &root)?;
     let command = bounded_text(&invocation.inputs.command, "command")?;
@@ -201,6 +202,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })?;
         assert_eq!(output.exit_code, Some(0));
         assert!(output.stdout.contains("usage:"));
@@ -231,6 +233,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
         })
         .expect_err("flags before the help flag must be rejected");
         assert!(error.to_string().contains("not a flag"));

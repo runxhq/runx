@@ -31,6 +31,8 @@ pub(crate) struct ToolDispatchRequest<'a> {
     pub skill_name: &'a str,
     pub allow_explicit_manifest_path: bool,
     pub effect_admission: Option<&'a EffectAdmission>,
+    /// How far the run's native file, git, command and authoring tools reach.
+    pub bounds: crate::services::WorkspaceBounds,
 }
 
 /// Inspect a tool through the same native/local catalog roots used at
@@ -125,6 +127,7 @@ fn invoke_native_tool(
             local_artifacts: request.local_artifacts,
             effect_admission: request.effect_admission,
             effects,
+            bounds: request.bounds,
         })
     else {
         return Err(RuntimeError::SkillFailed {

@@ -296,6 +296,7 @@ pub(super) fn record_application(
             writes: vec![write],
             deletes: Vec::new(),
         },
+        crate::services::WorkspaceBounds::Operator,
     )?;
     Ok(())
 }

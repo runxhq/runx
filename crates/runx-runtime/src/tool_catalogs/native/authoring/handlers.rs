@@ -17,6 +17,7 @@ pub(super) fn inspect_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let context = crate::services::inspect_skill_workspace(
         &repo_root,
@@ -40,6 +41,7 @@ pub(super) fn validate_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let candidate_files = invocation.inputs.candidate_files.as_deref();
     let requested_ref = requested_skill_ref(invocation, candidate_files)?;
@@ -167,6 +169,7 @@ pub(super) fn apply_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let report = crate::services::apply_skill_change(
         &repo_root,

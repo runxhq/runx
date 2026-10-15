@@ -6,6 +6,7 @@ use super::{NativeInvocation, invalid_input, resolve_repo_root_for};
 use crate::RuntimeError;
 
 mod capability;
+mod history;
 
 use crate::process::{ProcessOutcome, ProcessSpec, run_process};
 use crate::process_invocation::process_base_environment;
@@ -45,6 +46,7 @@ fn current_branch(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let env = git_env(invocation)?;
     let symbolic = run_git(&root, &env, &["symbolic-ref", "--short", "HEAD"])?;
@@ -80,6 +82,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatusOutput
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let env = git_env(invocation)?;
     let outcome = run_git(&root, &env, &["status", "--short", "--branch"])?;
@@ -121,6 +124,7 @@ fn diff_name_only(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let base = &invocation.inputs.base;
     validate_base(base)?;
@@ -164,15 +168,20 @@ fn diff_name_only(
 }
 
 fn validate_base(base: &str) -> Result<(), RuntimeError> {
-    if base.is_empty()
-        || base.starts_with('-')
-        || base.len() > 1024
-        || base.contains('\0')
-        || base.chars().any(char::is_whitespace)
+    validate_revision(DIFF_NAME_ONLY, "base", base)
+}
+
+/// A revision a tool passes to Git: bounded, and never read as an option.
+fn validate_revision(tool: &str, field: &str, value: &str) -> Result<(), RuntimeError> {
+    if value.is_empty()
+        || value.starts_with('-')
+        || value.len() > 1024
+        || value.contains('\0')
+        || value.chars().any(char::is_whitespace)
     {
         return Err(invalid_input(
-            DIFF_NAME_ONLY,
-            "base must be a bounded Git ref or commit id",
+            tool,
+            format!("{field} must be a bounded Git ref, range or commit id"),
         ));
     }
     Ok(())
@@ -192,14 +201,26 @@ fn run_git(
     env: &std::collections::BTreeMap<String, String>,
     args: &[&str],
 ) -> Result<ProcessOutcome, RuntimeError> {
+    run_git_limited(root, env, args, OUTPUT_LIMIT_BYTES)
+}
+
+/// One supervised Git process: no pager, no fsmonitor, pathspecs taken
+/// literally, output bounded at `limit` bytes.
+fn run_git_limited(
+    root: &std::path::Path,
+    env: &std::collections::BTreeMap<String, String>,
+    args: &[&str],
+    limit: usize,
+) -> Result<ProcessOutcome, RuntimeError> {
     let mut bounded_args = vec![
         "--no-pager".to_owned(),
+        "--literal-pathspecs".to_owned(),
         "-c".to_owned(),
         "core.fsmonitor=false".to_owned(),
     ];
     bounded_args.extend(args.iter().map(|value| (*value).to_owned()));
     run_process(
-        ProcessSpec::new("native Git observation", "git", OUTPUT_LIMIT_BYTES)
+        ProcessSpec::new("native Git observation", "git", limit)
             .args(bounded_args)
             .cwd(root)
             .env(env.clone())
@@ -213,17 +234,37 @@ fn output_text<I: ?Sized>(
     invocation: &NativeInvocation<'_, I>,
     outcome: ProcessOutcome,
 ) -> Result<String, RuntimeError> {
-    if outcome.timed_out || outcome.stdout.truncated || outcome.stderr.truncated {
+    let (text, truncated) = output_bounded(tool, invocation, outcome, OUTPUT_LIMIT_BYTES)?;
+    if truncated {
         return Err(invalid_input(
             tool,
             "Git observation exceeded runtime bounds",
         ));
     }
-    Ok(invocation
-        .credential_delivery
-        .redact_bytes_to_string(outcome.stdout.bytes, OUTPUT_LIMIT_BYTES)
-        .trim()
-        .to_owned())
+    Ok(text.trim().to_owned())
+}
+
+/// A Git process's redacted output and whether it was cut at `limit`; a
+/// timeout or an overlong error stream is still a failure.
+fn output_bounded<I: ?Sized>(
+    tool: &str,
+    invocation: &NativeInvocation<'_, I>,
+    outcome: ProcessOutcome,
+    limit: usize,
+) -> Result<(String, bool), RuntimeError> {
+    if outcome.timed_out || outcome.stderr.truncated {
+        return Err(invalid_input(
+            tool,
+            "Git observation exceeded runtime bounds",
+        ));
+    }
+    let truncated = outcome.stdout.truncated;
+    Ok((
+        invocation
+            .credential_delivery
+            .redact_bytes_to_string(outcome.stdout.bytes, limit),
+        truncated,
+    ))
 }
 
 #[cfg(test)]

@@ -183,7 +183,9 @@ answers it under `approvals`, by the address the paused run lists.
 `turn_complete` ends a turn with its output once none of its calls is pending,
 and the run continues. A run whose host authority sets `max_fanout` or
 `max_child_depth` refuses a skill call that would start more child runs in one
-turn, or nest them deeper, than it allows. A run started with `--managed-agent` is worked by the
+turn, or nest them deeper, than it allows. A host whose own agent works the run
+sets `agent_bounds`, which keeps the run's file, git, command and authoring
+tools inside its workspace and away from secrets (see Agent bounds, below). A run started with `--managed-agent` is worked by the
 managed agent: `runx mcp --run` refuses it, and `--managed-agent` cannot take
 over a run its host drives.
 
@@ -398,6 +400,24 @@ most 4 MiB using base64, character-safe UTF-8, or JSON-array record framing;
 the default page is 1 MiB. The 4 MiB limit is a page ceiling, not a total-file
 ceiling. `fs.read` and `fs.read_bundle` share the same containment and hashing
 owner for bounded text; they are not alternate large-file transports.
+
+`fs.list` and `fs.search` list and search beneath a root with the project's
+ignore files honoured as Git honours them; both skip `.git`, `.runx` and any
+nested Git worktree unless the request names a path inside it. `git.log`,
+`git.show` and `git.diff` read commits with their changed files, one commit or
+one file at a revision, and patches between revisions or against the working
+tree, all bounded.
+
+**Agent bounds.** A run whose authority sets `agent_bounds`, as a host does for
+a run its own agent works in, keeps every native file, git, command and
+authoring tool inside its workspace. A root outside it, or inside `.git` or
+`.runx`, is refused, and no tool reads, writes, lists, searches or shows a
+secret: an environment file other than a template (`.env.example`), a private
+key or certificate bundle, `.npmrc`, `.netrc`, `.pgpass`, or anything under
+`.git` or `.runx`. A patch or commit leaves such files out and names them. An
+operator's run is unchanged and reaches the roots its inputs name, another
+repository included. A process the run starts is not confined by this; it runs
+with its user's rights.
 
 ### Local Process Boundary
 

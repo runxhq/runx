@@ -12,12 +12,14 @@ fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
         root.path(),
         Path::new("source.txt"),
         "text/plain; charset=utf-8",
+        crate::services::WorkspaceBounds::Operator,
     )?;
     let other_service = LocalArtifactService::default();
     let other_artifact = other_service.admit(
         root.path(),
         Path::new("source.txt"),
         "text/plain; charset=utf-8",
+        crate::services::WorkspaceBounds::Operator,
     )?;
     std::fs::write(root.path().join("source.txt"), "replacement")?;
 
@@ -56,6 +58,7 @@ fn volume_independent_artifacts_json_array_pages_preserve_every_record_once()
         root.path(),
         Path::new("archive.js"),
         "application/javascript",
+        crate::services::WorkspaceBounds::Operator,
     )?;
     let mut offset = 0;
     let mut records = Vec::new();
@@ -92,6 +95,7 @@ fn volume_independent_artifacts_reject_a_record_before_it_exceeds_the_page_bound
         root.path(),
         Path::new("archive.js"),
         "application/javascript",
+        crate::services::WorkspaceBounds::Operator,
     )?;
 
     let error = service
@@ -114,7 +118,12 @@ fn volume_independent_artifacts_bound_whitespace_only_continuation_pages()
         format!("[{{\"id\":1}},{}{{\"id\":2}}]", " ".repeat(256)),
     )?;
     let service = LocalArtifactService::default();
-    let artifact = service.admit(root.path(), Path::new("archive.json"), "application/json")?;
+    let artifact = service.admit(
+        root.path(),
+        Path::new("archive.json"),
+        "application/json",
+        crate::services::WorkspaceBounds::Operator,
+    )?;
 
     let mut offset = 0;
     let mut records = Vec::new();
@@ -147,6 +156,7 @@ fn volume_independent_artifacts_allow_pages_beyond_one_mib_up_to_the_runtime_cei
         root.path(),
         Path::new("large.bin"),
         "application/octet-stream",
+        crate::services::WorkspaceBounds::Operator,
     )?;
 
     let page = service.read_page(

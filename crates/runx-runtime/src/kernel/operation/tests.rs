@@ -675,6 +675,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
+        agent_bounds: false,
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 

@@ -30,10 +30,21 @@ pub(super) fn invoke(
         .unwrap_or_else(|| "workspace".to_owned());
     reject_reserved_input(&request.inputs)?;
 
-    let root = resolve_scoped_root(".", &path_scope, &request.env, &request.skill_directory)
-        .map_err(|error| page_error(error.to_string()))?;
+    let root = resolve_scoped_root(
+        ".",
+        &path_scope,
+        &request.env,
+        &request.skill_directory,
+        crate::services::WorkspaceBounds::Operator,
+    )
+    .map_err(|error| page_error(error.to_string()))?;
     let artifact = artifacts
-        .admit(&root, Path::new(&requested_path), &page_source.media_type)
+        .admit(
+            &root,
+            Path::new(&requested_path),
+            &page_source.media_type,
+            crate::services::WorkspaceBounds::Operator,
+        )
         .map_err(|error| page_error(error.to_string()))?;
     let prepared = adapter.prepare_invocation(&request)?;
 

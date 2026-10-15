@@ -18,6 +18,7 @@ pub(super) fn prepare(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
+        invocation.bounds,
     )?;
     let command = bounded_text(&invocation.inputs.command, "command", MAX_COMMAND_ARG_BYTES)?;
     let args = arguments(&invocation.inputs.args)?;

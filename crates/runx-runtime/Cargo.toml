@@ -60,6 +60,10 @@ runx-receipts.workspace = true
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-no-provider", "json", "gzip", "brotli", "deflate", "zstd", "http2"] }
 ring = "0.17.14"
 regex.workspace = true
+# Ignore-file aware walking (`.gitignore`, `.ignore`) for the native listing
+# and search tools, the same rules ripgrep applies.
+ignore = "0.4.33"
+globset = "0.4.20"
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
 postgres = { version = "0.19.14", default-features = false, optional = true }
 tokio-postgres-rustls = { version = "0.14.0", optional = true }

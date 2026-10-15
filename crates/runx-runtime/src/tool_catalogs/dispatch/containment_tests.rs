@@ -47,6 +47,7 @@ fn invoke_with_scopes(
             skill_name: "architecture-containment",
             allow_explicit_manifest_path: false,
             effect_admission: None,
+            bounds: crate::services::WorkspaceBounds::Operator,
         },
         &RuntimeEffectRegistry::default(),
         "2026-01-01T00:00:00Z",

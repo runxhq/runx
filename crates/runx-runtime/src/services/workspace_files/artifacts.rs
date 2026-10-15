@@ -80,8 +80,9 @@ impl LocalArtifactService {
         root: &Path,
         requested: &Path,
         media_type: &str,
+        bounds: super::WorkspaceBounds,
     ) -> Result<LocalArtifact, WorkspaceFileError> {
-        let source = WorkspaceFile::resolve(root, requested)?;
+        let source = WorkspaceFile::resolve(root, requested, bounds)?;
         let media_type = media_type.trim();
         if media_type.is_empty() {
             return Err(WorkspaceFileError::InvalidMediaType);

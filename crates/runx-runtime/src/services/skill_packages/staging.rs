@@ -44,6 +44,7 @@ impl InlineCandidateStage {
                 writes,
                 deletes: Vec::new(),
             },
+            crate::services::WorkspaceBounds::Operator,
         )?;
         Ok(stage)
     }
@@ -221,7 +222,12 @@ impl CandidateStage {
         })?;
         copy_snapshot(&stage.skill_dir, snapshot)?;
         let staged = rebase_bundle(repo_root, target, bundle)?;
-        apply_text_bundle("runx.skill.apply", &stage.skill_dir, &staged)?;
+        apply_text_bundle(
+            "runx.skill.apply",
+            &stage.skill_dir,
+            &staged,
+            crate::services::WorkspaceBounds::Operator,
+        )?;
         Ok(stage)
     }
 }

@@ -28,4 +28,10 @@ pub struct RunAuthority {
     /// How many child runs deep the run may nest below its root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_child_depth: Option<u32>,
+    /// The run is worked by a host's agent, so runx bounds it: its native
+    /// file, git, command and authoring tools stay inside the workspace, and
+    /// it never reads or writes a secret file or runx's own state. An
+    /// operator's run leaves it unset and reaches the roots its inputs name.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agent_bounds: bool,
 }

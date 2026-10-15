@@ -51,6 +51,12 @@ export interface RunAuthority {
   readonly delegations?: readonly Readonly<Record<string, unknown>>[];
   readonly max_fanout?: number;
   readonly max_child_depth?: number;
+  /**
+   * The run is worked by a host's agent: its file, git, command and authoring
+   * tools stay inside the workspace and never touch a secret file or runx's
+   * own state.
+   */
+  readonly agent_bounds?: boolean;
 }
 
 export interface SkillRunOptions extends SkillInspectOptions {

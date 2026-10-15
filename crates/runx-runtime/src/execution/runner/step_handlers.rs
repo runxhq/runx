@@ -936,6 +936,7 @@ where
         skill_name: tool_ref,
         allow_explicit_manifest_path: true,
         effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
+        bounds: crate::services::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
     };
     // Source the tool manifest's artifact contract so the wrapped packet the
     // dispatcher folds into the claim (e.g. `data_operation_result`) is
@@ -1113,6 +1114,9 @@ where
                 skill_name: tool,
                 allow_explicit_manifest_path: false,
                 effect_admission: None,
+                bounds: crate::services::WorkspaceBounds::of(
+                    self.runtime.options.run_authority.as_ref(),
+                ),
             },
             Instant::now(),
         )

@@ -15,6 +15,65 @@ pub(crate) use artifacts::{
     LocalArtifactService,
 };
 
+/// How far a run's native file, git, command and authoring tools reach. An
+/// operator's run reaches the roots its inputs name, another repository by
+/// its absolute path included. A run a host's agent works in
+/// (`RunAuthority.agent_bounds`) stays inside its workspace, and never reads
+/// or writes a secret file or runx's own state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum WorkspaceBounds {
+    #[default]
+    Operator,
+    Agent,
+}
+
+impl WorkspaceBounds {
+    pub(crate) fn of(authority: Option<&crate::RunAuthority>) -> Self {
+        if authority.is_some_and(|authority| authority.agent_bounds) {
+            Self::Agent
+        } else {
+            Self::Operator
+        }
+    }
+
+    /// Refuse `relative`, a path inside the workspace, when these bounds keep
+    /// it from the run.
+    pub(crate) fn admit(self, relative: &Path) -> Result<(), WorkspaceFileError> {
+        if self == Self::Agent && is_secret_path(relative) {
+            return Err(WorkspaceFileError::Secret(relative.to_path_buf()));
+        }
+        Ok(())
+    }
+}
+
+/// Whether `relative` is a secret or runx's own state: anything under `.runx`
+/// or `.git`, an environment file other than a template, a private key or
+/// certificate bundle, or a credential file.
+pub(crate) fn is_secret_path(relative: &Path) -> bool {
+    let through_protected_directory = relative.components().any(|component| {
+        matches!(component, Component::Normal(segment) if segment == ".runx" || segment == ".git")
+    });
+    if through_protected_directory {
+        return true;
+    }
+    let Some(name) = relative.file_name() else {
+        return false;
+    };
+    let name = name.to_string_lossy().to_ascii_lowercase();
+    let environment_file = (name == ".env" || name.starts_with(".env."))
+        && !matches!(
+            name.as_str(),
+            ".env.example" | ".env.sample" | ".env.template"
+        );
+    environment_file
+        || [".pem", ".key", ".p12"]
+            .iter()
+            .any(|extension| name.ends_with(extension))
+        || name.starts_with("id_rsa")
+        || name.starts_with("id_ed25519")
+        || matches!(name.as_str(), ".npmrc" | ".netrc" | ".pgpass")
+}
+
 pub(crate) struct WorkspaceFile {
     path: PathBuf,
     relative_path: String,
@@ -47,6 +106,10 @@ pub enum WorkspaceFileError {
     },
     #[error("workspace file {0} escapes the workspace root")]
     EscapesRoot(PathBuf),
+    #[error("root {0} is outside the run's workspace")]
+    OutsideWorkspace(PathBuf),
+    #[error("{0} is a secret or runx's own state, which this run cannot read or write")]
+    Secret(PathBuf),
     #[error("workspace file {0} is not a regular file")]
     NotAFile(PathBuf),
     #[error("workspace file {path} exceeds the {max_bytes}-byte structured-input limit")]
@@ -80,7 +143,7 @@ pub fn read_workspace_text(
     requested: &Path,
     max_bytes: u64,
 ) -> Result<String, WorkspaceFileError> {
-    let source = WorkspaceFile::resolve(root, requested)?;
+    let source = WorkspaceFile::resolve(root, requested, WorkspaceBounds::Operator)?;
     if source.bytes > max_bytes {
         return Err(WorkspaceFileError::TooLarge {
             path: requested.to_path_buf(),
@@ -91,8 +154,15 @@ pub fn read_workspace_text(
 }
 
 impl WorkspaceFile {
-    pub(crate) fn resolve(root: &Path, requested: &Path) -> Result<Self, WorkspaceFileError> {
+    /// The file `requested` names under `root`, resolved through any symlink
+    /// and refused if it leaves the root or `bounds` keep it from the run.
+    pub(crate) fn resolve(
+        root: &Path,
+        requested: &Path,
+        bounds: WorkspaceBounds,
+    ) -> Result<Self, WorkspaceFileError> {
         validate_relative_file_path(requested)?;
+        bounds.admit(requested)?;
         let root = std::fs::canonicalize(root).map_err(WorkspaceFileError::RootUnavailable)?;
         let path = std::fs::canonicalize(root.join(requested)).map_err(|source| {
             WorkspaceFileError::Unavailable {
@@ -102,6 +172,9 @@ impl WorkspaceFile {
         })?;
         if path != root && !path.starts_with(&root) {
             return Err(WorkspaceFileError::EscapesRoot(requested.to_path_buf()));
+        }
+        if let Ok(resolved) = path.strip_prefix(&root) {
+            bounds.admit(resolved)?;
         }
         if !path.is_file() {
             return Err(WorkspaceFileError::NotAFile(requested.to_path_buf()));
@@ -222,11 +295,17 @@ fn validate_relative_file_path(requested: &Path) -> Result<(), WorkspaceFileErro
     Ok(())
 }
 
+/// The directory a native tool works in: the skill's own directory, or the
+/// root `requested_root` names in the workspace. An operator's run may name
+/// any directory, another repository by its absolute path included; within
+/// agent bounds the root is the workspace or a directory inside it that is not
+/// itself protected.
 pub(crate) fn resolve_scoped_root(
     requested_root: &str,
     path_scope: &str,
     env: &std::collections::BTreeMap<String, String>,
     skill_directory: &Path,
+    bounds: WorkspaceBounds,
 ) -> Result<PathBuf, WorkspaceFileError> {
     if path_scope == "skill" {
         let root =
@@ -257,12 +336,139 @@ pub(crate) fn resolve_scoped_root(
     if !root.is_dir() {
         return Err(WorkspaceFileError::RootNotDirectory);
     }
+    if bounds == WorkspaceBounds::Agent {
+        let inside = root
+            .strip_prefix(&workspace)
+            .map_err(|_| WorkspaceFileError::OutsideWorkspace(requested.to_path_buf()))?;
+        bounds.admit(inside)?;
+    }
     Ok(root)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::read_workspace_text;
+    use std::path::Path;
+
+    use super::{
+        WorkspaceBounds, WorkspaceFile, WorkspaceFileError, is_secret_path, read_workspace_text,
+        resolve_scoped_root,
+    };
+
+    fn env(workspace: &Path) -> std::collections::BTreeMap<String, String> {
+        std::collections::BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.to_string_lossy().into_owned(),
+        )])
+    }
+
+    #[test]
+    fn secrets_and_runx_state_are_named_by_one_predicate() {
+        for secret in [
+            ".env",
+            ".env.local",
+            "app/.env.production",
+            "keys/server.pem",
+            "deploy.key",
+            "cert.p12",
+            "home/id_rsa",
+            "home/id_ed25519.pub",
+            ".npmrc",
+            ".netrc",
+            ".pgpass",
+            ".runx/kernel.sqlite",
+            ".git/config",
+            "vendor/lib/.git/HEAD",
+        ] {
+            assert!(is_secret_path(Path::new(secret)), "{secret} is a secret");
+        }
+        for ordinary in [
+            ".env.example",
+            ".env.sample",
+            ".env.template",
+            ".gitignore",
+            ".github/workflows/ci.yml",
+            "src/main.rs",
+            "docs/keys.md",
+        ] {
+            assert!(
+                !is_secret_path(Path::new(ordinary)),
+                "{ordinary} is ordinary"
+            );
+        }
+    }
+
+    #[test]
+    fn agent_bounds_keep_roots_inside_the_workspace_and_off_protected_directories()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let elsewhere = tempfile::tempdir()?;
+        std::fs::create_dir_all(workspace.path().join("packages/app"))?;
+        std::fs::create_dir_all(workspace.path().join(".git"))?;
+        let env = env(workspace.path());
+        let agent = WorkspaceBounds::Agent;
+
+        assert_eq!(
+            resolve_scoped_root("packages/app", "workspace", &env, workspace.path(), agent)?,
+            workspace.path().join("packages/app").canonicalize()?
+        );
+        assert!(matches!(
+            resolve_scoped_root(
+                &elsewhere.path().to_string_lossy(),
+                "workspace",
+                &env,
+                workspace.path(),
+                agent,
+            ),
+            Err(WorkspaceFileError::OutsideWorkspace(_))
+        ));
+        assert!(matches!(
+            resolve_scoped_root("..", "workspace", &env, workspace.path(), agent),
+            Err(WorkspaceFileError::OutsideWorkspace(_))
+        ));
+        assert!(matches!(
+            resolve_scoped_root(".git", "workspace", &env, workspace.path(), agent),
+            Err(WorkspaceFileError::Secret(_))
+        ));
+        // An operator still names another repository by its absolute path.
+        assert_eq!(
+            resolve_scoped_root(
+                &elsewhere.path().to_string_lossy(),
+                "workspace",
+                &env,
+                workspace.path(),
+                WorkspaceBounds::Operator,
+            )?,
+            elsewhere.path().canonicalize()?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn agent_bounds_refuse_a_secret_by_name_and_through_a_symlink()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        std::fs::write(root.path().join(".env"), "TOKEN=1")?;
+        std::fs::write(root.path().join("notes.md"), "notes")?;
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(root.path().join(".env"), root.path().join("config.txt"))?;
+        let agent = WorkspaceBounds::Agent;
+
+        assert!(matches!(
+            WorkspaceFile::resolve(root.path(), Path::new(".env"), agent),
+            Err(WorkspaceFileError::Secret(_))
+        ));
+        #[cfg(unix)]
+        assert!(matches!(
+            WorkspaceFile::resolve(root.path(), Path::new("config.txt"), agent),
+            Err(WorkspaceFileError::Secret(_))
+        ));
+        assert!(WorkspaceFile::resolve(root.path(), Path::new("notes.md"), agent).is_ok());
+        assert!(
+            WorkspaceFile::resolve(root.path(), Path::new(".env"), WorkspaceBounds::Operator)
+                .is_ok()
+        );
+        Ok(())
+    }
 
     #[test]
     fn reads_only_bounded_contained_utf8_files() -> Result<(), Box<dyn std::error::Error>> {

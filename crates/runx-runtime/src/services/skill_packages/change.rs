@@ -277,10 +277,13 @@ fn commit_candidate(
         change,
         &candidate.snapshot.digest,
     )?;
+    // The repository root was bounded when the tool resolved it; the paths
+    // here are the skill package's own, admitted by `admit_skill_change`.
     let (_, applied) = apply_text_bundle_verified(
         "runx.skill.apply",
         &target.repo_root,
         &admitted.bundle,
+        crate::services::WorkspaceBounds::Operator,
         || {
             let applied = package_snapshot(&target.path)?;
             if applied.digest != candidate.snapshot.digest {

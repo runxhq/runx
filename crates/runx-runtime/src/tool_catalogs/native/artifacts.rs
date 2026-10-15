@@ -29,6 +29,7 @@ fn admit(
             &root,
             Path::new(&invocation.inputs.path),
             &invocation.inputs.media_type,
+            invocation.bounds,
         )
         .map_err(|error| invalid_input(ADMIT_TOOL, error.to_string()))?;
     Ok(ArtifactAdmitOutput {

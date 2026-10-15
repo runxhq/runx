@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonObject;
 
 use crate::RuntimeError;
+use crate::services::WorkspaceBounds;
 
 mod admission;
 mod apply;
@@ -102,7 +103,8 @@ pub(crate) fn resolve_contained_file_target(
             "file target root must be a directory",
         ));
     }
-    admit_file_target(operation, &root, requested).map(|(_, absolute)| absolute)
+    admit_file_target(operation, &root, requested, WorkspaceBounds::Operator)
+        .map(|(_, absolute)| absolute)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,12 +125,17 @@ pub(crate) struct TextBundle {
 /// same-directory temporary file followed by rename; any later failure restores
 /// every touched file from the bounded snapshot. This is the single filesystem
 /// mutation owner used by native file and skill-package tools.
+///
+/// `bounds` are those of whoever named the paths: a native file tool passes
+/// its run's, and runx's own staging and records pass `Operator`.
 pub(crate) fn apply_text_bundle(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
+    bounds: WorkspaceBounds,
 ) -> Result<JsonObject, RuntimeError> {
-    apply_text_bundle_verified(operation, root, bundle, || Ok(())).map(|(report, ())| report)
+    apply_text_bundle_verified(operation, root, bundle, bounds, || Ok(()))
+        .map(|(report, ())| report)
 }
 
 /// Apply a bundle and keep its rollback snapshot live through caller-owned
@@ -137,9 +144,10 @@ pub(crate) fn apply_text_bundle_verified<T>(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
+    bounds: WorkspaceBounds,
     verify: impl FnOnce() -> Result<T, RuntimeError>,
 ) -> Result<(JsonObject, T), RuntimeError> {
-    let admitted = admit_text_bundle(operation, root, bundle)?;
+    let admitted = admit_text_bundle(operation, root, bundle, bounds)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created_directories = missing_parent_directories(&admitted)?;
     let apply_result = apply_admitted_bundle(&admitted).and_then(|()| verify());
@@ -176,7 +184,9 @@ fn invalid_bundle(operation: &str, message: impl Into<String>) -> RuntimeError {
 mod bundle_tests {
     use std::fs;
 
-    use super::{TextBundle, TextFileWrite, apply_text_bundle, apply_text_bundle_verified};
+    use super::{
+        TextBundle, TextFileWrite, WorkspaceBounds, apply_text_bundle, apply_text_bundle_verified,
+    };
 
     #[test]
     fn bounded_bundle_writes_and_deletes_files() -> Result<(), Box<dyn std::error::Error>> {
@@ -192,6 +202,7 @@ mod bundle_tests {
                 }],
                 deletes: vec!["old.txt".to_owned()],
             },
+            WorkspaceBounds::Operator,
         )?;
 
         assert_eq!(
@@ -226,6 +237,7 @@ mod bundle_tests {
                 }],
                 deletes: Vec::new(),
             },
+            WorkspaceBounds::Operator,
         )?;
 
         assert_eq!(fs::metadata(script)?.permissions().mode() & 0o777, 0o755);
@@ -250,6 +262,7 @@ mod bundle_tests {
                 }],
                 deletes: Vec::new(),
             },
+            WorkspaceBounds::Operator,
         );
 
         assert!(result.is_err());
@@ -286,6 +299,7 @@ mod bundle_tests {
                 ],
                 deletes: Vec::new(),
             },
+            WorkspaceBounds::Operator,
         );
 
         fs::set_permissions(&blocked, fs::Permissions::from_mode(0o755))?;
@@ -318,6 +332,7 @@ mod bundle_tests {
                 ],
                 deletes: Vec::new(),
             },
+            WorkspaceBounds::Operator,
             || {
                 Err::<(), _>(super::invalid_bundle(
                     "runx.skill.apply",
@@ -329,6 +344,57 @@ mod bundle_tests {
         assert!(result.is_err());
         assert_eq!(fs::read_to_string(existing)?, "before");
         assert!(!temp.path().join("created.txt").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn agent_bounds_refuse_writing_a_secret_or_runx_state() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let temp = tempfile::tempdir()?;
+        fs::create_dir(temp.path().join(".git"))?;
+        for path in [
+            ".env",
+            "app/.env.local",
+            ".git/config",
+            ".runx/receipts/x.json",
+        ] {
+            let result = apply_text_bundle(
+                "fs.write",
+                temp.path(),
+                &TextBundle {
+                    writes: vec![TextFileWrite {
+                        path: path.to_owned(),
+                        contents: "x".to_owned(),
+                    }],
+                    deletes: Vec::new(),
+                },
+                WorkspaceBounds::Agent,
+            );
+            assert!(result.is_err(), "{path} is refused");
+            assert!(!temp.path().join(path).exists(), "{path} was not written");
+        }
+        let deleted = apply_text_bundle(
+            "fs.apply_bundle",
+            temp.path(),
+            &TextBundle {
+                writes: Vec::new(),
+                deletes: vec![".git/config".to_owned()],
+            },
+            WorkspaceBounds::Agent,
+        );
+        assert!(deleted.is_err(), "deleting runx or git state is refused");
+        apply_text_bundle(
+            "fs.write",
+            temp.path(),
+            &TextBundle {
+                writes: vec![TextFileWrite {
+                    path: ".env.example".to_owned(),
+                    contents: "TOKEN=".to_owned(),
+                }],
+                deletes: Vec::new(),
+            },
+            WorkspaceBounds::Agent,
+        )?;
         Ok(())
     }
 }
