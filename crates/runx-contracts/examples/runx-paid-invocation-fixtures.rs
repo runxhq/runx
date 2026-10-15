@@ -7,7 +7,7 @@ use runx_contracts::{
     CANCEL_PAID_INVOCATION, CancelPaidInvocationRequest, CancelPaidInvocationResult,
     EXECUTE_PAID_INVOCATION, ExecutePaidInvocationRequest, ExecutePaidInvocationResult,
     GetPaidInvocationRequest, GetPaidInvocationResult, JsonObject, JsonValue as RunxJsonValue,
-    MAX_PORTABLE_INTEGER, PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA, PaidSkillListing,
+    MAX_PORTABLE_INTEGER, PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA, PaidSkillListing, Purchase,
     QUOTE_PAID_INVOCATION, QuotePaidInvocationRequest, QuotePaidInvocationResult,
     STABLE_JSON_CANONICALIZATION, canonical_stable_json,
     fingerprint_cancel_paid_invocation_request, fingerprint_execute_paid_invocation_request,
@@ -54,6 +54,7 @@ const SCHEMAS: &[(&str, &str)] = &[
         "runx.payment.get_paid_invocation.result.v1",
         "get-paid-invocation-result.schema.json",
     ),
+    ("runx.payment.purchase.v1", "purchase.schema.json"),
     (
         "runx.payment.cancel_paid_invocation.request.v1",
         "cancel-paid-invocation-request.schema.json",
@@ -226,7 +227,19 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "A fulfilled record carries the fulfilment winner.",
             "GetPaidInvocation",
             "runx.payment.get_paid_invocation.result.v1",
-            admitted(fulfilled),
+            admitted(fulfilled.clone()),
+        )?,
+        valid::<Purchase>(
+            "purchase-fulfilled.json",
+            "A purchaser reads its fulfilled purchase: the invocation, the purchase receipt, the runner's public result and where to claim. Never the seller's run.",
+            "Purchase",
+            "runx.payment.purchase.v1",
+            json!({
+                "invocation": fulfilled.clone(),
+                "receipt_ref": {"type": "receipt", "uri": "runx:receipt:purchase-fulfilled"},
+                "result": {"resource_lease": {"inbox_id": "inb_7Hq2x9", "address": "agent@inbox.example"}},
+                "claim_url": "https://inbox.example.com/v1/agent-inboxes/inb_7Hq2x9/claim"
+            }),
         )?,
         valid::<GetPaidInvocationResult>(
             "get-refund-won.json",

@@ -31,6 +31,7 @@ pub const EXECUTE_PAID_INVOCATION_RESULT_SCHEMA: &str =
     "runx.payment.execute_paid_invocation.result.v1";
 pub const GET_PAID_INVOCATION_REQUEST_SCHEMA: &str = "runx.payment.get_paid_invocation.request.v1";
 pub const GET_PAID_INVOCATION_RESULT_SCHEMA: &str = "runx.payment.get_paid_invocation.result.v1";
+pub const PURCHASE_SCHEMA: &str = "runx.payment.purchase.v1";
 pub const CANCEL_PAID_INVOCATION_REQUEST_SCHEMA: &str =
     "runx.payment.cancel_paid_invocation.request.v1";
 pub const CANCEL_PAID_INVOCATION_RESULT_SCHEMA: &str =
@@ -818,6 +819,27 @@ pub enum GetPaidInvocationResult {
         code: PaidInvocationRefusalCode,
         reason: PaidInvocationRefusalReason,
     },
+}
+
+/// What a purchaser reads of its purchase (K13): the paid invocation, the
+/// purchase receipt once sealed, and the runner's public result once
+/// fulfilment won. Never the seller's run, step outputs or grants. An offer
+/// that names a claim endpoint gives `claim_url` once fulfilled, where the
+/// purchaser collects what runx never holds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.payment.purchase.v1")]
+pub struct Purchase {
+    pub invocation: PaidInvocation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_ref: Option<Reference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<JsonValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_url: Option<NonEmptyString>,
+    /// Why a refund won. Present only after refund won.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<PaidInvocationFailure>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

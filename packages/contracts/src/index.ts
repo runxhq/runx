@@ -388,6 +388,7 @@ export {
   executePaidInvocationResultV1Schema,
   getPaidInvocationRequestV1Schema,
   getPaidInvocationResultV1Schema,
+  purchaseV1Schema,
   cancelPaidInvocationRequestV1Schema,
   cancelPaidInvocationResultV1Schema,
   paymentIdempotencyBindingSchema,
@@ -405,6 +406,7 @@ export {
   validateExecutePaidInvocationResultContract,
   validateGetPaidInvocationRequestContract,
   validateGetPaidInvocationResultContract,
+  validatePurchaseContract,
   validateCancelPaidInvocationRequestContract,
   validateCancelPaidInvocationResultContract,
   type RunxPrincipalId,
@@ -440,6 +442,7 @@ export {
   type ExecutePaidInvocationResultContract,
   type GetPaidInvocationRequestContract,
   type GetPaidInvocationResultContract,
+  type PurchaseContract,
   type CancelPaidInvocationRequestContract,
   type CancelPaidInvocationResultContract,
 } from "./schemas/paid-invocation.js";
@@ -708,6 +711,7 @@ import {
   executePaidInvocationResultV1Schema,
   getPaidInvocationRequestV1Schema,
   getPaidInvocationResultV1Schema,
+  purchaseV1Schema,
   cancelPaidInvocationRequestV1Schema,
   cancelPaidInvocationResultV1Schema,
 } from "./schemas/paid-invocation.js";
@@ -773,6 +777,7 @@ export const runxContractSchemas = {
   executePaidInvocationResult: executePaidInvocationResultV1Schema,
   getPaidInvocationRequest: getPaidInvocationRequestV1Schema,
   getPaidInvocationResult: getPaidInvocationResultV1Schema,
+  purchase: purchaseV1Schema,
   cancelPaidInvocationRequest: cancelPaidInvocationRequestV1Schema,
   cancelPaidInvocationResult: cancelPaidInvocationResultV1Schema,
 } as const;

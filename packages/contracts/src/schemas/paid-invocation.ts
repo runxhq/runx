@@ -268,6 +268,18 @@ export type GetPaidInvocationResultContract =
       };
     }>
   | PaidInvocationRefusalContract;
+/**
+ * What a purchaser reads of its purchase (K13): the paid invocation, the
+ * purchase receipt once sealed, and the runner's public result once
+ * fulfilment won. Never the seller's run, step outputs or grants.
+ */
+export type PurchaseContract = DeepReadonly<{
+  invocation: PaidInvocationContract;
+  receipt_ref?: ReferenceContract;
+  result?: unknown;
+  claim_url?: string;
+  failure?: PaidInvocationFailureContract;
+}>;
 export type CancelPaidInvocationRequestContract = DeepReadonly<{
   invocation_id: string;
   idempotency: PaymentIdempotencyBindingContract;
@@ -292,6 +304,8 @@ export const getPaidInvocationRequestV1Schema =
   generatedSchema<GetPaidInvocationRequestContract>("get-paid-invocation-request.schema.json");
 export const getPaidInvocationResultV1Schema =
   generatedSchema<GetPaidInvocationResultContract>("get-paid-invocation-result.schema.json");
+export const purchaseV1Schema =
+  generatedSchema<PurchaseContract>("purchase.schema.json");
 export const cancelPaidInvocationRequestV1Schema =
   generatedSchema<CancelPaidInvocationRequestContract>("cancel-paid-invocation-request.schema.json");
 export const cancelPaidInvocationResultV1Schema =
@@ -399,6 +413,10 @@ export function validateGetPaidInvocationRequestContract(value: unknown, label =
 
 export function validateGetPaidInvocationResultContract(value: unknown, label = "result") {
   return validateContractSchema(getPaidInvocationResultV1Schema, value, label);
+}
+
+export function validatePurchaseContract(value: unknown, label = "purchase") {
+  return validateContractSchema(purchaseV1Schema, value, label);
 }
 
 export function validateCancelPaidInvocationRequestContract(value: unknown, label = "request") {

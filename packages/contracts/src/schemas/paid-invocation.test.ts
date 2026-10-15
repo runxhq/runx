@@ -27,6 +27,7 @@ import {
   validateExecutePaidInvocationResultContract,
   validateGetPaidInvocationRequestContract,
   validateGetPaidInvocationResultContract,
+  validatePurchaseContract,
   validateOfferRevisionRefContract,
   validatePaidInvocationContract,
   validatePaidInvocationPaymentChallengeContract,
@@ -79,6 +80,7 @@ const validatorsBySchemaId = {
   "runx.payment.execute_paid_invocation.result.v1": validateExecutePaidInvocationResultContract,
   "runx.payment.get_paid_invocation.request.v1": validateGetPaidInvocationRequestContract,
   "runx.payment.get_paid_invocation.result.v1": validateGetPaidInvocationResultContract,
+  "runx.payment.purchase.v1": validatePurchaseContract,
   "runx.payment.cancel_paid_invocation.request.v1": validateCancelPaidInvocationRequestContract,
   "runx.payment.cancel_paid_invocation.result.v1": validateCancelPaidInvocationResultContract,
 } as const;
