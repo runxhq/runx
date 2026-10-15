@@ -1619,8 +1619,9 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     );
 
     // A packet an earlier run left in the project feeds an input too, as a
-    // host reuses one across sessions; a reference whose digest is not its
-    // content's, or that leaves the project's artifact store, is refused.
+    // host reuses one across sessions; one of another type, a reference whose
+    // digest is not its content's, or one that leaves the project's artifact
+    // store, is refused.
     let artifacts = runx_runtime::RunxPaths::resolve(&env(&paused.root), &paused.root).artifacts();
     let data = output
         .get("digest_result")
@@ -1645,7 +1646,18 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     std::fs::write(&outside, br#"{"algorithm":"sha256"}"#)?;
     let mut escaped = forged.clone();
     escaped["path"] = serde_json::json!(outside);
-    for (bad, why) in [(forged, "digest differs"), (escaped, "escapes")] {
+    let mistyped = serde_json::to_value(runx_runtime::persist_json_artifact(
+        &artifacts,
+        "rx_earlier",
+        "packets",
+        "comparison",
+        &serde_json::from_value(serde_json::json!({"equal": true}))?,
+    )?)?;
+    for (bad, why) in [
+        (mistyped, "declared schema"),
+        (forged, "digest differs"),
+        (escaped, "escapes"),
+    ] {
         let refused = turn.call(
             TURN,
             "skill__digest-reader",
