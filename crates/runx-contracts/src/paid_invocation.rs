@@ -21,7 +21,6 @@ use crate::{
 
 pub const PAID_INVOCATION_SCHEMA: &str = "runx.payment.paid_invocation.v1";
 pub const OFFER_REVISION_REF_SCHEMA: &str = "runx.payment.offer_revision_ref.v1";
-pub const PARENT_INVOCATION_BINDING_SCHEMA: &str = "runx.payment.parent_invocation_binding.v1";
 pub const QUOTE_PAID_INVOCATION_REQUEST_SCHEMA: &str =
     "runx.payment.quote_paid_invocation.request.v1";
 pub const QUOTE_PAID_INVOCATION_RESULT_SCHEMA: &str =
@@ -244,134 +243,6 @@ impl RunxSchema for SettlementFamilies {
     }
 }
 
-/// Immutable identity of one endpoint-mediated marketplace leg.
-///
-/// This is rail-neutral commercial data. Protocol challenges, credentials,
-/// settlement payloads and provider evidence remain outside the contract.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PaidInvocationMediation {
-    pub listing_ref: MediationListingRef,
-    pub endpoint_url: MediationEndpointUrl,
-    pub vendor_offer_revision: EmbeddedOfferRevisionRef,
-    pub vendor_package_digest: Sha256Digest,
-    pub vendor_amount_minor: PortableAmountMinor,
-    pub platform_fee_minor: PortableAmountMinor,
-    pub currency: CurrencyCode,
-    pub settlement_family: SettlementFamily,
-    pub expected_receipt_class: MediatedReceiptClass,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prepared_price: Option<PreparedInvocationPriceBinding>,
-}
-
-/// Immutable evidence that resolved a measured marketplace price.
-///
-/// The source invocation is read through the paid-invocation service before
-/// the outer quote is admitted. Rail adapters then compare the fresh vendor
-/// challenge with these exact commercial and input identities before signing.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PreparedInvocationPriceBinding {
-    pub source_invocation_id: BoundedString<128>,
-    pub input_digest: Sha256Digest,
-}
-
-/// Content identity for an immutable marketplace listing revision.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(transparent)]
-pub struct MediationListingRef(String);
-
-impl MediationListingRef {
-    pub fn new(value: impl Into<String>) -> Option<Self> {
-        let value = value.into();
-        (value.starts_with("runx:listing:")
-            && value.len() <= 512
-            && value.len() > "runx:listing:".len()
-            && value
-                .bytes()
-                .all(|byte| !byte.is_ascii_control() && !byte.is_ascii_whitespace()))
-        .then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for MediationListingRef {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| de::Error::custom("listing_ref is invalid"))
-    }
-}
-
-impl RunxSchema for MediationListingRef {
-    fn json_schema() -> Value {
-        json!({
-            "type": "string",
-            "pattern": "^runx:listing:[^\\s]+$",
-            "maxLength": 512,
-        })
-    }
-}
-
-/// Exact public HTTPS endpoint selected by an immutable mediated listing.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(transparent)]
-pub struct MediationEndpointUrl(String);
-
-impl MediationEndpointUrl {
-    pub fn new(value: impl Into<String>) -> Option<Self> {
-        let value = value.into();
-        let remainder = value.strip_prefix("https://")?;
-        let authority = remainder.split(['/', '?']).next().unwrap_or_default();
-        (!authority.is_empty()
-            && !authority.contains('@')
-            && !value.contains('#')
-            && value.len() <= 2_048
-            && value
-                .bytes()
-                .all(|byte| !byte.is_ascii_control() && !byte.is_ascii_whitespace()))
-        .then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for MediationEndpointUrl {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| {
-            de::Error::custom("endpoint_url must be an exact credential-free HTTPS URL")
-        })
-    }
-}
-
-impl RunxSchema for MediationEndpointUrl {
-    fn json_schema() -> Value {
-        json!({
-            "type": "string",
-            "pattern": "^https://[^\\s@/#?]+[^\\s#]*$",
-            "maxLength": 2048,
-        })
-    }
-}
-
-/// Composite proof currently requires a genuinely executed inner receipt.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum MediatedReceiptClass {
-    Executed,
-}
-
 /// A reference proven to identify a principal at deserialization time.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
@@ -555,14 +426,6 @@ impl RunxSchema for EmbeddedOfferRevisionRef {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.payment.parent_invocation_binding.v1")]
-pub struct ParentInvocationBinding {
-    pub invocation_id: NonEmptyString,
-    pub execution_digest: Sha256Digest,
-}
-
 /// Caller-reported acquisition context. It is inert analytics metadata: it
 /// cannot select an offer, change price, move money, or affect execution.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -720,13 +583,9 @@ pub struct PaidInvocation {
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mediation: Option<PaidInvocationMediation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub settlement_family: Option<SettlementFamily>,
     pub idempotency: PaymentIdempotencyBinding,
     pub expires_at: IsoDateTime,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<ParentInvocationBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribution: Option<PaidInvocationAttribution>,
     pub payment_state: PaidInvocationPaymentState,
@@ -805,11 +664,7 @@ pub struct QuotePaidInvocationRequest {
     pub amount_minor: PortableAmountMinor,
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mediation: Option<PaidInvocationMediation>,
     pub idempotency: PaymentIdempotencyBinding,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<ParentInvocationBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribution: Option<QuotePaidInvocationAttribution>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

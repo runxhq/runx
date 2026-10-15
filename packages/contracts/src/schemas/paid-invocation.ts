@@ -73,26 +73,6 @@ export type OfferRevisionRefContract = DeepReadonly<{
   output_schema_digest: Sha256DigestContract;
 }>;
 
-export type MediatedReceiptClassContract = "executed";
-
-export type PreparedInvocationPriceBindingContract = DeepReadonly<{
-  source_invocation_id: string;
-  input_digest: Sha256DigestContract;
-}>;
-
-export type PaidInvocationMediationContract = DeepReadonly<{
-  listing_ref: string;
-  endpoint_url: string;
-  vendor_offer_revision: OfferRevisionRefContract;
-  vendor_package_digest: Sha256DigestContract;
-  vendor_amount_minor: number;
-  platform_fee_minor: number;
-  currency: CurrencyCodeContract;
-  settlement_family: SettlementFamilyContract;
-  expected_receipt_class: MediatedReceiptClassContract;
-  prepared_price?: PreparedInvocationPriceBindingContract;
-}>;
-
 /** The least and most a prepared offer's quote may name. */
 export type PaidSkillAmountRangeContract = DeepReadonly<{
   minimum_minor: number;
@@ -177,11 +157,6 @@ export type PaidSkillListingContract = DeepReadonly<{
   offers: Readonly<Record<string, PaidSkillRunnerOfferContract>>;
 }>;
 
-export type ParentInvocationBindingContract = DeepReadonly<{
-  invocation_id: string;
-  execution_digest: Sha256DigestContract;
-}>;
-
 export type QuotePaidInvocationAttributionContract = DeepReadonly<{
   source: string;
   campaign?: string;
@@ -205,11 +180,9 @@ export type PaidInvocationContract = DeepReadonly<{
   amount_minor: number;
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
-  mediation?: PaidInvocationMediationContract;
   settlement_family?: SettlementFamilyContract;
   idempotency: PaymentIdempotencyBindingContract;
   expires_at: string;
-  parent?: ParentInvocationBindingContract;
   attribution?: PaidInvocationAttributionContract;
   payment_state: PaidInvocationPaymentStateContract;
   execution_state: PaidInvocationExecutionStateContract;
@@ -242,9 +215,7 @@ export type QuotePaidInvocationRequestContract = DeepReadonly<{
   amount_minor: number;
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
-  mediation?: PaidInvocationMediationContract;
   idempotency: PaymentIdempotencyBindingContract;
-  parent?: ParentInvocationBindingContract;
   attribution?: QuotePaidInvocationAttributionContract;
   presentation?: PaidInvocationPresentationContract;
 }>;
@@ -306,8 +277,6 @@ export const paidSkillListingV1Schema =
   generatedSchema<PaidSkillListingContract>("paid-skill-listing.schema.json");
 export const offerRevisionRefV1Schema =
   generatedSchema<OfferRevisionRefContract>("offer-revision-ref.schema.json");
-export const parentInvocationBindingV1Schema =
-  generatedSchema<ParentInvocationBindingContract>("parent-invocation-binding.schema.json");
 export const quotePaidInvocationRequestV1Schema =
   generatedSchema<QuotePaidInvocationRequestContract>("quote-paid-invocation-request.schema.json");
 export const quotePaidInvocationResultV1Schema =
@@ -387,10 +356,6 @@ export function validatePaidSkillListingContract(value: unknown, label = "paid_s
 
 export function validateOfferRevisionRefContract(value: unknown, label = "offer_revision") {
   return validateContractSchema(offerRevisionRefV1Schema, value, label);
-}
-
-export function validateParentInvocationBindingContract(value: unknown, label = "parent") {
-  return validateContractSchema(parentInvocationBindingV1Schema, value, label);
 }
 
 export function validatePaymentIdempotencyBindingContract(value: unknown, label = "idempotency") {

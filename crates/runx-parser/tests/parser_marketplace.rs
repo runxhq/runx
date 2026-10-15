@@ -212,30 +212,3 @@ fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
     }
     Ok(())
 }
-
-#[test]
-fn an_offer_names_no_wrapper_that_runs_it() -> Result<(), String> {
-    // A paid skill is bought directly: the terms a wrapper carried are not
-    // part of an offer.
-    for wrapper in [
-        "      mediation: {endpoint_url: https://vendor.example/v1/invocations}",
-        "      executor: {skill: marketplace-invoke, runner: invoke}",
-    ] {
-        let marketplace = format!(
-            r#"marketplace:
-  offers:
-    transcribe:
-      amount_minor: 125
-      currency: USD
-      accepted_settlement_families: [x402]
-      input_schema_digest: {DIGEST_A}
-      output_schema_digest: {DIGEST_B}
-{wrapper}"#
-        );
-        let Err(error) = validate(&manifest(&marketplace)) else {
-            return Err(format!("{wrapper} unexpectedly passed"));
-        };
-        assert!(error.contains("is invalid"), "{error}");
-    }
-    Ok(())
-}

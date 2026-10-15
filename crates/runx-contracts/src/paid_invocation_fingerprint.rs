@@ -206,7 +206,6 @@ mod tests {
                 "input_digest",
                 "offer_revision",
                 "package_digest",
-                "parent",
                 "presentation",
                 "principal",
                 "vendor_ref",

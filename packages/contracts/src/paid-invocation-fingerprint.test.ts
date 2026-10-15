@@ -99,10 +99,11 @@ describe("paid invocation request fingerprints", () => {
   });
 
   it("rejects present undefined members instead of normalizing the replay preimage", () => {
+    const base = quoteBaseRequest();
     expect(() => fingerprintQuotePaidInvocationRequest({
-      ...quoteBaseRequest(),
-      parent: undefined,
-    })).toThrow(/parent.*omit undefined/u);
+      ...base,
+      counterparty: { ...base.counterparty, locator: undefined },
+    })).toThrow(/counterparty.*locator.*omit undefined/u);
   });
 });
 

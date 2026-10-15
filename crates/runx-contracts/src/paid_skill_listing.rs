@@ -377,29 +377,4 @@ mod tests {
         );
         Ok(())
     }
-
-    #[test]
-    fn an_offer_names_no_wrapper_that_runs_it() {
-        // Mediation and an executor were a wrapper's; a paid skill is bought
-        // directly, so terms that name either are refused.
-        for wrapper in [
-            json!({"mediation": {"endpoint_url": "https://seller.example/quote"}}),
-            json!({"executor": {"skill": "runx/marketplace-invoke", "runner": "invoke"}}),
-        ] {
-            let mut terms = json!({
-                "amount_minor": 125,
-                "currency": "USD",
-                "accepted_settlement_families": ["x402"],
-                "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
-                "output_schema_digest": format!("sha256:{}", "e".repeat(64))
-            });
-            for (key, value) in wrapper.as_object().unwrap() {
-                terms[key] = value.clone();
-            }
-            assert!(
-                serde_json::from_value::<PaidSkillOfferTerms>(terms).is_err(),
-                "{wrapper}"
-            );
-        }
-    }
 }

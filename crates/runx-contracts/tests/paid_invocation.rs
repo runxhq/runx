@@ -48,14 +48,8 @@ fn vectors_cover_identity_replay_terms_binding_and_outcomes()
         );
     }
 
-    let outer = vector("quote-outer-parent-binding.json")?;
-    let inner = vector("get-inner-parent-fulfilment-won.json")?;
     assert_eq!(
-        outer.pointer("/payload/parent/invocation_id"),
-        inner.pointer("/payload/value/invocation/parent/invocation_id")
-    );
-    assert_eq!(
-        inner.pointer("/payload/value/invocation/outcome_gate"),
+        vector("get-fulfilment-won.json")?.pointer("/payload/value/invocation/outcome_gate"),
         Some(&Value::String("fulfilment_won".to_owned()))
     );
     assert_eq!(

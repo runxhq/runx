@@ -132,27 +132,6 @@
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
-        "parent": {
-          "$id": "https://schemas.runx.ai/runx/payment/parent-invocation-binding/v1.json",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "execution_digest": {
-              "pattern": "^sha256:[0-9a-f]{64}$",
-              "type": "string"
-            },
-            "invocation_id": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "required": [
-            "invocation_id",
-            "execution_digest"
-          ],
-          "type": "object",
-          "x-runx-schema": "runx.payment.parent_invocation_binding.v1"
-        },
         "purpose": {
           "const": "invocation",
           "type": "string"

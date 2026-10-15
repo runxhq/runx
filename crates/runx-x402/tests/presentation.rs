@@ -391,7 +391,6 @@ fn invocation(
             key: NonEmptyString::from("ocr-1"),
             binding_digest: digest('6')?,
         },
-        parent: None,
     })
 }
 

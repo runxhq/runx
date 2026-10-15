@@ -6,7 +6,6 @@ import {
 import type {
   OfferRevisionRefContract,
   PaidInvocationCanonicalizerVersionContract,
-  ParentInvocationBindingContract,
   PaymentIdempotencyBindingContract,
   Sha256DigestContract,
 } from "./paid-invocation.js";
@@ -77,7 +76,6 @@ export type RunxX402InvocationExtensionInfoContract = DeepReadonly<{
   input_digest: Sha256DigestContract;
   canonicalizer_version: PaidInvocationCanonicalizerVersionContract;
   idempotency: PaymentIdempotencyBindingContract;
-  parent?: ParentInvocationBindingContract;
 }>;
 
 export type RunxX402ExtensionInfoContract =

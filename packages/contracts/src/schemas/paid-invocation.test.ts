@@ -15,7 +15,6 @@ import {
   paidInvocationPaymentChallengeSchema,
   paidSkillListingV1Schema,
   paidInvocationV1Schema,
-  parentInvocationBindingV1Schema,
   paymentIdempotencyBindingSchema,
   principalReferenceFromRunxPrincipalId,
   quotePaidInvocationRequestV1Schema,
@@ -32,7 +31,6 @@ import {
   validatePaidInvocationContract,
   validatePaidInvocationPaymentChallengeContract,
   validatePaidSkillListingContract,
-  validateParentInvocationBindingContract,
   validatePaymentIdempotencyBindingContract,
   validateQuotePaidInvocationRequestContract,
   validateQuotePaidInvocationResultContract,
@@ -111,7 +109,6 @@ describe("paid-invocation V1 contract facade", () => {
       [paidSkillListingV1Schema, "paid-skill-listing.schema.json", "paidSkillListing"],
       [paidInvocationV1Schema, "paid-invocation.schema.json", "paidInvocation"],
       [offerRevisionRefV1Schema, "offer-revision-ref.schema.json", "offerRevisionRef"],
-      [parentInvocationBindingV1Schema, "parent-invocation-binding.schema.json", "parentInvocationBinding"],
       [quotePaidInvocationRequestV1Schema, "quote-paid-invocation-request.schema.json", "quotePaidInvocationRequest"],
       [quotePaidInvocationResultV1Schema, "quote-paid-invocation-result.schema.json", "quotePaidInvocationResult"],
       [executePaidInvocationRequestV1Schema, "execute-paid-invocation-request.schema.json", "executePaidInvocationRequest"],
@@ -188,17 +185,14 @@ describe("paid-invocation V1 contract facade", () => {
     const result = fixturePayload("quote-direct-admission.json") as {
       readonly value: { readonly invocation: unknown };
     };
-    const request = fixturePayload("quote-outer-parent-binding.json") as {
+    const request = fixturePayload("quote-independent-purchase.json") as {
       readonly offer_revision: unknown;
-      readonly parent: unknown;
     };
 
     expect(validatePaidInvocationContract(result.value.invocation))
       .toBe(result.value.invocation);
     expect(validateOfferRevisionRefContract(request.offer_revision))
       .toBe(request.offer_revision);
-    expect(validateParentInvocationBindingContract(request.parent))
-      .toBe(request.parent);
     expect(() => validatePaidInvocationContract({
       ...(result.value.invocation as object),
       unknown_state: "not-accepted",
@@ -206,10 +200,6 @@ describe("paid-invocation V1 contract facade", () => {
     expect(() => validateOfferRevisionRefContract({
       ...(request.offer_revision as object),
       unknown_revision: "not-accepted",
-    })).toThrow();
-    expect(() => validateParentInvocationBindingContract({
-      ...(request.parent as object),
-      unknown_invocation_id: "not-accepted",
     })).toThrow();
   });
 

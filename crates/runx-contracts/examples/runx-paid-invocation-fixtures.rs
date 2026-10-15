@@ -31,10 +31,6 @@ const SCHEMAS: &[(&str, &str)] = &[
         "offer-revision-ref.schema.json",
     ),
     (
-        "runx.payment.parent_invocation_binding.v1",
-        "parent-invocation-binding.schema.json",
-    ),
-    (
         "runx.payment.quote_paid_invocation.request.v1",
         "quote-paid-invocation-request.schema.json",
     ),
@@ -131,16 +127,13 @@ fn parse_args() -> io::Result<Options> {
 }
 
 fn vectors() -> io::Result<Vec<Vector>> {
-    let parent = parent_binding();
-    let direct = invocation("paid_direct", "settled", "queued", "open", None, true);
-    let replay = invocation("paid_direct", "settled", "queued", "open", None, true);
-    let outer_parent = quote_request("idem_parent", Some(parent.clone()));
-    let inner_parent = invocation(
-        "paid_child",
+    let direct = invocation("paid_direct", "settled", "queued", "open", true);
+    let replay = invocation("paid_direct", "settled", "queued", "open", true);
+    let fulfilled = invocation(
+        "paid_fulfilled",
         "settled",
         "succeeded",
         "fulfilment_won",
-        Some(parent),
         true,
     );
     let challenge_payload = json!({
@@ -188,14 +181,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "The same input digest with another idempotency binding remains a distinct purchase intent.",
             "QuotePaidInvocation",
             "runx.payment.quote_paid_invocation.request.v1",
-            quote_request("idem_independent", None),
-        )?,
-        valid::<QuotePaidInvocationRequest>(
-            "quote-outer-parent-binding.json",
-            "A child quote binds its parent commercial invocation and execution digest.",
-            "QuotePaidInvocation",
-            "runx.payment.quote_paid_invocation.request.v1",
-            outer_parent,
+            quote_request("idem_independent"),
         )?,
         valid::<QuotePaidInvocationResult>(
             "quote-terms-changed.json",
@@ -236,11 +222,11 @@ fn vectors() -> io::Result<Vec<Vector>> {
             admitted(direct),
         )?,
         valid::<GetPaidInvocationResult>(
-            "get-inner-parent-fulfilment-won.json",
-            "The child record carries its parent binding and the fulfilment winner.",
+            "get-fulfilment-won.json",
+            "A fulfilled record carries the fulfilment winner.",
             "GetPaidInvocation",
             "runx.payment.get_paid_invocation.result.v1",
-            admitted(inner_parent),
+            admitted(fulfilled),
         )?,
         valid::<GetPaidInvocationResult>(
             "get-refund-won.json",
@@ -252,7 +238,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 "refunded",
                 "failed",
                 "refund_won",
-                None,
                 true,
             )),
         )?,
@@ -264,14 +249,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             json!({
                 "status": "admitted",
                 "value": {
-                    "invocation": invocation(
-                        "paid_run",
-                        "settled",
-                        "succeeded",
-                        "fulfilment_won",
-                        None,
-                        true,
-                    ),
+                    "invocation": invocation("paid_run", "settled", "succeeded", "fulfilment_won", true),
                     "receipt_ref": reference("receipt", "runx:receipt:paid-run-1"),
                     "run_ref": reference("act", "runx:run:hosted-1")
                 }
@@ -301,7 +279,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 "unpaid",
                 "cancelled",
                 "open",
-                None,
                 false,
             )),
         )?,
@@ -315,7 +292,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                 "settled",
                 "cancelled",
                 "open",
-                None,
                 true,
             )),
         )?,
@@ -335,11 +311,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "V1 request objects reject additive fields.",
             "QuotePaidInvocation",
             "runx.payment.quote_paid_invocation.request.v1",
-            with_field(
-                quote_request("idem_unknown", None),
-                "unexpected",
-                json!(true),
-            )?,
+            with_field(quote_request("idem_unknown"), "unexpected", json!(true))?,
         ),
         invalid(
             "invalid-malformed-digest.json",
@@ -347,7 +319,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "QuotePaidInvocation",
             "runx.payment.quote_paid_invocation.request.v1",
             with_field(
-                quote_request("idem_digest", None),
+                quote_request("idem_digest"),
                 "input_digest",
                 json!("sha256:no"),
             )?,
@@ -358,7 +330,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "QuotePaidInvocation",
             "runx.payment.quote_paid_invocation.request.v1",
             with_field(
-                quote_request("idem_amount", None),
+                quote_request("idem_amount"),
                 "amount_minor",
                 json!(MAX_PORTABLE_INTEGER + 1),
             )?,
@@ -369,7 +341,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "QuotePaidInvocation",
             "runx.payment.quote_paid_invocation.request.v1",
             with_field(
-                quote_request("idem_principal", None),
+                quote_request("idem_principal"),
                 "principal",
                 reference("artifact", "runx:artifact:not-a-principal"),
             )?,
@@ -385,7 +357,6 @@ fn vectors() -> io::Result<Vec<Vector>> {
                     "unpaid",
                     "unstarted",
                     "open",
-                    None,
                     false,
                 )),
                 "/value/invocation/expires_at",
@@ -438,8 +409,8 @@ fn invalid(
     }
 }
 
-fn quote_request(idempotency_key: &str, parent: Option<Value>) -> Value {
-    let mut value = json!({
+fn quote_request(idempotency_key: &str) -> Value {
+    json!({
         "accepted_settlement_families": ["mock", "hosted"],
         "amount_minor": 1250,
         "canonicalizer_version": "runx.receipt.c14n.v1",
@@ -451,13 +422,7 @@ fn quote_request(idempotency_key: &str, parent: Option<Value>) -> Value {
         "package_digest": digest('7'),
         "principal": reference("principal", "runx:principal:buyer-1"),
         "vendor_ref": reference("principal", "runx:principal:vendor-1")
-    });
-    if let Some(parent) = parent
-        && let Some(object) = value.as_object_mut()
-    {
-        object.insert("parent".to_owned(), parent);
-    }
-    value
+    })
 }
 
 fn paid_skill_listing() -> Value {
@@ -497,7 +462,6 @@ fn invocation(
     payment_state: &str,
     execution_state: &str,
     outcome_gate: &str,
-    parent: Option<Value>,
     settled: bool,
 ) -> Value {
     let mut value = json!({
@@ -535,11 +499,6 @@ fn invocation(
             reference("act", &format!("runx:act:{invocation_id}")),
         );
     }
-    if let Some(parent) = parent
-        && let Some(object) = value.as_object_mut()
-    {
-        object.insert("parent".to_owned(), parent);
-    }
     value
 }
 
@@ -550,13 +509,6 @@ fn offer_revision() -> Value {
         "output_schema_digest": digest('3'),
         "revision": "2026-08-22.1",
         "revision_digest": digest('4')
-    })
-}
-
-fn parent_binding() -> Value {
-    json!({
-        "execution_digest": digest('5'),
-        "invocation_id": "paid_parent"
     })
 }
 
@@ -585,7 +537,7 @@ fn attribution() -> Value {
 }
 
 fn fingerprint_oracle() -> io::Result<Value> {
-    let quote = quote_request("fingerprint_quote", None);
+    let quote = quote_request("fingerprint_quote");
     let quote_cases = [
         ("quote-base", quote.clone()),
         (
@@ -651,10 +603,6 @@ fn fingerprint_oracle() -> io::Result<Value> {
                 "/idempotency/binding_digest",
                 json!(digest('a')),
             )?,
-        ),
-        (
-            "quote-parent",
-            with_field(quote.clone(), "parent", parent_binding())?,
         ),
         // Presentation and acquisition attribution never enter quote identity:
         // these cases must digest exactly as quote-base does.

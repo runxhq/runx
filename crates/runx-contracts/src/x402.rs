@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use crate::schema::{Identity, NonEmptyString, Property, RunxSchema, nullable, object_schema};
 use crate::{
     JsonObject, JsonValue, OfferRevisionRef, PaidInvocationCanonicalizerVersion,
-    ParentInvocationBinding, PaymentIdempotencyBinding, Reference, Sha256Digest,
+    PaymentIdempotencyBinding, Reference, Sha256Digest,
 };
 
 pub const X402_PROTOCOL_VERSION: u8 = 2;
@@ -492,8 +492,6 @@ pub enum RunxX402InvocationExtensionInfo {
         input_digest: Sha256Digest,
         canonicalizer_version: PaidInvocationCanonicalizerVersion,
         idempotency: PaymentIdempotencyBinding,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        parent: Option<ParentInvocationBinding>,
     },
 }
 
