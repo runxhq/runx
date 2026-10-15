@@ -261,9 +261,33 @@ export const runxSchemaArtifacts = {
                         "description": {
                           "type": "string"
                         },
+                        "free_text": {
+                          "const": true,
+                          "type": "boolean"
+                        },
                         "id": {
                           "minLength": 1,
                           "type": "string"
+                        },
+                        "options": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "detail": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "label"
+                            ],
+                            "type": "object"
+                          },
+                          "minItems": 1,
+                          "type": "array"
                         },
                         "prompt": {
                           "minLength": 1,
@@ -17773,9 +17797,33 @@ export const runxSchemaArtifacts = {
       "description": {
         "type": "string"
       },
+      "free_text": {
+        "const": true,
+        "type": "boolean"
+      },
       "id": {
         "minLength": 1,
         "type": "string"
+      },
+      "options": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "detail": {
+              "type": "string"
+            },
+            "label": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "label"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "prompt": {
         "minLength": 1,
@@ -22888,9 +22936,33 @@ export const runxSchemaArtifacts = {
                 "description": {
                   "type": "string"
                 },
+                "free_text": {
+                  "const": true,
+                  "type": "boolean"
+                },
                 "id": {
                   "minLength": 1,
                   "type": "string"
+                },
+                "options": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "detail": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ],
+                    "type": "object"
+                  },
+                  "minItems": 1,
+                  "type": "array"
                 },
                 "prompt": {
                   "minLength": 1,
@@ -25649,9 +25721,33 @@ export const runxSchemaArtifacts = {
                           "description": {
                             "type": "string"
                           },
+                          "free_text": {
+                            "const": true,
+                            "type": "boolean"
+                          },
                           "id": {
                             "minLength": 1,
                             "type": "string"
+                          },
+                          "options": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label"
+                              ],
+                              "type": "object"
+                            },
+                            "minItems": 1,
+                            "type": "array"
                           },
                           "prompt": {
                             "minLength": 1,
@@ -31522,9 +31618,33 @@ export const runxSchemaArtifacts = {
                               "description": {
                                 "type": "string"
                               },
+                              "free_text": {
+                                "const": true,
+                                "type": "boolean"
+                              },
                               "id": {
                                 "minLength": 1,
                                 "type": "string"
+                              },
+                              "options": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "detail": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "label"
+                                  ],
+                                  "type": "object"
+                                },
+                                "minItems": 1,
+                                "type": "array"
                               },
                               "prompt": {
                                 "minLength": 1,
@@ -32729,9 +32849,33 @@ export const runxSchemaArtifacts = {
                                     "description": {
                                       "type": "string"
                                     },
+                                    "free_text": {
+                                      "const": true,
+                                      "type": "boolean"
+                                    },
                                     "id": {
                                       "minLength": 1,
                                       "type": "string"
+                                    },
+                                    "options": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "detail": {
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "label"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "minItems": 1,
+                                      "type": "array"
                                     },
                                     "prompt": {
                                       "minLength": 1,

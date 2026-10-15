@@ -686,14 +686,31 @@ where
                     Vec::new(),
                 )
             }
+            // An ask is a yes or no on its reason, or questions the person
+            // answers.
+            TurnTarget::Ask if input.len() == 1 && input.contains_key("questions") => {
+                let questions = super::step_handlers::ask_questions(&input["questions"])?;
+                (
+                    StepKind::Ask(AskGate {
+                        gate: step_id.clone(),
+                        reason: questions
+                            .iter()
+                            .map(|question| question.prompt.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                        gate_type: Some(super::step_handlers::QUESTIONS_GATE.to_owned()),
+                    }),
+                    Vec::new(),
+                )
+            }
             TurnTarget::Ask => {
                 let reason = input
                     .get("reason")
                     .and_then(JsonValue::as_str)
                     .filter(|reason| !reason.trim().is_empty())
-                    .ok_or("an ask names its reason")?;
+                    .ok_or("an ask names its reason, or its questions")?;
                 if input.len() > 1 {
-                    return Err("an ask takes only its reason".to_owned());
+                    return Err("an ask takes its reason, or its questions, alone".to_owned());
                 }
                 (
                     StepKind::Ask(AskGate {
@@ -967,9 +984,9 @@ where
         if allowance.asks {
             tools.push(offered(
                 "ask_human",
-                "Ask the human to approve something; the call stays pending until they answer."
+                "Ask the human: a yes or no on your reason, or one to three questions, each with up to four options (the recommended first) and free text where it allows. The call stays pending until they answer."
                     .to_owned(),
-                object_schema([("reason", string_schema())], &["reason"]),
+                ask_schema()?,
                 TurnTarget::Ask,
             ));
         }
@@ -1159,6 +1176,46 @@ fn mcp_name(raw: &str) -> String {
     name.get(..name.len().min(MCP_NAME_BYTES))
         .unwrap_or(&name)
         .to_owned()
+}
+
+/// An ask's input: its reason, or its questions.
+fn ask_schema() -> Result<JsonObject, RuntimeError> {
+    let text = serde_json::json!({"type": "string", "minLength": 1});
+    serde_json::from_value(serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "reason": text,
+            "questions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "prompt"],
+                    "properties": {
+                        "id": text,
+                        "prompt": text,
+                        "options": {
+                            "type": "array",
+                            "maxItems": 4,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["label"],
+                                "properties": {"label": text, "detail": {"type": "string"}},
+                            },
+                        },
+                        "free_text": {"type": "boolean"},
+                        "required": {"type": "boolean"},
+                    },
+                },
+            },
+        },
+        "oneOf": [{"required": ["reason"]}, {"required": ["questions"]}],
+    }))
+    .map_err(|source| RuntimeError::json("describing an ask", source))
 }
 
 fn string_schema() -> JsonValue {

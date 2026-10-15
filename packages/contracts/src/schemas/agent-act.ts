@@ -51,6 +51,11 @@ export const agentActInvocationSchema = generatedSchema<AgentActInvocationContra
   "agent-act-invocation.schema.json",
 );
 
+/**
+ * A question put to the person: `type` is `choice` when it offers options
+ * (the recommended first) and `text` otherwise; `free_text` lets the person
+ * answer in their own words. The person answers `{<id>: {option?, text?}}`.
+ */
 const questionTypeSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
@@ -58,6 +63,18 @@ const questionTypeSchema = Type.Object(
     description: Type.Optional(Type.String()),
     required: Type.Boolean(),
     type: Type.String({ minLength: 1 }),
+    options: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            label: Type.String({ minLength: 1 }),
+            detail: Type.Optional(Type.String()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
+    free_text: Type.Optional(Type.Boolean()),
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,

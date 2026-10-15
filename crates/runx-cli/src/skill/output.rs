@@ -493,6 +493,17 @@ fn answers_template(requests: &[JsonValue]) -> Option<JsonValue> {
         if object_string(object, "kind") == Some("retry") {
             continue;
         }
+        // Questions are the person's: their answer goes beside approvals.
+        if object_string(object, "kind") == Some("input") {
+            approvals.insert(
+                id.to_owned(),
+                JsonValue::Object(JsonObject::from([
+                    digest,
+                    ("value".to_owned(), JsonValue::Object(JsonObject::new())),
+                ])),
+            );
+            continue;
+        }
         if object_string(object, "kind") == Some("approval") {
             approvals.insert(
                 id.to_owned(),

@@ -1315,6 +1315,9 @@ pub(super) fn run_approval_step<A>(
 where
     A: SkillAdapter,
 {
+    if ask.gate_type.as_deref() == Some(QUESTIONS_GATE) {
+        return run_question_step(runtime, graph_name, step, ask, attempt, &inputs, host);
+    }
     let mut gate = approval_gate(ask, &inputs);
     // What the person approves is the reason they are asked.
     crate::approval::carry_payload(
@@ -1337,6 +1340,158 @@ where
         resolve_step_approval(step, host, request_id.clone(), gate.clone())?,
     )?;
     let outputs = approval_outputs(step, &gate, &resolution)?;
+    let output = InvocationOutput::runtime_success(JsonValue::Object(outputs.clone()), 0);
+    let projection = project_step_claim(outputs, step.artifacts.as_ref());
+    let receipt = seal_executed_step(
+        StepSeal {
+            scope: runtime.scope(graph_name),
+            step_id: &step.id,
+            attempt,
+            output: &output,
+            claim: &projection.outputs,
+            created_at: &runtime.options.clock.now(),
+            authority: crate::receipts::SealAuthority::default(),
+            call: None,
+            approval_refs: Vec::new(),
+            child_receipts: &[],
+            descendant_receipts: &[],
+            closure: None,
+        },
+        runtime.options.signature_policy(),
+    )?;
+    let admission_witness = StepAdmissionWitness::local_runtime(&step.id, receipt.id.as_str());
+    Ok(StepRun {
+        step_id: step.id.clone(),
+        attempt,
+        skill: "ask".to_owned(),
+        runner: step_runner(step),
+        contract: projection.outputs,
+        artifact_outputs: projection.artifact_outputs,
+        ephemeral_contract: EphemeralValue::default(),
+        outcome: output.into(),
+        receipt,
+        nested_receipts: Vec::new(),
+        admission_witness,
+        settlement: None,
+    })
+}
+
+/// The gate type of an ask that puts questions to the person.
+pub(super) const QUESTIONS_GATE: &str = "questions";
+
+/// The questions an ask carries, as the agent states them: one to three,
+/// each `{id, prompt, options?: [{label, detail?}], free_text?, required?}`
+/// with at most four options, the recommended first, and free text where it
+/// offers none.
+pub(super) fn ask_questions(value: &JsonValue) -> Result<Vec<runx_contracts::Question>, String> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Asked {
+        id: String,
+        prompt: String,
+        #[serde(default)]
+        options: Vec<runx_contracts::QuestionOption>,
+        #[serde(default)]
+        free_text: bool,
+        #[serde(default = "required_by_default")]
+        required: bool,
+    }
+    fn required_by_default() -> bool {
+        true
+    }
+    let asked: Vec<Asked> = value
+        .clone()
+        .deserialize_into()
+        .map_err(|error| format!("questions are invalid: {error}"))?;
+    if asked.is_empty() || asked.len() > 3 {
+        return Err("an ask puts one to three questions".to_owned());
+    }
+    let mut ids = std::collections::BTreeSet::new();
+    asked
+        .into_iter()
+        .map(|question| {
+            let id = runx_contracts::schema::NonEmptyString::new(question.id.clone())
+                .filter(|_| ids.insert(question.id.clone()))
+                .ok_or_else(|| format!("question ids are distinct and named: {:?}", question.id))?;
+            let prompt =
+                runx_contracts::schema::NonEmptyString::new(question.prompt.trim().to_owned())
+                    .ok_or_else(|| format!("question {id} has a prompt"))?;
+            if question.options.len() > 4 {
+                return Err(format!("question {id} offers at most four options"));
+            }
+            let mut labels = std::collections::BTreeSet::new();
+            if !question
+                .options
+                .iter()
+                .all(|option| labels.insert(option.label.as_str().to_owned()))
+            {
+                return Err(format!("question {id}'s options are distinct"));
+            }
+            let free_text = question.free_text || question.options.is_empty();
+            Ok(runx_contracts::Question {
+                question_type: if question.options.is_empty() {
+                    "text".into()
+                } else {
+                    "choice".into()
+                },
+                id,
+                prompt,
+                description: None,
+                required: question.required,
+                options: question.options,
+                free_text,
+            })
+        })
+        .collect()
+}
+
+/// An ask that puts questions to the person: an input request carrying them,
+/// answered in the person's lane and checked against them.
+fn run_question_step<A>(
+    runtime: &Runtime<A>,
+    graph_name: &str,
+    step: &GraphStep,
+    ask: &AskGate,
+    attempt: u32,
+    inputs: &JsonObject,
+    host: &mut dyn Host,
+) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let invalid = |reason: String| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason,
+    };
+    let questions = ask_questions(
+        inputs
+            .get("questions")
+            .ok_or_else(|| invalid("an ask of questions carries them".to_owned()))?,
+    )
+    .map_err(invalid)?;
+    let request = ResolutionRequest::Input {
+        id: runtime.options.run.address(&ask.gate).into(),
+        questions: questions.clone(),
+    };
+    let Some(response) = host.resolve(request.clone())? else {
+        return Err(RuntimeError::ResolutionPending {
+            step_id: step.id.clone(),
+            reason: format!("questions {} wait on the person", ask.gate),
+            request: Box::new(request),
+            child: None,
+        });
+    };
+    if response.actor != runx_contracts::ResolutionResponseActor::Human {
+        return Err(RuntimeError::ContinuationRejected {
+            reason: format!("questions {} are the person's to answer", ask.gate),
+        });
+    }
+    runx_contracts::check_answer(&questions, &response.payload).map_err(|reason| {
+        RuntimeError::ContinuationRejected {
+            reason: format!("the answer to {} was refused: {reason}", ask.gate),
+        }
+    })?;
+    let outputs = JsonObject::from([("answers".to_owned(), response.payload)]);
     let output = InvocationOutput::runtime_success(JsonValue::Object(outputs.clone()), 0);
     let projection = project_step_claim(outputs, step.artifacts.as_ref());
     let receipt = seal_executed_step(

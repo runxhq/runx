@@ -1243,6 +1243,59 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
 }
 
 #[test]
+fn an_agent_asks_the_person_questions_and_reads_their_answers() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    let asked = turn.call(
+        TURN,
+        "ask_human",
+        None,
+        input(serde_json::json!({"questions": [
+            {"id": "base", "prompt": "Which base?", "options": [{"label": "main"}, {"label": "next", "detail": "the next release"}]},
+            {"id": "note", "prompt": "Anything else?", "required": false}
+        ]}))?,
+    )?;
+    let TurnCallOutcome::Pending { waiting } = &asked.outcome else {
+        return Err(format!("the ask waits on the person: {asked:?}").into());
+    };
+    let [ResolutionRequest::Input { id, questions }] = waiting.as_slice() else {
+        return Err(format!("one input request: {waiting:?}").into());
+    };
+    assert_eq!(id.as_str(), "answer/0");
+    assert_eq!(questions[0].question_type.as_str(), "choice");
+    assert!(
+        questions[1].free_text,
+        "a question without options takes text"
+    );
+
+    let refused = paused
+        .resume(
+            serde_json::json!({"approvals": {"answer/0": {"value": {"base": {"option": "dev"}}}}}),
+        )
+        .err()
+        .ok_or("an answer outside the options is refused")?;
+    assert!(refused.to_string().contains("not an option"), "{refused}");
+    paused.resume(serde_json::json!({"approvals": {"answer/0": {"value": {
+        "base": {"option": "next"},
+        "note": {"text": "ship it"}
+    }}}}))?;
+    let [call] = turn
+        .status(TURN)?
+        .calls
+        .try_into()
+        .map_err(|_| "one call")?;
+    let TurnCallOutcome::Completed { output, .. } = &call.outcome else {
+        return Err(format!("the ask completed: {call:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?["answers"]["base"]["option"],
+        "next"
+    );
+    Ok(())
+}
+
+#[test]
 fn the_floor_holds_a_skills_graph_step_before_it_is_claimed() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();

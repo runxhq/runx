@@ -232,9 +232,17 @@ fn check_lane(
                 "{address} is a person's to answer: only an entry under approvals carries a host-attested human decision"
             )))
         }
-        ResolutionRequest::Input { .. } | ResolutionRequest::AgentAct { .. } if entry.human => Err(
-            invalid(format!("{address} is an agent's to answer, under answers")),
-        ),
+        ResolutionRequest::AgentAct { .. } if entry.human => Err(invalid(format!(
+            "{address} is an agent's to answer, under answers"
+        ))),
+        // Questions are the person's, answered against them.
+        ResolutionRequest::Input { .. } if !entry.human => Err(invalid(format!(
+            "{address} is a person's to answer: only an entry under approvals carries a host-attested human decision"
+        ))),
+        ResolutionRequest::Input { questions, .. } => {
+            runx_contracts::check_answer(questions, &entry.value)
+                .map_err(|reason| invalid(format!("the answer to {address} was refused: {reason}")))
+        }
         ResolutionRequest::Approval { .. }
             if entry
                 .value
@@ -342,22 +350,67 @@ mod tests {
     #[test]
     fn a_resume_refuses_a_changed_or_unasked_request() -> Result<(), String> {
         let bound = answers(serde_json::json!({
-            "answers": {"draft": {"request_digest": "sha256:a", "value": "done"}}
+            "approvals": {"send": {"request_digest": "sha256:a", "approved": true}}
         }))?;
         assert!(
             bound
-                .check_waiting("run", &[waiting("draft", "sha256:a", input("draft"))])
+                .check_waiting("run", &[waiting("send", "sha256:a", approval("send"))])
                 .is_ok()
         );
         let changed = bound
-            .check_waiting("run", &[waiting("draft", "sha256:b", input("draft"))])
+            .check_waiting("run", &[waiting("send", "sha256:b", approval("send"))])
             .err()
             .ok_or("a changed request is refused")?;
         assert!(changed.to_string().contains("changed since it was read"));
         assert!(
             bound
-                .check_waiting("run", &[waiting("other", "sha256:a", input("other"))])
+                .check_waiting("run", &[waiting("other", "sha256:a", approval("other"))])
                 .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_person_answers_questions_against_them() -> Result<(), String> {
+        let questions = ResolutionRequest::Input {
+            id: "ask".into(),
+            questions: serde_json::from_value(serde_json::json!([
+                {"id": "base", "prompt": "Which base?", "required": true, "type": "choice",
+                 "options": [{"label": "main"}, {"label": "next"}]},
+                {"id": "note", "prompt": "Anything else?", "required": false, "type": "text",
+                 "free_text": true}
+            ]))
+            .map_err(|error| error.to_string())?,
+        };
+        let answer = |lane: &str, value: serde_json::Value| {
+            answers(
+                serde_json::json!({lane: {"ask": {"request_digest": "sha256:q", "value": value}}}),
+            )
+            .and_then(|bound| {
+                bound
+                    .check_waiting("run", &[waiting("ask", "sha256:q", questions.clone())])
+                    .map_err(|error| error.to_string())
+            })
+        };
+        assert!(answer("approvals", serde_json::json!({"base": {"option": "main"}})).is_ok());
+        assert!(
+            answer(
+                "approvals",
+                serde_json::json!({"base": {"option": "next"}, "note": {"text": "ship it"}})
+            )
+            .is_ok()
+        );
+        for refused in [
+            serde_json::json!({"note": {"text": "no base"}}),
+            serde_json::json!({"base": {"option": "dev"}}),
+            serde_json::json!({"base": {"text": "my own"}}),
+            serde_json::json!({"base": {"option": "main"}, "other": {"text": "x"}}),
+        ] {
+            assert!(answer("approvals", refused.clone()).is_err(), "{refused}");
+        }
+        assert!(
+            answer("answers", serde_json::json!({"base": {"option": "main"}})).is_err(),
+            "questions are the person's"
         );
         Ok(())
     }

@@ -156,10 +156,12 @@ reaches a request that changed after the person saw it, and nothing answers a
 request the run has not asked yet. The pending run's `answers_template` is
 already bound.
 
-`answers` is the agent's lane: inputs and agent acts. `approvals` is the
-person's: an approval takes `approved` and `reason`, and a claimed call's retry
-takes `value: {"retry": true}`; each entry is checked against the kind of
-request it answers. Runx records every decision it admits under `approvals` in
+`answers` is the agent's lane: agent acts. `approvals` is the person's: an
+approval takes `approved` and `reason`, a claimed call's retry takes `value:
+{"retry": true}`, and questions take `value: {<question id>: {option?: <label>,
+text?: <string>}}`, each naming one of its question's options or, where it
+allows free text, words of the person's own, every required question answered;
+each entry is checked against the request it answers. Runx records every decision it admits under `approvals` in
 the run before it takes the run further (`answered` in `runx history <run-id>
 --json`), so a decision admitted before a crash is used by the run's next
 driver, and a resume with no entries continues such a run. The same decision
@@ -206,6 +208,9 @@ skill is addressed by the child's place in the run, as in `answer/0#report`,
 and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
 its skill's limits (`tools:`, `skills:`, connector operations, and
 `ask_human` when the skill declares `asks: true`), with their input schemas.
+`ask_human` takes `{reason}`, a yes or no, or `{questions}`: one to three, each
+`{id, prompt, options?: [{label, detail?}], free_text?, required?}` with at most
+four options, the recommended first; a question without options takes text.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A host pins its own `call_id` on a call, unique within the turn: a call made

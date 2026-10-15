@@ -121,8 +121,78 @@ pub struct Question {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub required: bool,
+    /// `choice` when it offers options, `text` otherwise.
     #[serde(rename = "type")]
     pub question_type: NonEmptyString,
+    /// What the person may choose, the recommended first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<QuestionOption>,
+    /// Whether the person may answer in their own words.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub free_text: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct QuestionOption {
+    pub label: NonEmptyString,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+/// Check a person's answer to `questions`: `{<question id>: {option?:
+/// <label>, text?: <string>}}`, each naming one of its question's options or,
+/// where the question allows it, text of their own, and every required
+/// question answered.
+pub fn check_answer(questions: &[Question], answer: &JsonValue) -> Result<(), String> {
+    let answers = answer
+        .as_object()
+        .ok_or("an answer to questions is an object by question id")?;
+    for (id, given) in answers {
+        let question = questions
+            .iter()
+            .find(|question| question.id.as_str() == id)
+            .ok_or_else(|| format!("{id} is not one of the questions"))?;
+        let given = given
+            .as_object()
+            .ok_or_else(|| format!("the answer to {id} is {{option?, text?}}"))?;
+        if let Some(field) = given.keys().find(|key| *key != "option" && *key != "text") {
+            return Err(format!(
+                "the answer to {id} takes option and text, not {field}"
+            ));
+        }
+        let option = given.get("option").map(|option| {
+            option
+                .as_str()
+                .ok_or_else(|| format!("the option answering {id} is a label"))
+        });
+        let text = given.get("text").map(|text| {
+            text.as_str()
+                .ok_or_else(|| format!("the text answering {id} is a string"))
+        });
+        match (option.transpose()?, text.transpose()?) {
+            (None, None) => return Err(format!("the answer to {id} names an option or text")),
+            (Some(label), _)
+                if !question
+                    .options
+                    .iter()
+                    .any(|option| option.label.as_str() == label) =>
+            {
+                return Err(format!("{label} is not an option of {id}"));
+            }
+            (_, Some(_)) if !question.free_text => {
+                return Err(format!("{id} takes one of its options, not text"));
+            }
+            _ => {}
+        }
+    }
+    if let Some(missing) = questions
+        .iter()
+        .find(|question| question.required && !answers.contains_key(question.id.as_str()))
+    {
+        return Err(format!("{} is required", missing.id));
+    }
+    Ok(())
 }
 
 /// Host protocol approval request gate carried by `ResolutionRequest::Approval`.
