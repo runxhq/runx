@@ -1,4 +1,4 @@
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -32,26 +32,44 @@ fn fixture(name: &str) -> Value {
         .clone()
 }
 
-/// Cloud's quote for the call: the invocation it admitted and the x402
-/// requirement that pays it.
+/// runx's x402 challenge for the invocation it quoted.
 fn quote(network: &str, amount: u64) -> Value {
-    let mut result = fixture("quote-direct-admission.json");
-    let invocation = &mut result["value"]["invocation"];
-    invocation["invocation_id"] = json!("paid_1");
-    invocation["amount_minor"] = json!(amount);
-    invocation["currency"] = json!("USD");
-    result["value"]["challenge"]["payload"] = json!({
+    json!({
         "x402Version": 2,
+        "resource": {"url": ROUTE},
         "accepts": [{
             "scheme": "exact",
             "network": network,
-            "amount": "50000",
+            "amount": (amount * 10_000).to_string(),
             "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             "payTo": "0x00000000000000000000000000000000000000aa",
             "maxTimeoutSeconds": 300
-        }]
-    });
-    result
+        }],
+        "extensions": {
+            "runx.invocation": {"info": {"purpose": "invocation", "invocation_id": "paid_1"}}
+        }
+    })
+}
+
+/// The quoted invocation as its buyer reads it, before payment.
+fn quoted(amount: u64) -> Value {
+    let mut purchase = fixture("purchase-fulfilled.json");
+    let object = purchase.as_object_mut().unwrap();
+    object.remove("receipt");
+    object.remove("result");
+    object.remove("holds");
+    let invocation = &mut purchase["invocation"];
+    invocation["invocation_id"] = json!("paid_1");
+    invocation["amount_minor"] = json!(amount);
+    invocation["currency"] = json!("USD");
+    invocation["payment_state"] = json!("unpaid");
+    invocation["execution_state"] = json!("unstarted");
+    invocation["outcome_gate"] = json!("open");
+    let invocation = invocation.as_object_mut().unwrap();
+    for field in ["execution_ref", "payment_ref", "settlement_family"] {
+        invocation.remove(field);
+    }
+    purchase
 }
 
 fn purchase(outcome: &str) -> Value {
@@ -82,6 +100,8 @@ fn purchase(outcome: &str) -> Value {
 #[derive(Clone, Default)]
 struct Runx {
     quote: Arc<Mutex<Value>>,
+    /// Whether the quoted purchase has been paid, which its read then shows.
+    paid: Arc<Mutex<bool>>,
     /// What each paid purchase answers, in order; the last repeats.
     bought: Arc<Mutex<Vec<(u16, Value)>>>,
     sent: Arc<Mutex<Vec<RuntimeHttpRequest>>>,
@@ -91,6 +111,7 @@ impl Runx {
     fn new(quote: Value, bought: Vec<(u16, Value)>) -> Self {
         Self {
             quote: Arc::new(Mutex::new(quote)),
+            paid: Arc::default(),
             bought: Arc::new(Mutex::new(bought)),
             sent: Arc::default(),
         }
@@ -138,11 +159,23 @@ impl RuntimeHttpTransport for Runx {
                     } else {
                         bought[0].clone()
                     };
+                    if (200..300).contains(&status) {
+                        *self.paid.lock().unwrap() = true;
+                    }
                     body(status, &value)
                 }
             }
             (HttpMethod::Get, url) if url == format!("{BASE_URL}/v1/purchases/paid_1") => {
-                body(200, &purchase("fulfilled"))
+                if *self.paid.lock().unwrap() {
+                    body(200, &purchase("fulfilled"))
+                } else {
+                    let amount = self.quote.lock().unwrap()["accepts"][0]["amount"]
+                        .as_str()
+                        .and_then(|amount| amount.parse::<u64>().ok())
+                        .unwrap_or_default()
+                        / 10_000;
+                    body(200, &quoted(amount))
+                }
             }
             _ => body(404, &json!({"code": "not_found"})),
         })

@@ -96,18 +96,13 @@ export {
 export {
   PURCHASE_CLAIM_SCHEMA,
   PURCHASE_READ_SCHEMA,
-  PURCHASE_RECEIPT_SCHEMA,
-  PurchaseClaimError,
   isPurchaserKey,
   type PurchaseClaimContract,
-  type PurchaseClaimRefusal,
-  type PurchaseTrustRootKey,
   purchaseClaimMessage,
   purchaseClaimV1Schema,
   purchaseReadMessage,
   validatePurchaseClaimContract,
-  verifyPurchaseClaim,
-  type VerifiedPurchaseClaim,
+  verifyPurchaserSignature,
 } from "./purchase-claim.js";
 
 export {

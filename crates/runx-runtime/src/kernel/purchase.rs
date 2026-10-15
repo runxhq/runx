@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 use runx_contracts::{
     InstanceAuthority, JsonObject, PaidInvocation, PaidInvocationOutcomeGate, PaidSkillOfferTerms,
     Placement, PortableAmountMinor, Purchase, PurchaseMethod, PurchaseQuote, PurchaseRequest,
-    QuotePaidInvocationResult, ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
+    ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
 };
 use serde::{Deserialize, Serialize};
 
@@ -653,24 +653,26 @@ fn quote(
         };
         return Err(Bought::Refused { code, reason });
     }
-    let result: QuotePaidInvocationResult = serde_json::from_str(&response.body)
-        .map_err(|error| refused("quote_invalid", format!("the quote is not runx's: {error}")))?;
-    let admitted = match result {
-        QuotePaidInvocationResult::Admitted { value } => value,
-        QuotePaidInvocationResult::Refused { code, reason } => {
-            return Err(refused(
-                serde_json::to_value(code)
-                    .ok()
-                    .and_then(|code| code.as_str().map(str::to_owned))
-                    .unwrap_or_else(|| "quote_refused".to_owned()),
-                reason.as_str().to_owned(),
-            ));
-        }
-    };
-    let requirement = serde_json::to_value(&admitted.challenge.payload)
-        .ok()
-        .and_then(|payload| payload.get("accepts")?.as_array()?.first().cloned())
-        .ok_or_else(|| refused("quote_invalid", "the quote names no x402 requirement"))?;
+    // runx answers an unpaid purchase with its x402 challenge for the
+    // invocation it quoted; the invocation, read as its buyer reads it,
+    // carries the offer, seller, price and expiry the person decides on.
+    let challenge: serde_json::Value = serde_json::from_str(&response.body).map_err(|error| {
+        refused(
+            "quote_invalid",
+            format!("the quote is not an x402 challenge: {error}"),
+        )
+    })?;
+    let requirement = challenge
+        .get("accepts")
+        .and_then(serde_json::Value::as_array)
+        .filter(|accepts| accepts.len() == 1)
+        .and_then(|accepts| accepts.first())
+        .ok_or_else(|| {
+            refused(
+                "quote_invalid",
+                "the quote names no single x402 requirement",
+            )
+        })?;
     let field = |name: &str| {
         requirement
             .get(name)
@@ -683,12 +685,39 @@ fn quote(
                 )
             })
     };
+    let invocation_id = challenge
+        .pointer("/extensions/runx.invocation/info/invocation_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| refused("quote_invalid", "the quote names no runx invocation"))?;
+    let response = session
+        .exchange(
+            HttpMethod::Get,
+            &format!("/v1/purchases/{}", url_segment(invocation_id)),
+            None,
+            None,
+        )
+        .map_err(|error| {
+            refused(
+                "quote_unavailable",
+                format!("runx could not read the quote: {error}"),
+            )
+        })?;
+    if !(200..=299).contains(&response.status) {
+        let (code, reason) = api_refusal(response.status, &response.body);
+        return Err(Bought::Refused { code, reason });
+    }
+    let purchase: Purchase = serde_json::from_str(&response.body).map_err(|error| {
+        refused(
+            "quote_invalid",
+            format!("the quoted purchase is not runx's: {error}"),
+        )
+    })?;
     Ok(Quote {
         network: field("network")?,
         asset: field("asset")?,
         pay_to: field("payTo")?,
-        expires_at: admitted.challenge.quote_expires_at.as_str().to_owned(),
-        invocation: admitted.invocation,
+        expires_at: purchase.invocation.expires_at.as_str().to_owned(),
+        invocation: purchase.invocation,
     })
 }
 

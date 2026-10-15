@@ -1,21 +1,19 @@
 //! How a purchase owned by a purchaser key is read and claimed (S10). The
 //! purchase binds the key; runx holds what the purchase bought. The owner
 //! signs each read with the key, and each claim of a held value with the key
-//! over the purchase receipt, so neither a purchase id nor a receipt alone
-//! reads or claims anything.
+//! over the digest of the purchase's receipt, so neither a purchase id nor a
+//! receipt alone reads or claims anything. runx verifies both; no seller does.
 
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::JsonObject;
 use crate::canonical_json::{CanonicalJsonError, canonical_stable_json};
+use crate::paid_invocation::Sha256Digest;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
 pub const PURCHASE_CLAIM_SCHEMA: &str = "runx.payment.purchase_claim.v1";
 pub const PURCHASE_READ_SCHEMA: &str = "runx.payment.purchase_read.v1";
-/// The receipt runx seals when a purchase's fulfilment wins.
-pub const PURCHASE_RECEIPT_SCHEMA: &str = "runx.hosted_paid_invocation_terminal_receipt.v1";
 
 const ED25519_PREFIX: &str = "ed25519:";
 
@@ -91,18 +89,19 @@ impl RunxSchema for PurchaserSignature {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.payment.purchase_claim.v1")]
 pub struct PurchaseClaim {
-    /// runx's signed purchase receipt, exactly as the purchase gave it.
-    pub receipt: JsonObject,
+    /// The digest of runx's receipt for the fulfilled purchase, as the
+    /// purchase gave it: a purchase has none until it is fulfilled.
+    pub receipt_digest: Sha256Digest,
     /// The endpoint this claim is sent to: a claim is good for one endpoint.
     pub claim_url: NonEmptyString,
-    /// When the purchaser signed; a seller refuses a stale claim.
+    /// When the purchaser signed; runx refuses a stale claim.
     pub issued_at: IsoDateTime,
     /// The purchaser's signature over [`purchase_claim_message`].
     pub signature: PurchaserSignature,
 }
 
 /// The bytes a purchaser signs for one claim: the claim schema, the
-/// endpoint, the time, and the digest of the receipt it presents, as stable
+/// endpoint, the time, and the digest of the purchase's receipt, as stable
 /// JSON.
 pub fn purchase_claim_message(
     claim_url: &str,
@@ -185,13 +184,13 @@ mod tests {
     #[test]
     fn a_claim_signs_its_endpoint_time_and_receipt() -> Result<(), CanonicalJsonError> {
         let message = purchase_claim_message(
-            "https://inbox.ausca.com/v1/agent-inboxes/inb_1/claim",
+            "https://api.runx.ai/v1/purchases/paid_1/claim",
             "2026-10-15T00:00:00Z",
             "sha256:abc",
         )?;
         assert_eq!(
             String::from_utf8_lossy(&message),
-            r#"{"claim_url":"https://inbox.ausca.com/v1/agent-inboxes/inb_1/claim","issued_at":"2026-10-15T00:00:00Z","receipt_digest":"sha256:abc","schema":"runx.payment.purchase_claim.v1"}"#
+            r#"{"claim_url":"https://api.runx.ai/v1/purchases/paid_1/claim","issued_at":"2026-10-15T00:00:00Z","receipt_digest":"sha256:abc","schema":"runx.payment.purchase_claim.v1"}"#
         );
         Ok(())
     }

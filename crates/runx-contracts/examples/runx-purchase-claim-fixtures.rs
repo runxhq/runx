@@ -1,7 +1,7 @@
-//! Purchase claim vectors: a purchase receipt signed by a runx receipt key,
-//! and claims signed by the purchaser key it binds, made here with Rust's
-//! signing and message construction. Every seller-side verifier accepts the
-//! valid claim and refuses each tampered one for its stated reason.
+//! Purchaser signature vectors: claims and reads a purchaser key signed,
+//! made here with Rust's signing and message construction. runx's verifier
+//! admits each signed request and refuses each one that was changed after
+//! signing or signed by another key.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -13,18 +13,17 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use runx_contracts::canonical_json::canonical_stable_json;
 use runx_contracts::{
-    PURCHASE_CLAIM_SCHEMA, PURCHASE_RECEIPT_SCHEMA, PurchaseClaim, purchase_claim_message,
-    sha256_prefixed,
+    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_SCHEMA, PurchaseClaim, purchase_claim_message,
+    purchase_read_message,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 const FIXTURE: &str = "purchase-claim-v1.vectors.json";
-const RUNX_SEED: [u8; 32] = [7; 32];
 const PURCHASER_SEED: [u8; 32] = [9; 32];
 const STRANGER_SEED: [u8; 32] = [11; 32];
-const SELLER: &str = "runx:principal:ausca";
-const CLAIM_URL: &str = "https://inbox.ausca.com/v1/agent-inboxes/inb_7Hq2x9/claim";
-const NOW: &str = "2026-10-15T00:02:00Z";
+const CLAIM_URL: &str = "https://api.runx.ai/v1/purchases/paid_7Hq2x9/claim";
+const READ_URL: &str = "https://api.runx.ai/v1/purchases/paid_7Hq2x9";
+const ISSUED_AT: &str = "2026-10-15T00:01:30Z";
 
 struct Options {
     out_dir: PathBuf,
@@ -68,199 +67,109 @@ fn ed25519(bytes: &[u8]) -> String {
 }
 
 fn fixture_document() -> io::Result<Value> {
-    let runx = key_pair(&RUNX_SEED)?;
     let purchaser = key_pair(&PURCHASER_SEED)?;
     let stranger = key_pair(&STRANGER_SEED)?;
-    let runx_public = runx.public_key().as_ref();
-    let trust_root = json!({
-        "schema": "runx.trust_root.v1",
-        "keys": [{
-            "kty": "OKP",
-            "crv": "Ed25519",
-            "alg": "EdDSA",
-            "use": "sig",
-            "kid": "fixture-runx-receipts",
-            "purpose": "receipt_signature",
-            "issuer_type": "hosted",
-            "x": URL_SAFE_NO_PAD.encode(runx_public),
-            "public_key_sha256": sha256_prefixed(runx_public),
-        }],
-    });
-    let purchaser_key = ed25519(purchaser.public_key().as_ref());
-    let receipt = |vendor: &str, outcome: &str, purchaser_key: Option<&str>| {
-        let mut binding = json!({
-            "invocation_id": "paid_7Hq2x9",
-            "vendor_ref": {"type": "principal", "uri": vendor},
-            "offer_revision": {
-                "offer_id": "ausca/agent-inbox#create",
-                "revision": "1.0.0",
-                "revision_digest": format!("sha256:{}", "1".repeat(64)),
-                "input_schema_digest": format!("sha256:{}", "2".repeat(64)),
-                "output_schema_digest": format!("sha256:{}", "3".repeat(64)),
-            },
-            "package_digest": format!("sha256:{}", "4".repeat(64)),
-            "input_digest": format!("sha256:{}", "5".repeat(64)),
-        });
-        if let (Some(key), Some(object)) = (purchaser_key, binding.as_object_mut()) {
-            object.insert("purchaser_key".to_owned(), json!(key));
-        }
-        json!({
-            "id": "sha256:receipt-fixture",
-            "schema": PURCHASE_RECEIPT_SCHEMA,
-            "principal_id": "buyer-1",
-            "created_at": "2026-10-15T00:01:00Z",
-            "paid_invocation": binding,
-            "terminal": {"outcome": outcome},
-        })
-    };
-    let sign_receipt = |body: Value, key: &Ed25519KeyPair| -> io::Result<Value> {
-        let digest = receipt_digest(&body)?;
-        let signature = key.sign(digest.as_bytes());
-        let mut signed = body.as_object().cloned().unwrap_or_default();
-        signed.insert("digest".to_owned(), json!(digest));
-        signed.insert(
-            "signature".to_owned(),
-            json!({"alg": "Ed25519", "value": format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()))}),
-        );
-        Ok(Value::Object(signed))
-    };
-    let claim = |receipt: &Value,
-                 claim_url: &str,
-                 issued_at: &str,
-                 key: &Ed25519KeyPair|
-     -> io::Result<Value> {
-        let digest = receipt
-            .get("digest")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let message =
-            purchase_claim_message(claim_url, issued_at, digest).map_err(io::Error::other)?;
-        let value = json!({
-            "receipt": receipt,
-            "claim_url": claim_url,
-            "issued_at": issued_at,
+    let receipt_digest = format!("sha256:{}", "7".repeat(64));
+    let claim =
+        |claim_url: &str, receipt_digest: &str, key: &Ed25519KeyPair| -> io::Result<Value> {
+            let message = purchase_claim_message(claim_url, ISSUED_AT, receipt_digest)
+                .map_err(io::Error::other)?;
+            let value = json!({
+                "receipt_digest": receipt_digest,
+                "claim_url": claim_url,
+                "issued_at": ISSUED_AT,
+                "signature": ed25519(key.sign(&message).as_ref()),
+            });
+            // Every claim is well formed; only its signature differs.
+            serde_json::from_value::<PurchaseClaim>(value.clone()).map_err(io::Error::other)?;
+            Ok(value)
+        };
+    let read = |method: &str, url: &str, key: &Ed25519KeyPair| -> io::Result<Value> {
+        let message = purchase_read_message(method, url, ISSUED_AT).map_err(io::Error::other)?;
+        Ok(json!({
+            "method": method,
+            "url": url,
+            "issued_at": ISSUED_AT,
             "signature": ed25519(key.sign(&message).as_ref()),
-        });
-        // Every vector is a well-formed claim; only its proofs differ.
-        serde_json::from_value::<PurchaseClaim>(value.clone()).map_err(io::Error::other)?;
-        Ok(value)
+        }))
+    };
+    let with = |value: Value, field: &str, replacement: &str| {
+        let mut changed = value.as_object().cloned().unwrap_or_default();
+        changed.insert(field.to_owned(), json!(replacement));
+        Value::Object(changed)
     };
 
-    let fulfilled = sign_receipt(receipt(SELLER, "fulfilment", Some(&purchaser_key)), &runx)?;
-    let mut tampered = fulfilled.clone();
-    if let Some(object) = tampered.as_object_mut() {
-        object.insert("principal_id".to_owned(), json!("someone-else"));
-    }
+    let signed_claim = claim(CLAIM_URL, &receipt_digest, &purchaser)?;
+    let signed_read = read("GET", READ_URL, &purchaser)?;
     let cases = vec![
+        case("claim", "claim", signed_claim.clone(), true),
         case(
-            "valid",
-            claim(&fulfilled, CLAIM_URL, "2026-10-15T00:01:30Z", &purchaser)?,
-            json!({
-                "invocation_id": "paid_7Hq2x9",
-                "purchaser_key": purchaser_key,
-            }),
-        ),
-        case(
-            "receipt-changed-after-signing",
-            claim(&tampered, CLAIM_URL, NOW, &purchaser)?,
-            json!({"error": "receipt_digest"}),
-        ),
-        case(
-            "receipt-signed-by-another-key",
-            claim(
-                &sign_receipt(
-                    receipt(SELLER, "fulfilment", Some(&purchaser_key)),
-                    &stranger,
-                )?,
-                CLAIM_URL,
-                NOW,
-                &purchaser,
-            )?,
-            json!({"error": "receipt_signature"}),
-        ),
-        case(
-            "another-sellers-purchase",
-            claim(
-                &sign_receipt(
-                    receipt(
-                        "runx:principal:other-seller",
-                        "fulfilment",
-                        Some(&purchaser_key),
-                    ),
-                    &runx,
-                )?,
-                CLAIM_URL,
-                NOW,
-                &purchaser,
-            )?,
-            json!({"error": "seller"}),
-        ),
-        case(
-            "refunded-purchase",
-            claim(
-                &sign_receipt(receipt(SELLER, "refund", Some(&purchaser_key)), &runx)?,
-                CLAIM_URL,
-                NOW,
-                &purchaser,
-            )?,
-            json!({"error": "outcome"}),
-        ),
-        case(
-            "purchase-without-a-purchaser-key",
-            claim(
-                &sign_receipt(receipt(SELLER, "fulfilment", None), &runx)?,
-                CLAIM_URL,
-                NOW,
-                &purchaser,
-            )?,
-            json!({"error": "purchaser_key"}),
+            "claim-of-another-receipt",
+            "claim",
+            with(
+                signed_claim.clone(),
+                "receipt_digest",
+                &format!("sha256:{}", "8".repeat(64)),
+            ),
+            false,
         ),
         case(
             "claim-for-another-endpoint",
-            claim(
-                &fulfilled,
-                "https://inbox.ausca.com/v1/agent-inboxes/inb_other/claim",
-                NOW,
-                &purchaser,
-            )?,
-            json!({"error": "claim_url"}),
+            "claim",
+            with(
+                signed_claim.clone(),
+                "claim_url",
+                "https://api.runx.ai/v1/purchases/paid_other/claim",
+            ),
+            false,
         ),
         case(
-            "stale-claim",
-            claim(&fulfilled, CLAIM_URL, "2026-10-14T23:50:00Z", &purchaser)?,
-            json!({"error": "stale"}),
+            "claim-signed-at-another-time",
+            "claim",
+            with(signed_claim, "issued_at", "2026-10-15T00:01:31Z"),
+            false,
         ),
         case(
             "claim-signed-by-another-key",
-            claim(&fulfilled, CLAIM_URL, NOW, &stranger)?,
-            json!({"error": "purchaser_signature"}),
+            "claim",
+            claim(CLAIM_URL, &receipt_digest, &stranger)?,
+            false,
+        ),
+        case("read", "read", signed_read.clone(), true),
+        case(
+            "read-of-another-purchase",
+            "read",
+            with(
+                signed_read.clone(),
+                "url",
+                "https://api.runx.ai/v1/purchases/paid_other",
+            ),
+            false,
+        ),
+        case(
+            "read-by-another-method",
+            "read",
+            with(signed_read, "method", "POST"),
+            false,
+        ),
+        case(
+            "read-signed-by-another-key",
+            "read",
+            read("GET", READ_URL, &stranger)?,
+            false,
         ),
     ];
     Ok(json!({
         "cases": cases,
-        "claim_url": CLAIM_URL,
-        "max_skew_seconds": 300,
-        "now": NOW,
-        "schema": "runx.payment.purchase_claim.fixtures.v1",
         "claim_schema": PURCHASE_CLAIM_SCHEMA,
-        "seller_principal_uri": SELLER,
-        "trust_root": trust_root,
+        "purchaser_key": ed25519(purchaser.public_key().as_ref()),
+        "read_schema": PURCHASE_READ_SCHEMA,
+        "schema": "runx.payment.purchaser_signature.fixtures.v1",
     }))
 }
 
-fn case(name: &str, claim: Value, expected: Value) -> Value {
-    json!({"claim": claim, "expected": expected, "name": name})
-}
-
-/// A hosted receipt's digest: its body without `signature`, `digest` and
-/// `metadata`, as stable JSON.
-fn receipt_digest(receipt: &Value) -> io::Result<String> {
-    let mut body: Map<String, Value> = receipt.as_object().cloned().unwrap_or_default();
-    for field in ["signature", "digest", "metadata"] {
-        body.remove(field);
-    }
-    let text = canonical_stable_json(&Value::Object(body)).map_err(io::Error::other)?;
-    Ok(sha256_prefixed(text.as_bytes()))
+fn case(name: &str, kind: &str, request: Value, verifies: bool) -> Value {
+    json!({"kind": kind, "name": name, "request": request, "verifies": verifies})
 }
 
 fn canonical_bytes(value: &Value) -> io::Result<Vec<u8>> {
@@ -319,7 +228,7 @@ fn reject_orphans(out_dir: &Path, check: bool) -> io::Result<()> {
         }
         if check {
             return Err(io::Error::other(format!(
-                "orphan purchase-claim fixture: {}",
+                "orphan purchaser signature fixture: {}",
                 path.display()
             )));
         }

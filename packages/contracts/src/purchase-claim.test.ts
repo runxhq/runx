@@ -4,62 +4,56 @@ import { describe, expect, it } from "vitest";
 
 import {
   isPurchaserKey,
-  PurchaseClaimError,
-  type PurchaseTrustRootKey,
-  verifyPurchaseClaim,
+  purchaseClaimMessage,
+  purchaseReadMessage,
+  validatePurchaseClaimContract,
+  verifyPurchaserSignature,
 } from "./purchase-claim.js";
 
-interface ClaimVectors {
-  readonly claim_url: string;
-  readonly max_skew_seconds: number;
-  readonly now: string;
-  readonly seller_principal_uri: string;
-  readonly trust_root: { readonly keys: readonly PurchaseTrustRootKey[] };
+interface SignatureVectors {
+  readonly purchaser_key: string;
   readonly cases: readonly {
     readonly name: string;
-    readonly claim: unknown;
-    readonly expected: { readonly invocation_id?: string; readonly purchaser_key?: string; readonly error?: string };
+    readonly kind: "claim" | "read";
+    readonly request: Readonly<Record<string, string>>;
+    readonly verifies: boolean;
   }[];
 }
 
 const vectors = JSON.parse(readFileSync(
   new URL("../../../fixtures/contracts/purchase-claim/purchase-claim-v1.vectors.json", import.meta.url),
   "utf8",
-)) as ClaimVectors;
+)) as SignatureVectors;
 
-async function verified(claim: unknown) {
-  try {
-    const result = await verifyPurchaseClaim({
-      claim,
-      trustRoot: vectors.trust_root,
-      sellerPrincipalUri: vectors.seller_principal_uri,
-      claimUrl: vectors.claim_url,
-      now: new Date(vectors.now),
-      maxSkewSeconds: vectors.max_skew_seconds,
-    });
-    return { invocation_id: result.invocationId, purchaser_key: result.purchaserKey };
-  } catch (error) {
-    if (error instanceof PurchaseClaimError) return { error: error.code };
-    throw error;
-  }
-}
-
-describe("purchase claims Rust signed verify as Rust expects", () => {
+describe("purchaser signatures Rust made verify as Rust expects", () => {
   for (const vector of vectors.cases) {
     it(vector.name, async () => {
-      await expect(verified(vector.claim)).resolves.toEqual(vector.expected);
+      const { request } = vector;
+      const message = vector.kind === "claim"
+        ? purchaseClaimMessage({
+          claimUrl: validatePurchaseClaimContract(request).claim_url,
+          issuedAt: request.issued_at!,
+          receiptDigest: request.receipt_digest!,
+        })
+        : purchaseReadMessage({ method: request.method!, url: request.url!, issuedAt: request.issued_at! });
+      await expect(verifyPurchaserSignature({
+        purchaserKey: vectors.purchaser_key,
+        signature: request.signature!,
+        message,
+      })).resolves.toBe(vector.verifies);
     });
   }
 
   it("spells a purchaser key one way, as Rust does", () => {
-    const valid = vectors.cases.find((vector) => vector.name === "valid")?.expected.purchaser_key;
-    expect(isPurchaserKey(valid)).toBe(true);
+    expect(isPurchaserKey(vectors.purchaser_key)).toBe(true);
     expect(isPurchaserKey(`ed25519:${"A".repeat(42)}B`)).toBe(false);
     expect(isPurchaserKey(`ed25519:${"A".repeat(44)}`)).toBe(false);
     expect(isPurchaserKey(undefined)).toBe(false);
   });
 
-  it("refuses a claim that is not shaped as one", async () => {
-    await expect(verified({ receipt: {}, claim_url: vectors.claim_url })).resolves.toEqual({ error: "malformed" });
+  it("refuses a claim that is not shaped as one", () => {
+    const claim = vectors.cases.find((vector) => vector.name === "claim")!.request;
+    expect(() => validatePurchaseClaimContract({ ...claim, receipt: {} })).toThrow();
+    expect(() => validatePurchaseClaimContract({ ...claim, receipt_digest: "sha256:short" })).toThrow();
   });
 });

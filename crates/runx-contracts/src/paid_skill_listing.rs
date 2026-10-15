@@ -531,8 +531,9 @@ mod tests {
         serde_json::from_value(value).unwrap_or_default()
     }
 
+    #[allow(clippy::expect_used)]
     fn amount(value: u64) -> PortableAmountMinor {
-        PortableAmountMinor::new(value).unwrap()
+        PortableAmountMinor::new(value).expect("a test amount is portable")
     }
 
     #[test]

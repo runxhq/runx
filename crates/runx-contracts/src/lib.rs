@@ -225,8 +225,8 @@ pub use paid_skill_listing::{
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use purchase_claim::{
-    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_SCHEMA, PURCHASE_RECEIPT_SCHEMA, PurchaseClaim,
-    PurchaserKey, PurchaserSignature, purchase_claim_message, purchase_read_message,
+    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_SCHEMA, PurchaseClaim, PurchaserKey, PurchaserSignature,
+    purchase_claim_message, purchase_read_message,
 };
 pub use receipt::{
     Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,

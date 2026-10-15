@@ -17569,9 +17569,9 @@ export const runxSchemaArtifacts = {
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
         "type": "string"
       },
-      "receipt": {
-        "additionalProperties": {},
-        "type": "object"
+      "receipt_digest": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
       },
       "signature": {
         "pattern": "^ed25519:[A-Za-z0-9_-]{85}[AQgw]$",
@@ -17579,7 +17579,7 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "receipt",
+      "receipt_digest",
       "claim_url",
       "issued_at",
       "signature"
