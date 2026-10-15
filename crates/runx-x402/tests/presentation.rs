@@ -83,21 +83,22 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
         Err(X402PresentationError::RequirementMismatch)
     );
 
-    let mut changed_resource = retry.clone();
-    changed_resource.resource = Some(X402ResourceInfo {
-        url: NonEmptyString::from("https://api.example.com/v1/other"),
+    // The resource is the presenter's: a seller's door relays the challenge
+    // under its own, and a payment that names it, or none, commits the same.
+    let mut relayed_resource = retry.clone();
+    relayed_resource.resource = Some(X402ResourceInfo {
+        url: NonEmptyString::from("https://seller.example.com/v1/door"),
         ..resource()
     });
     assert_eq!(
-        validate_payment_retry(&challenge, &changed_resource),
-        Err(X402PresentationError::ResourceMismatch)
+        validate_payment_retry(&challenge, &relayed_resource)?,
+        validated
     );
-
     let mut missing_resource = retry.clone();
     missing_resource.resource = None;
     assert_eq!(
-        validate_payment_retry(&challenge, &missing_resource),
-        Err(X402PresentationError::ResourceMismatch)
+        validate_payment_retry(&challenge, &missing_resource)?,
+        validated
     );
 
     let mut missing_extension = retry.clone();

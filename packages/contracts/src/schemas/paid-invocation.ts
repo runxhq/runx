@@ -122,23 +122,6 @@ export type PaidSkillOfferTermsContract = DeepReadonly<{
   input_schema_digest: Sha256DigestContract;
   output_schema_digest: Sha256DigestContract;
   claim?: PaidSkillClaimContract;
-  presentation?: PaidInvocationPresentationContract;
-}>;
-
-/**
- * Vendor-authored presentation of a payable resource; never part of quote
- * identity. Examples and schemas are canonical JSON text.
- */
-export type PaidInvocationPresentationContract = DeepReadonly<{
-  service_name: string;
-  description: string;
-  media_type: string;
-  tags?: readonly string[];
-  icon_url?: string;
-  input_example: string;
-  output_example: string;
-  input_schema: string;
-  output_schema: string;
 }>;
 
 export type PaidSkillRunnerOfferContract = DeepReadonly<{
@@ -147,7 +130,6 @@ export type PaidSkillRunnerOfferContract = DeepReadonly<{
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
   claim?: PaidSkillClaimContract;
-  presentation?: PaidInvocationPresentationContract;
 }>;
 
 export type PaidSkillListingContract = DeepReadonly<{
@@ -158,17 +140,6 @@ export type PaidSkillListingContract = DeepReadonly<{
   package_digest: Sha256DigestContract;
   vendor_ref: PrincipalReferenceContract;
   offers: Readonly<Record<string, PaidSkillRunnerOfferContract>>;
-}>;
-
-export type QuotePaidInvocationAttributionContract = DeepReadonly<{
-  source: string;
-  campaign?: string;
-}>;
-
-export type PaidInvocationAttributionContract = DeepReadonly<{
-  source: string;
-  campaign?: string;
-  confidence: "self_reported" | "trusted";
 }>;
 
 export type PaidInvocationContract = DeepReadonly<{
@@ -188,7 +159,6 @@ export type PaidInvocationContract = DeepReadonly<{
   /** The key the purchaser claims with: `ed25519:` and 32 bytes of base64url. */
   purchaser_key?: string;
   expires_at: string;
-  attribution?: PaidInvocationAttributionContract;
   payment_state: PaidInvocationPaymentStateContract;
   execution_state: PaidInvocationExecutionStateContract;
   outcome_gate: PaidInvocationOutcomeGateContract;
@@ -223,8 +193,6 @@ export type QuotePaidInvocationRequestContract = DeepReadonly<{
   idempotency: PaymentIdempotencyBindingContract;
   /** The key the purchaser claims with: `ed25519:` and 32 bytes of base64url. */
   purchaser_key?: string;
-  attribution?: QuotePaidInvocationAttributionContract;
-  presentation?: PaidInvocationPresentationContract;
 }>;
 
 export type PaidInvocationRefusalContract = DeepReadonly<{

@@ -42,7 +42,6 @@ export type X402PresentationErrorCode =
   | "invalid_discovery_extension"
   | "missing_runx_invocation"
   | "runx_invocation_schema_mismatch"
-  | "resource_mismatch"
   | "requirement_mismatch"
   | "runx_invocation_mismatch"
   | "challenge_kind_mismatch"
@@ -58,7 +57,6 @@ const ERROR_MESSAGES: Readonly<Record<X402PresentationErrorCode, string>> = {
   invalid_discovery_extension: "x402 bazaar extension must use the v2 info/schema declaration",
   missing_runx_invocation: "runx.invocation is absent",
   runx_invocation_schema_mismatch: "runx.invocation does not match its published v1 schema",
-  resource_mismatch: "the retry resource does not match the challenge",
   requirement_mismatch: "the retry selected requirements are not an exact offered requirement",
   runx_invocation_mismatch: "the retry runx.invocation declaration changed",
   challenge_kind_mismatch: "the rail-neutral challenge is not an x402 v2 JSON challenge",
@@ -334,15 +332,19 @@ export function x402PaymentRequiredFromChallenge(
   }
 }
 
+/**
+ * A payment commits to one offered requirement and to the runx.invocation
+ * binding. The resource and any discovery declaration are unsigned metadata
+ * owned by whoever presented the challenge, so a seller's own door may relay
+ * runx's challenge under its own resource and the payment it forwards settles
+ * as that door.
+ */
 export function validateX402PaymentRetry(
   challengeValue: X402PaymentRequiredContract,
   retryValue: X402PaymentPayloadContract,
 ): ValidatedX402Retry {
   const challenge = validateX402PaymentRequiredContract(challengeValue);
   const retry = validateX402PaymentPayloadContract(retryValue);
-  if (retry.resource == null || !jsonEquals(retry.resource, challenge.resource)) {
-    throw new X402PresentationError("resource_mismatch");
-  }
   const requirementIndex = challenge.accepts.findIndex((candidate) =>
     jsonEquals(candidate, retry.accepted)
   );

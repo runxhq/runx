@@ -205,10 +205,13 @@ describe("x402 v2 TypeScript facade", () => {
     expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, changedAmount)))
       .toBe("requirement_mismatch");
 
-    const changedResource = structuredClone(retry);
-    (changedResource.resource as { url: string }).url = "https://api.example.com/other";
-    expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, changedResource)))
-      .toBe("resource_mismatch");
+    // The resource is the presenter's: a seller's door relays the challenge
+    // under its own, and a payment that names it, or none, commits the same.
+    const relayedResource = structuredClone(retry);
+    (relayedResource.resource as { url: string }).url = "https://seller.example.com/v1/door";
+    expect(validateX402PaymentRetry(challenge, relayedResource)).toEqual({ requirementIndex: 0, invocation });
+    const { resource: _resource, ...withoutResource } = structuredClone(retry);
+    expect(validateX402PaymentRetry(challenge, withoutResource)).toEqual({ requirementIndex: 0, invocation });
 
     expect(() => assembleX402PaymentRequired({
       resource: challenge.resource,

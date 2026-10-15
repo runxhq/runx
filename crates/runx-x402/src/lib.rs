@@ -36,8 +36,6 @@ pub enum X402PresentationError {
     MissingRunxInvocation,
     #[error("runx.invocation does not match its published v1 schema")]
     RunxInvocationSchemaMismatch,
-    #[error("the retry resource does not match the challenge")]
-    ResourceMismatch,
     #[error("the retry selected requirements are not an exact offered requirement")]
     RequirementMismatch,
     #[error("the retry runx.invocation declaration changed")]
@@ -152,13 +150,16 @@ pub fn payment_required_from_challenge(
 
 /// Validate only immutable presentation commitments. This performs no payment
 /// verification and returns no payment material.
+///
+/// A payment commits to one offered requirement and to the `runx.invocation`
+/// binding. The resource and any discovery declaration are unsigned metadata
+/// owned by whoever presented the challenge, so a seller's own door may relay
+/// runx's challenge under its own resource and the payment it forwards settles
+/// as that door.
 pub fn validate_payment_retry(
     challenge: &X402PaymentRequired,
     retry: &X402PaymentPayload,
 ) -> Result<ValidatedX402Retry, X402PresentationError> {
-    if retry.resource.as_ref() != Some(&challenge.resource) {
-        return Err(X402PresentationError::ResourceMismatch);
-    }
     let requirement_index = challenge
         .accepts
         .as_slice()

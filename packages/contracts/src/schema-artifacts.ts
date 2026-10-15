@@ -5471,33 +5471,6 @@ export const runxSchemaArtifacts = {
                     "minimum": 1,
                     "type": "integer"
                   },
-                  "attribution": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "campaign": {
-                        "maxLength": 128,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-                        "type": "string"
-                      },
-                      "confidence": {
-                        "enum": [
-                          "self_reported",
-                          "trusted"
-                        ],
-                        "type": "string"
-                      },
-                      "source": {
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "source",
-                      "confidence"
-                    ],
-                    "type": "object"
-                  },
                   "canonicalizer_version": {
                     "enum": [
                       "runx.receipt.c14n.v1"
@@ -9371,33 +9344,6 @@ export const runxSchemaArtifacts = {
                     "minimum": 1,
                     "type": "integer"
                   },
-                  "attribution": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "campaign": {
-                        "maxLength": 128,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-                        "type": "string"
-                      },
-                      "confidence": {
-                        "enum": [
-                          "self_reported",
-                          "trusted"
-                        ],
-                        "type": "string"
-                      },
-                      "source": {
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "source",
-                      "confidence"
-                    ],
-                    "type": "object"
-                  },
                   "canonicalizer_version": {
                     "enum": [
                       "runx.receipt.c14n.v1"
@@ -12558,33 +12504,6 @@ export const runxSchemaArtifacts = {
                     "maximum": 9007199254740991,
                     "minimum": 1,
                     "type": "integer"
-                  },
-                  "attribution": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "campaign": {
-                        "maxLength": 128,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-                        "type": "string"
-                      },
-                      "confidence": {
-                        "enum": [
-                          "self_reported",
-                          "trusted"
-                        ],
-                        "type": "string"
-                      },
-                      "source": {
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "source",
-                      "confidence"
-                    ],
-                    "type": "object"
                   },
                   "canonicalizer_version": {
                     "enum": [
@@ -16013,33 +15932,6 @@ export const runxSchemaArtifacts = {
         "minimum": 1,
         "type": "integer"
       },
-      "attribution": {
-        "additionalProperties": false,
-        "properties": {
-          "campaign": {
-            "maxLength": 128,
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-            "type": "string"
-          },
-          "confidence": {
-            "enum": [
-              "self_reported",
-              "trusted"
-            ],
-            "type": "string"
-          },
-          "source": {
-            "maxLength": 64,
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "confidence"
-        ],
-        "type": "object"
-      },
       "canonicalizer_version": {
         "enum": [
           "runx.receipt.c14n.v1"
@@ -16660,70 +16552,6 @@ export const runxSchemaArtifacts = {
                 "revision_digest",
                 "input_schema_digest",
                 "output_schema_digest"
-              ],
-              "type": "object"
-            },
-            "presentation": {
-              "additionalProperties": false,
-              "properties": {
-                "description": {
-                  "maxLength": 500,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "icon_url": {
-                  "maxLength": 2048,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "input_example": {
-                  "maxLength": 65536,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "input_schema": {
-                  "maxLength": 65536,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "media_type": {
-                  "maxLength": 200,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "output_example": {
-                  "maxLength": 65536,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "output_schema": {
-                  "maxLength": 65536,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "service_name": {
-                  "maxLength": 120,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "tags": {
-                  "items": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                }
-              },
-              "required": [
-                "service_name",
-                "description",
-                "media_type",
-                "input_example",
-                "output_example",
-                "input_schema",
-                "output_schema"
               ],
               "type": "object"
             },
@@ -17520,33 +17348,6 @@ export const runxSchemaArtifacts = {
             "minimum": 1,
             "type": "integer"
           },
-          "attribution": {
-            "additionalProperties": false,
-            "properties": {
-              "campaign": {
-                "maxLength": 128,
-                "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-                "type": "string"
-              },
-              "confidence": {
-                "enum": [
-                  "self_reported",
-                  "trusted"
-                ],
-                "type": "string"
-              },
-              "source": {
-                "maxLength": 64,
-                "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "source",
-              "confidence"
-            ],
-            "type": "object"
-          },
           "canonicalizer_version": {
             "enum": [
               "runx.receipt.c14n.v1"
@@ -18182,25 +17983,6 @@ export const runxSchemaArtifacts = {
         "minimum": 1,
         "type": "integer"
       },
-      "attribution": {
-        "additionalProperties": false,
-        "properties": {
-          "campaign": {
-            "maxLength": 128,
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-            "type": "string"
-          },
-          "source": {
-            "maxLength": 64,
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source"
-        ],
-        "type": "object"
-      },
       "canonicalizer_version": {
         "enum": [
           "runx.receipt.c14n.v1"
@@ -18346,70 +18128,6 @@ export const runxSchemaArtifacts = {
       "package_digest": {
         "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
-      },
-      "presentation": {
-        "additionalProperties": false,
-        "properties": {
-          "description": {
-            "maxLength": 500,
-            "minLength": 1,
-            "type": "string"
-          },
-          "icon_url": {
-            "maxLength": 2048,
-            "minLength": 1,
-            "type": "string"
-          },
-          "input_example": {
-            "maxLength": 65536,
-            "minLength": 1,
-            "type": "string"
-          },
-          "input_schema": {
-            "maxLength": 65536,
-            "minLength": 1,
-            "type": "string"
-          },
-          "media_type": {
-            "maxLength": 200,
-            "minLength": 1,
-            "type": "string"
-          },
-          "output_example": {
-            "maxLength": 65536,
-            "minLength": 1,
-            "type": "string"
-          },
-          "output_schema": {
-            "maxLength": 65536,
-            "minLength": 1,
-            "type": "string"
-          },
-          "service_name": {
-            "maxLength": 120,
-            "minLength": 1,
-            "type": "string"
-          },
-          "tags": {
-            "items": {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "service_name",
-          "description",
-          "media_type",
-          "input_example",
-          "output_example",
-          "input_schema",
-          "output_schema"
-        ],
-        "type": "object"
       },
       "principal": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -18678,33 +18396,6 @@ export const runxSchemaArtifacts = {
                     "maximum": 9007199254740991,
                     "minimum": 1,
                     "type": "integer"
-                  },
-                  "attribution": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "campaign": {
-                        "maxLength": 128,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-                        "type": "string"
-                      },
-                      "confidence": {
-                        "enum": [
-                          "self_reported",
-                          "trusted"
-                        ],
-                        "type": "string"
-                      },
-                      "source": {
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "source",
-                      "confidence"
-                    ],
-                    "type": "object"
                   },
                   "canonicalizer_version": {
                     "enum": [

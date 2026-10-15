@@ -11,7 +11,7 @@ use runx_contracts::{
     QUOTE_PAID_INVOCATION, QuotePaidInvocationRequest, QuotePaidInvocationResult,
     STABLE_JSON_CANONICALIZATION, canonical_stable_json,
     fingerprint_cancel_paid_invocation_request, fingerprint_execute_paid_invocation_request,
-    fingerprint_quote_paid_invocation_request, quote_paid_invocation_binding, sha256_prefixed,
+    fingerprint_quote_paid_invocation_request, sha256_prefixed,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -535,26 +535,6 @@ fn idempotency(key: &str) -> Value {
     json!({"binding_digest": digest('6'), "key": key})
 }
 
-fn presentation() -> Value {
-    json!({
-        "service_name": "Vendor Transcribe",
-        "description": "Transcribe one committed audio artifact.",
-        "media_type": "application/json",
-        "tags": ["audio", "transcription"],
-        "input_example": "{\"artifact\":\"runx:artifact:sha256:1111111111111111111111111111111111111111111111111111111111111111\"}",
-        "output_example": "{\"text\":\"hello\"}",
-        "input_schema": "{\"properties\":{\"artifact\":{\"type\":\"string\"}},\"type\":\"object\"}",
-        "output_schema": "{\"properties\":{\"text\":{\"type\":\"string\"}},\"type\":\"object\"}"
-    })
-}
-
-fn attribution() -> Value {
-    json!({
-        "source": "newsletter",
-        "campaign": "spring-launch"
-    })
-}
-
 fn fingerprint_oracle() -> io::Result<Value> {
     let quote = quote_request("fingerprint_quote");
     let quote_cases = [
@@ -617,21 +597,7 @@ fn fingerprint_oracle() -> io::Result<Value> {
         ),
         (
             "quote-idempotency",
-            with_pointer_value(
-                quote.clone(),
-                "/idempotency/binding_digest",
-                json!(digest('a')),
-            )?,
-        ),
-        // Presentation and acquisition attribution never enter quote identity:
-        // these cases must digest exactly as quote-base does.
-        (
-            "quote-attribution",
-            with_field(quote.clone(), "attribution", attribution())?,
-        ),
-        (
-            "quote-presentation",
-            with_field(quote, "presentation", presentation())?,
+            with_pointer_value(quote, "/idempotency/binding_digest", json!(digest('a')))?,
         ),
     ];
 
@@ -716,18 +682,8 @@ fn fingerprint_case(name: &str, operation: &str, request: Value) -> io::Result<V
     }
     .map_err(io::Error::other)?;
 
-    // The oracle preimage carries what the operation binds; a quote binds its
-    // request without the vendor presentation.
-    let bound_request = match operation {
-        QUOTE_PAID_INVOCATION => serde_json::to_value(quote_paid_invocation_binding(
-            &serde_json::from_value::<QuotePaidInvocationRequest>(request.clone())
-                .map_err(io::Error::other)?,
-        ))
-        .map_err(io::Error::other)?,
-        _ => request.clone(),
-    };
     let request_value =
-        serde_json::from_value::<RunxJsonValue>(bound_request).map_err(io::Error::other)?;
+        serde_json::from_value::<RunxJsonValue>(request.clone()).map_err(io::Error::other)?;
     let preimage = RunxJsonValue::Object(JsonObject::from([
         (
             "canonicalization".to_owned(),

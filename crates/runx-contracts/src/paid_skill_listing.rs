@@ -16,8 +16,8 @@ use thiserror::Error;
 
 use crate::canonical_json::canonical_stable_json;
 use crate::paid_invocation::{
-    CurrencyCode, EmbeddedOfferRevisionRef, OfferRevisionRef, PaidInvocationPresentation,
-    PortableAmountMinor, PrincipalReference, SettlementFamilies, Sha256Digest,
+    CurrencyCode, EmbeddedOfferRevisionRef, OfferRevisionRef, PortableAmountMinor,
+    PrincipalReference, SettlementFamilies, Sha256Digest,
 };
 use crate::schema::{NonEmptyString, RunxSchema};
 use crate::{JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
@@ -584,8 +584,6 @@ pub struct PaidSkillOfferTerms {
     pub output_schema_digest: Sha256Digest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claim: Option<PaidSkillClaim>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub presentation: Option<PaidInvocationPresentation>,
 }
 
 /// An exact execution package: the skill and runner, and the digests of the
@@ -609,8 +607,6 @@ pub struct PaidSkillRunnerOffer {
     pub accepted_settlement_families: SettlementFamilies,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claim: Option<PaidSkillClaim>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub presentation: Option<PaidInvocationPresentation>,
 }
 
 impl PaidSkillRunnerOffer {
@@ -623,7 +619,6 @@ impl PaidSkillRunnerOffer {
             currency: terms.currency.clone(),
             accepted_settlement_families: terms.accepted_settlement_families.clone(),
             claim: terms.claim.clone(),
-            presentation: terms.presentation.clone(),
         }
     }
 }

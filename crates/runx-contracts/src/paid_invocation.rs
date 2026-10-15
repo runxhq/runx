@@ -428,114 +428,6 @@ impl RunxSchema for EmbeddedOfferRevisionRef {
     }
 }
 
-/// Caller-reported acquisition context. It is inert analytics metadata: it
-/// cannot select an offer, change price, move money, or affect execution.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct QuotePaidInvocationAttribution {
-    pub source: PaidInvocationAttributionSource,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub campaign: Option<PaidInvocationAttributionCampaign>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PaidInvocationAttributionConfidence {
-    SelfReported,
-    Trusted,
-}
-
-/// Attribution captured for one invocation. Confidence is assigned by Runx;
-/// callers can report source and campaign but cannot assert trust.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PaidInvocationAttribution {
-    pub source: PaidInvocationAttributionSource,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub campaign: Option<PaidInvocationAttributionCampaign>,
-    pub confidence: PaidInvocationAttributionConfidence,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(transparent)]
-pub struct PaidInvocationAttributionSource(String);
-
-impl PaidInvocationAttributionSource {
-    pub fn new(value: impl Into<String>) -> Option<Self> {
-        let value = value.into();
-        valid_attribution_label(&value, 64).then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for PaidInvocationAttributionSource {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| de::Error::custom("attribution source is invalid"))
-    }
-}
-
-impl RunxSchema for PaidInvocationAttributionSource {
-    fn json_schema() -> Value {
-        json!({
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-            "maxLength": 64,
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(transparent)]
-pub struct PaidInvocationAttributionCampaign(String);
-
-impl PaidInvocationAttributionCampaign {
-    pub fn new(value: impl Into<String>) -> Option<Self> {
-        let value = value.into();
-        valid_attribution_label(&value, 128).then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for PaidInvocationAttributionCampaign {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).ok_or_else(|| de::Error::custom("attribution campaign is invalid"))
-    }
-}
-
-impl RunxSchema for PaidInvocationAttributionCampaign {
-    fn json_schema() -> Value {
-        json!({
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-            "maxLength": 128,
-        })
-    }
-}
-
-fn valid_attribution_label(value: &str, maximum: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= maximum
-        && value.bytes().enumerate().all(|(index, byte)| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || (index > 0 && matches!(byte, b'.' | b'_' | b'-'))
-        })
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PaidInvocationPaymentState {
@@ -591,8 +483,6 @@ pub struct PaidInvocation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchaser_key: Option<PurchaserKey>,
     pub expires_at: IsoDateTime,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution: Option<PaidInvocationAttribution>,
     pub payment_state: PaidInvocationPaymentState,
     pub execution_state: PaidInvocationExecutionState,
     pub outcome_gate: PaidInvocationOutcomeGate,
@@ -604,27 +494,6 @@ pub struct PaidInvocation {
     pub payment_ref: Option<PaymentReference>,
     pub created_at: IsoDateTime,
     pub updated_at: IsoDateTime,
-}
-
-/// Vendor-authored presentation of one payable resource: what discovery and
-/// payment challenges show a buyer. It cannot select settlement targets or
-/// move money, and it never enters quote identity. Examples and schemas are
-/// carried as canonical JSON text so a listing that embeds them stays exactly
-/// comparable.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PaidInvocationPresentation {
-    pub service_name: BoundedString<120>,
-    pub description: BoundedString<500>,
-    pub media_type: BoundedString<200>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<BoundedString<64>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub icon_url: Option<BoundedString<2048>>,
-    pub input_example: BoundedString<65_536>,
-    pub output_example: BoundedString<65_536>,
-    pub input_schema: BoundedString<65_536>,
-    pub output_schema: BoundedString<65_536>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -673,10 +542,6 @@ pub struct QuotePaidInvocationRequest {
     /// The key the purchaser claims with; runx's purchase receipt binds it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchaser_key: Option<PurchaserKey>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribution: Option<QuotePaidInvocationAttribution>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub presentation: Option<PaidInvocationPresentation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -895,11 +760,6 @@ mod tests {
         assert!(CurrencyCode::new("usd").is_none());
         assert!(SettlementFamily::new("hosted.mock-v1").is_some());
         assert!(SettlementFamily::new("Hosted").is_none());
-        assert!(PaidInvocationAttributionSource::new("newsletter").is_some());
-        assert!(PaidInvocationAttributionSource::new("Newsletter").is_none());
-        assert!(PaidInvocationAttributionSource::new("newsletter/spring").is_none());
-        assert!(PaidInvocationAttributionCampaign::new("spring-launch").is_some());
-        assert!(PaidInvocationAttributionCampaign::new("-spring-launch").is_none());
     }
 
     #[test]

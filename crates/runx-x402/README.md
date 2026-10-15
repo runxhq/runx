@@ -15,3 +15,9 @@ and advertises its schema by reference, `{ "$ref": <published v1 $id> }`,
 so a challenge fits one portable HTTP header next to the vendor's own
 discovery declaration. Retry validation accepts only that reference; an
 inline schema document is refused.
+
+A retry commits to one offered requirement and to the `runx.invocation`
+binding, nothing else. The resource and any discovery declaration belong to
+whoever presented the challenge: a seller's own door may relay runx's
+challenge under its own resource, and the payment it forwards settles as that
+door.

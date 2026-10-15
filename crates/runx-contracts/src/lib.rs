@@ -205,21 +205,17 @@ pub use paid_invocation::{
     ExecutePaidInvocationResult, GET_PAID_INVOCATION, GET_PAID_INVOCATION_REQUEST_SCHEMA,
     GET_PAID_INVOCATION_RESULT_SCHEMA, GetPaidInvocationRequest, GetPaidInvocationResult,
     OFFER_REVISION_REF_SCHEMA, OfferRevisionRef, PAID_INVOCATION_SCHEMA, PURCHASE_SCHEMA,
-    PaidInvocation, PaidInvocationAdmission, PaidInvocationAttribution,
-    PaidInvocationAttributionCampaign, PaidInvocationAttributionConfidence,
-    PaidInvocationAttributionSource, PaidInvocationCanonicalizerVersion,
+    PaidInvocation, PaidInvocationAdmission, PaidInvocationCanonicalizerVersion,
     PaidInvocationExecutionState, PaidInvocationOutcomeGate, PaidInvocationPaymentChallenge,
     PaidInvocationPaymentState, PaidInvocationRefusalCode, PaidInvocationRefusalReason,
     PaymentIdempotencyBinding, PaymentReference, PortableAmountMinor, PrincipalReference, Purchase,
     QUOTE_PAID_INVOCATION, QUOTE_PAID_INVOCATION_REQUEST_SCHEMA,
-    QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationAdmission,
-    QuotePaidInvocationAttribution, QuotePaidInvocationRequest, QuotePaidInvocationResult,
-    SettlementFamilies, SettlementFamily, Sha256Digest,
+    QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationAdmission, QuotePaidInvocationRequest,
+    QuotePaidInvocationResult, SettlementFamilies, SettlementFamily, Sha256Digest,
 };
 pub use paid_invocation_fingerprint::{
     PAID_INVOCATION_REQUEST_FINGERPRINT_SCHEMA, fingerprint_cancel_paid_invocation_request,
     fingerprint_execute_paid_invocation_request, fingerprint_quote_paid_invocation_request,
-    quote_paid_invocation_binding,
 };
 pub use paid_skill_listing::{
     ClaimError, PAID_SKILL_LISTING_SCHEMA, PaidSkillClaim, PaidSkillExecutorBinding,
