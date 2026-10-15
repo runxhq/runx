@@ -87,9 +87,17 @@ fn prepared(quote: &str) -> String {
     )
 }
 
+/// A skill whose paid `transcribe` runner receives the quote it is bought at.
+fn quoted_manifest(marketplace: &str) -> String {
+    manifest(marketplace).replace(
+        "  transcribe:\n    default: true\n",
+        "  transcribe:\n    default: true\n    inputs:\n      quote: {type: object, required: true}\n",
+    )
+}
+
 #[test]
 fn a_prepared_offer_is_priced_by_a_free_runner_of_the_skill() -> Result<(), String> {
-    let parsed = validate(&manifest(&prepared("preview")))?;
+    let parsed = validate(&quoted_manifest(&prepared("preview")))?;
     let offer = &parsed
         .marketplace
         .ok_or_else(|| "missing marketplace".to_owned())?
@@ -100,13 +108,21 @@ fn a_prepared_offer_is_priced_by_a_free_runner_of_the_skill() -> Result<(), Stri
     assert_eq!(offer.quote.as_str(), "preview");
     assert_eq!(offer.amount_range.minimum_minor.get(), 5);
     assert_eq!(offer.amount_range.maximum_minor.get(), 20);
+
+    let Err(error) = validate(&manifest(&prepared("preview"))) else {
+        return Err("a paid runner without the quote input unexpectedly passed".to_owned());
+    };
+    assert!(
+        error.contains("declares the quote input it receives"),
+        "{error}"
+    );
     Ok(())
 }
 
 #[test]
 fn a_quote_names_another_runner_that_is_not_sold() -> Result<(), String> {
     for quote in ["missing", "transcribe"] {
-        let Err(error) = validate(&manifest(&prepared(quote))) else {
+        let Err(error) = validate(&quoted_manifest(&prepared(quote))) else {
             return Err(format!("quote {quote} unexpectedly passed"));
         };
         assert!(error.contains("must name another runner"), "{error}");
@@ -117,7 +133,7 @@ fn a_quote_names_another_runner_that_is_not_sold() -> Result<(), String> {
             "  offers:\n    preview:\n      amount_minor: 1\n      currency: USD\n      accepted_settlement_families: [x402]\n      input_schema_digest: {DIGEST_A}\n      output_schema_digest: {DIGEST_B}\n"
         ),
     );
-    let Err(error) = validate(&manifest(&sold_quote)) else {
+    let Err(error) = validate(&quoted_manifest(&sold_quote)) else {
         return Err("a sold quote runner unexpectedly passed".to_owned());
     };
     assert!(error.contains("a quote is free"), "{error}");

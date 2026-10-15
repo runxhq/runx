@@ -51,12 +51,18 @@ fn options(profile_document: String) -> IngestSkillOptions {
     }
 }
 
-/// A transcription priced by its input: the free `preview` runner quotes it.
+/// A transcription priced by its input: the free `preview` runner quotes it,
+/// and the paid runner receives the quote.
 fn prepared_profile() -> String {
-    profile(125).replace(
-        "      amount_minor: 125\n",
-        "      quote: preview\n      amount_range: {minimum_minor: 50, maximum_minor: 500}\n",
-    )
+    profile(125)
+        .replace(
+            "      amount_minor: 125\n",
+            "      quote: preview\n      amount_range: {minimum_minor: 50, maximum_minor: 500}\n",
+        )
+        .replace(
+            "  transcribe:\n    default: true\n",
+            "  transcribe:\n    default: true\n    inputs:\n      quote: {type: object, required: true}\n",
+        )
 }
 
 #[test]

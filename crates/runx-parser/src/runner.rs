@@ -303,6 +303,12 @@ fn validate_marketplace(
                 "marketplace.offers.{runner}.quote names {quote}, which is sold; a quote is free."
             )));
         }
+        // The paid runner receives the quote it is bought at.
+        if !runners[runner].inputs.contains_key("quote") {
+            return Err(FIELDS.validation_error(format!(
+                "marketplace.offers.{runner} is quoted, so runner {runner} declares the quote input it receives."
+            )));
+        }
     }
     Ok(Some(MarketplaceManifest { offers }))
 }
