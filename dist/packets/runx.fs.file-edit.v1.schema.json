@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/fs/file_edit/v1.json",
+  "x-runx-packet-id": "runx.fs.file_edit.v1",
+  "type": "object",
+  "required": [
+    "path",
+    "repo_root",
+    "replacements",
+    "before_digest",
+    "content_digest",
+    "bytes_written"
+  ],
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "replacements": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "before_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "bytes_written": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

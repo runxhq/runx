@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 34,
+  "capability_count": 35,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -164,6 +164,21 @@
         "kind": "wrapped",
         "output": "file_bundle_apply",
         "packet": "runx.fs.apply_bundle.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "fs.edit",
+      "owner": "runx-runtime/filesystem",
+      "scopes": [
+        "fs.write"
+      ],
+      "effect": "mutate",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "file_edit",
+        "packet": "runx.fs.file_edit.v1"
       },
       "execution_boundary": "native_capability"
     },

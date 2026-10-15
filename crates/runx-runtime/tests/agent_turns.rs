@@ -1094,16 +1094,15 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
         .ok_or("missing run_id")?
         .to_owned();
     let turn = opened(root, &started)?;
-    let write = |path: &str, contents: &str| -> TestResult<TurnCallResult> {
-        Ok(turn.call(
-            TURN,
-            "fs_write",
-            None,
-            input(serde_json::json!({"path": path, "contents": contents}))?,
-        )?)
+    let write = |inputs: serde_json::Value| -> TestResult<TurnCallResult> {
+        Ok(turn.call(TURN, "fs_write", None, input(inputs)?)?)
     };
 
-    let held = write("README.md", "new\n")?;
+    let held = write(serde_json::json!({
+        "path": "README.md",
+        "contents": "new\n",
+        "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
+    }))?;
     let gate = floor_gate(&held, "answer/0/tool")?;
     assert_eq!(gate.gate_type.as_deref(), Some("tool"));
     let payload = gate
@@ -1141,7 +1140,8 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
     assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
     assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
 
-    let declined = write("other.md", "no\n")?;
+    let declined =
+        write(serde_json::json!({"path": "other.md", "contents": "no\n", "create": true}))?;
     floor_gate(&declined, "answer/1/tool")?;
     paused.resume(serde_json::json!({"approvals": {"answer/1/tool": false}}))?;
     assert_eq!(statuses(&turn.status(TURN)?), ["completed", "refused"]);

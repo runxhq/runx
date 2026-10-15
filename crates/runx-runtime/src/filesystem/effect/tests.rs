@@ -3,7 +3,9 @@ use std::fs;
 use runx_contracts::JsonValue;
 
 use super::text_bundle_effect;
-use crate::filesystem::{TextBundle, TextFileWrite};
+use runx_contracts::sha256_prefixed;
+
+use crate::filesystem::{Expected, TextBundle, TextFileWrite};
 use crate::services::WorkspaceBounds;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -29,6 +31,17 @@ fn an_edit_shows_each_file_it_changes_creates_and_deletes() -> TestResult {
                 },
             ],
             deletes: vec!["gone.rs".to_owned()],
+            expected: [
+                (
+                    "kept.rs".to_owned(),
+                    Expected::Digest(sha256_prefixed(b"one\ntwo\n")),
+                ),
+                (
+                    "gone.rs".to_owned(),
+                    Expected::Digest(sha256_prefixed(b"gone\n")),
+                ),
+            ]
+            .into(),
         },
         WorkspaceBounds::Agent,
     )?
@@ -73,6 +86,7 @@ fn an_edit_shows_each_file_it_changes_creates_and_deletes() -> TestResult {
                 contents: "TOKEN=1".to_owned(),
             }],
             deletes: Vec::new(),
+            expected: Default::default(),
         },
         WorkspaceBounds::Agent,
     );

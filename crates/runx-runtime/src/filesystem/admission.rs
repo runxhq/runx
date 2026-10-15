@@ -21,6 +21,46 @@ pub(super) struct AdmittedBundle {
     pub(super) deletes: Vec<(String, PathBuf)>,
 }
 
+/// Each change is bound to what it was written against: a named digest is
+/// the content now there, and a file that must not exist does not. Within
+/// agent bounds a change to a file that exists names the digest it read, so
+/// an agent never replaces content it did not see.
+fn admit_expected(
+    operation: &str,
+    named: &str,
+    relative: &str,
+    absolute: &Path,
+    expected: Option<&super::Expected>,
+    bounds: WorkspaceBounds,
+) -> Result<(), RuntimeError> {
+    let current = match fs::read(absolute) {
+        Ok(bytes) => Some(runx_contracts::sha256_prefixed(&bytes)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(RuntimeError::io(
+                format!("reading {} before it changes", absolute.display()),
+                source,
+            ));
+        }
+    };
+    let refused = |message: String| Err(invalid_bundle(operation, message));
+    match (expected, current) {
+        (Some(super::Expected::Digest(digest)), Some(current)) if *digest == current => Ok(()),
+        (Some(super::Expected::Digest(_)), Some(current)) => refused(format!(
+            "{relative} changed since it was read; it is now {current}"
+        )),
+        (Some(super::Expected::Digest(_)), None) => refused(format!("{relative} no longer exists")),
+        (Some(super::Expected::Absent), Some(_)) => refused(format!(
+            "{relative} exists; read it and name the digest it replaces"
+        )),
+        (Some(super::Expected::Absent), None) | (None, None) => Ok(()),
+        (None, Some(_)) if bounds == WorkspaceBounds::Agent => refused(format!(
+            "{named} exists: an agent's change names the expected_digest of the content it read"
+        )),
+        (None, Some(_)) => Ok(()),
+    }
+}
+
 pub(super) enum PriorFile {
     Absent,
     File {
@@ -47,6 +87,22 @@ pub(super) fn admit_text_bundle(
     })?;
     if !root.is_dir() {
         return Err(invalid_bundle(operation, "bundle root must be a directory"));
+    }
+    let named = bundle
+        .writes
+        .iter()
+        .map(|write| write.path.as_str())
+        .chain(bundle.deletes.iter().map(String::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    if let Some(stray) = bundle
+        .expected
+        .keys()
+        .find(|path| !named.contains(path.as_str()))
+    {
+        return Err(invalid_bundle(
+            operation,
+            format!("{stray} is expected but the bundle does not change it"),
+        ));
     }
     let mut seen = std::collections::BTreeSet::new();
     let writes = admit_writes(operation, &root, bundle, bounds, &mut seen)?;
@@ -81,6 +137,14 @@ fn admit_writes(
             ));
         }
         reject_directory_target(operation, &absolute, &relative)?;
+        admit_expected(
+            operation,
+            &write.path,
+            &relative,
+            &absolute,
+            bundle.expected.get(&write.path),
+            bounds,
+        )?;
         writes.push(AdmittedWrite {
             relative,
             absolute,
@@ -102,6 +166,14 @@ fn admit_deletes(
         let (relative, absolute) = admit_file_target(operation, root, delete, bounds)?;
         admit_unique_path(operation, seen, &relative)?;
         reject_directory_target(operation, &absolute, &relative)?;
+        admit_expected(
+            operation,
+            delete,
+            &relative,
+            &absolute,
+            bundle.expected.get(delete),
+            bounds,
+        )?;
         deletes.push((relative, absolute));
     }
     Ok(deletes)

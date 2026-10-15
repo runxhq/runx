@@ -8,21 +8,27 @@ use super::capability::decode_typed_output;
 use super::{NativeInvocation, invalid_input, required_string, resolve_repo_root_for};
 use crate::RuntimeError;
 use crate::capability::LocalEffect;
-use crate::filesystem::{TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect};
+use crate::filesystem::{
+    Expected, TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect,
+};
 use crate::services::WorkspaceBounds;
 
 mod capability;
+#[cfg(test)]
+mod edit_tests;
 mod walk;
 
 pub(super) use capability::CAPABILITIES;
 use capability::{
-    FileApplyBundleInput, FileApplyBundleOutput, FileReadBundleInput, FileReadBundleOutput,
-    FileReadInput, FileReadOutput, FileWriteInput, FileWriteOutput, MissingFile,
+    BundleDelete, FileApplyBundleInput, FileApplyBundleOutput, FileEditInput, FileEditOutput,
+    FileReadBundleInput, FileReadBundleOutput, FileReadInput, FileReadOutput, FileWriteInput,
+    FileWriteOutput, MissingFile,
 };
 
 const READ_TOOL: &str = "fs.read";
 const READ_BUNDLE_TOOL: &str = "fs.read_bundle";
 const WRITE_TOOL: &str = "fs.write";
+const EDIT_TOOL: &str = "fs.edit";
 const APPLY_BUNDLE_TOOL: &str = "fs.apply_bundle";
 const MAX_FILE_READ_BYTES: usize = 8 * 1024 * 1024;
 const MAX_BUNDLE_FILES: usize = 16;
@@ -169,7 +175,7 @@ fn write(
     let report = apply_text_bundle(
         WRITE_TOOL,
         &root,
-        &write_bundle(invocation.inputs),
+        &write_bundle(invocation.inputs)?,
         invocation.bounds,
     )?;
     let write = report
@@ -208,15 +214,43 @@ fn write(
     })
 }
 
+/// What a change names it was written against: the digest it replaces, or
+/// that the file is new.
+fn expectation(
+    tool: &str,
+    path: &str,
+    expected_digest: Option<&String>,
+    create: bool,
+) -> Result<Option<Expected>, RuntimeError> {
+    match (expected_digest, create) {
+        (Some(_), true) => Err(invalid_input(
+            tool,
+            format!("{path} names an expected_digest or create, not both"),
+        )),
+        (Some(digest), false) => Ok(Some(Expected::Digest(digest.clone()))),
+        (None, true) => Ok(Some(Expected::Absent)),
+        (None, false) => Ok(None),
+    }
+}
+
 /// The one-file bundle `fs.write` applies.
-fn write_bundle(inputs: &FileWriteInput) -> TextBundle {
-    TextBundle {
+fn write_bundle(inputs: &FileWriteInput) -> Result<TextBundle, RuntimeError> {
+    Ok(TextBundle {
         writes: vec![TextFileWrite {
             path: inputs.path.clone(),
             contents: inputs.contents.clone(),
         }],
         deletes: Vec::new(),
-    }
+        expected: expectation(
+            WRITE_TOOL,
+            &inputs.path,
+            inputs.expected_digest.as_ref(),
+            inputs.create,
+        )?
+        .map(|expected| (inputs.path.clone(), expected))
+        .into_iter()
+        .collect(),
+    })
 }
 
 /// What `fs.write` would change.
@@ -233,14 +267,165 @@ fn write_effect(
     text_bundle_effect(
         WRITE_TOOL,
         &root,
-        &write_bundle(invocation.inputs),
+        &write_bundle(invocation.inputs)?,
+        invocation.bounds,
+    )
+}
+
+/// What `fs.edit` makes of its file: the file as it was read, and the text
+/// its edits produce, applied in order. Each `old` must occur once, or at
+/// least once with `replace_all`; anything else is refused with why.
+struct Edited {
+    root: std::path::PathBuf,
+    path: String,
+    before_digest: String,
+    contents: String,
+    replacements: u64,
+}
+
+fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, RuntimeError> {
+    let inputs = invocation.inputs;
+    let root = resolve_repo_root_for(
+        EDIT_TOOL,
+        &inputs.repo_root,
+        invocation.env,
+        invocation.skill_directory,
+        invocation.bounds,
+    )?;
+    let file = read_one(
+        EDIT_TOOL,
+        &root,
+        &inputs.path,
+        MAX_FILE_READ_BYTES,
+        invocation.bounds,
+    )?;
+    if file.truncated {
+        return Err(invalid_input(
+            EDIT_TOOL,
+            format!("{} is too large to edit", file.path),
+        ));
+    }
+    if inputs.edits.is_empty() {
+        return Err(invalid_input(EDIT_TOOL, "edits names at least one edit"));
+    }
+    let mut contents = file.contents;
+    let mut replacements = 0_u64;
+    for (index, edit) in inputs.edits.iter().enumerate() {
+        if edit.old.is_empty() {
+            return Err(invalid_input(
+                EDIT_TOOL,
+                format!("edit {index} names no old text"),
+            ));
+        }
+        if edit.old == edit.new {
+            return Err(invalid_input(
+                EDIT_TOOL,
+                format!("edit {index} changes nothing"),
+            ));
+        }
+        let found = contents.matches(edit.old.as_str()).count();
+        contents = match (found, edit.replace_all) {
+            (0, _) => {
+                return Err(invalid_input(
+                    EDIT_TOOL,
+                    format!("edit {index}: its old text is not in {}", file.path),
+                ));
+            }
+            (1, _) | (_, true) => contents.replace(edit.old.as_str(), &edit.new),
+            (found, false) => {
+                return Err(invalid_input(
+                    EDIT_TOOL,
+                    format!(
+                        "edit {index}: its old text occurs {found} times in {}; make it unique or set replace_all",
+                        file.path
+                    ),
+                ));
+            }
+        };
+        replacements += found as u64;
+    }
+    Ok(Edited {
+        root,
+        path: file.path,
+        before_digest: file.content_digest,
+        contents,
+        replacements,
+    })
+}
+
+/// The one-file bundle an edit applies, bound to the content it was read as.
+fn edit_bundle(edited: &Edited) -> TextBundle {
+    TextBundle {
+        writes: vec![TextFileWrite {
+            path: edited.path.clone(),
+            contents: edited.contents.clone(),
+        }],
+        deletes: Vec::new(),
+        expected: std::collections::BTreeMap::from([(
+            edited.path.clone(),
+            Expected::Digest(edited.before_digest.clone()),
+        )]),
+    }
+}
+
+fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutput, RuntimeError> {
+    let edited = edited(invocation)?;
+    apply_text_bundle(
+        EDIT_TOOL,
+        &edited.root,
+        &edit_bundle(&edited),
+        invocation.bounds,
+    )?;
+    Ok(FileEditOutput {
+        path: edited.path,
+        repo_root: edited.root.to_string_lossy().into_owned(),
+        replacements: edited.replacements,
+        before_digest: edited.before_digest,
+        content_digest: runx_contracts::sha256_prefixed(edited.contents.as_bytes()),
+        bytes_written: edited.contents.len() as u64,
+    })
+}
+
+/// What `fs.edit` would change.
+fn edit_effect(
+    invocation: &NativeInvocation<'_, FileEditInput>,
+) -> Result<Option<LocalEffect>, RuntimeError> {
+    let edited = edited(invocation)?;
+    text_bundle_effect(
+        EDIT_TOOL,
+        &edited.root,
+        &edit_bundle(&edited),
         invocation.bounds,
     )
 }
 
 /// The bundle `fs.apply_bundle` applies.
-fn files_bundle(inputs: &FileApplyBundleInput) -> TextBundle {
-    TextBundle {
+fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeError> {
+    let mut expected = std::collections::BTreeMap::new();
+    for write in &inputs.writes {
+        if let Some(expectation) = expectation(
+            APPLY_BUNDLE_TOOL,
+            &write.path,
+            write.expected_digest.as_ref(),
+            write.create,
+        )? {
+            expected.insert(write.path.clone(), expectation);
+        }
+    }
+    let mut deletes = Vec::with_capacity(inputs.deletes.len());
+    for delete in &inputs.deletes {
+        match delete {
+            BundleDelete::Path(path) => deletes.push(path.clone()),
+            BundleDelete::Bound(bound) => {
+                expected.insert(
+                    bound.path.clone(),
+                    Expected::Digest(bound.expected_digest.clone()),
+                );
+                deletes.push(bound.path.clone());
+            }
+        }
+    }
+    Ok(TextBundle {
         writes: inputs
             .writes
             .iter()
@@ -249,8 +434,9 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> TextBundle {
                 contents: write.contents.clone(),
             })
             .collect(),
-        deletes: inputs.deletes.clone(),
-    }
+        deletes,
+        expected,
+    })
 }
 
 fn apply_files(
@@ -266,7 +452,7 @@ fn apply_files(
     let report = apply_text_bundle(
         APPLY_BUNDLE_TOOL,
         &repo_root,
-        &files_bundle(invocation.inputs),
+        &files_bundle(invocation.inputs)?,
         invocation.bounds,
     )?;
     decode_typed_output(APPLY_BUNDLE_TOOL, JsonValue::Object(report))
@@ -286,7 +472,7 @@ fn files_effect(
     text_bundle_effect(
         APPLY_BUNDLE_TOOL,
         &repo_root,
-        &files_bundle(invocation.inputs),
+        &files_bundle(invocation.inputs)?,
         invocation.bounds,
     )
 }

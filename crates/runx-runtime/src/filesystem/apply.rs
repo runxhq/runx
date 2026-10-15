@@ -8,8 +8,15 @@ use super::admission::{AdmittedBundle, PriorFile};
 use super::invalid_bundle;
 use crate::RuntimeError;
 
-pub(super) fn apply_admitted_bundle(bundle: &AdmittedBundle) -> Result<(), RuntimeError> {
+/// Apply an admitted bundle. Each file is checked against its snapshot again
+/// immediately before it is replaced or removed, so content another writer
+/// put there since admission is never overwritten unseen.
+pub(super) fn apply_admitted_bundle(
+    bundle: &AdmittedBundle,
+    snapshots: &std::collections::BTreeMap<String, PriorFile>,
+) -> Result<(), RuntimeError> {
     for write in &bundle.writes {
+        unchanged(bundle, &write.relative, &write.absolute, snapshots)?;
         let parent = write.absolute.parent().ok_or_else(|| {
             invalid_bundle(&bundle.operation, "bundle write has no parent directory")
         })?;
@@ -29,7 +36,8 @@ pub(super) fn apply_admitted_bundle(bundle: &AdmittedBundle) -> Result<(), Runti
             permissions.as_ref(),
         )?;
     }
-    for (_, path) in &bundle.deletes {
+    for (relative, path) in &bundle.deletes {
+        unchanged(bundle, relative, path, snapshots)?;
         match fs::remove_file(path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -42,6 +50,38 @@ pub(super) fn apply_admitted_bundle(bundle: &AdmittedBundle) -> Result<(), Runti
         }
     }
     Ok(())
+}
+
+/// The file at `path` is still what its snapshot holds.
+fn unchanged(
+    bundle: &AdmittedBundle,
+    relative: &str,
+    path: &Path,
+    snapshots: &std::collections::BTreeMap<String, PriorFile>,
+) -> Result<(), RuntimeError> {
+    let now = match fs::read(path) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(RuntimeError::io(
+                format!("checking {} before it changes", path.display()),
+                source,
+            ));
+        }
+    };
+    let same = match (snapshots.get(relative), &now) {
+        (Some(PriorFile::Absent) | None, None) => true,
+        (Some(PriorFile::File { contents, .. }), Some(now)) => contents == now,
+        _ => false,
+    };
+    if same {
+        Ok(())
+    } else {
+        Err(invalid_bundle(
+            &bundle.operation,
+            format!("{relative} changed while the bundle was applied"),
+        ))
+    }
 }
 
 fn replace_file(

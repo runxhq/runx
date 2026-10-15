@@ -157,6 +157,7 @@ pub(crate) fn skill_change_effect(
                 .iter()
                 .map(|path| under(path.as_str()))
                 .collect(),
+            expected: Default::default(),
         },
         _ => crate::filesystem::TextBundle::default(),
     };

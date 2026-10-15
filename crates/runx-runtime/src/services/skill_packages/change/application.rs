@@ -113,7 +113,11 @@ pub(super) fn admit_skill_change(
         .map(|delete| admit_delete(target_dir, mode, delete.as_str()))
         .collect::<Result<Vec<_>, RuntimeError>>()?;
     Ok(AdmittedSkillChange {
-        bundle: TextBundle { writes, deletes },
+        bundle: TextBundle {
+            writes,
+            deletes,
+            expected: Default::default(),
+        },
     })
 }
 
@@ -295,6 +299,7 @@ pub(super) fn record_application(
         &TextBundle {
             writes: vec![write],
             deletes: Vec::new(),
+            expected: Default::default(),
         },
         crate::services::WorkspaceBounds::Operator,
     )?;

@@ -121,6 +121,18 @@ pub(crate) struct TextFileWrite {
 pub(crate) struct TextBundle {
     pub(crate) writes: Vec<TextFileWrite>,
     pub(crate) deletes: Vec<String>,
+    /// What each write or delete was written against, by the path as it is
+    /// named: the content it replaces, or that the file does not exist.
+    pub(crate) expected: std::collections::BTreeMap<String, Expected>,
+}
+
+/// What a change was written against.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Expected {
+    /// The digest of the content it replaces, as its writer read it.
+    Digest(String),
+    /// The file must not exist.
+    Absent,
 }
 
 /// Apply a bounded text bundle beneath one existing workspace root.
@@ -154,7 +166,7 @@ pub(crate) fn apply_text_bundle_verified<T>(
     let admitted = admit_text_bundle(operation, root, bundle, bounds)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created_directories = missing_parent_directories(&admitted)?;
-    let apply_result = apply_admitted_bundle(&admitted).and_then(|()| verify());
+    let apply_result = apply_admitted_bundle(&admitted, &snapshots).and_then(|()| verify());
     let verified = match apply_result {
         Ok(verified) => verified,
         Err(error) => {
@@ -205,6 +217,7 @@ mod bundle_tests {
                     contents: "new".to_owned(),
                 }],
                 deletes: vec!["old.txt".to_owned()],
+                expected: Default::default(),
             },
             WorkspaceBounds::Operator,
         )?;
@@ -240,6 +253,7 @@ mod bundle_tests {
                     contents: "new".to_owned(),
                 }],
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             WorkspaceBounds::Operator,
         )?;
@@ -265,6 +279,7 @@ mod bundle_tests {
                     contents: "blocked".to_owned(),
                 }],
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             WorkspaceBounds::Operator,
         );
@@ -302,6 +317,7 @@ mod bundle_tests {
                     },
                 ],
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             WorkspaceBounds::Operator,
         );
@@ -335,6 +351,7 @@ mod bundle_tests {
                     },
                 ],
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             WorkspaceBounds::Operator,
             || {
@@ -371,6 +388,7 @@ mod bundle_tests {
                         contents: "x".to_owned(),
                     }],
                     deletes: Vec::new(),
+                    expected: Default::default(),
                 },
                 WorkspaceBounds::Agent,
             );
@@ -383,6 +401,7 @@ mod bundle_tests {
             &TextBundle {
                 writes: Vec::new(),
                 deletes: vec![".git/config".to_owned()],
+                expected: Default::default(),
             },
             WorkspaceBounds::Agent,
         );
@@ -396,6 +415,7 @@ mod bundle_tests {
                     contents: "TOKEN=".to_owned(),
                 }],
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             WorkspaceBounds::Agent,
         )?;

@@ -450,6 +450,18 @@ nested Git worktree unless the request names a path inside it. `git.log`,
 one file at a revision, and patches between revisions or against the working
 tree, all bounded.
 
+`fs.edit` replaces exact text in one file, `{path, edits: [{old, new,
+replace_all?}]}` applied in order: each `old` occurs once, or at least once with
+`replace_all`, or the call is refused with why. Every change is bound to what it
+was written against: `fs.write` and each `fs.apply_bundle` write take the
+`expected_digest` a read returned (`content_digest`) for the file they replace,
+or `create: true` for a file that must not exist, and a delete may be `{path,
+expected_digest}`; `fs.edit` is bound to the content it read. A change whose
+file differs from what it names is refused, naming it, and each file is checked
+again immediately before its atomic rename. Within agent bounds a change to a
+file that exists must name its digest, so an agent never replaces content it
+did not read.
+
 **Agent bounds.** A run whose authority sets `agent_bounds`, as a host does for
 a run its own agent works in, keeps every native file, git, command and
 authoring tool inside its workspace. A root outside it, or inside `.git` or
@@ -463,8 +475,8 @@ with its user's rights.
 
 **The approval floor.** In the same run, at any depth, every step that changes
 the workspace or runs a process waits on an approval of gate type `tool`
-before it is claimed: a native tool that changes something (`fs.write`,
-`fs.apply_bundle`, `runx.skill.apply`, `command.execute`), a catalog tool runx
+before it is claimed: a native tool that changes something (`fs.edit`,
+`fs.write`, `fs.apply_bundle`, `runx.skill.apply`, `command.execute`), a catalog tool runx
 runs as a process, and a graph's process step, whether an agent's turn call
 made it or a skill's graph reached it. Its gate carries exactly what executes:
 for an edit each file with its unified diff and the digests of what it replaces

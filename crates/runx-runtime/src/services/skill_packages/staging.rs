@@ -43,6 +43,7 @@ impl InlineCandidateStage {
             &TextBundle {
                 writes,
                 deletes: Vec::new(),
+                expected: Default::default(),
             },
             crate::services::WorkspaceBounds::Operator,
         )?;
@@ -299,7 +300,11 @@ fn rebase_bundle(
                 })
         })
         .collect::<Result<Vec<_>, RuntimeError>>()?;
-    Ok(TextBundle { writes, deletes })
+    Ok(TextBundle {
+        writes,
+        deletes,
+        expected: Default::default(),
+    })
 }
 
 impl Drop for CandidateStage {

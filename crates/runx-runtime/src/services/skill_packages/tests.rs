@@ -640,6 +640,7 @@ fn skill_authoring_candidate_stage_preserves_relative_sibling_skill_context()
         &TextBundle {
             writes: Vec::new(),
             deletes: Vec::new(),
+            expected: Default::default(),
         },
     )?;
 
