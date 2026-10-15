@@ -32,3 +32,51 @@ pub struct MaturitySignals {
     /// At least one passing case targets a graph that includes this skill.
     pub has_passing_graph_case: bool,
 }
+
+impl MaturityTier {
+    /// The tier a skill's harness evidence earns: nothing passing is alpha,
+    /// every declared case passing is beta, and stable adds a passing case
+    /// that runs the skill inside a graph.
+    #[must_use]
+    pub fn from_signals(signals: MaturitySignals) -> Self {
+        if signals.declared_case_count == 0 || !signals.all_declared_cases_passed {
+            Self::Alpha
+        } else if signals.has_passing_graph_case {
+            Self::Stable
+        } else {
+            Self::Beta
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn harness_evidence_decides_the_tier() {
+        let signals = |declared_case_count, all_declared_cases_passed, has_passing_graph_case| {
+            MaturitySignals {
+                declared_case_count,
+                all_declared_cases_passed,
+                has_passing_graph_case,
+            }
+        };
+        assert_eq!(
+            MaturityTier::from_signals(signals(0, true, true)),
+            MaturityTier::Alpha
+        );
+        assert_eq!(
+            MaturityTier::from_signals(signals(3, false, true)),
+            MaturityTier::Alpha
+        );
+        assert_eq!(
+            MaturityTier::from_signals(signals(3, true, false)),
+            MaturityTier::Beta
+        );
+        assert_eq!(
+            MaturityTier::from_signals(signals(3, true, true)),
+            MaturityTier::Stable
+        );
+    }
+}

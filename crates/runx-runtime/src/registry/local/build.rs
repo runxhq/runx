@@ -84,7 +84,7 @@ pub(super) fn build_registry_skill_version(
         paid_listing,
         runner_names: metadata.runner_names,
         trust_tier: defaults.trust_tier,
-        maturity: initial_registry_maturity(),
+        maturity: options.maturity,
         catalog_kind: Some(metadata.catalog_kind),
         catalog_audience: Some(metadata.catalog_audience),
         catalog_visibility: Some(metadata.catalog_visibility),
@@ -97,12 +97,6 @@ pub(super) fn build_registry_skill_version(
         created_at: defaults.created_at,
         updated_at: now_iso8601(),
     })
-}
-
-fn initial_registry_maturity() -> MaturityTier {
-    // Alpha is the creation floor. Publish and harness-seal events recompute
-    // maturity from evidence; reads never mutate it.
-    MaturityTier::Alpha
 }
 
 struct RegistryPackageDigests {

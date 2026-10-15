@@ -281,6 +281,21 @@ impl RegistryPublishHarnessReport {
     pub fn failed(&self) -> bool {
         self.status == "failed"
     }
+
+    /// The maturity this harness run earns, as hosted publication decides it.
+    #[must_use]
+    pub fn maturity(&self) -> runx_contracts::maturity::MaturityTier {
+        let passed = self.status == "passed";
+        runx_contracts::maturity::MaturityTier::from_signals(
+            runx_contracts::maturity::MaturitySignals {
+                declared_case_count: self.case_count,
+                all_declared_cases_passed: passed
+                    && self.case_count > 0
+                    && self.assertion_error_count == 0,
+                has_passing_graph_case: passed && self.graph_case_count > 0,
+            },
+        )
+    }
 }
 
 impl Default for RegistryPublishHarnessReport {

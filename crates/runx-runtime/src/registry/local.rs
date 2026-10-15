@@ -35,6 +35,8 @@ pub struct IngestSkillOptions {
     pub trust_tier: Option<TrustTier>,
     pub attestations: Vec<RegistryAttestation>,
     pub source_metadata: Option<RegistrySourceMetadata>,
+    /// The maturity the publish harness earned; alpha, the floor, otherwise.
+    pub maturity: runx_contracts::maturity::MaturityTier,
     pub upsert: bool,
 }
 
@@ -334,7 +336,11 @@ pub fn publish_skill_markdown(
     markdown: &str,
     options: PublishSkillMarkdownOptions,
 ) -> Result<PublishSkillMarkdownResult, LocalRegistryError> {
-    let result = create_registry_skill_version(store, markdown, options.ingest)?;
+    let ingest = IngestSkillOptions {
+        maturity: options.harness.maturity(),
+        ..options.ingest
+    };
+    let result = create_registry_skill_version(store, markdown, ingest)?;
     let link = runx_link_for_version(&result.record, options.registry_url.as_deref())?;
     Ok(PublishSkillMarkdownResult {
         status: if result.created {

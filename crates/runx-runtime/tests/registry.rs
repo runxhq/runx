@@ -1,8 +1,9 @@
+use runx_contracts::maturity::MaturityTier;
 use runx_runtime::registry::{
     FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
-    PublishStatus, RegistryResolveOptions, RegistrySearchOptions, TrustTier, ingest_skill_markdown,
-    publish_skill_markdown, read_registry_skill, resolve_registry_skill, resolve_runx_link,
-    search_registry_with_options,
+    PublishStatus, RegistryPublishHarnessReport, RegistryResolveOptions, RegistrySearchOptions,
+    TrustTier, ingest_skill_markdown, publish_skill_markdown, read_registry_skill,
+    resolve_registry_skill, resolve_runx_link, search_registry_with_options,
 };
 use tempfile::tempdir;
 
@@ -310,6 +311,48 @@ harness:
     .ok_or_else(|| std::io::Error::other("missing internal registry resolution"))?;
     assert_eq!(resolved.skill_id, "runx/internal-pay-step");
     assert_eq!(resolved.profile_document.as_deref(), Some(profile_document));
+    Ok(())
+}
+
+/// A version records the maturity its publish harness earned, as hosted
+/// publication records it: stable needs every case passing and a graph case.
+#[test]
+fn local_registry_publish_records_the_harness_maturity() -> Result<(), Box<dyn std::error::Error>> {
+    let markdown = include_str!("../../../fixtures/skills/echo/SKILL.md");
+    let harness = |status: &str, graph_case_count| RegistryPublishHarnessReport {
+        status: status.to_owned(),
+        case_count: 2,
+        assertion_error_count: 0,
+        assertion_errors: Vec::new(),
+        case_names: vec!["happy".to_owned(), "stop".to_owned()],
+        receipt_ids: Vec::new(),
+        graph_case_count,
+    };
+    for (report, expected) in [
+        (harness("passed", 1), MaturityTier::Stable),
+        (harness("passed", 0), MaturityTier::Beta),
+        (harness("failed", 1), MaturityTier::Alpha),
+        (
+            RegistryPublishHarnessReport::not_declared(),
+            MaturityTier::Alpha,
+        ),
+    ] {
+        let temp = tempdir()?;
+        let published = publish_skill_markdown(
+            &FileRegistryStore::new(temp.path()),
+            markdown,
+            PublishSkillMarkdownOptions {
+                ingest: IngestSkillOptions {
+                    owner: Some("acme".to_owned()),
+                    version: Some("1.0.0".to_owned()),
+                    ..IngestSkillOptions::default()
+                },
+                harness: report,
+                ..PublishSkillMarkdownOptions::default()
+            },
+        )?;
+        assert_eq!(published.record.maturity, expected);
+    }
     Ok(())
 }
 
