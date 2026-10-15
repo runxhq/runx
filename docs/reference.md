@@ -214,8 +214,8 @@ naming another tool or input is refused. A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
 runx cannot confirm stays pending on its own retry request, which says whether
-sending it again is safe (`resend`: a read, or a write its provider
-deduplicates); a safe one runs again with the same input when `runx resume`
+sending it again is safe (`resend`: a read, a journaled file change, or a write
+its provider deduplicates); a safe one runs again with the same input when `runx resume`
 answers it under `approvals` with `{"retry": true}`, and an unsafe one is never
 resent: check what it did, then close the run. A bounded retry (one with
 `retry_after_seconds`) is runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
@@ -461,6 +461,13 @@ file differs from what it names is refused, naming it, and each file is checked
 again immediately before its atomic rename. Within agent bounds a change to a
 file that exists must name its digest, so an agent never replaces content it
 did not read.
+
+Every change a run makes through these tools is journaled in the run's kernel
+state: before a bundle's first rename runx records what each file held and the
+directories it will create, and after it, how it ended. A bundle a crash left
+begun is rolled back by the run's next driver, or by its close, so a bundle is
+applied whole or not at all. Each tool's output names its `journal` entry and
+each file's `before_digest`.
 
 **Agent bounds.** A run whose authority sets `agent_bounds`, as a host does for
 a run its own agent works in, keeps every native file, git, command and

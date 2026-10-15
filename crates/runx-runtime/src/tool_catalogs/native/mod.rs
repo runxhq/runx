@@ -221,10 +221,17 @@ pub(crate) fn is_core_tool(tool_ref: &str) -> bool {
     definition(tool_ref).is_some()
 }
 
-/// Whether the core tool `tool_ref` only reads, so a call of it that may
-/// have run can run again unseen.
-pub(crate) fn only_reads(tool_ref: &str) -> bool {
-    definition(tool_ref).is_some_and(|capability| !capability.definition().effect.mutating())
+/// Whether a call of core tool `tool_ref` that may have run can run again
+/// unseen: it only reads, or it changes files in runx's own process, where
+/// every change is journaled and bound to what it replaces, so a resend
+/// either finds it rolled back or is refused or repeats the same bytes. A
+/// tool that runs a process cannot.
+pub(crate) fn resends_safely(tool_ref: &str) -> bool {
+    definition(tool_ref).is_some_and(|capability| {
+        !capability.definition().effect.mutating()
+            || capability.execution_boundary()
+                == runx_contracts::ExecutionBoundaryKind::NativeCapability
+    })
 }
 
 pub(crate) fn execution_boundary(

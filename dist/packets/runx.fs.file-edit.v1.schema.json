@@ -35,6 +35,10 @@
     "bytes_written": {
       "type": "integer",
       "minimum": 0
+    },
+    "journal": {
+      "type": "integer",
+      "minimum": 1
     }
   },
   "additionalProperties": false

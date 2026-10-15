@@ -46,6 +46,7 @@ impl InlineCandidateStage {
                 expected: Default::default(),
             },
             crate::services::WorkspaceBounds::Operator,
+            None,
         )?;
         Ok(stage)
     }
@@ -228,6 +229,7 @@ impl CandidateStage {
             &stage.skill_dir,
             &staged,
             crate::services::WorkspaceBounds::Operator,
+            None,
         )?;
         Ok(stage)
     }

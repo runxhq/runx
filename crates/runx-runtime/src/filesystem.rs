@@ -10,8 +10,10 @@ use crate::services::WorkspaceBounds;
 mod admission;
 mod apply;
 mod effect;
+mod journal;
 
 pub(crate) use effect::text_bundle_effect;
+pub(crate) use journal::{Journal, recover};
 
 use admission::{admit_file_target, admit_text_bundle, missing_parent_directories, snapshot_paths};
 use apply::{apply_admitted_bundle, bundle_report, rollback_paths};
@@ -149,23 +151,40 @@ pub(crate) fn apply_text_bundle(
     root: &Path,
     bundle: &TextBundle,
     bounds: WorkspaceBounds,
+    journal: Option<&Journal>,
 ) -> Result<JsonObject, RuntimeError> {
-    apply_text_bundle_verified(operation, root, bundle, bounds, || Ok(()))
+    apply_text_bundle_verified(operation, root, bundle, bounds, journal, || Ok(()))
         .map(|(report, ())| report)
 }
 
 /// Apply a bundle and keep its rollback snapshot live through caller-owned
 /// verification. A failed postcondition restores the entire admitted bundle.
+/// With a `journal`, the bundle's before-images are recorded before its
+/// first rename and its outcome after, so a crash mid-bundle is rolled back
+/// by the run's next driver.
 pub(crate) fn apply_text_bundle_verified<T>(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
     bounds: WorkspaceBounds,
+    journal: Option<&Journal>,
     verify: impl FnOnce() -> Result<T, RuntimeError>,
 ) -> Result<(JsonObject, T), RuntimeError> {
     let admitted = admit_text_bundle(operation, root, bundle, bounds)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created_directories = missing_parent_directories(&admitted)?;
+    let journaled = journal
+        .map(|journal| {
+            journal
+                .begin(
+                    &admitted.operation,
+                    &admitted.root,
+                    &snapshots,
+                    &created_directories,
+                )
+                .map(|bundle| (journal, bundle))
+        })
+        .transpose()?;
     let apply_result = apply_admitted_bundle(&admitted, &snapshots).and_then(|()| verify());
     let verified = match apply_result {
         Ok(verified) => verified,
@@ -177,6 +196,13 @@ pub(crate) fn apply_text_bundle_verified<T>(
                 &created_directories,
             )
             .err();
+            // A bundle whose rollback failed stays begun, for the next
+            // driver to roll back.
+            if rollback_error.is_none()
+                && let Some((journal, bundle)) = journaled
+            {
+                journal.end(bundle, journal::Outcome::RolledBack)?;
+            }
             return Err(match rollback_error {
                 Some(rollback) => invalid_bundle(
                     operation,
@@ -186,7 +212,13 @@ pub(crate) fn apply_text_bundle_verified<T>(
             });
         }
     };
-    Ok((bundle_report(&admitted, &snapshots), verified))
+    if let Some((journal, bundle)) = journaled {
+        journal.end(bundle, journal::Outcome::Applied)?;
+    }
+    Ok((
+        bundle_report(&admitted, &snapshots, journaled.map(|(_, bundle)| bundle)),
+        verified,
+    ))
 }
 
 fn invalid_bundle(operation: &str, message: impl Into<String>) -> RuntimeError {
@@ -220,6 +252,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Operator,
+            None,
         )?;
 
         assert_eq!(
@@ -256,6 +289,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Operator,
+            None,
         )?;
 
         assert_eq!(fs::metadata(script)?.permissions().mode() & 0o777, 0o755);
@@ -282,6 +316,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Operator,
+            None,
         );
 
         assert!(result.is_err());
@@ -320,6 +355,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Operator,
+            None,
         );
 
         fs::set_permissions(&blocked, fs::Permissions::from_mode(0o755))?;
@@ -354,6 +390,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Operator,
+            None,
             || {
                 Err::<(), _>(super::invalid_bundle(
                     "runx.skill.apply",
@@ -391,6 +428,7 @@ mod bundle_tests {
                     expected: Default::default(),
                 },
                 WorkspaceBounds::Agent,
+                None,
             );
             assert!(result.is_err(), "{path} is refused");
             assert!(!temp.path().join(path).exists(), "{path} was not written");
@@ -404,6 +442,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Agent,
+            None,
         );
         assert!(deleted.is_err(), "deleting runx or git state is refused");
         apply_text_bundle(
@@ -418,6 +457,7 @@ mod bundle_tests {
                 expected: Default::default(),
             },
             WorkspaceBounds::Agent,
+            None,
         )?;
         Ok(())
     }

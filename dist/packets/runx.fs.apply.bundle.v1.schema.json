@@ -16,7 +16,8 @@
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "bytes_written": { "type": "integer", "minimum": 0 },
-          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
         },
         "additionalProperties": false
       }
@@ -28,11 +29,13 @@
         "required": ["path", "status"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
-          "status": { "enum": ["deleted", "already_absent"] }
+          "status": { "enum": ["deleted", "already_absent"] },
+          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
         },
         "additionalProperties": false
       }
-    }
+    },
+    "journal": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }

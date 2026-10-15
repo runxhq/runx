@@ -302,6 +302,7 @@ pub(super) fn record_application(
             expected: Default::default(),
         },
         crate::services::WorkspaceBounds::Operator,
+        None,
     )?;
     Ok(())
 }

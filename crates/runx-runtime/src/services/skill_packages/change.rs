@@ -126,7 +126,8 @@ pub(crate) fn apply_skill_change(
         return Ok(result);
     }
     let candidate = validate_candidate_stage(&target, change, &admitted, env, effects)?;
-    let result = commit_candidate(&target, change, admitted, &candidate)?;
+    let journal = crate::filesystem::Journal::of_run(env, repo_root)?;
+    let result = commit_candidate(&target, change, admitted, &candidate, journal.as_ref())?;
     drop(candidate);
     Ok(result)
 }
@@ -301,6 +302,7 @@ fn commit_candidate(
     change: &SkillChangeBundle,
     admitted: AdmittedSkillChange,
     candidate: &ValidatedCandidate,
+    journal: Option<&crate::filesystem::Journal>,
 ) -> Result<SkillApplyResult, RuntimeError> {
     let _lock = SkillApplicationLock::acquire(&target.paths, &target.relative)?;
     ensure_target_unchanged(&target.path, &candidate.stage.base_digest)?;
@@ -317,6 +319,7 @@ fn commit_candidate(
         &target.repo_root,
         &admitted.bundle,
         crate::services::WorkspaceBounds::Operator,
+        journal,
         || {
             let applied = package_snapshot(&target.path)?;
             if applied.digest != candidate.snapshot.digest {

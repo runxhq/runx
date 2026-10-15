@@ -87,7 +87,7 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
     )?;
 
     fs::write(target.path.join("operator-note.txt"), "concurrent edit\n")?;
-    let result = commit_candidate(&target, &change, admitted, &candidate);
+    let result = commit_candidate(&target, &change, admitted, &candidate, None);
 
     assert!(result.is_err());
     assert_eq!(

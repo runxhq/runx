@@ -279,6 +279,8 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     let record = log
         .load()?
         .ok_or_else(|| invalid(format!("run {run_id} has no record in this workspace")))?;
+    // A closed run leaves no change half-applied.
+    crate::filesystem::recover(log.store(), run_id)?;
     let Origin::Run(started) = &record.origin else {
         return Err(invalid("a child run closes only with its parent"));
     };

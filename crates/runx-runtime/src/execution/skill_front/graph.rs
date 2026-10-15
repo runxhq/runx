@@ -74,6 +74,9 @@ impl BoundRun {
             .as_deref()
             .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
         let log = run_log(request, &self.workspace, &self.manifest.skill)?;
+        // A change a crash left half-applied is rolled back before the run
+        // goes further.
+        crate::filesystem::recover(log.store(), log.run_id())?;
         let existing = log.load()?;
         let waiting = waiting_requests(log.store(), log.run_id())?;
         host.check_turn(log.run_id(), &waiting)?;

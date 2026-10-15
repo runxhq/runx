@@ -9,7 +9,7 @@ use super::{NativeInvocation, invalid_input, required_string, resolve_repo_root_
 use crate::RuntimeError;
 use crate::capability::LocalEffect;
 use crate::filesystem::{
-    Expected, TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect,
+    Expected, Journal, TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect,
 };
 use crate::services::WorkspaceBounds;
 
@@ -177,6 +177,7 @@ fn write(
         &root,
         &write_bundle(invocation.inputs)?,
         invocation.bounds,
+        Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     let write = report
         .get("writes")
@@ -211,7 +212,20 @@ fn write(
         repo_root: root.to_string_lossy().into_owned(),
         bytes_written,
         sha256: sha256.to_owned(),
+        before_digest: write
+            .get("before_digest")
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned),
+        journal: journal_of(&report),
     })
+}
+
+/// The run's journal entry a bundle report names.
+fn journal_of(report: &runx_contracts::JsonObject) -> Option<u64> {
+    match report.get("journal") {
+        Some(JsonValue::Number(JsonNumber::U64(journal))) => Some(*journal),
+        _ => None,
+    }
 }
 
 /// What a change names it was written against: the digest it replaces, or
@@ -370,11 +384,12 @@ fn edit_bundle(edited: &Edited) -> TextBundle {
 
 fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutput, RuntimeError> {
     let edited = edited(invocation)?;
-    apply_text_bundle(
+    let report = apply_text_bundle(
         EDIT_TOOL,
         &edited.root,
         &edit_bundle(&edited),
         invocation.bounds,
+        Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     Ok(FileEditOutput {
         path: edited.path,
@@ -383,6 +398,7 @@ fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutp
         before_digest: edited.before_digest,
         content_digest: runx_contracts::sha256_prefixed(edited.contents.as_bytes()),
         bytes_written: edited.contents.len() as u64,
+        journal: journal_of(&report),
     })
 }
 
@@ -454,6 +470,7 @@ fn apply_files(
         &repo_root,
         &files_bundle(invocation.inputs)?,
         invocation.bounds,
+        Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     decode_typed_output(APPLY_BUNDLE_TOOL, JsonValue::Object(report))
 }

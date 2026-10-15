@@ -167,6 +167,12 @@ pub(super) struct FileWriteOutput {
     pub(super) repo_root: String,
     pub(super) bytes_written: u64,
     pub(super) sha256: String,
+    /// What the file held before, when it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) before_digest: Option<String>,
+    /// The run's journal entry holding what it held.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) journal: Option<u64>,
 }
 
 impl CapabilityOutput for FileWriteOutput {}
@@ -208,6 +214,9 @@ pub(super) struct FileEditOutput {
     /// The digest of what the file now holds.
     pub(super) content_digest: String,
     pub(super) bytes_written: u64,
+    /// The run's journal entry holding what it held.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) journal: Option<u64>,
 }
 
 impl CapabilityOutput for FileEditOutput {}
@@ -220,6 +229,9 @@ pub(super) struct FileApplyBundleOutput {
     pub(super) delete_count: u64,
     pub(super) writes: Vec<AppliedWrite>,
     pub(super) deletes: Vec<AppliedDelete>,
+    /// The run's journal entry holding what each file held before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) journal: Option<u64>,
 }
 
 impl CapabilityOutput for FileApplyBundleOutput {}
@@ -230,6 +242,9 @@ pub(super) struct AppliedWrite {
     pub(super) path: String,
     pub(super) bytes_written: u64,
     pub(super) sha256: String,
+    /// What the file held before, when it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) before_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
@@ -237,6 +252,9 @@ pub(super) struct AppliedWrite {
 pub(super) struct AppliedDelete {
     pub(super) path: String,
     pub(super) status: String,
+    /// What the file held before, when it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) before_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]

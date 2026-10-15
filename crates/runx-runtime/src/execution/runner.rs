@@ -82,9 +82,9 @@ pub(crate) fn unsettled_retry(
 
 /// Whether a step that reaches the world can be sent again if it never
 /// settles, decided before it runs so its retry says so even after a crash:
-/// a core tool that only reads, or an operation every connector that may
-/// serve it resends safely. A process, a tool that changes something, and
-/// anything runx cannot resolve here, cannot.
+/// a core tool that resends safely, or an operation every connector that may
+/// serve it resends safely. A process, and anything runx cannot resolve
+/// here, cannot.
 pub(crate) fn resend_of(
     step: &runx_parser::GraphStep,
     graph_dir: &Path,
@@ -92,7 +92,9 @@ pub(crate) fn resend_of(
 ) -> runx_contracts::RetryResend {
     use runx_parser::{StepKind, ToolTarget};
     let safe = match &step.kind {
-        StepKind::Tool(ToolTarget::Catalog(tool)) => crate::tool_catalogs::native::only_reads(tool),
+        StepKind::Tool(ToolTarget::Catalog(tool)) => {
+            crate::tool_catalogs::native::resends_safely(tool)
+        }
         StepKind::Operation(target) => operation_resends(step, target, graph_dir, env),
         _ => false,
     };

@@ -171,35 +171,69 @@ pub(super) fn rollback_paths(
     created_directories: &[PathBuf],
 ) -> Result<(), RuntimeError> {
     for (relative, prior) in snapshots.iter().rev() {
-        let path = root.join(relative);
         match prior {
-            PriorFile::Absent => match fs::remove_file(&path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(source) => {
-                    return Err(RuntimeError::io(
-                        format!("rolling back {}", path.display()),
-                        source,
-                    ));
-                }
-            },
+            PriorFile::Absent => restore_file(operation, &root.join(relative), None, None)?,
             PriorFile::File {
                 contents,
                 permissions,
-            } => {
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(|source| {
-                        RuntimeError::io(
-                            format!("restoring bundle directory {}", parent.display()),
-                            source,
-                        )
-                    })?;
-                }
-                replace_file(operation, &path, contents, Some(permissions))?;
-            }
+            } => replace_restored(operation, &root.join(relative), contents, Some(permissions))?,
         }
     }
-    for directory in created_directories.iter().rev() {
+    remove_created_directories(created_directories)
+}
+
+/// Put back what a file held: its contents and mode, or its absence.
+pub(super) fn restore_file(
+    operation: &str,
+    path: &Path,
+    contents: Option<&[u8]>,
+    mode: Option<u32>,
+) -> Result<(), RuntimeError> {
+    let Some(contents) = contents else {
+        return match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(RuntimeError::io(
+                format!("rolling back {}", path.display()),
+                source,
+            )),
+        };
+    };
+    replace_restored(operation, path, contents, permissions_of(mode).as_ref())
+}
+
+fn replace_restored(
+    operation: &str,
+    path: &Path,
+    contents: &[u8],
+    permissions: Option<&fs::Permissions>,
+) -> Result<(), RuntimeError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| {
+            RuntimeError::io(
+                format!("restoring bundle directory {}", parent.display()),
+                source,
+            )
+        })?;
+    }
+    replace_file(operation, path, contents, permissions)
+}
+
+#[cfg(unix)]
+fn permissions_of(mode: Option<u32>) -> Option<fs::Permissions> {
+    use std::os::unix::fs::PermissionsExt;
+    mode.map(fs::Permissions::from_mode)
+}
+
+#[cfg(not(unix))]
+fn permissions_of(_mode: Option<u32>) -> Option<fs::Permissions> {
+    None
+}
+
+/// Remove the directories a bundle created, deepest first, keeping any that
+/// hold something else now.
+pub(super) fn remove_created_directories(directories: &[PathBuf]) -> Result<(), RuntimeError> {
+    for directory in directories.iter().rev() {
         match fs::remove_dir(directory) {
             Ok(()) => {}
             Err(error)
@@ -221,12 +255,22 @@ pub(super) fn rollback_paths(
 pub(super) fn bundle_report(
     bundle: &AdmittedBundle,
     snapshots: &std::collections::BTreeMap<String, PriorFile>,
+    journal: Option<u64>,
 ) -> JsonObject {
+    // What each file held before, which the journal keeps for an undo.
+    let before = |relative: &str, entry: &mut JsonObject| {
+        if let Some(PriorFile::File { contents, .. }) = snapshots.get(relative) {
+            entry.insert(
+                "before_digest".to_owned(),
+                JsonValue::String(sha256_prefixed(contents)),
+            );
+        }
+    };
     let writes = bundle
         .writes
         .iter()
         .map(|write| {
-            JsonValue::Object(JsonObject::from([
+            let mut entry = JsonObject::from([
                 ("path".to_owned(), JsonValue::String(write.relative.clone())),
                 (
                     "bytes_written".to_owned(),
@@ -236,7 +280,9 @@ pub(super) fn bundle_report(
                     "sha256".to_owned(),
                     JsonValue::String(sha256_prefixed(write.contents.as_bytes())),
                 ),
-            ]))
+            ]);
+            before(&write.relative, &mut entry);
+            JsonValue::Object(entry)
         })
         .collect();
     let deletes = bundle
@@ -247,13 +293,15 @@ pub(super) fn bundle_report(
                 Some(PriorFile::File { .. }) => "deleted",
                 Some(PriorFile::Absent) | None => "already_absent",
             };
-            JsonValue::Object(JsonObject::from([
+            let mut entry = JsonObject::from([
                 ("path".to_owned(), JsonValue::String(relative.clone())),
                 ("status".to_owned(), JsonValue::String(status.to_owned())),
-            ]))
+            ]);
+            before(relative, &mut entry);
+            JsonValue::Object(entry)
         })
         .collect();
-    JsonObject::from([
+    let mut report = JsonObject::from([
         (
             "repo_root".to_owned(),
             JsonValue::String(bundle.root.to_string_lossy().into_owned()),
@@ -268,5 +316,12 @@ pub(super) fn bundle_report(
         ),
         ("writes".to_owned(), JsonValue::Array(writes)),
         ("deletes".to_owned(), JsonValue::Array(deletes)),
-    ])
+    ]);
+    if let Some(journal) = journal {
+        report.insert(
+            "journal".to_owned(),
+            JsonValue::Number(JsonNumber::U64(journal)),
+        );
+    }
+    report
 }
