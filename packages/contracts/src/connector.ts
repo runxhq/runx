@@ -7,7 +7,6 @@
 
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 
-import { runxMaintainedConnectors } from "./generated/runx-maintained-connectors.js";
 import { generatedSchema, validateContractSchema } from "./internal.js";
 
 /** Exact revision identity, validated by the Rust-owned binding schema. */
@@ -210,34 +209,21 @@ export interface ReferenceDeclaration {
   readonly locator: string;
 }
 
-/** A runx-maintained connector with the digests Rust computed for it. */
-export interface RunxMaintainedConnector {
-  readonly connector_binding: ConnectorBinding;
-  readonly manifest_digest: string;
-  readonly digests: {
-    readonly [operation: string]: {
-      readonly operation: string;
-      readonly implementation?: string;
-    };
-  };
-  readonly manifest: ConnectorManifest;
-}
-
-let referenceDeclarations: readonly (readonly [string, ReferenceKind, RegExp])[] | undefined;
+const referencePatterns = new WeakMap<readonly ReferenceDeclaration[], readonly (readonly [ReferenceKind, RegExp])[]>();
 
 /**
- * What `locator` names, from the reference kinds runx-maintained connectors declare,
- * as the kernel classifies it: the first declaration of `provider`'s
- * connector it matches, or of any runx-maintained connector when no provider is
- * given, and an external URL when none does.
+ * What `locator` names, from the reference kinds `connector` declares, as the
+ * kernel classifies it: the first declaration whose locator pattern matches
+ * the whole locator, and an external URL when none does.
  */
-export function referenceKind(provider: string | undefined, locator: string): ReferenceKind {
-  referenceDeclarations ??= runxMaintainedConnectors.flatMap((connector) =>
-    (connector.manifest.references ?? []).map(
-      (reference) => [connector.manifest.id, reference.kind, new RegExp(`^(?:${reference.locator})$`, "u")] as const,
-    ));
-  return referenceDeclarations.find(([id, , pattern]) =>
-    (provider === undefined || id === provider) && pattern.test(locator))?.[1] ?? "external_url";
+export function referenceKind(connector: Pick<ConnectorManifest, "references">, locator: string): ReferenceKind {
+  const declarations = connector.references ?? [];
+  let patterns = referencePatterns.get(declarations);
+  if (!patterns) {
+    patterns = declarations.map((reference) => [reference.kind, new RegExp(`^(?:${reference.locator})$`, "u")] as const);
+    referencePatterns.set(declarations, patterns);
+  }
+  return patterns.find(([, pattern]) => pattern.test(locator))?.[0] ?? "external_url";
 }
 
 /** Read versus mutate, derived from the verb. */

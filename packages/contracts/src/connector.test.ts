@@ -54,12 +54,25 @@ describe("declared connector requests", () => {
 // The kernel classifies the same locators the same way
 // (crates/runx-runtime/src/kernel/connectors/references.rs).
 describe("reference kinds", () => {
-  it("classifies locators by what their connectors declare", () => {
-    expect(referenceKind("github", "github://acme/app/issues/7")).toBe("thread");
-    expect(referenceKind(undefined, "github://acme/app/pulls/7")).toBe("change_request");
-    expect(referenceKind("slack", "slack://T123/C456/1750000000.000001")).toBe("thread");
-    expect(referenceKind("slack", "github://acme/app/issues/7")).toBe("external_url");
-    expect(referenceKind(undefined, "https://example.com/report")).toBe("external_url");
+  // The declarations the github and slack connector manifests carry.
+  const github = {
+    references: [
+      { kind: "thread", locator: "github://[^/]+/[^/]+/issues/[1-9][0-9]*" },
+      { kind: "change_request", locator: "github://[^/]+/[^/]+/pulls/[1-9][0-9]*" },
+      { kind: "comment", locator: "github://[^/]+/[^/]+/issues/comments/[1-9][0-9]*" },
+      { kind: "repository", locator: "github://[^/]+/[^/]+" },
+    ],
+  } as const;
+  const slack = { references: [{ kind: "thread", locator: "slack://[^/]+/[^/]+/[0-9]+\\.[0-9]+" }] } as const;
+
+  it("classifies a locator by what its own connector declares", () => {
+    expect(referenceKind(github, "github://acme/app/issues/7")).toBe("thread");
+    expect(referenceKind(github, "github://acme/app/pulls/7")).toBe("change_request");
+    expect(referenceKind(github, "github://acme/app")).toBe("repository");
+    expect(referenceKind(slack, "slack://T123/C456/1750000000.000001")).toBe("thread");
+    // Another connector's locator, or one with no declaration, is an external URL.
+    expect(referenceKind(slack, "github://acme/app/issues/7")).toBe("external_url");
+    expect(referenceKind({}, "https://example.com/report")).toBe("external_url");
   });
 });
 

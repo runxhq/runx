@@ -293,12 +293,12 @@ pub(crate) fn operation_digest_entries<'a>(
         .collect()
 }
 
-/// Every runx-maintained connector as runx Connect reads them: each manifest under
-/// `connectors_dir`, validated, beside its manifest digest and each
-/// operation's operation and implementation digests, the tool packages its
-/// process operations run read the way the runtime reads a plugin's.
-/// `scripts/generate-runx-maintained-connectors.mjs` writes this into
-/// `@runxhq/contracts`; digests are computed in Rust only.
+/// Every runx-maintained connector under `connectors_dir`, validated, beside
+/// its manifest digest and each operation's operation and implementation
+/// digests, the tool packages its process operations run read the way the
+/// runtime reads a plugin's. `scripts/generate-runx-maintained-connectors.mjs`
+/// reads it to embed the runtime capabilities; digests are computed in Rust
+/// only.
 pub fn runx_maintained_connectors_contract(
     connectors_dir: &Path,
 ) -> Result<serde_json::Value, String> {

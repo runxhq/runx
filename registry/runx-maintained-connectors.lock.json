@@ -62,8 +62,8 @@
     },
     {
       "ref": "n8n",
-      "version": "sha-02e3658f040f",
-      "content_digest": "sha256:02e3658f040fa9183518667dde3a927472f97a55b71c4be300bacdb38b36e719"
+      "version": "sha-3bd963925b3f",
+      "content_digest": "sha256:3bd963925b3ffb4fb8e0d787f410d1e9d7f7bca15645cf7d9fd1fd8ed9f24186"
     },
     {
       "ref": "national-weather-service",
@@ -132,8 +132,8 @@
     },
     {
       "ref": "zapier",
-      "version": "sha-15aeafc791a1",
-      "content_digest": "sha256:15aeafc791a1358ef5fb71c2e8292841b05e09b76e5f45a339d70da7f39f66ab"
+      "version": "sha-c7279083e03a",
+      "content_digest": "sha256:c7279083e03aa84841b2a2bb50a9d3dcc605813e3289ce8e4aa386bb24addd4b"
     }
   ]
 }

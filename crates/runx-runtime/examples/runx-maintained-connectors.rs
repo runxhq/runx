@@ -1,7 +1,7 @@
-//! Prints the runx-maintained connector manifests, validated, beside the digests
-//! runx Connect compares against what a runtime admitted. Digests are
-//! computed only in Rust; `scripts/generate-runx-maintained-connectors.mjs` writes
-//! this into `@runxhq/contracts`.
+//! Prints the runx-maintained connector manifests, validated, beside their
+//! digests, computed only in Rust;
+//! `scripts/generate-runx-maintained-connectors.mjs` embeds the runtime
+//! capabilities among them.
 //!
 //! With `--lock`, prints instead the version each runx-maintained connector
 //! publishes as, read by the native packager:

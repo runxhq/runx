@@ -35,7 +35,6 @@ export {
   type HttpRequest,
   type JsonObject,
   type JsonValue,
-  type RunxMaintainedConnector,
   type OperationVerb,
   type ReferenceDeclaration,
   type ReferenceKind,
@@ -44,7 +43,6 @@ export {
   type TemplateInputs,
 } from "./connector.js";
 
-export { runxMaintainedConnectors } from "./generated/runx-maintained-connectors.js";
 export { posixCommand, renderPosixCommand, type CopyableCommand } from "./copyable-command.js";
 export { isRegistryVersion, REGISTRY_VERSION_PATTERN } from "./registry-version.js";
 export {
