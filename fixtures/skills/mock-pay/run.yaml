@@ -5,7 +5,7 @@ catalog:
   audience: builder
   visibility: internal
   role: harness-fixture
-  part_of: [runx/spend]
+  part_of: [runx/pay]
   execution: read
   completion: runtime_receipt
   approval: none

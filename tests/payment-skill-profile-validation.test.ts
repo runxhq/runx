@@ -8,11 +8,9 @@ import { validateRunnerManifestYaml } from "../scripts/lib/native-parser.mjs";
 
 const hostedPaymentSkills = [
   "charge",
+  "pay",
   "refund",
   "settle-invoice",
-  "spend",
-  "stripe-pay",
-  "x402-pay",
 ] as const;
 
 const localPaymentSimulators = ["mock-charge", "mock-pay", "mock-refund"] as const;
@@ -36,15 +34,15 @@ describe("payment ownership boundary", () => {
             readonly operation?: string;
             readonly idempotency_key?: unknown;
             readonly approval?: unknown;
+            readonly expected_result?: unknown;
           }[];
         }>;
       };
 
-      expect(manifest.catalog?.runtime_path, `${skill} runtime`).toBe("hosted");
-      expect(manifest.catalog?.requires_adapter, `${skill} adapter`).toBe(true);
       expect(manifest.catalog?.approval, `${skill} approval`).toBe("required");
       expect(Object.keys(manifest.runners).length, `${skill} runners`).toBeGreaterThan(0);
-      const operations: string[] = [];
+      let approved = 0;
+      let readbacks = 0;
       for (const [name, runner] of Object.entries(manifest.runners)) {
         for (const step of runner.steps) {
           // Pure preparation/readback computation can accompany provider calls.
@@ -53,22 +51,26 @@ describe("payment ownership boundary", () => {
             expect(step.tool.command, `${skill}/${name} local computation`).toBeUndefined();
             expect(step.tool.module, `${skill}/${name} local computation`).toBeTypeOf("string");
           }
-          if (step.operation) operations.push(step.operation);
-          // The payment itself is a connector write; its readback is the
-          // matching `.read` operation.
-          if (step.operation && !step.operation.endsWith(".read")) {
+          if (!step.operation) continue;
+          // The payment itself is approved as the exact act and carries its
+          // retry identity; its readback states what it must read back. The
+          // kernel refuses a write without a key and a read with an approval.
+          if (step.approval !== undefined) {
+            approved += 1;
             expect(step.idempotency_key, `${skill}/${name} retry identity`).toBeTypeOf("string");
             expect(step.approval, `${skill}/${name} exact-act approval`).toMatchObject({
               type: expect.any(String), reason: expect.any(String),
             });
           }
+          if (step.expected_result !== undefined) readbacks += 1;
         }
       }
-      if (skill === "stripe-pay") {
-        expect(source, `${skill} canonical hosted delegate`).toContain("skill: ../spend");
+      if (skill === "settle-invoice") {
+        // It checks the invoice, then pays it through `pay`.
+        expect(source, `${skill} pays through pay`).toContain("skill: ../pay");
       } else {
-        expect(operations.some((operation) => !operation.endsWith(".read")), `${skill} hosted mutation`).toBe(true);
-        expect(operations.some((operation) => operation.endsWith(".read")), `${skill} hosted readback`).toBe(true);
+        expect(approved, `${skill} approved hosted mutation`).toBeGreaterThan(0);
+        expect(readbacks, `${skill} hosted readback`).toBeGreaterThan(0);
       }
       expect(source, `${skill} retired native planner`).not.toMatch(/tool: payment\.(?:quote|reserve|fulfill|recover|charge_|refund_plan|invoice_plan)/);
     }
@@ -84,7 +86,6 @@ describe("payment ownership boundary", () => {
 
       expect(manifest.catalog?.visibility, `${skill} visibility`).toBe("internal");
       expect(manifest.catalog?.role, `${skill} role`).toBe("harness-fixture");
-      expect(manifest.catalog?.requires_adapter, `${skill} adapter`).toBe(false);
       expect(profile, `${skill} local JavaScript`).toMatch(/tool: \{ module: /);
       expect(profile, `${skill} provider access`).not.toMatch(/provider\.(?:mutate|read)/);
       expect(implementation, `${skill} simulated result`).toContain('status: "simulated"');

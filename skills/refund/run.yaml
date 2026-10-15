@@ -1,36 +1,41 @@
 skill: refund
-version: "0.6.6"
+version: "1.0.0"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 connectors:
-  payment:
-    operations: [payment.refund, payment.refund.read]
-    connector_from: $input.settlement_family
-    allowed_connectors: [mpp]
+  coinbase/cdp:
+    operations: [payment.x402.merchant.refund, payment.x402.merchant.refund.read]
 runners:
   refund:
     default: true
     inputs:
-      original_receipt_ref: { type: string, required: true, description: Opaque sealed charge receipt reference. }
-      refund_request: { type: json, required: true, description: Bounded refund amount and reason. }
-      parent_payment_authority: { type: json, required: true, description: Full parent refund authority term. }
-      settlement_family: { type: string, required: true, description: Settlement family recorded by the charge receipt. }
-      idempotency_key: { type: string, required: true, description: Stable refund idempotency key. }
+      resource: { type: string, required: true, description: The HTTPS resource the original payment bought., schema: { format: uri, pattern: '^https://', maxLength: 2000 } }
+      payment_ref: { type: string, required: true, description: The settled payment's reference from its charge., schema: { minLength: 1, maxLength: 80 } }
+      amount_minor: { type: integer, required: true, description: "Refund amount in minor units, at most what was paid.", schema: { minimum: 1, maximum: 9007199254740991 } }
+      currency: { type: string, required: true, description: ISO 4217 code of the original payment., schema: { pattern: '^[A-Z]{3}$' } }
+      reason: { type: string, required: true, description: Why the payment is refunded., schema: { minLength: 1, maxLength: 500 } }
+      idempotency_seed: { type: string, required: true, description: Stable refund idempotency material., schema: { minLength: 16, maxLength: 200 } }
     result_from: [readback]
     steps:
       - id: refund
-        operation: payment/payment.refund
-        idempotency_key: $input.idempotency_key
+        operation: coinbase/cdp/payment.x402.merchant.refund
+        idempotency_key: $input.idempotency_seed
         approval:
           reason: Approve this exact refund against the original payment.
           type: payment_refund
-        amount: { units: $input.refund_request.amount_minor, unit: $input.refund_request.currency }
-        result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status]
-        input: { original_receipt_ref: $input.original_receipt_ref, refund_request: $input.refund_request, parent_payment_authority: $input.parent_payment_authority }
+        amount: { units: $input.amount_minor, unit: $input.currency }
+        result_fields: [refund_ref, payment_ref, resource, amount_minor, currency, status, refund_settlement_ref, payer, pay_to, network, settled_at]
+        input: { resource: $input.resource, payment_ref: $input.payment_ref, amount_minor: $input.amount_minor, currency: $input.currency, reason: $input.reason }
       - id: readback
-        operation: payment/payment.refund.read
-        result_fields: [refund_ref, original_receipt_ref, amount_minor, currency, status]
-        input: $steps.refund.provider_operation.result
-        expected_result: $steps.refund.provider_operation.result
+        operation: coinbase/cdp/payment.x402.merchant.refund.read
+        result_fields: [refund_ref, payment_ref, resource, amount_minor, currency, status, refund_settlement_ref, payer, pay_to, network, settled_at]
+        input: { resource: $input.resource, refund_ref: $steps.refund.provider_operation.result.refund_ref }
+        expected_result:
+          refund_ref: $steps.refund.provider_operation.result.refund_ref
+          payment_ref: $input.payment_ref
+          resource: $input.resource
+          amount_minor: $input.amount_minor
+          currency: $input.currency
+          status: settled
 
 harness:
   files: [fixtures/support/composed.graph]

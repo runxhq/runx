@@ -1,6 +1,6 @@
-name: x402-pay-composed
+name: pay-composed
 steps:
-  - id: x402-pay
+  - id: pay
     skill: ../..
     runner: pay
     inputs:
@@ -12,14 +12,13 @@ steps:
           max_response_bytes: 26214400
         amount_minor: 25
         pay_to: "0x0000000000000000000000000000000000000002"
-        parent_binding: current_paid_invocation
       parent_payment_authority:
         term_id: authority-test-1
         currency: USD
         max_amount_minor: 25
         counterparty: https://vendor.example/v1/invocations
-      idempotency_seed: x402-test-payment-001
+      idempotency_seed: pay-test-payment-001
   - id: digest
     tool: data.digest
     inputs:
-      value: $steps.x402-pay
+      value: $steps.pay

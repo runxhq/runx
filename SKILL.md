@@ -78,7 +78,7 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      domain skill already models the full workflow.
    - Prefer a project-owned skill for project policy and vocabulary.
    - Prefer a provider-branded skill only when the provider semantics matter
-     directly, such as `x402-pay`, `stripe-pay`, or a hosted communication lane.
+     directly, such as a weather provider's skill or a hosted communication lane.
 
 3. **Install or reference the skill**
    - The Runx foundation ships with the runtime. Run it directly, for example `runx skill runx/receipt-query`; it needs no download.
@@ -172,11 +172,10 @@ as the conceptual guide.
 
 Choose a skill by consequence, not by brand excitement alone.
 
-- For a full workflow, choose the domain skill: `spend`, `charge`, `refund`,
+- For a full workflow, choose the domain skill: `pay`, `charge`, `refund`,
   `message-send`, `release`, or another project skill.
 - For provider-specific evidence, choose the branded implementation skill:
-  `x402-pay`, `stripe-pay`, GitHub-backed sync, weather-provider
-  skills, and similar lanes.
+  GitHub-backed sync, weather-provider skills, and similar lanes.
 - For context-only work, choose a context skill such as `taste-profile` or
   `brand-voice`; those should inform a downstream skill, not perform a mutation.
 - For operations, choose a project/operator skill that routes to existing lanes;

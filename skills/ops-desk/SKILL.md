@@ -101,7 +101,7 @@ Ops desk packets name existing execution surfaces; they do not implement them.
 - `receipt-query`, `receipt-audit`, and `run-history` own proof questions.
 - `message-send` owns authority for live communications; branded provider skills and
   their connectors own provider-specific execution details.
-- `spend`, `charge`, `refund`, and branded payment skills own money movement.
+- `pay`, `charge`, `refund`, and `settle-invoice` own money movement.
 - Project skills own product vocabulary and product-specific actions.
 - CLI commands, hosted API routes, and GitHub workflows remain deterministic
   execution interfaces. The operator skill may cite them as handoff targets but

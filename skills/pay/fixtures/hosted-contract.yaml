@@ -1,11 +1,11 @@
-name: x402-pay-hosted-contract
+name: pay-hosted-contract
 kind: skill
 target: ..
 runner: pay
 operator_journeys:
-  - { mode: standalone, confusors: [spend, stripe-pay], request: Pay this exact x402 resource., expected_outcome: Require hosted x402 authority and return provider plus resource readback. }
+  - { mode: standalone, confusors: [charge, settle-invoice], request: Pay this exact x402 resource., expected_outcome: Require hosted wallet authority and return provider plus resource readback. }
   - mode: composed
-    request: Continue this admitted x402 payment.
+    request: Continue this admitted payment.
     expected_outcome: Reuse supplied resource terms, authority, and retry identity.
     prior_evidence: [The admitted x402 resource terms supplied by the caller.]
     must_not_repeat: [Do not mint a second x402 payment identity.]
@@ -18,18 +18,17 @@ inputs:
       max_response_bytes: 26214400
     amount_minor: 25
     pay_to: "0x0000000000000000000000000000000000000002"
-    parent_binding: current_paid_invocation
   parent_payment_authority:
     term_id: authority-test-1
     currency: USD
     max_amount_minor: 25
     counterparty: https://vendor.example/v1/invocations
-  idempotency_seed: x402-test-payment-001
+  idempotency_seed: pay-test-payment-001
 caller:
   approvals: { "settle#pay": true }
   provider_responses:
-    principal_id: x402-fixture
-    grant: { grant_id: x402-fixture, provider: x402, scopes: [payment.x402, payment.x402.read] }
+    principal_id: pay-fixture
+    grant: { grant_id: pay-fixture, provider: wallet/evm, scopes: [payment.x402, payment.x402.read] }
     operations:
       - operation: payment.x402
         target: https://vendor.example/v1/invocations

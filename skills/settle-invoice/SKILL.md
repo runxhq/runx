@@ -1,25 +1,34 @@
 ---
 name: settle-invoice
-description: Validate and settle one invoice through Runx Hosted with approval and provider readback.
+description: Check one invoice against the authority that may pay it, then pay it through pay with approval and readback.
 ---
 
 # Settle Invoice
 
-`settle-invoice` is the public hosted contract for turning one invoice into one
-bounded payment. It submits the invoice reference, exact minor-unit amount,
-currency, opaque payee identity, selected hosted rail and profile, parent
-authority, realm, and stable idempotency seed. It requires matching provider
-readback before completion.
+`settle-invoice` turns one invoice into one bounded payment. It checks the
+invoice first: a positive amount in minor units, a currency a payment method
+settles, the payee's exact HTTPS payment endpoint and address, and a parent
+authority that covers the amount and names that payee. Only then does it
+compose `pay`, which settles the payment once and reads the paid resource
+back.
 
-Runx Hosted owns invoice validation, payee and settlement resolution, authority
-checks and reservation, provider credentials, rail execution, idempotency,
-recovery, finality, and ledger state. OSS provides the discoverable contract,
-generic provider gate, approval boundary, and receipt envelope only.
+The check is deterministic and runs before anything is approved or paid. A
+payment method settles USD today, so an invoice in another currency is refused,
+never converted. Everything after the check is `pay`'s: hosted wallet custody,
+approval, idempotency, recovery and finality.
+
+## Composes
+
+<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+
+- `pay#pay`
 
 ## Operator guide
 
-Grants for `payment.invoice.settle` and `payment.invoice.read` are required.
-Stop on malformed invoice data, non-positive minor units, invalid currency,
-ambiguous payee identity, authority drift, unsupported rail, missing approval,
-or inconsistent readback. Accept opaque settlement references only; never raw
-account, routing, card, wallet, or provider credential material.
+Pass the invoice reference, the amount and currency due, the payee's
+`payment_url` and `pay_to`, the parent's authority, and a stable idempotency
+seed. Stop on malformed invoice data, a non-positive amount, an unsupported
+currency, a payee the authority does not name, an amount over the authority,
+missing approval, or inconsistent readback. Accept the payee's public payment
+endpoint and address only; never account, routing, card, wallet, or provider
+credential material.

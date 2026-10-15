@@ -1,36 +1,70 @@
 skill: charge
-version: "0.6.6"
+version: "1.0.0"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
+input_definitions:
+  resource:
+    type: string
+    required: true
+    description: Exact HTTPS resource the payment buys.
+    schema: { format: uri, pattern: '^https://', maxLength: 2000 }
+  amount_minor:
+    type: integer
+    required: true
+    description: Price in the currency's minor units.
+    schema: { minimum: 1, maximum: 9007199254740991 }
+  currency:
+    type: string
+    required: true
+    description: ISO 4217 code of the price.
+    schema: { pattern: '^[A-Z]{3}$' }
 connectors:
-  payment:
-    operations: [payment.charge, payment.charge.read]
-    connector_from: $input.returned_credential.family
-    allowed_connectors: [mpp]
+  coinbase/cdp:
+    operations: [payment.x402.merchant.quote, payment.x402.merchant.settle, payment.x402.merchant.read]
 runners:
   charge:
     default: true
     inputs:
-      mcp_tool_call: { type: json, required: true, description: Inbound paid operation request. }
-      provider_policy: { type: json, required: true, description: Hosted charge policy. }
-      returned_credential: { type: json, required: true, description: Opaque hosted settlement credential reference. }
-      verify_capability_ref: { type: string, required: true, description: Single-use hosted verification capability reference. }
-      idempotency_seed: { type: string, required: true, description: Stable caller-owned idempotency material. }
+      resource: { definition: resource }
+      amount_minor: { definition: amount_minor }
+      currency: { definition: currency }
+      payment_payload: { type: json, required: true, description: "The buyer's x402 payment payload, exactly as it arrived." }
+      payment_requirements: { type: json, required: true, description: The quoted payment requirements the payload answers. }
+      request_binding_digest: { type: string, required: true, description: Digest binding the paid request to this settlement., schema: { pattern: '^sha256:[0-9a-f]{64}$' } }
+      idempotency_seed: { type: string, required: true, description: Stable caller-owned idempotency material., schema: { minLength: 16, maxLength: 200 } }
     result_from: [readback]
     steps:
       - id: settle
-        operation: payment/payment.charge
+        operation: coinbase/cdp/payment.x402.merchant.settle
         idempotency_key: $input.idempotency_seed
         approval:
-          reason: Approve this exact provider charge before settlement.
+          reason: Approve settling this exact payment before the paid resource is released.
           type: payment_charge
-        amount: { units: $input.provider_policy.price_minor, unit: $input.provider_policy.currency }
-        result_fields: [charge_ref, settlement_family, status, credential_ref]
-        input: { mcp_tool_call: $input.mcp_tool_call, provider_policy: $input.provider_policy, credential_ref: $input.returned_credential.credential_ref, verify_capability_ref: $input.verify_capability_ref }
+        result_fields: [payment_ref, resource, amount_minor, currency, status, settlement_ref, payer, pay_to, network, asset, settled_at]
+        input: { request_binding_digest: $input.request_binding_digest, resource: $input.resource, amount_minor: $input.amount_minor, currency: $input.currency, payment_payload: $input.payment_payload, payment_requirements: $input.payment_requirements }
       - id: readback
-        operation: payment/payment.charge.read
-        result_fields: [charge_ref, settlement_family, status, credential_ref]
-        input: $steps.settle.provider_operation.result
-        expected_result: $steps.settle.provider_operation.result
+        operation: coinbase/cdp/payment.x402.merchant.read
+        result_fields: [payment_ref, resource, amount_minor, currency, status, settlement_ref, payer, pay_to, network, asset, settled_at]
+        input: { resource: $input.resource, payment_ref: $steps.settle.provider_operation.result.payment_ref }
+        expected_result:
+          payment_ref: $steps.settle.provider_operation.result.payment_ref
+          resource: $input.resource
+          amount_minor: $input.amount_minor
+          currency: $input.currency
+          status: settled
+  quote:
+    inputs:
+      resource: { definition: resource }
+      amount_minor: { definition: amount_minor }
+      currency: { definition: currency }
+      description: { type: string, required: false, description: What the buyer is paying for., schema: { maxLength: 499 } }
+      max_timeout_seconds: { type: integer, required: false, description: How long the buyer has to pay., schema: { minimum: 1, maximum: 86400 } }
+    result_from: [quote]
+    steps:
+      - id: quote
+        operation: coinbase/cdp/payment.x402.merchant.quote
+        result_fields: [quote_contract, resource, amount_minor, currency, accepts, quote_digest]
+        input: { resource: $input.resource, description: $input.description, amount_minor: $input.amount_minor, currency: $input.currency, max_timeout_seconds: $input.max_timeout_seconds }
+        expected_result: { resource: $input.resource, amount_minor: $input.amount_minor, currency: $input.currency }
 
 harness:
   files: [fixtures/support/composed.graph]

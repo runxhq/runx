@@ -358,7 +358,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     for (skill, expected_runner) in [
         ("message-send", "send"),
         ("github-sync", "github-sync"),
-        ("spend", "spend"),
+        ("pay", "pay"),
     ] {
         let inspect = command(&root)
             .arg("skill")
@@ -406,40 +406,44 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
         "{github}"
     );
 
-    let spend_inputs = root.join("spend-no-rail.json");
+    // With no wallet selected, the payment is refused before its approval and
+    // before anything is paid.
     fs::write(
-        &spend_inputs,
+        root.join("pay-no-wallet.json"),
         serde_json::json!({
             "payment_signal": {
-                "signal_type": "effect_required",
-                "challenge_id": "ch_payment_default_no_rail",
-                "amount_minor": 125,
-                "currency": "USD",
-                "counterparty": "merchant:demo",
-                "operation": "search.paid",
-                "realm": "test"
+                "resource": {
+                    "url": "https://vendor.example/v1/invocations",
+                    "method": "POST",
+                    "body": { "query": "runx" }
+                },
+                "amount_minor": 25,
+                "pay_to": "0x0000000000000000000000000000000000000002"
             },
-            "parent_payment_authority": { "term_id": "authority-term:payment:default-no-rail" },
-            "rail_profile_ref": "rail-profile:hosted:test",
-            "realm": "test",
-            "idempotency_seed": "default-no-rail"
+            "parent_payment_authority": {
+                "term_id": "authority-term:payment:no-wallet",
+                "currency": "USD",
+                "max_amount_minor": 25,
+                "counterparty": "https://vendor.example/v1/invocations"
+            },
+            "idempotency_seed": "pay-no-wallet-0001"
         })
         .to_string(),
     )?;
-    let spend = command(&root)
+    let pay = command(&root)
         .arg("skill")
-        .arg(repo_root.join("skills/spend"))
-        .arg("--inputs")
-        .arg("spend-no-rail.json")
+        .arg(repo_root.join("skills/pay"))
+        .args(["--inputs", "pay-no-wallet.json", "--receipt-dir"])
+        .arg(&receipt_dir)
         .arg("--json")
         .output()?;
-    assert_eq!(spend.status.code(), Some(1));
-    let spend: Value = serde_json::from_slice(&spend.stdout)?;
-    assert_eq!(spend["status"], "failure");
+    let pay = assert_json(&pay, 1)?;
+    assert_eq!(pay["outcome"], "blocked", "{pay}");
     assert!(
-        spend["error"]["message"]
-            .as_str()
-            .is_some_and(|message| message.contains("rail"))
+        pay["refusal"]["message"].as_str().is_some_and(
+            |message| message.contains("no instance is selected for connector wallet/evm")
+        ),
+        "{pay}"
     );
 
     Ok(())

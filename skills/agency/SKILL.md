@@ -78,7 +78,7 @@ does not fold domain state. Everything else is delegation.
 spend with configured caps. `max_turns` currently counts submitted member acts,
 not all stored turn events. Reported spend is caller-supplied, so these are
 planning checks, not authoritative effect limits. The reducer does not enforce
-TTL. Real money movement must route through the hosted `spend` contract, where
+TTL. Real money movement must route through the hosted `pay` contract, where
 the payment runtime owns authoritative reservation and aggregate limits.
 
 ## Contention

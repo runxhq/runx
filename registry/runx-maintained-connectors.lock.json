@@ -17,8 +17,8 @@
     },
     {
       "ref": "coinbase/cdp",
-      "version": "sha-eea3344d95c8",
-      "content_digest": "sha256:eea3344d95c8c688a0cc1b6a0b7d9ef2ddecc63502bb0e70e80e5be3eb1cb5eb"
+      "version": "sha-2fe2b26fc510",
+      "content_digest": "sha256:2fe2b26fc5102e200d895ec12a6cf8527645300d7b5dd29ff445b15e278fd8bf"
     },
     {
       "ref": "exa",

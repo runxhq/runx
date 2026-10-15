@@ -34,7 +34,7 @@ the governance is real rather than narrated.
 ```bash
 runx export claude                          # current workspace's public skills -> ~/.claude/skills
 runx export claude --project                # -> ./.claude/skills (checked into a repo)
-runx export claude nws-weather-forecast spend   # only the named skills
+runx export claude nws-weather-forecast pay   # only the named skills
 runx export codex                           # ~/.codex/skills plus managed rules
 pnpm codex-export:check                     # verify the active managed Codex surface
 ```
@@ -52,15 +52,15 @@ updates those shims without removing any other managed skills.
 ## What A Claude Shim Looks Like
 
 `runx export claude` writes a compact shim whose important structure looks like
-this for the `spend` skill:
+this for the `pay` skill:
 
 ````markdown
 ---
-name: spend
-description: Execute one governed outbound payment, with quote, reservation, approval, rail evidence, and receipt-before-success.
+name: pay
+description: Pay one external payment requirement within exact parent authority, through a payment method the payer holds, and read the paid resource back.
 allowed-tools: Bash(/path/to/runx skill *) Bash(/path/to/runx resume *)
 ---
-# spend - governed by runx
+# pay - governed by runx
 
 Run the declared runner through runx; do not bypass it by independently reproducing work that runner owns.
 
@@ -68,16 +68,16 @@ Run the declared runner through runx; do not bypass it by independently reproduc
 <the exact canonical SKILL.md body>
 <!-- runx-source-manual-end -->
 
-## Default runner: `spend`
+## Default runner: `pay`
 
 Inspect the exact input and effect contract on demand:
 
 ```bash
-/path/to/runx skill inspect /path/to/skills/spend spend --json
+/path/to/runx skill inspect /path/to/skills/pay pay --json
 ```
 
 ```bash
-/path/to/runx skill /path/to/skills/spend spend \
+/path/to/runx skill /path/to/skills/pay pay \
   <validated inputs> \
   --package-digest sha256:<package> \
   --execution-closure-digest sha256:<closure> \
@@ -86,7 +86,7 @@ Inspect the exact input and effect contract on demand:
 
 Then surface the returned receipt id, status, and artifact ids.
 
-<!-- runx-export:claude source=/path/to/skills/spend package-digest=sha256:<package> - generated, do not edit -->
+<!-- runx-export:claude source=/path/to/skills/pay package-digest=sha256:<package> - generated, do not edit -->
 ````
 
 For Claude, the `allowed-tools` line limits the shim to the runx binary. Codex

@@ -39,7 +39,7 @@ local payment behavior is limited to the three mock fixtures:
 ```bash
 cargo test --manifest-path crates/Cargo.toml -p runx-cli --test integration
 runx harness fixtures/skills/mock-pay
-runx harness skills/spend/fixtures/hosted-contract.yaml
+runx harness skills/pay/fixtures/hosted-contract.yaml
 ```
 
 For one file:

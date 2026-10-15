@@ -77,12 +77,10 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `charge/` | Govern one inbound provider-side paid tool call through pricing and receipt. |
-| `spend/` | Execute one governed outbound payment across a selected runtime. |
-| `refund/` | Govern one refund linked to a sealed original charge receipt. |
-| `settle-invoice/` | Settle a known, approved invoice under a spend-bounded grant. |
-| `stripe-pay/` | Execute a governed Stripe Shared Payment Token spend by delegation. |
-| `x402-pay/` | Execute a governed x402 payment by delegating to the canonical x402 runtime. |
+| `charge/` | Quote, then settle and read back, one buyer's x402 payment for a resource you sell, through Coinbase CDP. |
+| `pay/` | Pay one external payment requirement within exact parent authority, through a payment method the payer holds, and read the resource back. |
+| `refund/` | Refund all or part of one settled payment on its original rail, with readback. |
+| `settle-invoice/` | Check one invoice against the authority that may pay it, then pay it through `pay`. |
 
 ## Data & Infrastructure
 

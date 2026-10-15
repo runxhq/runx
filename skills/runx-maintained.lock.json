@@ -1,8 +1,8 @@
 [
   {
     "skill_id": "runx/agency",
-    "version": "sha-13f08b8dbb50",
-    "digest": "a80cce71de08bceffcd07518443429608c78d4d5b6b38fc15c11f7eefc2f0494",
+    "version": "sha-24de2eafbddd",
+    "digest": "e1d9a0c25c8cf1e2c29e0f838a7b68694bf47ae2b40f709374f324b1d4128fa4",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -22,8 +22,8 @@
   },
   {
     "skill_id": "runx/charge",
-    "version": "sha-9366fc9fde54",
-    "digest": "def79cdc499710d37dbbdda878f60784c99c9f80014d17c030767c7c5e0eec43",
+    "version": "sha-cd4480fd5da7",
+    "digest": "b3c8fc154ef057879933a32ef8ed465d932b819c69d736c5cd1785301dc9f480",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -210,13 +210,6 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/marketplace-invoke",
-    "version": "sha-48c5290db3be",
-    "digest": "954fc8246f1d440394a3989060fcbe85404d8f1687a6a18ae29bb26d547d0c61",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/message-send",
     "version": "sha-1e8982e0afdf",
     "digest": "4d876a6b2b2eda9a1e3144c26ddc65c7fa02bb365d2cc1b18cc7b58fafc47bfd",
@@ -246,8 +239,8 @@
   },
   {
     "skill_id": "runx/ops-desk",
-    "version": "sha-28727e4299c2",
-    "digest": "5872c7e88df3e8b8c546eb036c813a5164a0a3a56bd5917ced38731203663ef5",
+    "version": "sha-b8a286fae3f9",
+    "digest": "d1eb424ec74dd05f6c87985abe3176e647a71b84a7725d54075a3fcd28037afb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -255,6 +248,13 @@
     "skill_id": "runx/organic-growth",
     "version": "sha-4c699e434ccf",
     "digest": "115d06eb9a646f67f0020ef0bb80abe3a1adfe80b8872f11d161cff39b357683",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
+    "skill_id": "runx/pay",
+    "version": "sha-06c97f98700d",
+    "digest": "392dec674ecfac10aec26ab936760d1dfeb53f0dc0a26c6159b6014faacad70c",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -288,8 +288,8 @@
   },
   {
     "skill_id": "runx/purchase-approval",
-    "version": "sha-b8427bf88c1c",
-    "digest": "98364a1309bba05e143c1026ff953be6ee44013f38800c44ef67f62f9d93767d",
+    "version": "sha-82e416601bbb",
+    "digest": "eaf9e0e91c44f1866f8c8da0d7908ceb92b114a2216fa4d9f386db51dd0e3b3d",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -323,8 +323,8 @@
   },
   {
     "skill_id": "runx/refund",
-    "version": "sha-3b8939067584",
-    "digest": "ce02c5d601c951ad38f92e1dfeb5b2ed41b7338d2f30f2ada29fb530773081f3",
+    "version": "sha-33df777138ae",
+    "digest": "35facc8c0e2f960985913c9d6146bc121c61be1771ff6c7bbca3cc94e9bc4d1b",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -365,8 +365,8 @@
   },
   {
     "skill_id": "runx/settle-invoice",
-    "version": "sha-42b2e2804fb6",
-    "digest": "55f911381ee26a83f9e1140c555515520327921a4cd3aee302aa485915116239",
+    "version": "sha-793326a06e5f",
+    "digest": "c6646902c6efd33d1314ec33e51ce01fc6cf12a2fdcbc6727f0f0cb43ab2f99a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -406,25 +406,11 @@
     "catalog_role": "canonical"
   },
   {
-    "skill_id": "runx/spend",
-    "version": "sha-07dc08f3e931",
-    "digest": "7289107bcc7ee45bff586c5fee913e364213798fad1e832b099b7a71ddc45731",
-    "catalog_visibility": "public",
-    "catalog_role": "canonical"
-  },
-  {
     "skill_id": "runx/sql-analyst",
     "version": "sha-6fabfc1d874a",
     "digest": "c67787dde363858f8481f0c6d1861f05d4f10824ccb177b376a48c4cd472902a",
     "catalog_visibility": "public",
     "catalog_role": "context"
-  },
-  {
-    "skill_id": "runx/stripe-pay",
-    "version": "sha-a071614250f4",
-    "digest": "b87bd960cb742719dccd2d8d91a3ccd272af4f613b1cfc3cf66e7845a8a3d81c",
-    "catalog_visibility": "public",
-    "catalog_role": "branded"
   },
   {
     "skill_id": "runx/taste-profile",
@@ -474,12 +460,5 @@
     "digest": "65aa6457645c6671e3eaa82da2d7e3c34d39336abb2393af19c61231d1a837c5",
     "catalog_visibility": "public",
     "catalog_role": "context"
-  },
-  {
-    "skill_id": "runx/x402-pay",
-    "version": "sha-3c18c67644d6",
-    "digest": "2efb1975830d7ff0c88034d35503acaa9e4bfa9cb062493642d0d2b6b693d4fa",
-    "catalog_visibility": "public",
-    "catalog_role": "branded"
   }
 ]

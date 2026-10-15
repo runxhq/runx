@@ -95,6 +95,7 @@ operations:
       template: {"$argument": "/resource"}
     guarantees:
       provider_idempotency: enforced
+    amount: required
     result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.refund.read:

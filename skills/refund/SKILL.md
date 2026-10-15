@@ -1,24 +1,28 @@
 ---
 name: refund
-description: Refund one sealed payment through Runx Hosted with bounded authority, approval, idempotency, and readback.
+description: Refund all or part of one settled payment on its original rail, with approval, idempotency, and readback.
 ---
 
 # Refund
 
-`refund` is the public reversal contract. It sends an opaque original receipt
-reference, bounded refund request, complete parent authority, settlement family,
-and stable idempotency key to Runx Hosted, then requires provider readback.
+`refund` is the reversal contract. It returns all or part of one settled
+payment to its payer, on the rail the payment was settled on, then requires a
+readback of the same refund, settled for that amount against that payment,
+before the run closes.
 
-Runx Hosted resolves and verifies the original settlement, accounts for prior
-refunds, attenuates authority, holds provider credentials, executes the reversal,
-handles ambiguous outcomes, and records the private ledger. OSS contains none of
-that implementation; it only governs the generic provider mutation and seals the
+The payments `charge` settles are x402, through Coinbase CDP
+(`coinbase/cdp`), so their refunds are too. Runx Hosted resolves the original
+settlement, accounts for prior refunds, holds the CDP credential, broadcasts
+the reversal, and carries an ambiguous outcome to a terminal one. The amount
+the refund moves counts against the run's authority like any payment. OSS
+implements none of the rail; it governs the provider mutation and seals the
 returned evidence.
 
 ## Operator guide
 
-Use this skill only for a real, sealed original payment. Grants for
-`payment.refund` and `payment.refund.read` are required. Stop on missing receipt
-lineage, amount/currency/payer/rail drift, incomplete authority, reused
+Use this skill only for a payment `charge` settled. A hosted `coinbase/cdp`
+grant is required. Pass the paid resource, the payment's reference, the amount
+and currency, a reason, and a stable idempotency seed. Stop on an unknown
+payment, an amount over what remains refundable, currency drift, reused
 idempotency, or unavailable readback. Never accept raw provider credentials or
 claim a refund from a request acknowledgement alone.

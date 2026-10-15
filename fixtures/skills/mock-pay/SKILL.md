@@ -8,4 +8,4 @@ description: Simulate an outbound payment locally for deterministic Runx harness
 This internal harness fixture validates basic mock inputs and returns a stable
 `simulated` result with `money_moved: false`. It is not a rail and does not
 exercise hosted authorization, credentials, reservation, ledger, recovery, or
-finality. Use public `spend` or a branded hosted facade for real execution.
+finality. Use the public `pay` skill for real execution.

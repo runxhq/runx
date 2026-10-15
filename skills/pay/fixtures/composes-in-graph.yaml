@@ -1,4 +1,4 @@
-name: stripe-pay-composes-in-graph
+name: pay-composes-in-graph
 kind: graph
 target: support/composed.graph
 expect:

@@ -148,7 +148,7 @@ Name a skill so an agent instinctively reaches for the right one:
 - One distinct **verb per pipeline layer** so sibling skills never blur. The
   security trio is the model: `cve-audit` (detect, deterministic) ->
   `vuln-triage` (assess, agent); publishing the advisory is the operator's step.
-- Keep provider rails and integrations descriptive (`stripe-pay`, `web-fetch`).
+- Keep provider rails and integrations descriptive (`web-fetch`, `nws-weather-forecast`).
 - Retrieval beats cleverness: the searchable term wins, and keywords the name
   drops go in the `description`.
 
@@ -195,7 +195,7 @@ evidence, not copied into the repo by default.
 | `data` | `product-analytics`, `run-history`, `sql-analyst` |
 | `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify` |
 | `ops` | `github-sync`, `issue-intake`, `issue-triage`, `message-send`, `ops-desk`, `postmortem-maker`, `webhook-handoff` |
-| `payments` | `charge`, `dispute-respond`, `purchase-approval`, `refund`, `settle-invoice`, `spend`, `stripe-pay`, `x402-pay` |
+| `payments` | `charge`, `dispute-respond`, `pay`, `purchase-approval`, `refund`, `settle-invoice` |
 | `research` | `deep-research`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 

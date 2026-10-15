@@ -7,7 +7,7 @@ description: Decide whether one proposed purchase is allowed under an explicit p
 
 Purchase Approval is the pre-spend decision gate. It answers one question, is
 this purchase allowed under the supplied procurement policy, and it answers it
-deterministically. It never moves money; `spend` and the payment rails own
+deterministically. It never moves money; `pay` and the payment rails own
 execution, and this skill's sealed decision is what a caller carries into that
 flow.
 

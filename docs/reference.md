@@ -36,7 +36,7 @@ For governed code changes, see [issue-to-pr.md](issue-to-pr.md).
 ## Payment Boundary Proof
 
 Run `runx harness fixtures/skills/mock-pay` for deterministic local simulation and
-`runx harness skills/spend/fixtures/hosted-contract.yaml` for the public hosted
+`runx harness skills/pay/fixtures/hosted-contract.yaml` for the public hosted
 contract. The former always records `money_moved: false`; the latter uses
 fixture provider responses and does not prove live settlement. Real rail
 dogfood, credentials, ledger state, recovery, and finality live in Runx Hosted.
@@ -850,9 +850,8 @@ The runx-maintained catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
   `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
-  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `message-send`, `spend`,
-  `nws-weather-forecast`, `open-meteo-weather-forecast`
-- branded provider skills: `stripe-pay`, `x402-pay`
+  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `message-send`, `pay`,
+  `settle-invoice`, `nws-weather-forecast`, `open-meteo-weather-forecast`
 - context skills: `brand-voice`, `taste-profile`
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are

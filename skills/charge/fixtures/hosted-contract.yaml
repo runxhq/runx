@@ -3,24 +3,26 @@ kind: skill
 target: ..
 runner: charge
 operator_journeys:
-  - { mode: standalone, confusors: [spend, refund], request: Charge this exact paid call., expected_outcome: Require hosted settlement and return provider readback. }
+  - { mode: standalone, confusors: [pay, refund], request: Settle this buyer's payment for my resource., expected_outcome: Require a hosted coinbase/cdp grant and return settled provider readback. }
   - mode: composed
     request: Continue this admitted charge.
-    expected_outcome: Reuse supplied policy and idempotency evidence.
-    prior_evidence: [The admitted charge policy supplied by the caller.]
-    must_not_repeat: [Do not mint a second charge identity.]
+    expected_outcome: Reuse the supplied requirements, payload and idempotency evidence.
+    prior_evidence: [The quoted requirements and payment payload supplied by the caller.]
+    must_not_repeat: [Do not settle a second time under a new identity.]
 inputs:
-  mcp_tool_call: { tool: search.paid, arguments: { query: runx } }
-  provider_policy: { price_minor: 125, currency: USD, counterparty: "provider:demo" }
-  returned_credential: { family: mpp, credential_ref: "credential:test" }
-  verify_capability_ref: "capability:test"
-  idempotency_seed: charge-test-001
+  resource: https://seller.example/v1/reports/launch
+  amount_minor: 125
+  currency: USD
+  payment_payload: { x402Version: 2, scheme: exact, network: "eip155:8453", payload: { signature: "0xsigned", authorization: { from: "0x0000000000000000000000000000000000000001", to: "0x0000000000000000000000000000000000000002", value: "1250000" } } }
+  payment_requirements: { scheme: exact, network: "eip155:8453", amount: "1250000", payTo: "0x0000000000000000000000000000000000000002", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }
+  request_binding_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  idempotency_seed: charge-test-0000001
 caller:
   approvals: { "settle": true }
   provider_responses:
     principal_id: charge-fixture
-    grant: { grant_id: charge-fixture, provider: mpp, scopes: [payment.charge, payment.charge.read] }
+    grant: { grant_id: charge-fixture, provider: coinbase/cdp, scopes: [payment.x402.merchant.read, payment.x402.merchant.write] }
     operations:
-      - { operation: payment.charge, target: "provider:demo", access: mutate, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
-      - { operation: payment.charge.read, target: charge_test_001, access: read, result: { charge_ref: charge_test_001, settlement_family: mpp, status: settled, credential_ref: "credential:test" } }
+      - { operation: payment.x402.merchant.settle, target: "https://seller.example/v1/reports/launch", access: mutate, result: { payment_ref: x402pay_test_001, resource: "https://seller.example/v1/reports/launch", amount_minor: 125, currency: USD, status: settled, settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", payer: "0x0000000000000000000000000000000000000001", pay_to: "0x0000000000000000000000000000000000000002", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", settled_at: "2026-10-15T00:00:00.000Z" } }
+      - { operation: payment.x402.merchant.read, target: "https://seller.example/v1/reports/launch", access: read, result: { payment_ref: x402pay_test_001, resource: "https://seller.example/v1/reports/launch", amount_minor: 125, currency: USD, status: settled, settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", payer: "0x0000000000000000000000000000000000000001", pay_to: "0x0000000000000000000000000000000000000002", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", settled_at: "2026-10-15T00:00:00.000Z" } }
 expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

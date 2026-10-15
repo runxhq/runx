@@ -1,0 +1,18 @@
+name: charge-quote
+kind: skill
+target: ..
+runner: quote
+operator_journeys:
+  - { mode: standalone, confusors: [pay], request: Quote what a buyer pays for this resource., expected_outcome: Return the x402 payment requirements for the exact resource and price without moving money. }
+inputs:
+  resource: https://seller.example/v1/reports/launch
+  amount_minor: 125
+  currency: USD
+  description: Launch report
+caller:
+  provider_responses:
+    principal_id: charge-fixture
+    grant: { grant_id: charge-fixture, provider: coinbase/cdp, scopes: [payment.x402.merchant.read] }
+    operations:
+      - { operation: payment.x402.merchant.quote, target: "https://seller.example/v1/reports/launch", access: read, result: { quote_contract: "runx.x402-merchant-quote/v1", resource: "https://seller.example/v1/reports/launch", amount_minor: 125, currency: USD, accepts: [{ scheme: exact, network: "eip155:8453", amount: "1250000", payTo: "0x0000000000000000000000000000000000000002" }], quote_digest: "sha256:4444444444444444444444444444444444444444444444444444444444444444" } }
+expect: { status: sealed, receipt: { schema: runx.receipt.v1 } }

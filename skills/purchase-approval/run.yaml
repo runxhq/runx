@@ -1,5 +1,5 @@
 skill: purchase-approval
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
@@ -16,7 +16,7 @@ harness:
     - name: purchase-approval-approves-in-policy
       operator_journeys:
         - mode: standalone
-          confusors: [spend, settle-invoice]
+          confusors: [pay, settle-invoice]
           request: Decide whether this purchase is allowed under the procurement policy before any money moves.
           expected_outcome: Return an approval decision bound to the exact request and policy digests, with no spend executed.
         - mode: composed
