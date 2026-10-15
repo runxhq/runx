@@ -470,6 +470,9 @@ pub struct PaidInvocation {
     pub vendor_ref: PrincipalReference,
     pub counterparty: PaymentReference,
     pub offer_revision: OfferRevisionRef,
+    /// The execution package digest the purchase runs (`runx.skill-package.v1`
+    /// over the files a run loads), not the registry's digest of the published
+    /// package files that a listing binds.
     pub package_digest: Sha256Digest,
     pub input_digest: Sha256Digest,
     pub canonicalizer_version: PaidInvocationCanonicalizerVersion,
@@ -532,6 +535,9 @@ pub struct QuotePaidInvocationRequest {
     pub vendor_ref: PrincipalReference,
     pub counterparty: PaymentReference,
     pub offer_revision: OfferRevisionRef,
+    /// The execution package digest the purchase runs (`runx.skill-package.v1`
+    /// over the files a run loads), not the registry's digest of the published
+    /// package files that a listing binds.
     pub package_digest: Sha256Digest,
     pub input_digest: Sha256Digest,
     pub canonicalizer_version: PaidInvocationCanonicalizerVersion,

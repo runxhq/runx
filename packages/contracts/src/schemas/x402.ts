@@ -64,6 +64,11 @@ export type X402SettleResponseContract = ExternalObject & DeepReadonly<{
 export type RunxX402DiscoveryExtensionInfoContract = DeepReadonly<{
   purpose: "discovery";
   offer_revision: OfferRevisionRefContract;
+  /**
+   * The registry's digest of the published package files
+   * (`registry_package_digest`), not the execution package digest a run
+   * records.
+   */
   package_digest: Sha256DigestContract;
 }>;
 
@@ -72,6 +77,11 @@ export type RunxX402InvocationExtensionInfoContract = DeepReadonly<{
   invocation_id: string;
   quote_ref: ReferenceContract;
   offer_revision: OfferRevisionRefContract;
+  /**
+   * The execution package digest the purchase runs (`runx.skill-package.v1`
+   * over the files a run loads), not the registry's digest of the published
+   * package files that a listing binds.
+   */
   package_digest: Sha256DigestContract;
   input_digest: Sha256DigestContract;
   canonicalizer_version: PaidInvocationCanonicalizerVersionContract;

@@ -159,6 +159,11 @@ export type PaidInvocationContract = DeepReadonly<{
   vendor_ref: PrincipalReferenceContract;
   counterparty: PaymentReferenceContract;
   offer_revision: OfferRevisionRefContract;
+  /**
+   * The execution package digest the purchase runs (`runx.skill-package.v1`
+   * over the files a run loads), not the registry's digest of the published
+   * package files that a listing binds.
+   */
   package_digest: Sha256DigestContract;
   input_digest: Sha256DigestContract;
   canonicalizer_version: PaidInvocationCanonicalizerVersionContract;
@@ -195,6 +200,11 @@ export type QuotePaidInvocationRequestContract = DeepReadonly<{
   vendor_ref: PrincipalReferenceContract;
   counterparty: PaymentReferenceContract;
   offer_revision: OfferRevisionRefContract;
+  /**
+   * The execution package digest the purchase runs (`runx.skill-package.v1`
+   * over the files a run loads), not the registry's digest of the published
+   * package files that a listing binds.
+   */
   package_digest: Sha256DigestContract;
   input_digest: Sha256DigestContract;
   canonicalizer_version: PaidInvocationCanonicalizerVersionContract;

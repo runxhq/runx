@@ -56,6 +56,11 @@ export type PurchaseRequestContract = DeepReadonly<{
   skill: string;
   runner: string;
   offer: OfferRevisionRefContract;
+  /**
+   * The execution package digest the purchase runs (`runx.skill-package.v1`
+   * over the files a run loads), not the registry's digest of the published
+   * package files that a listing binds.
+   */
   package_digest: string;
   seller: PrincipalReferenceContract;
   amount_minor: number;

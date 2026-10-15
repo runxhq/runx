@@ -482,12 +482,18 @@ impl RunxSchema for X402SettleResponse {
 pub enum RunxX402InvocationExtensionInfo {
     Discovery {
         offer_revision: OfferRevisionRef,
+        /// The registry's digest of the published package files
+        /// (`registry_package_digest`), not the execution package digest a run
+        /// records.
         package_digest: Sha256Digest,
     },
     Invocation {
         invocation_id: NonEmptyString,
         quote_ref: Box<Reference>,
         offer_revision: OfferRevisionRef,
+        /// The execution package digest the purchase runs (`runx.skill-package.v1`
+        /// over the files a run loads), not the registry's digest of the published
+        /// package files that a listing binds.
         package_digest: Sha256Digest,
         input_digest: Sha256Digest,
         canonicalizer_version: PaidInvocationCanonicalizerVersion,

@@ -126,7 +126,9 @@ pub struct PurchaseRequest {
     pub skill: NonEmptyString,
     pub runner: NonEmptyString,
     pub offer: OfferRevisionRef,
-    /// The listing's package digest: the exact package the purchase runs.
+    /// The execution package digest the purchase runs (`runx.skill-package.v1`
+    /// over the files a run loads), not the registry's digest of the published
+    /// package files that a listing binds.
     pub package_digest: Sha256Digest,
     pub seller: PrincipalReference,
     pub amount_minor: PortableAmountMinor,
