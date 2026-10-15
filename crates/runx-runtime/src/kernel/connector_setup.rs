@@ -118,9 +118,7 @@ impl AuthoritySources {
     #[must_use]
     pub fn selected(&self, connector: &LoadedConnector) -> Option<&InstanceRecord> {
         self.instances.iter().find(|record| {
-            record.selected
-                && !record.revoked
-                && record.instance.connector == connector.name
+            record.selected && !record.revoked && record.instance.connector == connector.name
         })
     }
 }
@@ -415,9 +413,7 @@ impl<'a> ConnectorSetup<'a> {
             .list()
             .map_err(|error| error.to_string())?
             .into_iter()
-            .filter(|record| {
-                !record.revoked && record.instance.connector == connector.name
-            })
+            .filter(|record| !record.revoked && record.instance.connector == connector.name)
             .map(|record| record.instance.instance_id.as_str().to_owned())
             .collect::<Vec<_>>();
         match confirmed.as_slice() {
@@ -883,10 +879,7 @@ impl<'a> ConnectorSetup<'a> {
             };
             if Instant::now() >= deadline {
                 return Ok(UseOutcome::Pending {
-                    finish: format!(
-                        "runx connector use {} {session_id}",
-                        connector.name
-                    ),
+                    finish: format!("runx connector use {} {session_id}", connector.name),
                     session_id,
                     authorization_url,
                 });
@@ -985,12 +978,7 @@ fn declared<'a>(
         .auth
         .credentials
         .get(credential)
-        .ok_or_else(|| {
-            format!(
-                "{} declares no credential {credential}",
-                connector.name
-            )
-        })
+        .ok_or_else(|| format!("{} declares no credential {credential}", connector.name))
 }
 
 /// A session the runtime confirms by running the command that prints its
@@ -1039,10 +1027,7 @@ fn only_credential(connector: &LoadedConnector) -> Result<CredentialName, String
         .collect::<Vec<_>>();
     match names.as_slice() {
         [name] => Ok((*name).clone()),
-        [] => Err(format!(
-            "{} declares no credential",
-            connector.name
-        )),
+        [] => Err(format!("{} declares no credential", connector.name)),
         names => Err(format!(
             "{} declares {}; name one with --credential",
             connector.name,

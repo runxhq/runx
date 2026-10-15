@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::JsonObject;
 use crate::connector::{
-    ConnectorDigestError, ConnectorName, CredentialName, Digest, EnvName, InstanceId, OperationName,
-    Placement, SecretReference, SessionKind, stable_digest,
+    ConnectorDigestError, ConnectorName, CredentialName, Digest, EnvName, InstanceId,
+    OperationName, Placement, SecretReference, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 

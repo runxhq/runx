@@ -353,10 +353,7 @@ fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_
     let root = crate::support::temp_root("runx-reference-skill-journeys");
     let repo_root = crate::support::repo_root()?;
     let receipt_dir = root.join(".runx/receipts");
-    crate::support::plugin_with_source_connectors(
-        &root,
-        &["slack", "github"],
-    )?;
+    crate::support::plugin_with_source_connectors(&root, &["slack", "github"])?;
 
     for (skill, expected_runner) in [
         ("message-send", "send"),

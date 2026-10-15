@@ -95,7 +95,7 @@ pub use canonical_json::{
     to_canonical_bytes, write_canonical_json_fragment,
 };
 pub use connector::{
-    ConnectorName, ConnectorManifest, ConnectorOperation, Digest, InstanceId, OperationAccess,
+    ConnectorManifest, ConnectorName, ConnectorOperation, Digest, InstanceId, OperationAccess,
     OperationName, OperationVerb, Placement,
 };
 pub use connector_instance::{ConnectorInstance, InstanceAuthority};

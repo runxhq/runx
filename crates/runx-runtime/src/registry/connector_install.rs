@@ -72,10 +72,7 @@ pub enum ConnectorInstallError {
         version: String,
     },
     #[error("connector {name}: {reason}")]
-    InvalidPackage {
-        name: ConnectorName,
-        reason: String,
-    },
+    InvalidPackage { name: ConnectorName, reason: String },
     #[error("connector {name}: content digest is {actual}, expected {expected}")]
     DigestMismatch {
         name: ConnectorName,
@@ -83,10 +80,7 @@ pub enum ConnectorInstallError {
         actual: String,
     },
     #[error("connector {name}: signed manifest key {key_id} is not trusted")]
-    UnknownManifestKey {
-        name: ConnectorName,
-        key_id: String,
-    },
+    UnknownManifestKey { name: ConnectorName, key_id: String },
     #[error("connector {name}: signed manifest is invalid: {reason}")]
     InvalidManifestSignature {
         name: ConnectorName,
@@ -99,10 +93,7 @@ pub enum ConnectorInstallError {
         actual: String,
     },
     #[error("connector {name}: signer is out of scope: {reason}")]
-    ManifestTrustScopeViolation {
-        name: ConnectorName,
-        reason: String,
-    },
+    ManifestTrustScopeViolation { name: ConnectorName, reason: String },
     #[error("connector {name}: {} already holds other files for this version", .destination.display())]
     ConflictingVersion {
         name: ConnectorName,
@@ -422,10 +413,7 @@ fn verification_error(
     }
 }
 
-fn invalid_package(
-    name: &ConnectorName,
-    reason: impl Into<String>,
-) -> ConnectorInstallError {
+fn invalid_package(name: &ConnectorName, reason: impl Into<String>) -> ConnectorInstallError {
     ConnectorInstallError::InvalidPackage {
         name: name.clone(),
         reason: reason.into(),

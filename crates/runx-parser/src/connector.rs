@@ -12,8 +12,8 @@ use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
     CredentialName, Digest, HostedAuth, HttpAuth, HttpImplementation, HttpMethod, HttpReadback,
     HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
-    OperationVerb, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration,
-    PrincipalRequest, SessionAuth, Template, manifest_digest, operation_digest,
+    OperationVerb, PrincipalRequest, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
+    ReferenceDeclaration, SessionAuth, Template, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};

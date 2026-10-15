@@ -330,10 +330,9 @@ fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
         )?;
         assert!(!ok, "{refused}");
         assert!(
-            refused["error"]["message"]
-                .as_str()
-                .is_some_and(|message| message
-                    .contains("credential profile shared holds github's token")),
+            refused["error"]["message"].as_str().is_some_and(
+                |message| message.contains("credential profile shared holds github's token")
+            ),
             "{refused}"
         );
         let (_, inspected) = connector(&root, &["inspect", "github"])?;

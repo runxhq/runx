@@ -192,7 +192,11 @@ fn load_runtime_capabilities() -> Result<RuntimeCapabilities, ConnectorRegistryE
         connectors.insert(
             validated.manifest.id.clone(),
             Arc::new(
-                loaded(validated, ConnectorOrigin::RuntimeCapability, BTreeMap::new())
+                loaded(
+                    validated,
+                    ConnectorOrigin::RuntimeCapability,
+                    BTreeMap::new(),
+                )
                 .map_err(|message| invalid(id, message))?,
             ),
         );
@@ -889,7 +893,9 @@ pub fn connector_directories(
             if name.as_str() != namespace {
                 return Err(ConnectorRegistryError::InvalidManifest {
                     path: path.join(MANIFEST_FILE),
-                    message: format!("connector {name} lives in connectors/{name}/, named by its name"),
+                    message: format!(
+                        "connector {name} lives in connectors/{name}/, named by its name"
+                    ),
                 });
             }
             for (surface, below) in subdirectories(&path)? {
@@ -914,7 +920,9 @@ pub fn connector_directories(
             if held.as_str() != format!("{namespace}/{surface}") {
                 return Err(ConnectorRegistryError::InvalidManifest {
                     path: below.join(MANIFEST_FILE),
-                    message: format!("connector {held} lives in connectors/{held}/, named by its name"),
+                    message: format!(
+                        "connector {held} lives in connectors/{held}/, named by its name"
+                    ),
                 });
             }
             found.push((held, below));
@@ -952,17 +960,20 @@ fn subdirectories(directory: &Path) -> Result<Vec<(String, PathBuf)>, ConnectorR
 /// Where a connector named `name` lives under a `connectors/` directory:
 /// `<root>/stripe`, `<root>/google/calendar`.
 pub(crate) fn name_directory(root: &Path, name: &ConnectorName) -> PathBuf {
-    name.as_str().split('/').fold(root.to_path_buf(), |path, segment| path.join(segment))
+    name.as_str()
+        .split('/')
+        .fold(root.to_path_buf(), |path, segment| path.join(segment))
 }
 
 /// The name the manifest in `directory` declares, read without validating the
 /// rest of it.
 fn manifest_name(directory: &Path) -> Result<ConnectorName, ConnectorRegistryError> {
     let path = directory.join(MANIFEST_FILE);
-    let document = read_bounded(&path).map_err(|message| ConnectorRegistryError::InvalidManifest {
-        path: path.clone(),
-        message,
-    })?;
+    let document =
+        read_bounded(&path).map_err(|message| ConnectorRegistryError::InvalidManifest {
+            path: path.clone(),
+            message,
+        })?;
     parse_connector_manifest(&document)
         .map(|manifest| manifest.id)
         .map_err(|error| ConnectorRegistryError::InvalidManifest {

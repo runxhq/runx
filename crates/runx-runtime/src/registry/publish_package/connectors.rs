@@ -7,9 +7,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::connector::{
-    ConnectorManifest, ConnectorName, Digest, OperationName,
-};
+use runx_contracts::connector::{ConnectorManifest, ConnectorName, Digest, OperationName};
 use runx_parser::mark::{MARK_FILE, validate_mark_svg};
 use runx_parser::{parse_connector_manifest, validate_connector_manifest};
 use serde::{Deserialize, Serialize};
@@ -118,10 +116,7 @@ pub(super) fn package_connectors(
             for file in package.files {
                 super::files::insert_source_file(
                     files,
-                    &format!(
-                        "{PACKAGE_CONNECTORS_DIR}/{}/{}",
-                        connector.name, file.path
-                    ),
+                    &format!("{PACKAGE_CONNECTORS_DIR}/{}/{}", connector.name, file.path),
                     file.content.as_bytes(),
                 )?;
             }

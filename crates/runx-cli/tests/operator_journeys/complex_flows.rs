@@ -33,11 +33,7 @@ impl SlackConnect {
         let recorded = Arc::clone(&traces);
         let connect = MockConnect::with_operations(
             "operator:test",
-            &[(
-                SLACK_GRANT,
-                "slack",
-                &["thread.reply", "thread.reply.read"],
-            )],
+            &[(SLACK_GRANT, "slack", &["thread.reply", "thread.reply.read"])],
             Box::new(move |request| {
                 let trace = ProviderRequestTrace {
                     operation: request["operation"].as_str().unwrap_or_default().to_owned(),

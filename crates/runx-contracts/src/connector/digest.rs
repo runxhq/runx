@@ -24,7 +24,7 @@ use thiserror::Error;
 use crate::{JsonObject, to_canonical_bytes};
 
 use super::{
-    AmountRule, ApprovalFloor, ConnectorName, ConnectorManifest, ConnectorOperation,
+    AmountRule, ApprovalFloor, ConnectorManifest, ConnectorName, ConnectorOperation,
     CredentialDeclaration, CredentialName, Digest, IdempotencyKeyFormat, Implementation, McpServer,
     NonEmptyString, OperationGuarantees, OperationName, OperationTarget, OperationVerb,
 };

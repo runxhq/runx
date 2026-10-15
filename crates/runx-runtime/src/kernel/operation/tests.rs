@@ -801,10 +801,7 @@ fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     let other = fixture
         .try_select_grant("grant_slack_other", "slack")
         .unwrap_err();
-    assert!(
-        other.contains("does not bind connector slack"),
-        "{other}"
-    );
+    assert!(other.contains("does not bind connector slack"), "{other}");
     let unbound = fixture
         .try_select_grant("grant_slack_unbound", "slack")
         .unwrap_err();

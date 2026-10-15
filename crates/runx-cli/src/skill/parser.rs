@@ -467,10 +467,15 @@ mod tests {
 
     #[test]
     fn explicit_inspect_returns_skill_card() -> Result<(), String> {
-        let args = ["skill", "inspect", "skills/nws-weather-forecast", "normalize"]
-            .into_iter()
-            .map(std::ffi::OsString::from)
-            .collect::<Vec<_>>();
+        let args = [
+            "skill",
+            "inspect",
+            "skills/nws-weather-forecast",
+            "normalize",
+        ]
+        .into_iter()
+        .map(std::ffi::OsString::from)
+        .collect::<Vec<_>>();
         let plan = super::parse_skill_plan(&args)?;
 
         assert_eq!(plan.action, SkillAction::Inspect);

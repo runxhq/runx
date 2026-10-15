@@ -164,9 +164,9 @@ impl RegistrySignedManifest {
 #[must_use]
 pub fn is_registry_subject_ref(kind: RegistrySubjectKind, value: &str) -> bool {
     match kind {
-        RegistrySubjectKind::Skill => value
-            .split_once('/')
-            .is_some_and(|(publisher, name)| is_publisher_namespace(publisher) && is_skill_name(name)),
+        RegistrySubjectKind::Skill => value.split_once('/').is_some_and(|(publisher, name)| {
+            is_publisher_namespace(publisher) && is_skill_name(name)
+        }),
         RegistrySubjectKind::Connector => is_connector_name(value),
     }
 }

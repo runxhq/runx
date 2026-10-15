@@ -280,9 +280,7 @@ fn stored_profile(
         .profiles
         .remove(profile)
         .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.name
-        || stored.credential != binding.credential.as_str()
-    {
+    if stored.connector != connector.name || stored.credential != binding.credential.as_str() {
         return Err(format!(
             "credential profile {profile} holds {}'s {} credential, not {}'s {}",
             stored.connector, stored.credential, connector.name, binding.credential

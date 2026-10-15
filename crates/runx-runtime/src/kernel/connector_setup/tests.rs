@@ -531,10 +531,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         .err()
         .unwrap();
 
-    assert_eq!(
-        refused,
-        "runx Connect could not grant slack: access denied"
-    );
+    assert_eq!(refused, "runx Connect could not grant slack: access denied");
     assert!(project.instances.list().unwrap().is_empty());
 }
 

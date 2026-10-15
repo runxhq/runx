@@ -234,7 +234,9 @@ pub fn registry_manifest_key_allows(
             if matches!(trust_tier, TrustTier::FirstParty)
                 && (kind != RegistrySubjectKind::Skill || namespace != "runx")
             {
-                return Err("official key may only grant first_party trust to runx/* skills".to_owned());
+                return Err(
+                    "official key may only grant first_party trust to runx/* skills".to_owned(),
+                );
             }
             Ok(())
         }

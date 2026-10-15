@@ -45,13 +45,12 @@ fn a_connector_outside_a_plugin_is_an_installed_version_a_skill_pins() {
     let missing = scope.connector("github").unwrap_err();
     assert!(
         matches!(missing, ConnectorRegistryError::NoPlugin { .. })
-            && missing
-                .to_string()
-                .contains("runx registry install github"),
+            && missing.to_string().contains("runx registry install github"),
         "{missing}"
     );
 
-    let first = load_installed(&install(&home, "github", "sha-000000000001", "Installed.")).unwrap();
+    let first =
+        load_installed(&install(&home, "github", "sha-000000000001", "Installed.")).unwrap();
     let installed = scope.connector("github").unwrap();
     assert!(matches!(
         installed.origin,
@@ -259,8 +258,13 @@ fn installed_versions_and_a_plugins_own_connectors_share_the_directory() {
     std::fs::create_dir_all(&skill).unwrap();
     write_plugin_connector(&home, "acme/billing");
     let leaf = load_installed(&install(&home, "stripe", "sha-000000000001", "Leaf.")).unwrap();
-    let surface =
-        load_installed(&install(&home, "acme/billing", "sha-000000000002", "Installed.")).unwrap();
+    let surface = load_installed(&install(
+        &home,
+        "acme/billing",
+        "sha-000000000002",
+        "Installed.",
+    ))
+    .unwrap();
     let scope = ConnectorScope::at(&skill).unwrap().in_project(home.clone());
 
     assert_eq!(

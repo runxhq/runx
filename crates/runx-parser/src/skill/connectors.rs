@@ -122,7 +122,9 @@ pub(crate) fn validate_connector_requirements(
                     {
                         return Err(invalid(
                             &field,
-                            format!("{field}.allowed_connectors must contain unique connector names."),
+                            format!(
+                                "{field}.allowed_connectors must contain unique connector names."
+                            ),
                         ));
                     }
                 }

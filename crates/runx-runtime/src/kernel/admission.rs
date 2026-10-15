@@ -855,10 +855,7 @@ fn pins_current(
     if instance.connector != connector.name {
         return Err(format!(
             "instance {} was confirmed for connector {}, not {}; confirm one for {}",
-            instance.instance_id,
-            instance.connector,
-            connector.name,
-            connector.name
+            instance.instance_id, instance.connector, connector.name, connector.name
         ));
     }
     if instance.manifest_digest != connector.manifest_digest

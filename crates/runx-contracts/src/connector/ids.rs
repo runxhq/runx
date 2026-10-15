@@ -228,7 +228,9 @@ impl ConnectorName {
     /// parent of a surface (`google` in `google/calendar`).
     #[must_use]
     pub fn namespace(&self) -> &str {
-        self.0.split_once('/').map_or(self.0.as_str(), |(namespace, _)| namespace)
+        self.0
+            .split_once('/')
+            .map_or(self.0.as_str(), |(namespace, _)| namespace)
     }
 
     /// The surface under a parent namespace, when the name has one.

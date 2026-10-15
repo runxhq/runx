@@ -661,7 +661,10 @@ fn a_delegated_principal_is_read_where_the_hosted_operations_reach() {
         "host accounts.elsewhere.example is not one the connector's hosted operations reach",
     );
     assert_rejects(
-        &HOSTED_WRITE.replace("https://api.example.com/user", "http://api.example.com/user"),
+        &HOSTED_WRITE.replace(
+            "https://api.example.com/user",
+            "http://api.example.com/user",
+        ),
         "the principal URL must be https",
     );
     assert_rejects(

@@ -90,7 +90,10 @@ fn identifiers_follow_their_grammar() {
         assert_eq!(pattern.is_valid(&json!(name)), valid, "pattern: {name}");
     }
     let name = ConnectorName::new("google/calendar").unwrap();
-    assert_eq!((name.namespace(), name.surface()), ("google", Some("calendar")));
+    assert_eq!(
+        (name.namespace(), name.surface()),
+        ("google", Some("calendar"))
+    );
     let leaf = ConnectorName::new("stripe").unwrap();
     assert_eq!((leaf.namespace(), leaf.surface()), ("stripe", None));
 

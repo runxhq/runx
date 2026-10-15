@@ -117,10 +117,7 @@ fn granted_connector(
             "connector {id} reaches more than one revision across the case's package, its bundle and its closure ({}); one grant binds one revision",
             reached
                 .iter()
-                .map(|connector| format!(
-                    "{} at {}",
-                    connector.name, connector.manifest_digest
-                ))
+                .map(|connector| format!("{} at {}", connector.name, connector.manifest_digest))
                 .collect::<Vec<_>>()
                 .join(", ")
         )),

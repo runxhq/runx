@@ -11,7 +11,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use runx_contracts::JsonValue;
-use runx_contracts::connector::{ConnectorManifest, CredentialName, SessionAuth, PrincipalRequest};
+use runx_contracts::connector::{ConnectorManifest, CredentialName, PrincipalRequest, SessionAuth};
 use runx_contracts::schema::NonEmptyString;
 
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};

@@ -243,10 +243,7 @@ fn capability(
         resource_family: AuthorityResourceFamily::Connector,
         verbs: unique_verbs,
         bounds: AuthorityBounds {
-            operations: vec![NonEmptyString::from(format!(
-                "{}/*",
-                connector.name
-            ))],
+            operations: vec![NonEmptyString::from(format!("{}/*", connector.name))],
             scopes: scopes
                 .iter()
                 .map(|scope| NonEmptyString::from(scope.as_str()))

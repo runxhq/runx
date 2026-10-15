@@ -152,7 +152,9 @@ fn files_that_load_as_another_connector_are_refused() -> Result<(), Box<dyn std:
         .iter_mut()
         .find(|file| file.path == "connector.yaml")
         .ok_or("connector.yaml")?;
-    manifest.content = manifest.content.replacen("id: acme/ops", "id: acme/other", 1);
+    manifest.content = manifest
+        .content
+        .replacen("id: acme/ops", "id: acme/other", 1);
     published.signed_manifest = sign(
         RegistrySubjectKind::Connector,
         "acme/ops",
@@ -252,12 +254,7 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
         name: runx_contracts::connector::ConnectorName::new("github").ok_or("ref")?,
         version: "9.0.0".to_owned(),
         trust_tier: TrustTier::Verified,
-        signed_manifest: sign(
-            RegistrySubjectKind::Connector,
-            "github",
-            "9.0.0",
-            &files,
-        )?,
+        signed_manifest: sign(RegistrySubjectKind::Connector, "github", "9.0.0", &files)?,
         files,
     };
     let options = InstallRegistryConnectorOptions {

@@ -950,13 +950,8 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
                 .output()?)
         };
 
-    let install = connector_command(&[
-        "install",
-        "acme/ops",
-        "--registry",
-        &registry.url,
-        "--json",
-    ])?;
+    let install =
+        connector_command(&["install", "acme/ops", "--registry", &registry.url, "--json"])?;
     assert_success_contains(
         &install,
         &[

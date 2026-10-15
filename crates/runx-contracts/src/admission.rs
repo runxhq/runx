@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::Reference;
 use crate::connector::{
-    ConnectorDigestError, ConnectorName, Digest, InstanceId, OperationName, Placement, stable_digest,
+    ConnectorDigestError, ConnectorName, Digest, InstanceId, OperationName, Placement,
+    stable_digest,
 };
 use crate::schema::{NonEmptyString, RunxSchema};
 
