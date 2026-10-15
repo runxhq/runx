@@ -15,7 +15,7 @@
   },
   {
     "skill_id": "runx/brand-voice",
-    "version": "sha-c2388accd827",
+    "version": "sha-cfd6647f69de",
     "digest": "b5d7797e1c435ded11d4c366fe110151f8352b416f7d99b84fa6c4727b582d96",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -29,14 +29,14 @@
   },
   {
     "skill_id": "runx/cold-outreach",
-    "version": "sha-baab21e2184f",
+    "version": "sha-50e59a59d700",
     "digest": "e0503b6b58d0b2a5bc46fd163137b4e845fad274ae57a9dfd3af74c6a6cede37",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/content-pipeline",
-    "version": "sha-39c660372b07",
+    "version": "sha-4b38a4a765d7",
     "digest": "323a10b34abef3ec40090e1916ed1b3afa05ce8237faba099e72805a1ca820d0",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -64,7 +64,7 @@
   },
   {
     "skill_id": "runx/cve-audit",
-    "version": "sha-cbe9523824b5",
+    "version": "sha-04838f8f57d0",
     "digest": "4b47db6e4d6dd52717fbc374b71c09955a84c1756814c389fdbc7ac91c0fcab5",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -169,7 +169,7 @@
   },
   {
     "skill_id": "runx/issue-triage",
-    "version": "sha-583f4643adf2",
+    "version": "sha-663672929a75",
     "digest": "9b733d718f0d79b894ded30bcc1a4648aeb2cb3ac0126752d5d4a0d6149930c1",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -183,7 +183,7 @@
   },
   {
     "skill_id": "runx/lead-enrichment",
-    "version": "sha-090abf564751",
+    "version": "sha-21e7f893bf8b",
     "digest": "3d416234839b02cdda3aed3d5ca295bee05917ddf87dc51d953cba968cdac6f6",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -414,7 +414,7 @@
   },
   {
     "skill_id": "runx/taste-profile",
-    "version": "sha-b5eeae949894",
+    "version": "sha-87bf7ee7e7f9",
     "digest": "0209ee82f6b509653c860224772137ea6461eb8fe430e7c7cd718f82cf3f9b18",
     "catalog_visibility": "public",
     "catalog_role": "context"
@@ -435,14 +435,14 @@
   },
   {
     "skill_id": "runx/web-fetch",
-    "version": "sha-37487eeb731a",
+    "version": "sha-a1f51598c926",
     "digest": "7f254589438b2b055b6441895c790ffdc429df4b266696c01c1ce88c1bec6e03",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/web-search",
-    "version": "sha-7645c71efaf6",
+    "version": "sha-9c667ca9210b",
     "digest": "4e2505d1a08eb323bd3130fd2dd3c12e384a6f91ff23e88d5f7209ec0c4509be",
     "catalog_visibility": "public",
     "catalog_role": "canonical"

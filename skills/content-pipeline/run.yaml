@@ -1,5 +1,5 @@
 skill: content-pipeline
-version: "0.4.2"
+version: "0.4.3"
 catalog:
   kind: graph
   audience: public
