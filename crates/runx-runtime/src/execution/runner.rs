@@ -249,6 +249,33 @@ impl RuntimeOptions {
             None => crate::load_validated_skill_package(directory).map(Arc::new),
         }
     }
+
+    /// Confirm the package at `directory` is, on disk, the one the run
+    /// admitted. A process step runs the package's files as they are, not
+    /// the run's copy of them, so it runs only while they are unchanged. A
+    /// runtime no binding made has nothing to confirm them against.
+    pub(crate) fn confirm_on_disk(
+        &self,
+        directory: &Path,
+        step_id: &str,
+    ) -> Result<(), RuntimeError> {
+        let Some(admitted) = &self.packages else {
+            return Ok(());
+        };
+        let admitted = admitted.get(directory)?;
+        let current = crate::load_validated_skill_package(directory)
+            .map(|current| current.package.package_digest);
+        if current.as_deref().ok() == Some(admitted.package.package_digest.as_str()) {
+            return Ok(());
+        }
+        Err(RuntimeError::SkillFailed {
+            skill_name: step_id.to_owned(),
+            message: format!(
+                "skill package {} changed since the run admitted it, and a process step runs the package's files as they are",
+                directory.display()
+            ),
+        })
+    }
 }
 
 impl RuntimeOptions {
@@ -359,6 +386,11 @@ pub struct StepRun {
     /// carries the direct-child references; this collection supplies the
     /// referenced receipts without embedding child graph output payloads.
     pub nested_receipts: Vec<Receipt>,
+    /// Why a guard or an authority refused the child run this step ran, when
+    /// one did. Like the ephemeral overlay it lives only in the process that
+    /// ran the step; its run returns it to its caller.
+    #[doc(hidden)]
+    pub refusal: Option<JsonObject>,
     pub admission_witness: StepAdmissionWitness,
     /// What settles the effect this step consumed, committed with the step
     /// itself when the run records it.
@@ -383,6 +415,10 @@ pub struct GraphRun {
     /// Why a governed stop (a denial, a block, a pending resolution) stopped
     /// the graph, as its error states it. None when the graph ran out.
     pub stop: Option<String>,
+    /// Why a guard or an authority refused the run, in its own steps or a
+    /// child run's, when one did: the refusal's public projection, which its
+    /// caller reads beside the receipt and which no receipt holds.
+    pub refusal: Option<JsonObject>,
 }
 
 pub struct Runtime<A> {
@@ -453,8 +489,6 @@ pub(crate) struct Stopped {
     /// What the run returns: the failure's public projection when a step
     /// failed, else what its steps produced.
     pub(crate) result: JsonValue,
-    /// Why a guard or an authority refused it, when one did.
-    pub(crate) refusal: Option<JsonObject>,
 }
 
 /// How a run that stopped short closes.
@@ -822,6 +856,11 @@ where
         };
         let projection = error.public_failure_projection();
         let why = error.to_string();
+        // A step a child run's refusal closed carries that refusal up.
+        let carried = match &error {
+            RuntimeError::StepClosed { refusal, .. } => refusal.as_deref().cloned(),
+            _ => None,
+        };
         let (mut run, failure, refusal) = match stop {
             StopKind::Failed => {
                 let closure = crate::receipts::GraphClosure {
@@ -845,19 +884,16 @@ where
                     reason,
                 };
                 let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
-                (run, None, None)
+                (run, None, carried)
             }
         };
         run.stop = Some(why);
+        run.refusal = refusal;
         let result = match failure {
             Some(failure) => JsonValue::Object(failure),
             None => graph_terminal_result(&run)?,
         };
-        Ok(Stopped {
-            run,
-            result,
-            refusal,
-        })
+        Ok(Stopped { run, result })
     }
 
     /// Seal a recorded run that stopped at `step_id` short of completion:
@@ -891,7 +927,7 @@ where
         graph: ExecutionGraph,
         step_id: &str,
         error: RuntimeError,
-        closure: crate::receipts::GraphClosure,
+        mut closure: crate::receipts::GraphClosure,
         host: &mut dyn Host,
     ) -> Result<GraphRun, RuntimeError> {
         if closure.disposition != ClosureDisposition::Failed {
@@ -902,7 +938,12 @@ where
         let mut execution = self.open_execution(&graph)?;
         if execution.has_failed_run(step_id) {
             // The step sealed its own failure as it ran: the run is sealed
-            // failed over that receipt, not over an attempt it never made.
+            // failed over that receipt, not over an attempt it never made,
+            // for the reason the step's seal names, as a step's governed
+            // closure keeps its own.
+            if let Some(reason) = execution.sealed_reason(step_id) {
+                closure.reason = Some(reason);
+            }
             execution.fail_graph_at(self, host, step_id, None)?;
         } else {
             let step = graph
@@ -1600,6 +1641,7 @@ mod tests {
             ephemeral_contract: EphemeralValue::default(),
             outcome: output.into(),
             nested_receipts: Vec::new(),
+            refusal: None,
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,
             settlement: None,
@@ -1640,6 +1682,7 @@ mod tests {
             steps,
             receipt,
             stop: None,
+            refusal: None,
         })
     }
 }

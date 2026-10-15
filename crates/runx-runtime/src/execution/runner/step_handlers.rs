@@ -139,6 +139,9 @@ struct RegularSkillSeal<'a, A> {
     /// How the step closes when its output does not say: a skill step whose
     /// child stopped short closes as its child sealed.
     closure: Option<StepSealClosure>,
+    /// Why a guard or an authority refused the step's child run, when one
+    /// did.
+    refusal: Option<JsonObject>,
 }
 
 pub(super) fn output_error(run: &StepRun) -> String {
@@ -301,6 +304,7 @@ where
             &env,
         )?;
     }
+    let refusal = run.refusal.clone();
     let receipt_lineage = StepReceiptLineage::from_graph(run);
     seal_regular_skill_step(
         RegularSkillSeal {
@@ -313,6 +317,7 @@ where
             authority: request.authority.as_ref(),
             admission_refs,
             closure,
+            refusal,
         },
         RegularSkillStepOutput {
             output,
@@ -456,6 +461,11 @@ where
             .javascript
             .invoke_with_artifacts(invocation, &package, &runtime.local_artifacts)?
     } else {
+        if matches!(invocation.executable, Executable::Process(_)) {
+            runtime
+                .options
+                .confirm_on_disk(&invocation.skill_directory, &step.id)?;
+        }
         runtime.configured_adapter.invoke(invocation)?
     };
     let provisional_projection =
@@ -571,6 +581,7 @@ where
         outcome: output.into(),
         receipt,
         nested_receipts: receipt_lineage.into_nested_receipts(),
+        refusal: context.refusal,
         admission_witness,
         settlement,
     })
@@ -696,6 +707,7 @@ where
             authority: authority.as_ref(),
             admission_refs,
             closure: None,
+            refusal: None,
         },
         regular,
     )
@@ -777,6 +789,7 @@ fn seal_agent_act_step<A>(
         outcome: output.into(),
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
+        refusal: None,
         admission_witness,
         settlement: None,
     })
@@ -1113,6 +1126,7 @@ where
         outcome: output.into(),
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
         admission_witness,
         settlement,
     })
@@ -1406,6 +1420,7 @@ where
         outcome: output.into(),
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
         admission_witness,
         settlement: None,
     })
@@ -1558,6 +1573,7 @@ where
         outcome: output.into(),
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
         admission_witness,
         settlement: None,
     })
@@ -1746,6 +1762,7 @@ where
         outcome: output.into(),
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
+        refusal: None,
         admission_witness,
         settlement: None,
     })

@@ -299,6 +299,7 @@ fn step_run(step_id: &str, receipt: Receipt) -> StepRun {
         settlement: None,
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
     }
 }
 
@@ -344,6 +345,7 @@ fn production_step_run(
         outcome: output.into(),
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
         admission_witness: StepAdmissionWitness::local_runtime(step_id, "receipt"),
         settlement: None,
     })

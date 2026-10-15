@@ -69,6 +69,9 @@ pub enum RuntimeError {
         /// The step receipt's own seal reason, which the graph seal keeps.
         reason: Option<runx_contracts::SealReason>,
         summary: String,
+        /// Why a guard or an authority refused the child run the step ran,
+        /// when one did, which its run returns to its caller.
+        refusal: Option<Box<runx_contracts::JsonObject>>,
     },
     #[error(transparent)]
     ContextEdgeUnresolved(Box<ContextEdgeUnresolvedError>),

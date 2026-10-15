@@ -394,6 +394,88 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
 }
 
 #[test]
+fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child_dir = temp.path().join("agent-child");
+    fs::create_dir_all(&child_dir)?;
+    fs::write(
+        child_dir.join("SKILL.md"),
+        "---\nname: agent-child\ndescription: agent-child fixture.\n---\n# Fixture\n\nCall data.digest, then finish.\n",
+    )?;
+    fs::write(
+        child_dir.join("run.yaml"),
+        "skill: agent-child\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
+    )?;
+    let parent_dir = temp.path().join("parent");
+    fs::create_dir_all(&parent_dir)?;
+    fs::write(
+        parent_dir.join("SKILL.md"),
+        "---\nname: parent\ndescription: parent fixture.\n---\n# Parent\n\nRun the child.\n",
+    )?;
+    fs::write(
+        parent_dir.join("run.yaml"),
+        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: invoke\n        skill: ../agent-child\n",
+    )?;
+    // The model stops without finalizing, so the child's managed agent fails.
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [json!({"choices":[{"finish_reason":"stop","message":{"content":"done"}}]})],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: parent_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    finish_server(server)?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["closure"]["disposition"], "failed", "{output}");
+    // The parent fails for the reason its child did, which its child's
+    // receipt names too.
+    let receipts = temp.path().join("receipts");
+    let graph = crate::support::read_test_signed_receipt(
+        &receipts,
+        output["receipt_id"].as_str().ok_or("missing receipt_id")?,
+    )?;
+    let invoke = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
+    let child = crate::support::read_test_first_step_receipt(&receipts, &invoke)?;
+    let reason = child.seal.reason.ok_or("the child names why it failed")?;
+    assert_ne!(reason, runx_contracts::SealReason::GraphStepFailed);
+    assert_eq!(invoke.seal.reason, Some(reason));
+    assert_eq!(graph.seal.reason, Some(reason));
+    assert_eq!(output["closure"]["reason"], reason.label(), "{output}");
+    Ok(())
+}
+
+#[test]
 fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

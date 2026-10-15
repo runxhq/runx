@@ -474,13 +474,10 @@ impl Driven<'_> {
     fn seal_stopped(&self, error: RuntimeError) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());
-        let crate::execution::runner::Stopped {
-            run,
-            result,
-            refusal,
-        } = self
-            .runtime
-            .seal_stop(self.graph.clone(), error, &mut host)?;
+        let crate::execution::runner::Stopped { run, result } =
+            self.runtime
+                .seal_stop(self.graph.clone(), error, &mut host)?;
+        let refusal = run.refusal.clone();
         self.log.record_sealed(&run.receipt, Some(&result))?;
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;

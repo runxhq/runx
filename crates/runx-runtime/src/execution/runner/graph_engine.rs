@@ -600,6 +600,7 @@ impl GraphExecution {
             // must never be silently absent from the execution record.
             let disposition = run.receipt.seal.disposition.clone();
             let reason = run.receipt.seal.reason;
+            let refusal = run.refusal.clone().map(Box::new);
             self.push_run(runtime, run, answers)?;
             if super::is_governed_step_closure(&disposition) {
                 return Err(RuntimeError::StepClosed {
@@ -607,6 +608,7 @@ impl GraphExecution {
                     disposition,
                     reason,
                     summary: message,
+                    refusal,
                 });
             }
             Err(RuntimeError::SkillFailed {
@@ -684,6 +686,14 @@ impl GraphExecution {
         self.run_positions.contains_key(step_id)
     }
 
+    /// The reason `step_id`'s latest run sealed with, when it names one.
+    pub(super) fn sealed_reason(&self, step_id: &str) -> Option<runx_contracts::SealReason> {
+        self.run_positions
+            .get(step_id)
+            .and_then(|index| self.runs.get(*index))
+            .and_then(|run| run.receipt.seal.reason)
+    }
+
     /// Whether `step_id`'s latest run is a failure it already sealed.
     pub(super) fn has_failed_run(&self, step_id: &str) -> bool {
         self.run_positions
@@ -751,6 +761,7 @@ impl GraphExecution {
             steps: self.runs,
             receipt,
             stop: None,
+            refusal: None,
         }
     }
 

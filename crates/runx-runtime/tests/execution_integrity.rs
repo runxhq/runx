@@ -245,3 +245,102 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
     );
     Ok(())
 }
+
+#[test]
+fn a_child_a_guard_refuses_stops_its_parent_with_the_refusal() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let child = root.join("child");
+    crate::support::write_test_skill_package(
+        &child,
+        &manual("child"),
+        "skill: child\nrunners:\n  default:\n    default: true\n    steps:\n      - id: first\n        tool: {module: first.mjs}\n        outputs: {done: boolean}\n      - id: guarded\n        tool: {module: first.mjs}\n        outputs: {done: boolean}\n    policy:\n      guards:\n        - step: guarded\n          value: $steps.first.done\n          equals: false\n",
+    )?;
+    fs::write(
+        child.join("first.mjs"),
+        "export default function () { return { done: true }; }\n",
+    )?;
+    let parent = root.join("parent");
+    crate::support::write_test_skill_package(
+        &parent,
+        &manual("parent"),
+        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: invoke\n        skill: ../child\n",
+    )?;
+
+    let result = run(root, &parent, None)?;
+    let output = result.output.as_object().ok_or("an output object")?;
+    let closure = output
+        .get("closure")
+        .and_then(JsonValue::as_object)
+        .ok_or("a closure")?;
+    assert_eq!(
+        closure.get("disposition").and_then(JsonValue::as_str),
+        Some("blocked"),
+        "{output:?}"
+    );
+    assert_eq!(
+        closure.get("reason").and_then(JsonValue::as_str),
+        Some("graph_blocked"),
+        "{output:?}"
+    );
+    // Why the child's guard refused rides its parent's output, as it would
+    // the child's own.
+    let refusal = output
+        .get("refusal")
+        .and_then(JsonValue::as_object)
+        .ok_or("the parent returns its child's refusal")?;
+    assert!(
+        refusal
+            .get("message")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|message| message.contains("guarded")),
+        "{refusal:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_process_step_runs_only_while_its_package_is_the_admitted_one() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let skill = root.join("process");
+    let second = skill.join("second.sh");
+    let ran = root.join("ran.txt");
+    let process = |script: &str| {
+        serde_json::json!({"command": "sh", "args": [script], "input_mode": "stdin"}).to_string()
+    };
+    crate::support::write_test_skill_package(
+        &skill,
+        &manual("process"),
+        &format!(
+            "skill: process\nrunners:\n  default:\n    default: true\n    steps:\n{}      - id: second\n        tool: {}\n        outputs: {{done: boolean}}\n",
+            rewrite_step(
+                &second,
+                &format!(
+                    "cat >/dev/null; echo changed > '{}'; printf '{{\"done\":true}}'",
+                    ran.display()
+                )
+            )?,
+            process(&second.display().to_string()),
+        ),
+    )?;
+    fs::write(&second, "cat >/dev/null; printf '{\"done\":true}'\n")?;
+
+    let result = run(root, &skill, None)?;
+    let output = result.output.as_object().ok_or("an output object")?;
+    let closure = output
+        .get("closure")
+        .and_then(JsonValue::as_object)
+        .ok_or("a closure")?;
+    assert_eq!(
+        closure.get("disposition").and_then(JsonValue::as_str),
+        Some("failed"),
+        "{output:?}"
+    );
+    assert!(
+        serde_json::to_string(output)?.contains("changed since the run admitted it"),
+        "{output:?}"
+    );
+    assert!(!ran.exists(), "the changed script never ran");
+    Ok(())
+}

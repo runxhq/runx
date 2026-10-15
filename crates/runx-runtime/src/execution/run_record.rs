@@ -1637,6 +1637,7 @@ fn step_run(store: &KernelStore, event: StepEvent) -> Result<StepRun, RunRecordE
             .iter()
             .map(|digest| store.blob_json(digest))
             .collect::<Result<_, _>>()?,
+        refusal: None,
         admission_witness: record.admission_witness,
         settlement: None,
     })

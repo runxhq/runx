@@ -299,6 +299,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
                 ),
                 receipt,
                 nested_receipts: Vec::new(),
+                refusal: None,
                 settlement: None,
             }
         })

@@ -81,6 +81,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
         receipt,
         nested_receipts: Vec::new(),
+        refusal: None,
         settlement: None,
     }
 }
