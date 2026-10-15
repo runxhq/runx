@@ -81,7 +81,7 @@ fn a_bundle_a_crash_left_begun_is_rolled_back_by_the_next_driver() -> TestResult
         WorkspaceBounds::Agent,
         Some(&journal),
     )?;
-    assert!(report.get("journal").is_some());
+    assert!(report.contains_key("journal"));
     recover(&store, "run_journal")?;
     assert_eq!(fs::read_to_string(root.join("kept.md"))?, "after\n");
     Ok(())

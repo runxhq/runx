@@ -126,14 +126,14 @@ fn agent_act(id: &str) -> ResolutionRequest {
 fn approval(id: &str) -> ResolutionRequest {
     ResolutionRequest::Approval {
         id: id.into(),
-        gate: ApprovalGate {
+        gate: Box::new(ApprovalGate {
             id: id.into(),
             reason: "approve the send".into(),
             gate_type: None,
             summary: None,
             payload: None,
             payload_ref: None,
-        },
+        }),
     }
 }
 
@@ -738,7 +738,7 @@ fn an_admitted_answer_waits_in_the_record_until_a_step_uses_it() {
     // The answer leaves the run where it waits, and any later driver finds
     // it in the record.
     assert_eq!(waiting_ids(&store, "run_triage_10"), ["send.approval"]);
-    assert_eq!(log.admitted().unwrap(), [answer.clone()]);
+    assert_eq!(log.admitted().unwrap(), std::slice::from_ref(&answer));
     let record = log.load().unwrap().unwrap();
     assert!(matches!(
         record.suspension,

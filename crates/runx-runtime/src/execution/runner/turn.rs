@@ -8,14 +8,15 @@
 //! turn ends when the host answers the act.
 
 use std::cell::OnceCell;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AgentActInvocation, AllowedOperation, CallAct, JsonObject, JsonValue, ProjectArtifactRef,
-    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget,
-    TurnTool,
+    AgentActInvocation, AllowedOperation, CallAct, InputDefinition, JsonObject, JsonValue,
+    ProjectArtifactRef, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest,
+    RunCallOutput, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
 };
 use runx_parser::{AgentTask, AskGate, GraphStep, OperationStepTarget, StepKind, ToolTarget};
 
@@ -150,6 +151,22 @@ impl Made {
             standing: call.standing.clone(),
         }
     }
+}
+
+/// The step a call runs as, with what rides beside its inputs.
+struct CallStep {
+    step: GraphStep,
+    /// A skill call's act, which becomes its child run's.
+    act: Option<CallAct>,
+    /// The inputs the call gave by reference.
+    fed: Vec<Fed>,
+}
+
+/// An input given by reference to a packet a call of the turn returned:
+/// where it came from, and the artifact the call's receipt names for it.
+struct Fed {
+    edge: ProvenanceEntry,
+    artifact: Reference,
 }
 
 /// How a call's step went.
@@ -306,11 +323,11 @@ where
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
         self.admits(made.index)?;
-        let (step, act) = match self.refusal(&made.target)?.map_or_else(
+        let call = match self.refusal(&made.target)?.map_or_else(
             || self.call_step(made.index, &made.target, &made.input),
             Err,
         ) {
-            Ok(step) => step,
+            Ok(call) => call,
             Err(reason) => {
                 let refused = CallOutcome::Refused(reason);
                 return self.settled(made, refused, &host.answers);
@@ -322,8 +339,8 @@ where
         let admitted = match super::floor::hold(
             self.scope.runtime,
             self.scope.graph_dir,
-            &step,
-            &step.inputs,
+            &call.step,
+            &call.step.inputs,
             &mut host,
         ) {
             Ok(admitted) => admitted,
@@ -346,11 +363,11 @@ where
             ..made
         };
         let claim = match &made.target {
-            _ if super::reaches_world(&step.kind) => {
-                Some(CallOutcome::Claimed(self.retry(made.index, &step)?))
+            _ if super::reaches_world(&call.step.kind) => {
+                Some(CallOutcome::Claimed(self.retry(made.index, &call.step)?))
             }
             TurnTarget::Skill { .. } => Some(CallOutcome::Child(
-                self.scope.runtime.options.run.child_id(&step.id),
+                self.scope.runtime.options.run.child_id(&call.step.id),
             )),
             TurnTarget::Tool { .. } | TurnTarget::Operation { .. } | TurnTarget::Ask => None,
         };
@@ -360,19 +377,19 @@ where
         }
         let admitted_by = admitted.reference()?.into_iter().collect();
         match (
-            self.run_call_step(&step, &made.target, act, admitted_by, &mut host)?,
+            self.run_call_step(&call, &made.target, admitted_by, &mut host)?,
             claim,
         ) {
             (Ran::Settled(outcome), _) => self.settled(made, outcome, &host.answers),
             // The child run holds what it waits on; its link stands.
             (Ran::Waiting(_) | Ran::Unconfirmed, Some(claim @ CallOutcome::Child(_))) => {
-                self.result(&made, &claim)
+                self.result(&made, &claim, &[])
             }
             (Ran::Waiting(request), _) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
                 self.settled(made, pending, &host.answers)
             }
-            (Ran::Unconfirmed, Some(claim)) => self.result(&made, &claim),
+            (Ran::Unconfirmed, Some(claim)) => self.result(&made, &claim, &[]),
             (Ran::Unconfirmed, None) => Err(RuntimeError::EngineInvariant {
                 context: "running a turn call",
                 message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
@@ -389,19 +406,19 @@ where
     ) -> Result<TurnCallResult, RuntimeError> {
         let made = Made::of(&call);
         self.admits(made.index)?;
-        let (step, act) = self
+        let step = self
             .call_step(made.index, &made.target, &made.input)
             .map_err(|reason| RuntimeError::EngineInvariant {
                 context: "entering a skill call",
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self.run_call_step(&step, &made.target, act, Vec::new(), &mut answering)? {
+        match self.run_call_step(&step, &made.target, Vec::new(), &mut answering)? {
             Ran::Settled(outcome) => {
                 let answers = answering.answers;
                 self.settled(made, outcome, &answers)
             }
-            Ran::Waiting(_) | Ran::Unconfirmed => self.result(&made, &call.outcome),
+            Ran::Waiting(_) | Ran::Unconfirmed => self.result(&made, &call.outcome, &call.outputs),
         }
     }
 
@@ -444,9 +461,9 @@ where
         outcome: CallOutcome,
         answers: &[Answer],
     ) -> Result<TurnCallResult, RuntimeError> {
-        let result = self.result(&made, &outcome)?;
-        self.record(&made, outcome, answers)?;
-        Ok(result)
+        let outcome_now = outcome.clone();
+        let outputs = self.record(&made, outcome, answers)?;
+        self.result(&made, &outcome_now, &outputs)
     }
 
     /// Record a call's latest word on its index. A completed call's output
@@ -456,7 +473,7 @@ where
         made: &Made,
         outcome: CallOutcome,
         answers: &[Answer],
-    ) -> Result<(), RuntimeError> {
+    ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let outputs = match &outcome {
             CallOutcome::Completed(run) => self.output_artifacts(made.index, run)?,
             _ => Vec::new(),
@@ -483,13 +500,14 @@ where
             input: made.input.clone(),
             standing: made.standing.clone(),
             outcome,
+            outputs: outputs.clone(),
         };
         let calls = self.recorded_mut()?;
         match calls.iter_mut().find(|known| known.index == call.index) {
             Some(known) => *known = call,
             None => calls.push(call),
         }
-        Ok(())
+        Ok(outputs)
     }
 
     /// A completed call's output as project artifacts of its run: one per
@@ -544,11 +562,24 @@ where
 
     /// How a call stands, as its agent reads it. A skill call waits on what
     /// its child run waits on.
-    fn result(&self, made: &Made, outcome: &CallOutcome) -> Result<TurnCallResult, RuntimeError> {
+    fn result(
+        &self,
+        made: &Made,
+        outcome: &CallOutcome,
+        outputs: &[RunCallOutput],
+    ) -> Result<TurnCallResult, RuntimeError> {
         let outcome = match outcome {
             CallOutcome::Completed(run) if run.outcome.succeeded() => TurnCallOutcome::Completed {
                 output: run.contract.clone(),
                 receipt_id: run.receipt.id.to_string().into(),
+                artifacts: outputs
+                    .iter()
+                    .filter_map(|part| {
+                        part.output
+                            .as_ref()
+                            .map(|name| (name.as_str().to_owned(), part.artifact.clone()))
+                    })
+                    .collect(),
             },
             CallOutcome::Completed(run) => TurnCallOutcome::Failed {
                 reason: reason(output_error(run)),
@@ -582,17 +613,21 @@ where
         })
     }
 
-    /// Run a call as its step; a skill call's act becomes its child run's,
-    /// and what admitted it on the floor rides in its receipt.
+    /// Run a call as its step; a skill call's act becomes its child run's.
+    /// What admitted it on the floor, and the artifacts its inputs were given
+    /// by, ride in its receipt; where those inputs came from rides in its
+    /// provenance.
     fn run_call_step(
         &self,
-        step: &GraphStep,
+        call: &CallStep,
         target: &TurnTarget,
-        act: Option<CallAct>,
-        admitted_by: Vec<runx_contracts::Reference>,
+        admitted_by: Vec<Reference>,
         host: &mut dyn Host,
     ) -> Result<Ran, RuntimeError> {
         let scope = &self.scope;
+        let step = &call.step;
+        let mut admission_refs = admitted_by;
+        admission_refs.extend(call.fed.iter().map(|fed| fed.artifact.clone()));
         let request = StepRunRequest {
             runtime: scope.runtime,
             graph_dir: scope.graph_dir,
@@ -600,9 +635,9 @@ where
             step,
             attempt: 1,
             inputs: step.inputs.clone(),
-            child_act: act,
-            provenance: Vec::new(),
-            policy_approval_refs: admitted_by,
+            child_act: call.act.clone(),
+            provenance: call.fed.iter().map(|fed| fed.edge.clone()).collect(),
+            admission_refs,
             host,
         };
         let result = match target {
@@ -632,14 +667,14 @@ where
         })
     }
 
-    /// The step a call runs as, and a skill call's act. A malformed call is
-    /// refused before it runs.
+    /// The step a call runs as, a skill call's act, and the inputs it gave
+    /// by reference. A malformed call is refused before it runs.
     fn call_step(
         &self,
         index: u32,
         target: &TurnTarget,
         input: &JsonObject,
-    ) -> Result<(GraphStep, Option<CallAct>), String> {
+    ) -> Result<CallStep, String> {
         let step_id = call_step_id(self.scope.step_id, index);
         let mut inputs = input.clone();
         let mut act = None;
@@ -722,14 +757,14 @@ where
                 )
             }
         };
-        let step = GraphStep {
+        let mut step = GraphStep {
             id: step_id,
             label: Some(label(target)),
             kind,
             artifacts: None,
             outputs: None,
-            // An agent's call carries values, never references. An operation
-            // call's act is one of its fields.
+            // An agent's call carries values, never graph bindings. An
+            // operation call's act is one of its fields.
             inputs,
             bindings: Vec::new(),
             act: None,
@@ -738,7 +773,127 @@ where
             when: None,
             duplicates: None,
         };
-        Ok((step, act))
+        let fed = self.admit_references(&mut step, target)?;
+        Ok(CallStep { step, act, fed })
+    }
+
+    /// Admit the inputs a call gives by reference. An input of a packet type
+    /// may be the reference a call of this turn returned for such a packet:
+    /// it takes the packet as that call recorded it, read through the
+    /// project's artifact store against its digest, and the target's input
+    /// contract checks it as that input's packet. A reference to anything
+    /// else is refused.
+    fn admit_references(
+        &self,
+        step: &mut GraphStep,
+        target: &TurnTarget,
+    ) -> Result<Vec<Fed>, String> {
+        let given = step
+            .inputs
+            .iter()
+            .filter(|(_, value)| is_artifact_ref(value))
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        if given.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (owner, declared) = self.declared_inputs(step, target)?;
+        let options = &self.scope.runtime.options;
+        let artifacts =
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir).artifacts();
+        let recorded = self.recorded().map_err(|error| error.to_string())?;
+        let mut fed = Vec::new();
+        for name in given {
+            // Only an input of a packet type is given by reference; any other
+            // takes the value as it is.
+            let Some(input) = declared.get(&name).filter(|input| input.packet.is_some()) else {
+                continue;
+            };
+            let reference = step.inputs[&name]
+                .clone()
+                .deserialize_into::<ProjectArtifactRef>()
+                .map_err(|error| {
+                    format!("input {name} is not a project artifact reference: {error}")
+                })?;
+            let (call, run, output, artifact) = recorded
+                .iter()
+                .find_map(|call| {
+                    let CallOutcome::Completed(run) = &call.outcome else {
+                        return None;
+                    };
+                    call.outputs.iter().find_map(|part| {
+                        let output = part.output.as_ref()?;
+                        (part.artifact.digest == reference.digest).then_some((
+                            call,
+                            run,
+                            output,
+                            &part.artifact,
+                        ))
+                    })
+                })
+                .ok_or_else(|| {
+                    format!("input {name} names no packet a call of this turn returned")
+                })?;
+            let packet = JsonValue::from_serialize(artifact)
+                .map_err(|error| error.to_string())
+                .and_then(|recorded| crate::services::read_json_artifact(&artifacts, &recorded))
+                .map_err(|error| format!("input {name}: {error}"))?;
+            // An artifact input takes the packet in its envelope, as a step
+            // emits it.
+            let value = if input.artifact == Some(true) {
+                JsonValue::Object(JsonObject::from([("data".to_owned(), packet)]))
+            } else {
+                packet
+            };
+            crate::input_contract::admit_input_value(owner, &name, input, &value)
+                .map_err(|error| error.to_string())?;
+            step.inputs.insert(name.clone(), value);
+            fed.push(Fed {
+                edge: ProvenanceEntry {
+                    input: name.clone().into(),
+                    output: output.clone(),
+                    from_step: Some(call_step_id(self.scope.step_id, call.index)),
+                    artifact_id: Some(artifact.digest.clone()),
+                    receipt_id: Some(run.receipt.id.to_string()),
+                },
+                artifact: Reference {
+                    provider: Some("runx".into()),
+                    locator: Some(artifact.digest.clone().into()),
+                    label: Some(name.into()),
+                    ..Reference::with_uri(ReferenceType::Artifact, artifact.r#ref.clone())
+                },
+            });
+        }
+        Ok(fed)
+    }
+
+    /// The inputs a call's target declares, and whose they are: a catalog
+    /// tool's, or a child skill's runner's. An operation's input and an ask
+    /// declare none.
+    fn declared_inputs(
+        &self,
+        step: &GraphStep,
+        target: &TurnTarget,
+    ) -> Result<(&'static str, BTreeMap<String, InputDefinition>), String> {
+        let options = &self.scope.runtime.options;
+        match target {
+            TurnTarget::Tool { tool } => crate::tool_catalogs::dispatch::inspect_catalog_tool(
+                tool.as_str(),
+                &options.env,
+                self.scope.graph_dir,
+                &options.effects,
+            )
+            .map(|inspected| ("tool", inspected.inputs))
+            .map_err(|error| format!("tool {tool} could not be resolved: {error}")),
+            TurnTarget::Skill { skill } => load_step_skill(
+                self.scope.graph_dir,
+                step,
+                StepSkillLoadOptions { env: &options.env },
+            )
+            .map(|loaded| ("runner", loaded.runner.inputs))
+            .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
+            TurnTarget::Operation { .. } | TurnTarget::Ask => Ok(("call", BTreeMap::new())),
+        }
     }
 
     /// An operation's tool: the call fields the turn accepts, with the
@@ -879,12 +1034,12 @@ where
         let target = TurnTarget::Skill {
             skill: skill.clone(),
         };
-        let (step, _) = self
+        let call = self
             .call_step(0, &target, &JsonObject::new())
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
         let loaded = load_step_skill(
             self.scope.graph_dir,
-            &step,
+            &call.step,
             StepSkillLoadOptions {
                 env: &self.scope.runtime.options.env,
             },
@@ -895,7 +1050,10 @@ where
             .description
             .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
         // Beside its inputs, a skill call states why it runs the skill.
-        let mut input_schema = runx_contracts::input_contract_schema(&loaded.runner.inputs);
+        let mut input_schema =
+            runx_contracts::call_input_schema(&loaded.runner.inputs).map_err(|error| {
+                RuntimeError::effect_state("describing a child skill", error.to_string())
+            })?;
         if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
             properties.insert(
                 "act".to_owned(),
@@ -926,7 +1084,9 @@ where
             inspected
                 .description
                 .unwrap_or_else(|| format!("Runx tool {tool}.")),
-            runx_contracts::input_contract_schema(&inspected.inputs),
+            runx_contracts::call_input_schema(&inspected.inputs).map_err(|error| {
+                RuntimeError::effect_state("describing a tool", error.to_string())
+            })?,
             TurnTarget::Tool { tool: tool.clone() },
         ))
     }
@@ -997,7 +1157,7 @@ where
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
         self.recorded()?
             .iter()
-            .map(|call| self.result(&Made::of(call), &call.outcome))
+            .map(|call| self.result(&Made::of(call), &call.outcome, &call.outputs))
             .collect()
     }
 
@@ -1033,7 +1193,7 @@ where
                         ),
                     });
                 }
-                return self.result(&Made::of(known), &known.outcome);
+                return self.result(&Made::of(known), &known.outcome, &known.outputs);
             }
         }
         let index = self
@@ -1085,7 +1245,7 @@ where
                 }
                 self.run(answering, Made::of(&call))
             }
-            settled => self.result(&Made::of(&call), &settled),
+            settled => self.result(&Made::of(&call), &settled, &call.outputs),
         }
     }
 }
@@ -1105,6 +1265,15 @@ pub(super) fn retry_acknowledgement() -> JsonValue {
         "retry".to_owned(),
         JsonValue::Bool(true),
     )]))
+}
+
+/// Whether a value is given as a project artifact reference.
+fn is_artifact_ref(value: &JsonValue) -> bool {
+    value
+        .as_object()
+        .and_then(|object| object.get("schema"))
+        .and_then(JsonValue::as_str)
+        == Some("runx.project_artifact_ref.v1")
 }
 
 fn reason(text: String) -> NonEmptyString {

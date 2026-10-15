@@ -155,7 +155,7 @@ pub enum RunEventFact {
         /// when one did.
         #[serde(skip_serializing_if = "Option::is_none")]
         standing: Option<crate::StandingApproval>,
-        outcome: RunCallOutcome,
+        outcome: Box<RunCallOutcome>,
     },
     Sealed {
         disposition: ClosureDisposition,

@@ -914,9 +914,14 @@ fn the_approval_carries_what_executes_bound_by_its_digest() {
     fixture
         .prepare("post", admission, &mut host)
         .expect("pending");
-    let Some(ResolutionRequest::Approval { gate, .. }) = host.requests.last() else {
-        panic!("the operation asks for its approval");
-    };
+    let gate = host
+        .requests
+        .last()
+        .and_then(|request| match request {
+            ResolutionRequest::Approval { gate, .. } => Some(gate),
+            _ => None,
+        })
+        .expect("the operation asks for its approval");
     // A person sees exactly the input that executes, and a host recomputes
     // the digest the summary names before it offers Approve.
     let input = call["input"].clone();

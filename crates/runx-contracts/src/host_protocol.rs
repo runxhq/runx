@@ -1,4 +1,6 @@
 //! Host protocol contracts: execution events, resolution requests, host-run lifecycle.
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{NonEmptyString, RunxSchema};
@@ -79,7 +81,7 @@ pub enum ResolutionRequest {
     },
     Approval {
         id: NonEmptyString,
-        gate: ApprovalGate,
+        gate: Box<ApprovalGate>,
     },
     AgentAct {
         id: NonEmptyString,
@@ -310,6 +312,10 @@ pub enum TurnCallOutcome {
     Completed {
         output: JsonObject,
         receipt_id: NonEmptyString,
+        /// Each packet output as a project artifact of the run, by output
+        /// name: a reference a later call passes in place of the packet.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        artifacts: BTreeMap<String, crate::ProjectArtifactRef>,
     },
     /// The call ran and failed, with its receipt; or it failed before it
     /// could run.

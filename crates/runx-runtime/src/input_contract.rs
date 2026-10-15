@@ -107,6 +107,17 @@ pub(crate) fn materialize_complete_runner_inputs(
     )
 }
 
+/// Check one value an `owner` input takes, as admitting the whole invocation
+/// would check it.
+pub(crate) fn admit_input_value(
+    owner: &'static str,
+    name: &str,
+    input: &SkillInput,
+    value: &JsonValue,
+) -> Result<(), InputContractError> {
+    materialize_input(owner, name, input, Some(value), MissingRequired::Reject).map(|_| ())
+}
+
 fn materialize_declared_inputs(
     declared: &BTreeMap<String, SkillInput>,
     static_inputs: &JsonObject,

@@ -397,6 +397,8 @@ pub(crate) struct RecordedCall {
     pub input: JsonObject,
     pub standing: Option<StandingApproval>,
     pub outcome: CallOutcome,
+    /// A completed call's output as project artifacts.
+    pub outputs: Vec<RunCallOutput>,
 }
 
 #[derive(Clone, Debug)]
@@ -1526,6 +1528,10 @@ fn recorded_call(store: &KernelStore, call: CallEvent) -> Result<RecordedCall, R
         call_id: call.call_id,
         target: call.target,
         standing: call.standing,
+        outputs: match &call.outcome {
+            CallOutcomeEvent::Completed { outputs, .. } => outputs.clone(),
+            _ => Vec::new(),
+        },
     })
 }
 

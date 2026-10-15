@@ -696,7 +696,7 @@ fn seal_refusal(
             created_at: &crate::time::now_iso8601(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            approval_refs: Vec::new(),
+            admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
             closure: Some(closure),

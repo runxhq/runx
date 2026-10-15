@@ -215,7 +215,13 @@ Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A host pins its own `call_id` on a call, unique within the turn: a call made
 again with that id returns the recorded call rather than running twice, and one
-naming another tool or input is refused. A skill call states its `act` beside
+naming another tool or input is refused. A completed call returns each packet
+output's project artifact reference under `artifacts`, by output name; where a
+tool's or skill's input is of a packet type, a later call in the turn may pass
+that reference in place of the packet. Runx reads the artifact the earlier call
+recorded, checks its digest and the input's packet schema, gives the input its
+content, and names the artifact, labeled with the input, in the call's receipt;
+a reference no call of the turn returned is refused. A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
 runx cannot confirm stays pending on its own retry request, which says whether

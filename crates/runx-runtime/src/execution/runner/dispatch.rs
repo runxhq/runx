@@ -24,7 +24,7 @@ pub(super) struct LoadedStepExecutionRequest<'a, A: SkillAdapter> {
     pub(super) step: &'a GraphStep,
     pub(super) attempt: u32,
     pub(super) loaded_skill: Option<LoadedStepSkill>,
-    pub(super) policy_approval_refs: Vec<Reference>,
+    pub(super) admission_refs: Vec<Reference>,
     pub(super) host: &'a mut dyn Host,
 }
 
@@ -73,7 +73,7 @@ where
         step,
         attempt,
         loaded_skill,
-        policy_approval_refs,
+        admission_refs,
         host,
     } = request;
     let request = StepRunRequest {
@@ -85,7 +85,7 @@ where
         inputs,
         child_act,
         provenance,
-        policy_approval_refs,
+        admission_refs,
         host,
     };
     match loaded_skill {

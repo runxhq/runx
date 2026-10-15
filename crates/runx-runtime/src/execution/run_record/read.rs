@@ -305,7 +305,7 @@ fn project(
                 input_digest: input_digest(&input)?.into(),
                 call_id: call.call_id.map(Into::into),
                 standing: call.standing,
-                outcome,
+                outcome: Box::new(outcome),
             }
         }
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {

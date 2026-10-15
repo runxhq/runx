@@ -2058,7 +2058,7 @@ fn human(
     let request_id = crate::execution::run_record::request_address(&context.lanes.run_id, &step.id);
     let request = ResolutionRequest::Approval {
         id: request_id.clone().into(),
-        gate: gate.clone(),
+        gate: Box::new(gate.clone()),
     };
     match crate::request_approval(host, request_id, gate)
         .map_err(|error| denied(error.to_string()))?

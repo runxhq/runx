@@ -389,7 +389,7 @@ impl GraphExecution {
     {
         enforce_condition(context.step, &self.runs)?;
         enforce_guards(context.graph, context.step, &self.runs)?;
-        let policy_approval_refs =
+        let admission_refs =
             verified_approval_references(context.runtime, context.graph, context.step, &self.runs)?;
         let resumed_hold = if let Some(pending) = self.suspended_step.take() {
             if pending != context.plan.step_id {
@@ -460,8 +460,8 @@ impl GraphExecution {
                         &std::mem::take(&mut answering.answers),
                     )?;
                 }
-                let mut policy_approval_refs = policy_approval_refs;
-                policy_approval_refs.extend(admitted.reference()?);
+                let mut admission_refs = admission_refs;
+                admission_refs.extend(admitted.reference()?);
                 self.execute_step_plan(
                     StepPlanTarget {
                         runtime: context.runtime,
@@ -472,7 +472,7 @@ impl GraphExecution {
                     },
                     &mut answering,
                     loaded_skill,
-                    policy_approval_refs,
+                    admission_refs,
                 )
             }
         };
@@ -548,7 +548,7 @@ impl GraphExecution {
         context: StepPlanTarget<'_, A>,
         host: &mut dyn Host,
         loaded_skill: Result<Option<LoadedStepSkill>, RuntimeError>,
-        policy_approval_refs: Vec<Reference>,
+        admission_refs: Vec<Reference>,
     ) -> Result<StepRun, RuntimeError>
     where
         A: SkillAdapter,
@@ -562,7 +562,7 @@ impl GraphExecution {
                 step: context.step,
                 attempt: context.plan.attempt,
                 loaded_skill: loaded_skill?,
-                policy_approval_refs,
+                admission_refs,
                 host,
             },
             &prior_run_index,

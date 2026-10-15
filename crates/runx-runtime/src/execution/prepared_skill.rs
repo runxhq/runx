@@ -1503,7 +1503,7 @@ runners:
                     created_at: "2026-07-12T00:00:00Z",
                     authority: crate::receipts::SealAuthority::default(),
                     call,
-                    approval_refs: Vec::new(),
+                    admission_refs: Vec::new(),
                     child_receipts: &[],
                     descendant_receipts: &[],
                     closure: Some(StepSealClosure {

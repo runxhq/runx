@@ -113,7 +113,7 @@ impl LocalApprovalGateResolver {
         self.report_requested(host, &id, &gate, &idempotency_key)?;
         let response = host.resolve(ResolutionRequest::Approval {
             id: id.clone().into(),
-            gate: gate.clone(),
+            gate: Box::new(gate.clone()),
         })?;
         let Some(response) = response else {
             return Ok(ApprovalResolution::Pending { idempotency_key });

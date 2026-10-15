@@ -178,14 +178,14 @@ fn approval_optional_fields_omit_null_via_host_protocol_serde()
 -> Result<(), Box<dyn std::error::Error>> {
     let request = ResolutionRequest::Approval {
         id: "req_approval".into(),
-        gate: ApprovalGate {
+        gate: Box::new(ApprovalGate {
             id: "workspace-write".into(),
             reason: "Allow workspace write".into(),
             gate_type: None,
             summary: None,
             payload: None,
             payload_ref: None,
-        },
+        }),
     };
 
     let actual = serde_json::to_string(&request)?;

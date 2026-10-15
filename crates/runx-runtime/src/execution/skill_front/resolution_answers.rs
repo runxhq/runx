@@ -313,14 +313,14 @@ mod tests {
     fn approval(address: &str) -> ResolutionRequest {
         ResolutionRequest::Approval {
             id: address.into(),
-            gate: ApprovalGate {
+            gate: Box::new(ApprovalGate {
                 id: address.into(),
                 reason: "Send it?".into(),
                 gate_type: None,
                 summary: None,
                 payload: None,
                 payload_ref: None,
-            },
+            }),
         }
     }
 

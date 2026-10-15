@@ -53,7 +53,7 @@ pub(crate) struct StepReceiptWithDisposition<'a> {
 struct StepReceiptSeal<'a> {
     params: StepReceiptWithDisposition<'a>,
     claim: &'a JsonObject,
-    approval_refs: Vec<Reference>,
+    admission_refs: Vec<Reference>,
     child_receipts: &'a [Receipt],
     descendant_receipts: &'a [Receipt],
     authority: SealAuthority,
@@ -97,7 +97,7 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
     step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
         params,
         claim,
-        approval_refs: Vec::new(),
+        admission_refs: Vec::new(),
         child_receipts: &[],
         descendant_receipts: &[],
         authority: SealAuthority::default(),
@@ -112,7 +112,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
     let StepReceiptSeal {
         params,
         claim,
-        approval_refs,
+        admission_refs,
         child_receipts,
         descendant_receipts,
         authority,
@@ -128,7 +128,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         disposition,
         reason,
     } = params;
-    let evidence = step_evidence(&output.observations, approval_refs);
+    let evidence = step_evidence(&output.observations, admission_refs);
     let verification = contract_criteria(&output.observations.contract);
     // Only a governed call seals an act, and only a stated decision seals a
     // decision: a step's own outcome is its seal.
@@ -206,8 +206,9 @@ pub(crate) struct StepSeal<'a> {
     pub(crate) authority: SealAuthority,
     /// The governed call the step made, for an operation step.
     pub(crate) call: Option<SealedCall>,
-    /// Evidence of the policy approvals that let the step run.
-    pub(crate) approval_refs: Vec<Reference>,
+    /// What admitted the step: the approvals that let it run, and the
+    /// artifacts its inputs were given by, each labeled with its input.
+    pub(crate) admission_refs: Vec<Reference>,
     /// Direct child receipts for a composed step such as a nested graph. The
     /// step receipt commits their ids and digests; their descendants remain
     /// reachable through the child receipt tree.
@@ -250,7 +251,7 @@ pub(crate) fn seal_step(
         created_at,
         authority,
         call,
-        approval_refs,
+        admission_refs,
         child_receipts,
         descendant_receipts,
         closure,
@@ -270,7 +271,7 @@ pub(crate) fn seal_step(
             reason,
         },
         claim,
-        approval_refs,
+        admission_refs,
         child_receipts,
         descendant_receipts,
         authority,
@@ -688,18 +689,26 @@ fn local_authority(authority: SealAuthority) -> ReceiptAuthority {
 }
 
 /// The evidence of a step's outcome and its verification, from what admission
-/// and the runtime recorded: the approvals that let it run, and its effect
-/// and credential verification. No output field is read for a reference.
+/// and the runtime recorded: the approvals that let it run and the artifacts
+/// its inputs were given by, and its effect and credential verification. An
+/// input's artifact is evidence of what the step was given, never of its
+/// verification. No output field is read for a reference.
 #[derive(Default)]
 struct StepEvidence {
     evidence_refs: Vec<Reference>,
     verification_refs: Vec<Reference>,
 }
 
-fn step_evidence(observations: &Observations, approval_refs: Vec<Reference>) -> StepEvidence {
+fn step_evidence(observations: &Observations, admission_refs: Vec<Reference>) -> StepEvidence {
     let mut evidence = StepEvidence::default();
-    evidence.evidence_refs.extend(approval_refs.iter().cloned());
-    evidence.verification_refs.extend(approval_refs);
+    evidence
+        .evidence_refs
+        .extend(admission_refs.iter().cloned());
+    evidence.verification_refs.extend(
+        admission_refs
+            .into_iter()
+            .filter(|reference| reference.reference_type != ReferenceType::Artifact),
+    );
     evidence
         .verification_refs
         .extend(observations.effect_verification_refs.iter().cloned());
@@ -983,7 +992,7 @@ mod tests {
                     "2026-05-28T00:00:00Z",
                 ),
                 claim: &JsonObject::new(),
-                approval_refs: Vec::new(),
+                admission_refs: Vec::new(),
                 child_receipts: &[],
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
@@ -1127,7 +1136,7 @@ mod tests {
                     "2026-05-28T00:00:00Z",
                 ),
                 claim: &claim,
-                approval_refs: Vec::new(),
+                admission_refs: Vec::new(),
                 child_receipts: &[],
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),
@@ -1191,7 +1200,7 @@ mod tests {
                     "2026-05-28T00:00:00Z",
                 ),
                 claim: &JsonObject::new(),
-                approval_refs: Vec::new(),
+                admission_refs: Vec::new(),
                 child_receipts: std::slice::from_ref(child),
                 descendant_receipts: &[],
                 authority: SealAuthority::default(),

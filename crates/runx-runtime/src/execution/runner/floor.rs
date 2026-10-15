@@ -130,7 +130,7 @@ pub(super) fn hold<A>(
             reason: format!("{} waits on the person", step.id),
             request: Box::new(ResolutionRequest::Approval {
                 id: request_id.into(),
-                gate,
+                gate: Box::new(gate),
             }),
             child: None,
         }),

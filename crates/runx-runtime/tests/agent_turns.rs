@@ -1058,7 +1058,9 @@ fn floor_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts
         return Err(format!("the call waits on the person: {call:?}").into());
     };
     match waiting.as_slice() {
-        [ResolutionRequest::Approval { id, gate }] if id.as_str() == address => Ok(gate.clone()),
+        [ResolutionRequest::Approval { id, gate }] if id.as_str() == address => {
+            Ok(gate.as_ref().clone())
+        }
         _ => Err(format!("one floor approval at {address}: {waiting:?}").into()),
     }
 }
@@ -1361,7 +1363,7 @@ fn recorded_calls(paused: &Paused) -> TestResult<Vec<(Option<String>, RunCallOut
             ..
         } = record.event
         {
-            calls.insert(index, (call_id.map(|id| id.as_str().to_owned()), outcome));
+            calls.insert(index, (call_id.map(|id| id.as_str().to_owned()), *outcome));
         }
     }
     Ok(calls.into_values().collect())
@@ -1490,6 +1492,170 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
     let output = object(&sealed.output)?;
     let closure = object(output.get("closure").ok_or("missing closure")?)?;
     assert_eq!(text(closure, "disposition"), Some("failed"), "{output:?}");
+    Ok(())
+}
+
+/// A one-turn skill that may digest data and hand a digest packet to
+/// `digest-reader`, whose runner takes it as a `runx.data.digest.v1` and
+/// digests the digest it names.
+fn write_packet_skills(root: &Path) -> TestResult<PathBuf> {
+    let reader = root.join("digest-reader");
+    crate::support::write_test_skill_package(
+        &reader,
+        "---\nname: digest-reader\ndescription: Digests a digest packet's digest.\n---\n# Digest reader\n\nDigest the digest.\n",
+        r#"skill: digest-reader
+runners:
+  read:
+    default: true
+    inputs:
+      packet: { type: json, required: true, packet: runx.data.digest.v1 }
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.packet.digest
+          encoding: utf8_text
+"#,
+    )?;
+    std::fs::create_dir_all(reader.join("packets"))?;
+    std::fs::write(
+        reader.join("packets/runx.data.digest.v1.schema.json"),
+        r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","x-runx-packet-id":"runx.data.digest.v1","type":"object","required":["algorithm","digest"],"properties":{"algorithm":{"const":"sha256"},"digest":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"additionalProperties":false}"#,
+    )?;
+    let skill_dir = root.join("packet-turn");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: packet-turn\ndescription: Hands packets on.\n---\n# Packet turn\n\nDigest, then hand the digest on.\n",
+        r#"skill: packet-turn
+tools: [data.digest]
+skills: [../digest-reader]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
+#[test]
+fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_packet_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+
+    // The reader's packet input takes the packet or a reference to one.
+    let status = turn.status(TURN)?;
+    let reader = status
+        .tools
+        .iter()
+        .find(|tool| tool.name.as_str() == "skill__digest-reader")
+        .ok_or("the reader is offered")?;
+    let branches = reader.input_schema["properties"]
+        .as_object()
+        .and_then(|properties| properties.get("packet"))
+        .and_then(JsonValue::as_object)
+        .and_then(|packet| packet.get("anyOf"))
+        .and_then(JsonValue::as_array)
+        .ok_or("the packet input has two forms")?;
+    assert_eq!(branches.len(), 2);
+    assert_eq!(
+        text(object(&branches[0])?, "x-runx-packet-id"),
+        Some("runx.data.digest.v1")
+    );
+
+    let digest = |value: &str| {
+        turn.call(
+            TURN,
+            "data_digest",
+            None,
+            input(serde_json::json!({"value": value, "encoding": "utf8_text"}))?,
+        )
+        .map_err(Box::<dyn std::error::Error>::from)
+    };
+    let hello = digest("hello")?;
+    let TurnCallOutcome::Completed {
+        output, artifacts, ..
+    } = &hello.outcome
+    else {
+        return Err(format!("the digest completed: {hello:?}").into());
+    };
+    let reference = artifacts
+        .get("digest_result")
+        .ok_or("the packet output is an artifact")?;
+    let named = serde_json::to_value(output)?["digest_result"]["data"]["digest"]
+        .as_str()
+        .ok_or("the digest names a digest")?
+        .to_owned();
+
+    // The reader takes the packet by its reference, as the call recorded it.
+    let read = turn.call(
+        TURN,
+        "skill__digest-reader",
+        None,
+        input(serde_json::json!({"packet": reference}))?,
+    )?;
+    let TurnCallOutcome::Completed {
+        output: read_output,
+        receipt_id,
+        ..
+    } = &read.outcome
+    else {
+        return Err(format!("the reader completed: {read:?}").into());
+    };
+    let TurnCallOutcome::Completed {
+        output: expected, ..
+    } = digest(&named)?.outcome
+    else {
+        return Err("the digest of the digest completed".into());
+    };
+    assert_eq!(
+        serde_json::to_value(read_output)?["digest_result"]["data"],
+        serde_json::to_value(&expected)?["digest_result"]["data"],
+        "the reader digested the packet the reference names"
+    );
+
+    // A reference to anything no call of the turn returned is refused.
+    let mut forged = serde_json::to_value(reference)?;
+    forged["digest"] = serde_json::json!(format!("sha256:{}", "0".repeat(64)));
+    let refused = turn.call(
+        TURN,
+        "skill__digest-reader",
+        None,
+        input(serde_json::json!({"packet": forged}))?,
+    )?;
+    assert!(
+        matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("names no packet")),
+        "{refused:?}"
+    );
+
+    // The reader's receipt names the artifact that fed its input, as
+    // evidence of what it was given.
+    turn.complete(TURN, input(serde_json::json!({"answer": "read"}))?)?;
+    let receipt = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id.as_str())?;
+    let outcome = receipt
+        .seal
+        .criteria
+        .iter()
+        .find(|binding| binding.criterion_id == runx_contracts::Criterion::StepOutcome)
+        .ok_or("the receipt seals its outcome")?;
+    let fed = outcome
+        .evidence_refs
+        .iter()
+        .find(|evidence| evidence.reference_type == runx_contracts::ReferenceType::Artifact)
+        .ok_or("the receipt names the input's artifact")?;
+    assert_eq!(fed.uri.as_str(), reference.r#ref);
+    assert_eq!(
+        fed.label.as_ref().map(|label| label.as_str()),
+        Some("packet")
+    );
+    assert!(
+        !outcome.verification_refs.contains(fed),
+        "an input's artifact verifies nothing"
+    );
     Ok(())
 }
 

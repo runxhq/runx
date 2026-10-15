@@ -5,6 +5,7 @@ import {
 } from "../internal.js";
 import type { AgentActInvocationContract } from "./agent-act.js";
 import type { ResolutionRequestContract } from "./resolution.js";
+import type { ProjectArtifactRefContract } from "./skill-output.js";
 
 /** What a turn call names: one entry of the turn's allowance. */
 export type TurnTargetContract = DeepReadonly<
@@ -15,12 +16,19 @@ export type TurnTargetContract = DeepReadonly<
 >;
 
 /**
- * How a call ended. A pending call lists what it waits on, each request by
+ * How a call ended. A completed call's `artifacts` hold each packet output as
+ * a project artifact of the run, by output name: a later call passes one in
+ * place of the packet. A pending call lists what it waits on, each request by
  * its address: its own ask or approval, its retry while its effect is
  * unconfirmed, or what the child run it started waits on.
  */
 export type TurnCallOutcomeContract = DeepReadonly<
-  | { status: "completed"; output: Record<string, unknown>; receipt_id: string }
+  | {
+      status: "completed";
+      output: Record<string, unknown>;
+      receipt_id: string;
+      artifacts?: Record<string, ProjectArtifactRefContract>;
+    }
   | { status: "failed"; reason: string; receipt_id?: string }
   | { status: "refused"; reason: string }
   | { status: "pending"; waiting: readonly ResolutionRequestContract[] }

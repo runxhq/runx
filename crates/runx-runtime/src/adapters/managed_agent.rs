@@ -428,6 +428,7 @@ mod tests {
             index: 0,
             target: runx_contracts::TurnTarget::Ask,
             input_digest: "sha256:ask".into(),
+            call_id: None,
             outcome: runx_contracts::TurnCallOutcome::Refused {
                 reason: "no reason given".into(),
             },

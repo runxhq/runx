@@ -108,7 +108,7 @@ pub(super) struct StepRunRequest<'a, A> {
     /// `$act`.
     pub(super) child_act: Option<CallAct>,
     pub(super) provenance: Vec<ProvenanceEntry>,
-    pub(super) policy_approval_refs: Vec<Reference>,
+    pub(super) admission_refs: Vec<Reference>,
     pub(super) host: &'a mut dyn Host,
 }
 
@@ -121,7 +121,7 @@ struct StepHandlerCtx<'a, A> {
     inputs: JsonObject,
     child_act: Option<CallAct>,
     provenance: Vec<ProvenanceEntry>,
-    policy_approval_refs: Vec<Reference>,
+    admission_refs: Vec<Reference>,
     host: &'a mut dyn Host,
     authority: Option<StepAuthorityContext>,
     loaded_skill: Option<LoadedStepSkill>,
@@ -135,7 +135,7 @@ struct RegularSkillSeal<'a, A> {
     attempt: u32,
     skill_name: String,
     authority: Option<&'a StepAuthorityContext>,
-    policy_approval_refs: Vec<Reference>,
+    admission_refs: Vec<Reference>,
 }
 
 pub(super) fn output_error(run: &StepRun) -> String {
@@ -183,7 +183,7 @@ where
         inputs,
         child_act,
         provenance,
-        policy_approval_refs,
+        admission_refs,
         host,
     } = request;
     let effect_request = EffectStepRequest {
@@ -209,7 +209,7 @@ where
         inputs,
         child_act,
         provenance,
-        policy_approval_refs,
+        admission_refs,
         host,
         authority,
         loaded_skill,
@@ -249,7 +249,7 @@ where
     A: SkillAdapter,
 {
     let skill_name = skill.runner.name.clone();
-    let policy_approval_refs = request.policy_approval_refs.clone();
+    let admission_refs = request.admission_refs.clone();
     let run = execute_nested_graph(
         request.runtime,
         request.host,
@@ -301,7 +301,7 @@ where
             attempt: request.attempt,
             skill_name,
             authority: request.authority.as_ref(),
-            policy_approval_refs,
+            admission_refs,
         },
         RegularSkillStepOutput {
             output,
@@ -504,7 +504,7 @@ where
             created_at: &context.runtime.options.clock.now(),
             authority: seal_authority,
             call: None,
-            approval_refs: context.policy_approval_refs,
+            admission_refs: context.admission_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
             closure: None,
@@ -584,19 +584,10 @@ where
     // receipt; they never set the authority witness, so a new step type cannot
     // regress the uniform-governance invariant. See `docs/governance-invariant.md`
     // for the full admit -> credentials -> execution -> seal contract.
-    let step_id = request.step.id.clone();
+    let step = request.step;
     let authority = request.authority.clone();
-    let mut run = match &request.step.kind {
-        StepKind::Ask(gate) => run_approval_step(
-            request.runtime,
-            request.graph_dir,
-            request.graph_name,
-            request.step,
-            gate,
-            request.attempt,
-            request.inputs,
-            request.host,
-        )?,
+    let mut run = match &step.kind {
+        StepKind::Ask(ask) => run_approval_step(request, ask)?,
         StepKind::Agent(_) => run_agent_task(request)?,
         StepKind::Tool(ToolTarget::Catalog(_)) => run_tool_step(request)?,
         StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
@@ -606,7 +597,7 @@ where
         StepKind::Skill(_) => run_subskill_step(request)?,
     };
     run.admission_witness =
-        step_admission_witness(&step_id, run.receipt.id.as_str(), authority.as_ref());
+        step_admission_witness(&step.id, run.receipt.id.as_str(), authority.as_ref());
     Ok(run)
 }
 
@@ -641,7 +632,7 @@ where
         host: _,
         authority,
         loaded_skill: _,
-        policy_approval_refs,
+        admission_refs,
     } = request;
     let executable = match &step.kind {
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
@@ -680,7 +671,7 @@ where
             attempt,
             skill_name: step.id.clone(),
             authority: authority.as_ref(),
-            policy_approval_refs,
+            admission_refs,
         },
         regular,
     )
@@ -740,7 +731,7 @@ fn seal_agent_act_step<A>(
             created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            approval_refs: Vec::new(),
+            admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
             closure: Some(StepSealClosure {
@@ -785,7 +776,7 @@ where
         host,
         authority: _,
         loaded_skill: _,
-        policy_approval_refs: _,
+        admission_refs: _,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
         return Err(RuntimeError::InvalidRunStep {
@@ -925,7 +916,7 @@ where
         inputs,
         child_act: _,
         provenance: _,
-        policy_approval_refs,
+        admission_refs,
         host: _,
         authority,
         loaded_skill: _,
@@ -970,7 +961,7 @@ where
             graph_name,
             step,
             attempt,
-            policy_approval_refs,
+            admission_refs,
             authority: authority.as_ref(),
             skill: format!("tool:{tool_ref}"),
             call: None,
@@ -987,7 +978,7 @@ struct EffectStepSeal<'a, A> {
     graph_name: &'a str,
     step: &'a GraphStep,
     attempt: u32,
-    policy_approval_refs: Vec<Reference>,
+    admission_refs: Vec<Reference>,
     authority: Option<&'a StepAuthorityContext>,
     skill: String,
     /// The governed call an operation step made.
@@ -1010,7 +1001,7 @@ where
         graph_name,
         step,
         attempt,
-        policy_approval_refs,
+        admission_refs,
         authority,
         skill,
         call,
@@ -1041,7 +1032,7 @@ where
             created_at: &runtime.options.clock.now(),
             authority: seal_authority,
             call,
-            approval_refs: policy_approval_refs,
+            admission_refs,
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
@@ -1165,7 +1156,7 @@ where
         graph_name,
         step,
         attempt,
-        policy_approval_refs,
+        admission_refs,
         authority,
         ..
     } = request;
@@ -1241,7 +1232,7 @@ where
             graph_name,
             step,
             attempt,
-            policy_approval_refs,
+            admission_refs,
             authority: Some(&authority),
             skill,
             call: Some(call),
@@ -1302,19 +1293,23 @@ fn agent_answer_disposition_value(
 
 // Function rationale: an approval step resolves, projects,
 // and seals one trust-boundary decision without exposing a partially built receipt.
-pub(super) fn run_approval_step<A>(
-    runtime: &Runtime<A>,
-    graph_dir: &Path,
-    graph_name: &str,
-    step: &GraphStep,
+fn run_approval_step<A>(
+    request: StepHandlerCtx<'_, A>,
     ask: &AskGate,
-    attempt: u32,
-    inputs: JsonObject,
-    host: &mut dyn Host,
 ) -> Result<StepRun, RuntimeError>
 where
     A: SkillAdapter,
 {
+    let StepHandlerCtx {
+        runtime,
+        graph_dir,
+        graph_name,
+        step,
+        attempt,
+        inputs,
+        host,
+        ..
+    } = request;
     if ask.gate_type.as_deref() == Some(QUESTIONS_GATE) {
         return run_question_step(runtime, graph_name, step, ask, attempt, &inputs, host);
     }
@@ -1352,7 +1347,7 @@ where
             created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            approval_refs: Vec::new(),
+            admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
@@ -1504,7 +1499,7 @@ where
             created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            approval_refs: Vec::new(),
+            admission_refs: Vec::new(),
             child_receipts: &[],
             descendant_receipts: &[],
             closure: None,
@@ -1540,7 +1535,7 @@ fn completed_approval_resolution(
             reason: format!("approval gate '{}' is pending", gate.id),
             request: Box::new(ResolutionRequest::Approval {
                 id: request_id.into(),
-                gate: gate.clone(),
+                gate: Box::new(gate.clone()),
             }),
             child: None,
         });
@@ -1689,7 +1684,7 @@ where
             created_at: &runtime.options.clock.now(),
             authority: crate::receipts::SealAuthority::default(),
             call: None,
-            approval_refs: Vec::new(),
+            admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
             closure,

@@ -151,6 +151,33 @@ pub fn input_contract_schema_with_examples(
     schema
 }
 
+/// The input schema a turn offers for a call: the input contract, where an
+/// input of a packet type may instead be the `runx.project_artifact_ref.v1` a
+/// call of the turn returned for such a packet.
+pub fn call_input_schema(
+    inputs: &BTreeMap<String, InputDefinition>,
+) -> Result<JsonObject, crate::json::JsonValueError> {
+    let mut schema = input_contract_schema(inputs);
+    let reference = JsonValue::from_serialize(&crate::ProjectArtifactRef::json_schema())?;
+    if let Some(JsonValue::Object(properties)) = schema.get_mut("properties") {
+        for (name, input) in inputs {
+            if input.packet.is_none() {
+                continue;
+            }
+            if let Some(packet) = properties.remove(name) {
+                properties.insert(
+                    name.clone(),
+                    JsonValue::Object(JsonObject::from([(
+                        "anyOf".to_owned(),
+                        JsonValue::Array(vec![packet, reference.clone()]),
+                    )])),
+                );
+            }
+        }
+    }
+    Ok(schema)
+}
+
 /// How a successful execution result is exposed to downstream graph context.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
