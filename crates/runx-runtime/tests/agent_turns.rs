@@ -1618,19 +1618,45 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         "the reader digested the packet the reference names"
     );
 
-    // A reference to anything no call of the turn returned is refused.
-    let mut forged = serde_json::to_value(reference)?;
-    forged["digest"] = serde_json::json!(format!("sha256:{}", "0".repeat(64)));
-    let refused = turn.call(
+    // A packet an earlier run left in the project feeds an input too, as a
+    // host reuses one across sessions; a reference whose digest is not its
+    // content's, or that leaves the project's artifact store, is refused.
+    let artifacts = runx_runtime::RunxPaths::resolve(&env(&paused.root), &paused.root).artifacts();
+    let data = output
+        .get("digest_result")
+        .and_then(JsonValue::as_object)
+        .and_then(|envelope| envelope.get("data"))
+        .ok_or("the digest is a packet")?;
+    let earlier =
+        runx_runtime::persist_json_artifact(&artifacts, "rx_earlier", "packets", "digest", data)?;
+    let reused = turn.call(
         TURN,
         "skill__digest-reader",
         None,
-        input(serde_json::json!({"packet": forged}))?,
+        input(serde_json::json!({"packet": earlier}))?,
     )?;
     assert!(
-        matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("names no packet")),
-        "{refused:?}"
+        matches!(reused.outcome, TurnCallOutcome::Completed { .. }),
+        "{reused:?}"
     );
+    let mut forged = serde_json::to_value(reference)?;
+    forged["digest"] = serde_json::json!(format!("sha256:{}", "0".repeat(64)));
+    let outside = temp.path().join("outside.json");
+    std::fs::write(&outside, br#"{"algorithm":"sha256"}"#)?;
+    let mut escaped = forged.clone();
+    escaped["path"] = serde_json::json!(outside);
+    for (bad, why) in [(forged, "digest differs"), (escaped, "escapes")] {
+        let refused = turn.call(
+            TURN,
+            "skill__digest-reader",
+            None,
+            input(serde_json::json!({"packet": bad}))?,
+        )?;
+        assert!(
+            matches!(&refused.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains(why)),
+            "{refused:?}"
+        );
+    }
 
     // The reader's receipt names the artifact that fed its input, as
     // evidence of what it was given.

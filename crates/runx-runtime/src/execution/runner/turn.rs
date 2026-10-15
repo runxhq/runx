@@ -162,10 +162,11 @@ struct CallStep {
     fed: Vec<Fed>,
 }
 
-/// An input given by reference to a packet a call of the turn returned:
-/// where it came from, and the artifact the call's receipt names for it.
+/// An input given by reference to a packet the project holds: the artifact
+/// the call's receipt names for it, and, when a call of the turn returned
+/// it, where it came from.
 struct Fed {
-    edge: ProvenanceEntry,
+    edge: Option<ProvenanceEntry>,
     artifact: Reference,
 }
 
@@ -636,7 +637,7 @@ where
             attempt: 1,
             inputs: step.inputs.clone(),
             child_act: call.act.clone(),
-            provenance: call.fed.iter().map(|fed| fed.edge.clone()).collect(),
+            provenance: call.fed.iter().filter_map(|fed| fed.edge.clone()).collect(),
             admission_refs,
             host,
         };
@@ -778,11 +779,13 @@ where
     }
 
     /// Admit the inputs a call gives by reference. An input of a packet type
-    /// may be the reference a call of this turn returned for such a packet:
-    /// it takes the packet as that call recorded it, read through the
-    /// project's artifact store against its digest, and the target's input
-    /// contract checks it as that input's packet. A reference to anything
-    /// else is refused.
+    /// may be a reference to a packet the project holds: one a call of this
+    /// turn returned, or one an earlier run made, such as a voice packet its
+    /// host reuses. Its content is read through the project's artifact store,
+    /// confined to it and bound to the reference's digest, and the target's
+    /// input contract checks it as that input's packet. A packet a call of
+    /// this turn returned is read as that call recorded it, and the input's
+    /// provenance names the call.
     fn admit_references(
         &self,
         step: &mut GraphStep,
@@ -809,32 +812,28 @@ where
             let Some(input) = declared.get(&name).filter(|input| input.packet.is_some()) else {
                 continue;
             };
-            let reference = step.inputs[&name]
+            let named = step.inputs[&name]
                 .clone()
                 .deserialize_into::<ProjectArtifactRef>()
                 .map_err(|error| {
                     format!("input {name} is not a project artifact reference: {error}")
                 })?;
-            let (call, run, output, artifact) = recorded
-                .iter()
-                .find_map(|call| {
-                    let CallOutcome::Completed(run) = &call.outcome else {
-                        return None;
-                    };
-                    call.outputs.iter().find_map(|part| {
-                        let output = part.output.as_ref()?;
-                        (part.artifact.digest == reference.digest).then_some((
-                            call,
-                            run,
-                            output,
-                            &part.artifact,
-                        ))
-                    })
+            let produced = recorded.iter().find_map(|call| {
+                let CallOutcome::Completed(run) = &call.outcome else {
+                    return None;
+                };
+                call.outputs.iter().find_map(|part| {
+                    let output = part.output.as_ref()?;
+                    (part.artifact.digest == named.digest).then_some((
+                        call,
+                        run,
+                        output,
+                        &part.artifact,
+                    ))
                 })
-                .ok_or_else(|| {
-                    format!("input {name} names no packet a call of this turn returned")
-                })?;
-            let packet = JsonValue::from_serialize(artifact)
+            });
+            let reference = produced.map_or(&named, |(_, _, _, artifact)| artifact);
+            let packet = JsonValue::from_serialize(reference)
                 .map_err(|error| error.to_string())
                 .and_then(|recorded| crate::services::read_json_artifact(&artifacts, &recorded))
                 .map_err(|error| format!("input {name}: {error}"))?;
@@ -849,18 +848,18 @@ where
                 .map_err(|error| error.to_string())?;
             step.inputs.insert(name.clone(), value);
             fed.push(Fed {
-                edge: ProvenanceEntry {
+                edge: produced.map(|(call, run, output, _)| ProvenanceEntry {
                     input: name.clone().into(),
                     output: output.clone(),
                     from_step: Some(call_step_id(self.scope.step_id, call.index)),
-                    artifact_id: Some(artifact.digest.clone()),
+                    artifact_id: Some(reference.digest.clone()),
                     receipt_id: Some(run.receipt.id.to_string()),
-                },
+                }),
                 artifact: Reference {
                     provider: Some("runx".into()),
-                    locator: Some(artifact.digest.clone().into()),
+                    locator: Some(reference.digest.clone().into()),
                     label: Some(name.into()),
-                    ..Reference::with_uri(ReferenceType::Artifact, artifact.r#ref.clone())
+                    ..Reference::with_uri(ReferenceType::Artifact, reference.r#ref.clone())
                 },
             });
         }
