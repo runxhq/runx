@@ -236,7 +236,13 @@ fn vectors() -> io::Result<Vec<Vector>> {
             "runx.payment.purchase.v1",
             json!({
                 "invocation": fulfilled.clone(),
-                "receipt_ref": {"type": "receipt", "uri": "runx:receipt:purchase-fulfilled"},
+                "receipt": {
+                    "id": "sha256:purchase-fulfilled",
+                    "schema": "runx.hosted_paid_invocation_terminal_receipt.v1",
+                    "terminal": {"outcome": "fulfilment"},
+                    "digest": format!("sha256:{}", "9".repeat(64)),
+                    "signature": {"alg": "Ed25519", "value": "base64:fixture"}
+                },
                 "result": {"resource_lease": {"inbox_id": "inb_7Hq2x9", "address": "agent@inbox.example"}},
                 "claim_url": "https://inbox.example.com/v1/agent-inboxes/inb_7Hq2x9/claim"
             }),

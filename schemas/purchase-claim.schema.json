@@ -1,0 +1,33 @@
+{
+  "$id": "https://schemas.runx.ai/runx/payment/purchase-claim/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "claim_url": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "issued_at": {
+      "minLength": 1,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+      "type": "string"
+    },
+    "receipt": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "signature": {
+      "pattern": "^ed25519:[A-Za-z0-9_-]{85}[AQgw]$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "receipt",
+    "claim_url",
+    "issued_at",
+    "signature"
+  ],
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.payment.purchase_claim.v1"
+}

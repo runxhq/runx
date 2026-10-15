@@ -5956,6 +5956,10 @@ export const runxSchemaArtifacts = {
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
+                  "purchaser_key": {
+                    "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                    "type": "string"
+                  },
                   "settlement_family": {
                     "maxLength": 64,
                     "minLength": 1,
@@ -9852,6 +9856,10 @@ export const runxSchemaArtifacts = {
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
+                  "purchaser_key": {
+                    "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                    "type": "string"
+                  },
                   "settlement_family": {
                     "maxLength": 64,
                     "minLength": 1,
@@ -13035,6 +13043,10 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
+                  },
+                  "purchaser_key": {
+                    "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,
@@ -16486,6 +16498,10 @@ export const runxSchemaArtifacts = {
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
+      "purchaser_key": {
+        "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+        "type": "string"
+      },
       "settlement_family": {
         "maxLength": 64,
         "minLength": 1,
@@ -17420,6 +17436,39 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.provider.operation.v1"
   } as JsonSchema,
+  "purchase-claim.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/payment/purchase-claim/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "claim_url": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "issued_at": {
+        "minLength": 1,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+        "type": "string"
+      },
+      "receipt": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "signature": {
+        "pattern": "^ed25519:[A-Za-z0-9_-]{85}[AQgw]$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "receipt",
+      "claim_url",
+      "issued_at",
+      "signature"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.payment.purchase_claim.v1"
+  } as JsonSchema,
   "purchase.schema.json": {
     "$id": "https://schemas.runx.ai/runx/payment/purchase/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17956,6 +18005,10 @@ export const runxSchemaArtifacts = {
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
+          "purchaser_key": {
+            "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+            "type": "string"
+          },
           "settlement_family": {
             "maxLength": 64,
             "minLength": 1,
@@ -18037,79 +18090,9 @@ export const runxSchemaArtifacts = {
         "type": "object",
         "x-runx-schema": "runx.payment.paid_invocation.v1"
       },
-      "receipt_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "surface",
-              "target",
-              "skill_binding",
-              "principal",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
+      "receipt": {
+        "additionalProperties": {},
+        "type": "object"
       },
       "result": {}
     },
@@ -18473,6 +18456,10 @@ export const runxSchemaArtifacts = {
         ],
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
+      },
+      "purchaser_key": {
+        "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+        "type": "string"
       },
       "vendor_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -19176,6 +19163,10 @@ export const runxSchemaArtifacts = {
                     ],
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
+                  },
+                  "purchaser_key": {
+                    "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                    "type": "string"
                   },
                   "settlement_family": {
                     "maxLength": 64,

@@ -521,6 +521,10 @@
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
+                "purchaser_key": {
+                  "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                  "type": "string"
+                },
                 "settlement_family": {
                   "maxLength": 64,
                   "minLength": 1,

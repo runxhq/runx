@@ -42,6 +42,7 @@ pub mod paid_invocation;
 pub mod paid_invocation_fingerprint;
 pub mod paid_skill_listing;
 pub mod provider_operation;
+pub mod purchase_claim;
 pub mod receipt;
 pub mod redaction;
 pub mod reference;
@@ -226,6 +227,10 @@ pub use paid_skill_listing::{
     PaidSkillRunnerOffer, PriceChoice, PriceError,
 };
 pub use provider_operation::ProviderOperationPacket;
+pub use purchase_claim::{
+    PURCHASE_CLAIM_SCHEMA, PURCHASE_RECEIPT_SCHEMA, PurchaseClaim, PurchaserKey,
+    PurchaserSignature, purchase_claim_message,
+};
 pub use receipt::{
     Lineage, RECEIPT_CANONICALIZATION, RECEIPT_SCHEMA, Receipt, ReceiptAct, ReceiptAuthority,
     ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema,

@@ -297,6 +297,10 @@
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
+    "purchaser_key": {
+      "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "type": "string"
+    },
     "vendor_ref": {
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",

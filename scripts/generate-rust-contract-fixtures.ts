@@ -66,6 +66,7 @@ type ContractScope =
   | "paid-invocation"
   | "paid-skill-price"
   | "principal-id"
+  | "purchase-claim"
   | "x402-v2";
 
 const selectedScope = scopeArg();
@@ -78,6 +79,7 @@ if (
   && selectedScope !== "paid-invocation"
   && selectedScope !== "paid-skill-price"
   && selectedScope !== "principal-id"
+  && selectedScope !== "purchase-claim"
   && selectedScope !== "x402-v2"
 ) {
   throw new Error(`unsupported contract fixture scope: ${selectedScope}`);
@@ -104,6 +106,9 @@ if (selectedScope === undefined || selectedScope === "paid-skill-price") {
 }
 if (selectedScope === undefined || selectedScope === "principal-id") {
   runPrincipalIdFixtures();
+}
+if (selectedScope === undefined || selectedScope === "purchase-claim") {
+  runExampleFixtures("purchase-claim", "runx-purchase-claim-fixtures", "RUNX_PURCHASE_CLAIM_FIXTURES_BIN");
 }
 if (selectedScope === undefined || selectedScope === "x402-v2") {
   runX402Fixtures();
@@ -160,6 +165,32 @@ function runPaidSkillPriceFixtures(): void {
         "runx-contracts",
         "--example",
         "runx-paid-skill-price-fixtures",
+        "--",
+        "--out",
+        outputRoot,
+      ];
+  if (check) args.push("--check");
+  const result = spawnSync(command, args, { cwd: workspaceRoot, env: process.env, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
+}
+
+/** A contract example that writes one fixture directory and takes only --out and --check. */
+function runExampleFixtures(scope: string, example: string, binEnv: string): void {
+  const outputRoot = path.join(fixtureRoot, scope);
+  const configured = process.env[binEnv];
+  const command = configured || (process.platform === "win32" ? "cargo.exe" : "cargo");
+  const args = configured
+    ? ["--out", outputRoot]
+    : [
+        "run",
+        "--quiet",
+        "--manifest-path",
+        path.join(workspaceRoot, "crates", "Cargo.toml"),
+        "-p",
+        "runx-contracts",
+        "--example",
+        example,
         "--",
         "--out",
         outputRoot,

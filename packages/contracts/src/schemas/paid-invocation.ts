@@ -185,6 +185,8 @@ export type PaidInvocationContract = DeepReadonly<{
   accepted_settlement_families: readonly SettlementFamilyContract[];
   settlement_family?: SettlementFamilyContract;
   idempotency: PaymentIdempotencyBindingContract;
+  /** The key the purchaser claims with: `ed25519:` and 32 bytes of base64url. */
+  purchaser_key?: string;
   expires_at: string;
   attribution?: PaidInvocationAttributionContract;
   payment_state: PaidInvocationPaymentStateContract;
@@ -219,6 +221,8 @@ export type QuotePaidInvocationRequestContract = DeepReadonly<{
   currency: CurrencyCodeContract;
   accepted_settlement_families: readonly SettlementFamilyContract[];
   idempotency: PaymentIdempotencyBindingContract;
+  /** The key the purchaser claims with: `ed25519:` and 32 bytes of base64url. */
+  purchaser_key?: string;
   attribution?: QuotePaidInvocationAttributionContract;
   presentation?: PaidInvocationPresentationContract;
 }>;
@@ -275,7 +279,8 @@ export type GetPaidInvocationResultContract =
  */
 export type PurchaseContract = DeepReadonly<{
   invocation: PaidInvocationContract;
-  receipt_ref?: ReferenceContract;
+  /** runx's signed purchase receipt, once sealed: what a claim presents. */
+  receipt?: Record<string, unknown>;
   result?: unknown;
   claim_url?: string;
   failure?: PaidInvocationFailureContract;

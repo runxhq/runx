@@ -17,7 +17,7 @@ use crate::{
     LedgerEntry, LocalArtifact, LocalArtifactPage, OfferRevisionRef, OperationalPolicy,
     OperationalProposal, OrchestratorExecutionContext, OrchestratorHandoffContext, Output,
     PacketIndex, PaidInvocation, PaidSkillListing, ProcessList, ProcessOutput,
-    ProviderOperationPacket, Purchase, Question, QuotePaidInvocationRequest,
+    ProviderOperationPacket, Purchase, PurchaseClaim, Question, QuotePaidInvocationRequest,
     QuotePaidInvocationResult, Readiness, Receipt, Redaction, Reference, ReferenceLink,
     RegistryBinding, ResolutionRequest, ResolutionResponse, ReviewReceiptOutput, RunxListReport,
     RunxProcess, RunxX402InvocationExtensionInfo, Signal, SkillApplyResult,
@@ -142,6 +142,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         ),
         public_packet_artifact::<GetPaidInvocationResult>("get-paid-invocation-result.schema.json"),
         public_packet_artifact::<Purchase>("purchase.schema.json"),
+        public_packet_artifact::<PurchaseClaim>("purchase-claim.schema.json"),
         public_packet_artifact::<CancelPaidInvocationRequest>(
             "cancel-paid-invocation-request.schema.json",
         ),

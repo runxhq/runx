@@ -10,13 +10,14 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::purchase_claim::PurchaserKey;
 use crate::schema::{
     BoundedString, Identity, IsoDateTime, NonEmptyString, Property, RunxSchema,
     any_of_with_identity, const_string, object_schema,
 };
 use crate::{
-    JsonValue, MAX_PORTABLE_INTEGER, RECEIPT_CANONICALIZATION, Reference, ReferenceType,
-    RunxPrincipalId,
+    JsonObject, JsonValue, MAX_PORTABLE_INTEGER, RECEIPT_CANONICALIZATION, Reference,
+    ReferenceType, RunxPrincipalId,
 };
 
 pub const PAID_INVOCATION_SCHEMA: &str = "runx.payment.paid_invocation.v1";
@@ -586,6 +587,9 @@ pub struct PaidInvocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settlement_family: Option<SettlementFamily>,
     pub idempotency: PaymentIdempotencyBinding,
+    /// The key the purchaser claims with; runx's purchase receipt binds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purchaser_key: Option<PurchaserKey>,
     pub expires_at: IsoDateTime,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribution: Option<PaidInvocationAttribution>,
@@ -666,6 +670,9 @@ pub struct QuotePaidInvocationRequest {
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
     pub idempotency: PaymentIdempotencyBinding,
+    /// The key the purchaser claims with; runx's purchase receipt binds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purchaser_key: Option<PurchaserKey>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribution: Option<QuotePaidInvocationAttribution>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -831,8 +838,9 @@ pub enum GetPaidInvocationResult {
 #[runx_schema(id = "runx.payment.purchase.v1")]
 pub struct Purchase {
     pub invocation: PaidInvocation,
+    /// runx's signed purchase receipt, once sealed: what a claim presents.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receipt_ref: Option<Reference>,
+    pub receipt: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<JsonValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

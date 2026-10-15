@@ -94,6 +94,20 @@ export {
   paidSkillPriceProblem,
   resolvePaidSkillClaim,
 } from "./paid-skill-price.js";
+export {
+  PURCHASE_CLAIM_SCHEMA,
+  PURCHASE_RECEIPT_SCHEMA,
+  PurchaseClaimError,
+  isPurchaserKey,
+  type PurchaseClaimContract,
+  type PurchaseClaimRefusal,
+  type PurchaseTrustRootKey,
+  purchaseClaimMessage,
+  purchaseClaimV1Schema,
+  validatePurchaseClaimContract,
+  verifyPurchaseClaim,
+  type VerifiedPurchaseClaim,
+} from "./purchase-claim.js";
 
 export {
   X402_PAYMENT_REQUIRED_HEADER,
