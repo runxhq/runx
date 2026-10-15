@@ -1,15 +1,15 @@
 [
   {
     "skill_id": "runx/agency",
-    "version": "sha-e765d030fc52",
-    "digest": "a9e044b94838bfa317c19ad4c934ffd28056cce092f077dbc2402fb062b2058a",
+    "version": "sha-13f08b8dbb50",
+    "digest": "a80cce71de08bceffcd07518443429608c78d4d5b6b38fc15c11f7eefc2f0494",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/attention-review",
-    "version": "sha-14e57a733068",
-    "digest": "ff5d05903127cc9dc54cb99acce0b92c6572f21280fd205b9553bb245426241b",
+    "version": "sha-9c8ed6bde72f",
+    "digest": "229148ef6d29aa05d98caaf9b995d355f4abcfec642c7da38355b47d8b79c4df",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -71,8 +71,8 @@
   },
   {
     "skill_id": "runx/data-subject-request",
-    "version": "sha-1392128c9f53",
-    "digest": "e65fa76532690ed933705b05d6c8fcdfd0753e107091d034d6e29749f3ad5fd2",
+    "version": "sha-9291ab78e862",
+    "digest": "44a3edb82356525a45cf195563987c3469bcc60c8969b6a8a602965739d85268",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -120,8 +120,8 @@
   },
   {
     "skill_id": "runx/github-sync",
-    "version": "sha-c0ae0dc1df33",
-    "digest": "d38fa7dc233e1e9a335eb3a1a09f73a001c33158b16a6ed4e1750cdaaee90120",
+    "version": "sha-371d1266dcb3",
+    "digest": "b5ce221b2ef0f7bf519f962bd149b8760d671659674c4d9e07a6fe95e9aaddfb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -197,15 +197,15 @@
   },
   {
     "skill_id": "runx/least-privilege",
-    "version": "sha-53e7af6dac1b",
-    "digest": "ff78ad15c4ffadfa3b9525403ec7e326429541d81ba080840fb6899ede4b9614",
+    "version": "sha-137e1affad5f",
+    "digest": "a4e95066042400dad0a8ba429addaacd769654a35c301ac0ca701c7b4f9f92bb",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/list-hygiene-judge",
-    "version": "sha-b74f71dd9212",
-    "digest": "e41a3917683cede5bcd2ee0dee1ec7e6fd837c04b5ef759810ca750621a8f820",
+    "version": "sha-8b1acfcfabb7",
+    "digest": "d05e078fa291a07afe069b24a0462245a7f7f730b2ceea2e32f2d56642ea6277",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -232,8 +232,8 @@
   },
   {
     "skill_id": "runx/nws-weather-forecast",
-    "version": "sha-03ffd5b7e919",
-    "digest": "4208406bf351da571dbb3aba723cea9100714a4cb7ab793e9146807ff7365920",
+    "version": "sha-b73ca191c77c",
+    "digest": "d868f1b6a1e7ed9a269d24fdf028dafb6f0d89ce91b19f685ee64772d8aec46e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -246,8 +246,8 @@
   },
   {
     "skill_id": "runx/ops-desk",
-    "version": "sha-647409772bf4",
-    "digest": "96cf8a04970a384a878604109d62715c313ec53c772545682ceb2b6c3d4c5615",
+    "version": "sha-28727e4299c2",
+    "digest": "5872c7e88df3e8b8c546eb036c813a5164a0a3a56bd5917ced38731203663ef5",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -267,8 +267,8 @@
   },
   {
     "skill_id": "runx/postmortem-maker",
-    "version": "sha-66735c956bc0",
-    "digest": "fd10fff5f8a52aa1d409b4f0bab6face0a2131e4e1b879c93900945784d19b22",
+    "version": "sha-3bc84fbf4ab4",
+    "digest": "15d985a86af57994ff8a3191fa79b648cd825b956254f76523162064e4c40904",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -316,8 +316,8 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-82ff835eca66",
-    "digest": "eab5d5b295054d672cc8cd27510f04075685951267abdc295d55cc01720b59fc",
+    "version": "sha-25f6db1e09fe",
+    "digest": "63e859c1b12b0f7dee8a33248f117b8bbeacc274fd76b2413863754dce165303",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -337,8 +337,8 @@
   },
   {
     "skill_id": "runx/research",
-    "version": "sha-358c52bb6a50",
-    "digest": "1a1db8de3d7445980b134ba15bf16ee97e1cfe2a5a4c1a99618d553bade68560",
+    "version": "sha-d218369e041b",
+    "digest": "897e18a20a730bd551fd2eb1a71d6b0dc3ea59149600d8c65a37cd3ea8957bc3",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -386,8 +386,8 @@
   },
   {
     "skill_id": "runx/skill-build",
-    "version": "sha-2a19545f26cd",
-    "digest": "ce2f79288426b691852355882650f557303bc5bc93810d5f303f104326b68a86",
+    "version": "sha-519112c4e8b2",
+    "digest": "6f90c3f9fef2da1a90464190dfb41efde3ae9e05f7467c8f1fc755c2736118a7",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -435,8 +435,8 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-54a1b3d2bc6a",
-    "digest": "0d200d16ecd919ae070d7d589b972f3b4221c0989b12c1f281acf32d384a3737",
+    "version": "sha-6fe146ae9b64",
+    "digest": "aa78eb16d5f39304172319d4130affeba61c1e5bce7b573f615860541d43cb00",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
