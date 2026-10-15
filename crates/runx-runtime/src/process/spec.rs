@@ -18,6 +18,7 @@ pub(crate) struct ProcessSpec {
     pub(super) timeout: Option<Duration>,
     pub(super) output_limit_bytes: usize,
     pub(super) cleanup_paths: Vec<PathBuf>,
+    pub(super) follower: Option<std::sync::Arc<dyn super::Follower>>,
 }
 
 impl ProcessSpec {
@@ -36,6 +37,7 @@ impl ProcessSpec {
             timeout: None,
             output_limit_bytes,
             cleanup_paths: Vec::new(),
+            follower: None,
         }
     }
 
@@ -66,6 +68,15 @@ impl ProcessSpec {
 
     pub(crate) fn cleanup_paths(mut self, cleanup_paths: Vec<PathBuf>) -> Self {
         self.cleanup_paths = cleanup_paths;
+        self
+    }
+
+    /// Follow the process while it runs.
+    pub(crate) fn follower(
+        mut self,
+        follower: Option<std::sync::Arc<dyn super::Follower>>,
+    ) -> Self {
+        self.follower = follower;
         self
     }
 }

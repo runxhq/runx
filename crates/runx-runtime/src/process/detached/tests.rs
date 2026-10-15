@@ -38,6 +38,7 @@ fn recorded(
         &id,
         0,
         &ProcessEvent::Started(Box::new(Started {
+            kind: runx_contracts::ProcessKind::Detached,
             call: key.to_owned(),
             actor: actor.map(str::to_owned),
             command: "sh".to_owned(),
@@ -329,6 +330,118 @@ mod supervised {
         assert_eq!(
             record.exit.map(|exit| exit.reason),
             Some(ProcessExitReason::TimedOut)
+        );
+        Ok(())
+    }
+
+    /// A command its driver runs, followed as a process of its call.
+    fn followed_command(
+        processes: Processes,
+        key: &str,
+        script: &str,
+    ) -> Result<
+        (
+            std::sync::Arc<super::super::Followed>,
+            crate::process::ProcessSpec,
+        ),
+        Box<dyn std::error::Error>,
+    > {
+        let call = crate::tool_catalogs::ToolCall {
+            key: key.to_owned(),
+            actor: None,
+        };
+        let followed = processes
+            .follow(super::Start {
+                call: &call,
+                command: "sh".to_owned(),
+                args: vec!["-c".to_owned(), script.to_owned()],
+                cwd: std::env::temp_dir(),
+                env: std::collections::BTreeMap::new(),
+                tty: None,
+                max_seconds: 60,
+            })?
+            .map(std::sync::Arc::new)
+            .ok_or("a command of a new call is followed")?;
+        let spec = crate::process::ProcessSpec::new("followed-test", "/bin/sh", 4096)
+            .args(vec!["-c".to_owned(), script.to_owned()])
+            .env(std::collections::BTreeMap::from([(
+                "PATH".to_owned(),
+                std::env::var("PATH").unwrap_or_default(),
+            )]))
+            .timeout(Some(Duration::from_secs(60)))
+            .follower(Some(
+                followed.clone() as std::sync::Arc<dyn crate::process::Follower>
+            ));
+        Ok((followed, spec))
+    }
+
+    #[test]
+    fn a_commands_output_is_read_while_it_runs_and_its_exit_recorded_when_it_settles() -> TestResult
+    {
+        let project = project()?;
+        let reader = Processes::at(&project.processes.project)?;
+        let id = super::process_id("run#command@1");
+        let (followed, spec) = followed_command(
+            Processes::at(&project.processes.project)?,
+            "run#command@1",
+            "echo one; sleep 1; echo two",
+        )?;
+        let running = thread::spawn(move || crate::process::run_process(spec));
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            let read = reader.read(&id, Reach::Person, 0, 1024)?;
+            if read.chunks.iter().any(|chunk| chunk.text.contains("one")) {
+                assert_eq!(read.state, ProcessState::Running, "{read:?}");
+                break;
+            }
+            assert!(Instant::now() < deadline, "the output arrived while it ran");
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(matches!(
+            reader.write(&id, Reach::Person, None, "x\n".to_owned()),
+            Err(ProcessError::Refused(_))
+        ));
+
+        let outcome = running.join().map_err(|_| "the command panicked")??;
+        followed.settle(Ok(&outcome))?;
+        assert_eq!(String::from_utf8_lossy(&outcome.stdout.bytes), "one\ntwo\n");
+        let process = reader.list(Reach::Person)?.processes;
+        let [process] = process.as_slice() else {
+            return Err("one process".into());
+        };
+        assert_eq!(process.kind, runx_contracts::ProcessKind::Command);
+        let exit = process.exit.as_ref().ok_or("an exit")?;
+        assert_eq!(
+            (exit.reason, exit.code),
+            (ProcessExitReason::Exited, Some(0))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_stop_sent_to_a_commands_process_stops_the_command() -> TestResult {
+        let project = project()?;
+        let reader = Processes::at(&project.processes.project)?;
+        let id = super::process_id("run#serve@1");
+        let (followed, spec) = followed_command(
+            Processes::at(&project.processes.project)?,
+            "run#serve@1",
+            "sleep 30",
+        )?;
+        let running = thread::spawn(move || crate::process::run_process(spec));
+        until(&reader, &id, |record| record.confirmed.is_some())?;
+
+        super::super::control::send(
+            &reader.directory(&id)?,
+            &super::super::control::Control::Stop,
+        )?;
+        let outcome = running.join().map_err(|_| "the command panicked")??;
+        assert!(outcome.stopped);
+        followed.settle(Ok(&outcome))?;
+        assert_eq!(
+            reader.known(&id)?.exit.map(|exit| exit.reason),
+            Some(ProcessExitReason::Stopped)
         );
         Ok(())
     }

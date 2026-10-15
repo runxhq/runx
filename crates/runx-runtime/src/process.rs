@@ -18,6 +18,14 @@ mod supervisor;
 mod tokio_supervisor;
 
 pub(crate) use self::capture::CapturedOutput;
+
+/// What follows a supervised process while it runs: told its pid once it is
+/// spawned, given its output as it is read, and asked whether to stop it.
+pub(crate) trait Follower: Send + Sync + std::fmt::Debug {
+    fn spawned(&self, pid: u32);
+    fn output(&self, stream: runx_contracts::ProcessStream, bytes: &[u8]);
+    fn stop_requested(&self) -> bool;
+}
 pub(crate) use self::signals::{ProcessSignal, configure_process_group, signal_process_group_id};
 pub(crate) use self::spec::{ProcessOutcome, ProcessSpec, ProcessStdin, ProcessSupervisorError};
 pub(crate) use self::supervisor::run_process;

@@ -77,6 +77,29 @@ impl LogWriter {
     }
 }
 
+/// One stream's output on its way to the log, held back while it ends
+/// partway into a UTF-8 character, so each frame is whole text.
+#[derive(Debug, Default)]
+pub(super) struct Pending(Vec<u8>);
+
+impl Pending {
+    /// What of `bytes`, after what was held back, ends on a character
+    /// boundary; the rest is held for the next.
+    pub(super) fn whole(&mut self, bytes: &[u8]) -> Vec<u8> {
+        self.0.extend_from_slice(bytes);
+        let whole = match std::str::from_utf8(&self.0) {
+            Err(error) if error.error_len().is_none() => error.valid_up_to(),
+            _ => self.0.len(),
+        };
+        self.0.drain(..whole).collect()
+    }
+
+    /// Whatever was held back, at the stream's end.
+    pub(super) fn rest(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.0)
+    }
+}
+
 /// What a read of a log returned.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct LogRead {

@@ -27,10 +27,19 @@ pub(crate) fn run_process(mut spec: ProcessSpec) -> Result<ProcessOutcome, Proce
         }
     };
     let _active_process = crate::interrupt::ActiveProcessGroup::register(child.id());
+    if let Some(follower) = &spec.follower {
+        follower.spawned(child.id());
+    }
+    let following = |stream| {
+        spec.follower
+            .as_ref()
+            .map(|follower| (std::sync::Arc::clone(follower), stream))
+    };
     let stdout = match capture_pipe(
         child.take_stdout(),
         open_pipe_context(spec.label, "stdout"),
         spec.output_limit_bytes,
+        following(runx_contracts::ProcessStream::Stdout),
     ) {
         Ok(stdout) => stdout,
         Err(error) => {
@@ -42,6 +51,7 @@ pub(crate) fn run_process(mut spec: ProcessSpec) -> Result<ProcessOutcome, Proce
         child.take_stderr(),
         open_pipe_context(spec.label, "stderr"),
         spec.output_limit_bytes,
+        following(runx_contracts::ProcessStream::Stderr),
     ) {
         Ok(stderr) => stderr,
         Err(error) => {
@@ -239,7 +249,12 @@ fn wait_for_exit(
             .map(|deadline| deadline.saturating_duration_since(Instant::now()))
             .map(|remaining| remaining.min(PROCESS_POLL_INTERVAL))
             .unwrap_or(PROCESS_POLL_INTERVAL);
-        let stopped = crate::interrupt::stop_requested();
+        // Its driver, or whoever follows it, may ask it to stop.
+        let stopped = crate::interrupt::stop_requested()
+            || spec
+                .follower
+                .as_ref()
+                .is_some_and(|follower| follower.stop_requested());
         if wait_for.is_zero() || stopped {
             signal_process(child, ProcessSignal::Terminate, spec)?;
             thread::sleep(DEFAULT_FORCE_KILL_GRACE);

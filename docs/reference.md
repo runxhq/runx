@@ -547,6 +547,13 @@ settled as failed once its lock is free. The person lists, reads and stops
 them with `runx process list [--actor ref]`, `runx process read <id> [--after
 cursor]` and `runx process stop <id>`.
 
+A `command.execute` a run makes is followed the same way while it runs,
+whichever driver runs it: it is recorded as a process of kind `command`, named
+by its `call` (`<run id>#<step id>@<attempt>`), its output written to that
+process's log as it is read, so `process.read` and `runx process read` follow it
+by cursor, and a stop sent to it stops the command. A command takes no input,
+and its call's result still carries its whole bounded output.
+
 ### Local Process Boundary
 
 Process tools (`tool: { command: ... }`) are trusted host code.

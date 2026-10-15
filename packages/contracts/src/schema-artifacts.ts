@@ -17693,6 +17693,9 @@ export const runxSchemaArtifacts = {
               "minItems": 1,
               "type": "array"
             },
+            "call": {
+              "type": "string"
+            },
             "command": {
               "type": "string"
             },
@@ -17732,6 +17735,13 @@ export const runxSchemaArtifacts = {
                 "at"
               ],
               "type": "object"
+            },
+            "kind": {
+              "enum": [
+                "detached",
+                "command"
+              ],
+              "type": "string"
             },
             "max_seconds": {
               "minimum": 0,
@@ -17776,6 +17786,8 @@ export const runxSchemaArtifacts = {
           },
           "required": [
             "process_id",
+            "kind",
+            "call",
             "command",
             "cwd",
             "max_seconds",
@@ -17906,6 +17918,9 @@ export const runxSchemaArtifacts = {
         "minItems": 1,
         "type": "array"
       },
+      "call": {
+        "type": "string"
+      },
       "command": {
         "type": "string"
       },
@@ -17945,6 +17960,13 @@ export const runxSchemaArtifacts = {
           "at"
         ],
         "type": "object"
+      },
+      "kind": {
+        "enum": [
+          "detached",
+          "command"
+        ],
+        "type": "string"
       },
       "max_seconds": {
         "minimum": 0,
@@ -17989,6 +18011,8 @@ export const runxSchemaArtifacts = {
     },
     "required": [
       "process_id",
+      "kind",
+      "call",
       "command",
       "cwd",
       "max_seconds",

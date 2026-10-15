@@ -148,6 +148,10 @@ pub enum ApprovalDecisionActor {
 )]
 pub struct RunxProcess {
     pub process_id: String,
+    pub kind: ProcessKind,
+    /// The call that started it, as its run names it:
+    /// `<run id>#<step id>@<attempt>`.
+    pub call: String,
     pub command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
@@ -170,6 +174,16 @@ pub struct RunxProcess {
     pub started_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit: Option<ProcessExit>,
+}
+
+/// What a process is: one `process.start` detached under a supervisor of its
+/// own, or a `command.execute` its driver runs and follows until its call
+/// settles. A command takes no input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessKind {
+    Detached,
+    Command,
 }
 
 /// A terminal's size, in character cells.

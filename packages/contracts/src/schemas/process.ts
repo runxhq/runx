@@ -9,6 +9,13 @@ export type TerminalSizeContract = DeepReadonly<{ rows: number; cols: number }>;
 
 export type ProcessStateContract = "starting" | "running" | "exited";
 
+/**
+ * A `process.start` detached under a supervisor of its own, or a
+ * `command.execute` its driver runs and follows until its call settles; a
+ * command takes no input.
+ */
+export type ProcessKindContract = "detached" | "command";
+
 export type ProcessExitReasonContract = "exited" | "stopped" | "timed_out" | "failed";
 
 /** How a process ended; `message` says why one failed. */
@@ -27,6 +34,9 @@ export type ProcessExitContract = DeepReadonly<{
  */
 export type RunxProcessContract = DeepReadonly<{
   process_id: string;
+  kind: ProcessKindContract;
+  /** The call that started it, as its run names it: `<run id>#<step id>@<attempt>`. */
+  call: string;
   command: string;
   args?: readonly string[];
   cwd: string;

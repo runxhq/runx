@@ -21,6 +21,9 @@
             "minItems": 1,
             "type": "array"
           },
+          "call": {
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -60,6 +63,13 @@
               "at"
             ],
             "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "detached",
+              "command"
+            ],
+            "type": "string"
           },
           "max_seconds": {
             "minimum": 0,
@@ -104,6 +114,8 @@
         },
         "required": [
           "process_id",
+          "kind",
+          "call",
           "command",
           "cwd",
           "max_seconds",

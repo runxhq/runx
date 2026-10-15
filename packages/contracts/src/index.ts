@@ -244,6 +244,7 @@ export {
   validateProcessListContract,
   type TerminalSizeContract,
   type ProcessStateContract,
+  type ProcessKindContract,
   type ProcessExitReasonContract,
   type ProcessExitContract,
   type RunxProcessContract,

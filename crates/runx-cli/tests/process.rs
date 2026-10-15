@@ -75,6 +75,25 @@ runners:
     )?;
     skill(
         root,
+        "cmd",
+        r#"skill: cmd
+runners:
+  run:
+    default: true
+    inputs:
+      args: { type: array, required: true }
+    steps:
+      - id: run
+        tool: command.execute
+        scopes: [process.exec]
+        inputs:
+          command: sh
+          args: $input.args
+          output_mode: text
+"#,
+    )?;
+    skill(
+        root,
         "proc-write",
         r#"skill: proc-write
 runners:
@@ -261,5 +280,50 @@ fn the_person_reads_and_stops_a_process_a_run_started() -> TestResult {
         .output()?;
     assert!(!unknown.status.success());
     assert!(String::from_utf8(unknown.stdout)?.contains("unknown_process"));
+    Ok(())
+}
+
+#[test]
+fn a_runs_command_is_a_process_whose_output_is_read_by_cursor() -> TestResult {
+    let root = crate::support::temp_root("runx-process-command");
+    fs::create_dir_all(&root)?;
+    skills(&root)?;
+    let executed = run(
+        &root,
+        "cmd",
+        serde_json::json!({"args": ["-c", "echo one; echo two >&2"]}),
+    )?;
+    assert_eq!(
+        executed["stdout"], "one\n",
+        "the call still carries its output"
+    );
+
+    let listed = process(&root, &["list"])?;
+    let [command] = listed["processes"]
+        .as_array()
+        .ok_or("processes")?
+        .as_slice()
+    else {
+        return Err(format!("one process: {listed}").into());
+    };
+    assert_eq!(command["kind"], "command");
+    assert_eq!(command["exit"]["code"], 0);
+    let id = command["process_id"].as_str().ok_or("an id")?;
+    let read = process(&root, &["read", id])?;
+    assert_eq!(read["state"], "exited");
+    let streams = read["chunks"]
+        .as_array()
+        .ok_or("chunks")?
+        .iter()
+        .map(|chunk| (chunk["stream"].clone(), chunk["text"].clone()))
+        .collect::<Vec<_>>();
+    assert!(
+        streams.contains(&("stdout".into(), "one\n".into())),
+        "{streams:?}"
+    );
+    assert!(
+        streams.contains(&("stderr".into(), "two\n".into())),
+        "{streams:?}"
+    );
     Ok(())
 }

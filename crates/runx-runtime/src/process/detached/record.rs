@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use runx_contracts::{ProcessExit, ProcessState, RunxProcess, TerminalSize};
+use runx_contracts::{
+    ProcessExit, ProcessExitReason, ProcessKind, ProcessState, RunxProcess, TerminalSize,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::kernel::store::{Append, Expected, KernelStore, KernelStoreError, StreamEvent};
@@ -33,6 +35,7 @@ impl StreamEvent for ProcessEvent {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Started {
+    pub(super) kind: ProcessKind,
     /// The call that started it, as its run names it.
     pub(super) call: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -71,6 +74,8 @@ impl Record {
         let started = &self.started;
         RunxProcess {
             process_id: self.id.clone(),
+            kind: started.kind,
+            call: started.call.clone(),
             command: started.command.clone(),
             args: started.args.clone(),
             cwd: started.cwd.clone(),
@@ -150,4 +155,36 @@ pub(super) fn recent(store: &KernelStore, limit: usize) -> Result<Vec<Record>, K
         }
     }
     Ok(records)
+}
+
+/// A process that never ran, or whose supervisor ended without recording it.
+pub(super) fn failed(message: String) -> ProcessExit {
+    ProcessExit {
+        reason: ProcessExitReason::Failed,
+        code: None,
+        signal: None,
+        message: Some(message),
+        at: crate::time::now_iso8601(),
+    }
+}
+
+/// How a process that exited with `status` ended, for `reason`.
+pub(super) fn exit_of(status: &std::process::ExitStatus, reason: ProcessExitReason) -> ProcessExit {
+    ProcessExit {
+        reason,
+        code: status.code(),
+        signal: signal_of(status),
+        message: None,
+        at: crate::time::now_iso8601(),
+    }
+}
+
+#[cfg(unix)]
+fn signal_of(status: &std::process::ExitStatus) -> Option<i32> {
+    std::os::unix::process::ExitStatusExt::signal(status)
+}
+
+#[cfg(not(unix))]
+fn signal_of(_status: &std::process::ExitStatus) -> Option<i32> {
+    None
 }

@@ -6,12 +6,14 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 use super::{NativeInvocation, invalid_input};
 use crate::RuntimeError;
+use crate::process::detached::{Followed, Processes, Start};
 use crate::process::{ProcessSpec, STANDARD_PROCESS_OUTPUT_BYTES, run_process};
 use crate::process_invocation::{
     NativeCommandInvocationRequest, prepare_native_command_invocation,
@@ -138,17 +140,57 @@ fn execute(
         base_env: invocation.env,
     })?;
     let process = process.into_execution_plan();
-    let outcome = run_process(
+    let followed = follow(invocation, &command, &process)?;
+    let ran = run_process(
         ProcessSpec::new("native command", process.command, OUTPUT_LIMIT_BYTES)
             .args(process.args)
             .cwd(process.cwd)
             .env(process.env)
             .timeout(Some(Duration::from_millis(command.timeout_ms)))
-            .cleanup_paths(process.cleanup_paths),
-    )
-    .map_err(|error| invalid_input(TOOL, error.to_string()))?;
+            .cleanup_paths(process.cleanup_paths)
+            .follower(
+                followed
+                    .clone()
+                    .map(|followed| followed as Arc<dyn crate::process::Follower>),
+            ),
+    );
+    if let Some(followed) = &followed {
+        followed
+            .settle(ran.as_ref().map_err(ToString::to_string))
+            .map_err(|error| invalid_input(TOOL, error.to_string()))?;
+    }
+    let outcome = ran.map_err(|error| invalid_input(TOOL, error.to_string()))?;
     let observation = observe_command(command.output_mode, outcome, invocation.credential_delivery);
     render_execution(command, observation)
+}
+
+/// A run's command is followed as a process of its call, so its output is
+/// read by cursor while it runs and a stop sent to that process stops it.
+fn follow(
+    invocation: &NativeInvocation<'_, CommandInput>,
+    command: &PreparedCommand,
+    process: &crate::process_invocation::ProcessExecutionPlan,
+) -> Result<Option<Arc<Followed>>, RuntimeError> {
+    let Some(call) = invocation.call else {
+        return Ok(None);
+    };
+    Processes::of(&crate::paths::RunxPaths::resolve(
+        invocation.env,
+        invocation.skill_directory,
+    ))
+    .and_then(|processes| {
+        processes.follow(Start {
+            call,
+            command: process.command.clone(),
+            args: process.args.clone(),
+            cwd: process.cwd.clone(),
+            env: BTreeMap::new(),
+            tty: None,
+            max_seconds: command.timeout_ms.div_ceil(1_000),
+        })
+    })
+    .map(|followed| followed.map(Arc::new))
+    .map_err(|error| invalid_input(TOOL, error.to_string()))
 }
 
 fn exit_code(value: Option<i32>) -> JsonValue {

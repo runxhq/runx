@@ -13,6 +13,7 @@
 //! same call sent again finds the same record and returns the same process.
 
 mod control;
+mod followed;
 mod launch;
 mod lock;
 mod log;
@@ -32,7 +33,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use runx_contracts::{
-    ProcessExit, ProcessList, ProcessOutput, ProcessOutputChunk, RunxProcess, TerminalSize,
+    ProcessExit, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk, RunxProcess,
+    TerminalSize,
 };
 use thiserror::Error;
 
@@ -42,6 +44,7 @@ use crate::kernel::store::{KernelStore, KernelStoreError};
 use crate::paths::RunxPaths;
 use crate::tool_catalogs::ToolCall;
 
+pub(crate) use self::followed::Followed;
 pub use self::supervisor::{SUPERVISOR_FLAG, supervise_from_args};
 
 /// How long a start waits for its supervisor to confirm it, and how long a
@@ -136,6 +139,7 @@ impl Processes {
         self.prune();
         fs::create_dir_all(self.directory(&id)?)?;
         let started = Started {
+            kind: ProcessKind::Detached,
             call: start.call.key.clone(),
             actor: start.call.actor.clone(),
             command: start.command,
@@ -161,7 +165,7 @@ impl Processes {
             let record = self.known(&id)?;
             self.exited(
                 &record,
-                supervisor::failed(format!("its supervisor could not be started: {error}")),
+                record::failed(format!("its supervisor could not be started: {error}")),
             )?;
         }
         let until = Instant::now() + CONFIRM_WINDOW;
@@ -223,6 +227,11 @@ impl Processes {
         input: String,
     ) -> Result<RunxProcess, ProcessError> {
         let record = self.running(id, reach)?;
+        if record.started.kind == ProcessKind::Command {
+            return Err(ProcessError::Refused(format!(
+                "process {id} is a command: it takes no input"
+            )));
+        }
         self.send(
             &record,
             &Control::Write {
@@ -334,11 +343,28 @@ impl Processes {
             None if within(&record.started.created_at, CONFIRM_WINDOW) => return Ok(record),
             None => "its supervisor never started",
         };
-        match self.exited(&record, supervisor::failed(message.to_owned())) {
+        match self.exited(&record, record::failed(message.to_owned())) {
             // Or it settled in the meantime.
             Ok(()) | Err(KernelStoreError::Conflict { .. }) => self.known(&record.id),
             Err(error) => Err(error.into()),
         }
+    }
+
+    /// Record that process `record`'s child runs as `pid`.
+    fn confirmed(&self, mut record: Record, pid: u32) -> Result<Record, KernelStoreError> {
+        let confirmed = record::Confirmed {
+            pid,
+            started_at: crate::time::now_iso8601(),
+        };
+        record::append(
+            &self.store,
+            &record.id,
+            record.version,
+            &ProcessEvent::Confirmed(confirmed.clone()),
+        )?;
+        record.version += 1;
+        record.confirmed = Some(confirmed);
+        Ok(record)
     }
 
     /// Record how process `record` exited.

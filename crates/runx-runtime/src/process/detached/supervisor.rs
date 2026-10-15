@@ -15,12 +15,12 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use runx_contracts::{ProcessExit, ProcessExitReason, ProcessStream, TerminalSize};
+use runx_contracts::{ProcessExitReason, ProcessStream, TerminalSize};
 
 use super::Processes;
 use super::control::{Control, Mailbox};
-use super::log::LogWriter;
-use super::record::{Record, Started};
+use super::log::{LogWriter, Pending};
+use super::record::Started;
 use crate::process::ProcessSignal;
 
 /// The first argument that runs the binary as a supervisor.
@@ -70,7 +70,7 @@ pub(super) fn supervise(project: &Path, id: &str) -> Result<(), String> {
     let mut child = match Supervised::spawn(&record.started, &log) {
         Ok(child) => child,
         Err(error) => {
-            let exit = failed(format!("it could not be started: {error}"));
+            let exit = super::record::failed(format!("it could not be started: {error}"));
             return processes
                 .exited(&record, exit)
                 .map_err(|error| error.to_string());
@@ -81,15 +81,9 @@ pub(super) fn supervise(project: &Path, id: &str) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let (status, reason) = child.run(&mut mailbox, record.started.max_seconds);
     child.finish();
-    let exit = ProcessExit {
-        reason,
-        code: status.as_ref().ok().and_then(ExitStatus::code),
-        signal: status.as_ref().ok().and_then(signal_of),
-        message: status
-            .as_ref()
-            .err()
-            .map(|error| format!("its supervisor lost it: {error}")),
-        at: crate::time::now_iso8601(),
+    let exit = match status {
+        Ok(status) => super::record::exit_of(&status, reason),
+        Err(error) => super::record::failed(format!("its supervisor lost it: {error}")),
     };
     processes
         .exited(&record, exit)
@@ -306,79 +300,24 @@ fn copy(
     let log = Arc::clone(log);
     thread::spawn(move || {
         let mut buffer = [0_u8; 8192];
-        let mut pending = Vec::new();
+        let mut pending = Pending::default();
         loop {
             let count = match output.read(&mut buffer) {
                 Ok(0) | Err(_) => 0,
                 Ok(count) => count,
             };
-            pending.extend_from_slice(&buffer[..count]);
-            let whole = if count == 0 {
-                pending.len()
-            } else {
-                whole_characters(&pending)
+            let bytes = match count {
+                0 => pending.rest(),
+                count => pending.whole(&buffer[..count]),
             };
-            if whole > 0 {
-                let bytes = pending.drain(..whole).collect::<Vec<_>>();
-                if let Ok(mut log) = log.lock() {
-                    let _ = log.append(stream, &bytes);
-                }
+            if !bytes.is_empty()
+                && let Ok(mut log) = log.lock()
+            {
+                let _ = log.append(stream, &bytes);
             }
             if count == 0 {
                 return;
             }
         }
     })
-}
-
-/// How much of `bytes` ends on a character boundary: all of it, unless it
-/// ends partway into a UTF-8 character.
-fn whole_characters(bytes: &[u8]) -> usize {
-    match std::str::from_utf8(bytes) {
-        Err(error) if error.error_len().is_none() => error.valid_up_to(),
-        _ => bytes.len(),
-    }
-}
-
-pub(super) fn failed(message: String) -> ProcessExit {
-    ProcessExit {
-        reason: ProcessExitReason::Failed,
-        code: None,
-        signal: None,
-        message: Some(message),
-        at: crate::time::now_iso8601(),
-    }
-}
-
-#[cfg(unix)]
-fn signal_of(status: &ExitStatus) -> Option<i32> {
-    std::os::unix::process::ExitStatusExt::signal(status)
-}
-
-#[cfg(not(unix))]
-fn signal_of(_status: &ExitStatus) -> Option<i32> {
-    None
-}
-
-impl Processes {
-    /// Record that the supervisor holds process `record`'s child.
-    fn confirmed(
-        &self,
-        mut record: Record,
-        pid: u32,
-    ) -> Result<Record, crate::kernel::store::KernelStoreError> {
-        let confirmed = super::record::Confirmed {
-            pid,
-            started_at: crate::time::now_iso8601(),
-        };
-        super::record::append(
-            &self.store,
-            &record.id,
-            record.version,
-            &super::record::ProcessEvent::Confirmed(confirmed.clone()),
-        )?;
-        record.version += 1;
-        record.confirmed = Some(confirmed);
-        Ok(record)
-    }
 }

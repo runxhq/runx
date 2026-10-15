@@ -1,5 +1,8 @@
 use std::io::Read;
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+
+use runx_contracts::ProcessStream;
 
 use sha2::{Digest, Sha256};
 
@@ -15,15 +18,19 @@ pub(crate) struct CapturedOutput {
     pub(crate) sha256: String,
 }
 
+/// One stream's follower: who is given its output as it is read.
+pub(super) type Following = Option<(Arc<dyn super::Follower>, ProcessStream)>;
+
 pub(super) fn capture_pipe<R>(
     pipe: Option<R>,
     context: String,
     output_limit_bytes: usize,
+    following: Following,
 ) -> Result<CaptureHandle, ProcessSupervisorError>
 where
     R: Read + Send + 'static,
 {
-    pipe.map(|reader| capture_stream(reader, output_limit_bytes))
+    pipe.map(|reader| capture_stream(reader, output_limit_bytes, following))
         .ok_or_else(|| {
             ProcessSupervisorError::supervise(
                 context,
@@ -32,7 +39,11 @@ where
         })
 }
 
-fn capture_stream<R>(mut reader: R, output_limit_bytes: usize) -> CaptureHandle
+fn capture_stream<R>(
+    mut reader: R,
+    output_limit_bytes: usize,
+    following: Following,
+) -> CaptureHandle
 where
     R: Read + Send + 'static,
 {
@@ -51,6 +62,9 @@ where
                     total_bytes,
                     sha256: format!("sha256:{}", runx_contracts::hex_lower(&digest.finalize())),
                 });
+            }
+            if let Some((follower, stream)) = &following {
+                follower.output(*stream, &buffer[..count]);
             }
             digest.update(&buffer[..count]);
             total_bytes = total_bytes.saturating_add(u64::try_from(count).unwrap_or(u64::MAX));
@@ -90,7 +104,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let complete = b"complete process output".to_vec();
         let output = join_capture(
-            capture_stream(Cursor::new(complete.clone()), 8),
+            capture_stream(Cursor::new(complete.clone()), 8, None),
             "capturing test output".to_owned(),
         )?;
 
