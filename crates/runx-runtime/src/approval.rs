@@ -167,6 +167,44 @@ pub fn approval_idempotency_key(gate: &ApprovalGate) -> Result<String, ApprovalE
     Ok(sha256_prefixed(canonical.as_bytes()))
 }
 
+/// The largest payload a gate carries inline; a larger one is a project
+/// artifact.
+const GATE_PAYLOAD_INLINE_BYTES: usize = 64 * 1024;
+
+/// Carry `value`, what executes once `gate` is approved, on the gate: its
+/// stable digest as `summary.payload_digest`, and the value itself inline,
+/// or over 64 KiB as a project artifact of run `run_id` whose bytes are its
+/// canonical JSON, so a host recomputes the digest before it offers Approve.
+pub(crate) fn carry_payload(
+    gate: &mut ApprovalGate,
+    value: JsonValue,
+    artifacts: &std::path::Path,
+    run_id: &str,
+) -> Result<(), String> {
+    let bytes = runx_contracts::to_canonical_bytes(&value).map_err(|error| error.to_string())?;
+    gate.summary.get_or_insert_with(JsonObject::new).insert(
+        "payload_digest".to_owned(),
+        JsonValue::String(sha256_prefixed(&bytes)),
+    );
+    if bytes.len() <= GATE_PAYLOAD_INLINE_BYTES {
+        gate.payload = Some(value);
+        return Ok(());
+    }
+    let reference = crate::services::persist_canonical_json_artifact(
+        artifacts,
+        run_id,
+        "approvals",
+        gate.id.as_str(),
+        &value,
+    )?;
+    gate.payload_ref = Some(
+        serde_json::to_value(reference)
+            .and_then(serde_json::from_value)
+            .map_err(|error| error.to_string())?,
+    );
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 struct CachedApproval {
     actor: ResolutionResponseActor,

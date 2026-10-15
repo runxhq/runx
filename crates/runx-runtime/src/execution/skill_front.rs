@@ -256,7 +256,11 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     use crate::execution::run_record::{Origin, Replayed, RunLog, validate_run_id};
 
     let close = match continuation.answers {
-        Some(document) if !document.answers.is_empty() || !document.approvals.is_empty() => {
+        Some(document)
+            if !document.answers.is_empty()
+                || !document.approvals.is_empty()
+                || document.standing_approvals.is_some() =>
+        {
             return Err(invalid("a close comes alone, without answers or approvals"));
         }
         Some(runx_contracts::ResumeDocument {

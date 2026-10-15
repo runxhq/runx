@@ -13,6 +13,29 @@ pub fn persist_json_artifact(
     value: &JsonValue,
 ) -> Result<JsonValue, String> {
     let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
+    persist_json_bytes(artifacts, run_id, kind, label, bytes)
+}
+
+/// A project artifact whose bytes are `value`'s canonical JSON
+/// (`runx.stable-json.v1`), so its digest is the value's stable digest.
+pub(crate) fn persist_canonical_json_artifact(
+    artifacts: &Path,
+    run_id: &str,
+    kind: &str,
+    label: &str,
+    value: &JsonValue,
+) -> Result<JsonValue, String> {
+    let bytes = runx_contracts::to_canonical_bytes(value).map_err(|error| error.to_string())?;
+    persist_json_bytes(artifacts, run_id, kind, label, bytes)
+}
+
+fn persist_json_bytes(
+    artifacts: &Path,
+    run_id: &str,
+    kind: &str,
+    label: &str,
+    bytes: Vec<u8>,
+) -> Result<JsonValue, String> {
     let digest = sha256_prefixed(&bytes);
     let digest_label = digest.strip_prefix("sha256:").unwrap_or(&digest);
     let skill_runs = artifacts.join("skill-runs");

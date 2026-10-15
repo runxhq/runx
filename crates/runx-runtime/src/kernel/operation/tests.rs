@@ -676,6 +676,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         max_fanout: None,
         max_child_depth: None,
         agent_bounds: false,
+        standing_approvals: Vec::new(),
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -905,17 +906,29 @@ fn a_definite_rejection_settles_and_the_next_attempt_starts_fresh() {
 }
 
 #[test]
-fn the_approval_summary_carries_digests_not_payloads() {
+fn the_approval_carries_what_executes_bound_by_its_digest() {
     let fixture = Fixture::new(&["channel.post"]);
-    const SECRET: &str = "credential-material-must-never-cross";
-    let admission = fixture.admit("post", &post(SECRET)).expect("admits");
+    let call = post("ship it");
+    let admission = fixture.admit("post", &call).expect("admits");
     let mut host = Approver::new(None);
     fixture
         .prepare("post", admission, &mut host)
         .expect("pending");
-    let request = serde_json::to_string(&host.requests).unwrap();
-    assert!(!request.contains(SECRET));
-    assert!(request.contains("payload_digest"));
+    let Some(ResolutionRequest::Approval { gate, .. }) = host.requests.last() else {
+        panic!("the operation asks for its approval");
+    };
+    // A person sees exactly the input that executes, and a host recomputes
+    // the digest the summary names before it offers Approve.
+    let input = call["input"].clone();
+    assert_eq!(gate.payload.as_ref(), Some(&input));
+    assert_eq!(
+        gate.summary
+            .as_ref()
+            .and_then(|summary| summary.get("payload_digest")),
+        Some(&JsonValue::String(
+            runx_contracts::canonical_digest(&input).unwrap()
+        ))
+    );
 }
 
 #[test]

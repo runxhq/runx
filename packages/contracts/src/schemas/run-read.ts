@@ -4,6 +4,7 @@ import {
   validateContractSchema,
 } from "../internal.js";
 import type { ResolutionRequestContract } from "./resolution.js";
+import type { StandingApprovalContract } from "./resume.js";
 import type { ProjectArtifactRefContract } from "./skill-output.js";
 import type { ClosureDispositionContract } from "./spine.js";
 import type { TurnTargetContract } from "./turn.js";
@@ -61,9 +62,12 @@ export type RunEventFactContract = DeepReadonly<
       input_digest: string;
       /** The id its host pinned on the call. */
       call_id?: string;
+      /** The standing approval that admitted it on the approval floor. */
+      standing?: StandingApprovalContract;
       outcome: RunCallOutcomeContract;
     }
   | { kind: "sealed"; disposition: ClosureDispositionContract; receipt_id: string }
+  | { kind: "standing"; approvals: readonly StandingApprovalContract[] }
   | {
       /** A resume admitted this decision before it took the run further. */
       kind: "answered";

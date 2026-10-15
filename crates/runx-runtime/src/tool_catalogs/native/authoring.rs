@@ -102,7 +102,8 @@ static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapabi
         fields: APPLY_FIELDS,
     },
     apply_skill,
-);
+)
+.describing(handlers::apply_skill_effect);
 
 pub(super) const CAPABILITIES: &[&dyn NativeCapability] =
     &[&INSPECT, &PLAN, &BIND, &VALIDATE, &APPLY];

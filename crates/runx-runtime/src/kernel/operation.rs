@@ -294,12 +294,15 @@ pub(crate) struct OperationAdmission {
 #[derive(Clone, Debug, Default)]
 struct LaneInputs {
     run_id: String,
+    /// Where a gate's payload goes when it is too large to carry inline.
+    artifacts: PathBuf,
 }
 
 impl LaneInputs {
-    fn of(run_id: &str) -> Self {
+    fn of(run_id: &str, artifacts: PathBuf) -> Self {
         Self {
             run_id: run_id.to_owned(),
+            artifacts,
         }
     }
 }
@@ -464,7 +467,10 @@ impl RuntimeEffect for OperationEffect {
             request.graph_dir,
         ))
         .map_err(state)?;
-        let lanes = LaneInputs::of(request.run_id);
+        let lanes = LaneInputs::of(
+            request.run_id,
+            crate::paths::RunxPaths::resolve(request.env, request.graph_dir).artifacts(),
+        );
         let scope = ConnectorScope::at(request.graph_dir)
             .map_err(|error| invalid(error.to_string()))?
             .in_project(
@@ -2027,7 +2033,7 @@ fn human(
             JsonValue::from_serialize(act).map_err(|error| state(error.to_string()))?,
         );
     }
-    let gate = ApprovalGate {
+    let mut gate = ApprovalGate {
         id: gate_id.clone().into(),
         reason: text.reason.clone().into(),
         gate_type: text
@@ -2035,7 +2041,18 @@ fn human(
             .clone()
             .or_else(|| Some("operation".to_owned())),
         summary: Some(summary),
+        payload: None,
+        payload_ref: None,
     };
+    // What executes is the operation's input, the value `payload_digest`
+    // already names.
+    crate::approval::carry_payload(
+        &mut gate,
+        JsonValue::Object(context.call.input.clone()),
+        &context.lanes.artifacts,
+        &context.lanes.run_id,
+    )
+    .map_err(state)?;
     // The request is addressed by the call that asks; the gate keeps the
     // intent, and a resumed run answers only the request it waited on.
     let request_id = crate::execution::run_record::request_address(&context.lanes.run_id, &step.id);

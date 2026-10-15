@@ -70,12 +70,33 @@ export type QuestionContract = DeepReadonly<Static<typeof questionTypeSchema>>;
 
 export const questionSchema = generatedSchema<QuestionContract>("question.schema.json");
 
+/** A project artifact holding a value too large to carry inline. */
+const projectArtifactRefTypeSchema = Type.Object(
+  {
+    schema: Type.Literal("runx.project_artifact_ref.v1"),
+    ref: Type.String(),
+    digest: Type.String(),
+    bytes: Type.Integer({ minimum: 0 }),
+    media_type: Type.String(),
+    path: Type.String(),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * What a person approves. `summary.payload_digest` is the stable digest of
+ * what executes; `payload` carries it inline up to 64 KiB, `payload_ref` as
+ * a project artifact beyond, and a host recomputes the digest before it
+ * offers Approve. Gate type `tool` is a local effect the floor holds.
+ */
 const approvalGateTypeSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     reason: Type.String({ minLength: 1 }),
     type: Type.Optional(Type.String()),
     summary: Type.Optional(unknownRecordSchema()),
+    payload: Type.Optional(Type.Unknown()),
+    payload_ref: Type.Optional(projectArtifactRefTypeSchema),
   },
   {
     $schema: JSON_SCHEMA_DRAFT_2020_12,

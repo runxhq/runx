@@ -190,6 +190,33 @@ pub(super) fn required_scopes(tool_ref: &str) -> Option<&'static [&'static str]>
     definition(tool_ref).map(|capability| capability.definition().scopes)
 }
 
+/// What a call of core tool `tool_ref` with `inputs` would change or run,
+/// without running it; none for a tool that only reads or that runx does not
+/// own.
+pub(crate) fn local_effect(
+    tool_ref: &str,
+    inputs: JsonObject,
+    env: &BTreeMap<String, String>,
+    skill_directory: &Path,
+    effects: &RuntimeEffectRegistry,
+    bounds: crate::services::WorkspaceBounds,
+) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
+    let Some(tool) = definition(tool_ref) else {
+        return Ok(None);
+    };
+    tool.local_effect(RawNativeInvocation {
+        inputs,
+        scopes: &[],
+        observed_at: "",
+        env,
+        skill_directory,
+        credential_delivery: &CredentialDelivery::none(),
+        local_artifacts: &crate::services::LocalArtifactService::default(),
+        effects,
+        bounds,
+    })
+}
+
 pub(crate) fn is_core_tool(tool_ref: &str) -> bool {
     definition(tool_ref).is_some()
 }

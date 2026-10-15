@@ -62,6 +62,50 @@
         "disposition"
       ],
       "type": "object"
+    },
+    "standing_approvals": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "additionalProperties": false,
+            "properties": {
+              "argv_prefix": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "argv_prefix"
+            ],
+            "type": "object"
+          },
+          "edits": {
+            "additionalProperties": false,
+            "properties": {
+              "paths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "paths"
+            ],
+            "type": "object"
+          },
+          "local": {
+            "const": true,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
     }
   },
   "type": "object",

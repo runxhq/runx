@@ -62,6 +62,7 @@ fn continue_run_sends_bound_answers_and_approvals_on_stdin()
             },
         )]
         .into(),
+        standing_approvals: None,
         close: None,
     };
 

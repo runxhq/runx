@@ -183,6 +183,8 @@ fn approval_optional_fields_omit_null_via_host_protocol_serde()
             reason: "Allow workspace write".into(),
             gate_type: None,
             summary: None,
+            payload: None,
+            payload_ref: None,
         },
     };
 
@@ -245,6 +247,8 @@ fn gate() -> ApprovalGate {
         reason: "Allow workspace write".into(),
         gate_type: Some("filesystem_write".to_owned()),
         summary: Some(summary()),
+        payload: None,
+        payload_ref: None,
     }
 }
 

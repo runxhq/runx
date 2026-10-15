@@ -7,7 +7,8 @@ use runx_contracts::{JsonNumber, JsonValue};
 use super::capability::decode_typed_output;
 use super::{NativeInvocation, invalid_input, required_string, resolve_repo_root_for};
 use crate::RuntimeError;
-use crate::filesystem::{TextBundle, TextFileWrite, apply_text_bundle};
+use crate::capability::LocalEffect;
+use crate::filesystem::{TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect};
 use crate::services::WorkspaceBounds;
 
 mod capability;
@@ -168,13 +169,7 @@ fn write(
     let report = apply_text_bundle(
         WRITE_TOOL,
         &root,
-        &TextBundle {
-            writes: vec![TextFileWrite {
-                path: invocation.inputs.path.clone(),
-                contents: invocation.inputs.contents.clone(),
-            }],
-            deletes: Vec::new(),
-        },
+        &write_bundle(invocation.inputs),
         invocation.bounds,
     )?;
     let write = report
@@ -213,6 +208,51 @@ fn write(
     })
 }
 
+/// The one-file bundle `fs.write` applies.
+fn write_bundle(inputs: &FileWriteInput) -> TextBundle {
+    TextBundle {
+        writes: vec![TextFileWrite {
+            path: inputs.path.clone(),
+            contents: inputs.contents.clone(),
+        }],
+        deletes: Vec::new(),
+    }
+}
+
+/// What `fs.write` would change.
+fn write_effect(
+    invocation: &NativeInvocation<'_, FileWriteInput>,
+) -> Result<Option<LocalEffect>, RuntimeError> {
+    let root = resolve_repo_root_for(
+        WRITE_TOOL,
+        &invocation.inputs.repo_root,
+        invocation.env,
+        invocation.skill_directory,
+        invocation.bounds,
+    )?;
+    text_bundle_effect(
+        WRITE_TOOL,
+        &root,
+        &write_bundle(invocation.inputs),
+        invocation.bounds,
+    )
+}
+
+/// The bundle `fs.apply_bundle` applies.
+fn files_bundle(inputs: &FileApplyBundleInput) -> TextBundle {
+    TextBundle {
+        writes: inputs
+            .writes
+            .iter()
+            .map(|write| TextFileWrite {
+                path: write.path.clone(),
+                contents: write.contents.clone(),
+            })
+            .collect(),
+        deletes: inputs.deletes.clone(),
+    }
+}
+
 fn apply_files(
     invocation: &NativeInvocation<'_, FileApplyBundleInput>,
 ) -> Result<FileApplyBundleOutput, RuntimeError> {
@@ -223,25 +263,32 @@ fn apply_files(
         invocation.skill_directory,
         invocation.bounds,
     )?;
-    let writes = invocation
-        .inputs
-        .writes
-        .iter()
-        .map(|write| TextFileWrite {
-            path: write.path.clone(),
-            contents: write.contents.clone(),
-        })
-        .collect();
     let report = apply_text_bundle(
         APPLY_BUNDLE_TOOL,
         &repo_root,
-        &TextBundle {
-            writes,
-            deletes: invocation.inputs.deletes.clone(),
-        },
+        &files_bundle(invocation.inputs),
         invocation.bounds,
     )?;
     decode_typed_output(APPLY_BUNDLE_TOOL, JsonValue::Object(report))
+}
+
+/// What `fs.apply_bundle` would change.
+fn files_effect(
+    invocation: &NativeInvocation<'_, FileApplyBundleInput>,
+) -> Result<Option<LocalEffect>, RuntimeError> {
+    let repo_root = resolve_repo_root_for(
+        APPLY_BUNDLE_TOOL,
+        &invocation.inputs.repo_root,
+        invocation.env,
+        invocation.skill_directory,
+        invocation.bounds,
+    )?;
+    text_bundle_effect(
+        APPLY_BUNDLE_TOOL,
+        &repo_root,
+        &files_bundle(invocation.inputs),
+        invocation.bounds,
+    )
 }
 
 pub(super) fn root<I: ?Sized>(

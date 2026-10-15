@@ -256,7 +256,10 @@ pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
     validate_registry_version,
 };
-pub use resume::{BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose};
+pub use resume::{
+    BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose, StandingApproval,
+    StandingCommands, StandingEdits,
+};
 pub use review::{ReviewReceiptImprovementProposal, ReviewReceiptOutput, ReviewReceiptVerdict};
 pub use run_read::{
     RunCallOutcome, RunCallOutput, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead,

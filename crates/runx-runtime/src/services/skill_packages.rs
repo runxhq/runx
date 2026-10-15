@@ -5,7 +5,9 @@ mod staging;
 mod validation;
 mod workspace;
 
-pub(crate) use change::{apply_skill_change, bind_skill_change, plan_skill_architecture};
+pub(crate) use change::{
+    apply_skill_change, bind_skill_change, plan_skill_architecture, skill_change_effect,
+};
 pub(crate) use validation::validate_skill_package;
 pub(crate) use workspace::inspect_skill_workspace;
 

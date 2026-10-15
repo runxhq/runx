@@ -131,6 +131,38 @@ pub(crate) fn apply_skill_change(
     Ok(result)
 }
 
+/// What applying `change` to the skill at `target_dir` would change: its
+/// writes and deletes as one bundle beneath the repository root. A change
+/// that decides not to write changes nothing.
+pub(crate) fn skill_change_effect(
+    repo_root: &Path,
+    target_dir: &str,
+    change: &SkillChangeBundle,
+    bounds: crate::services::WorkspaceBounds,
+) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
+    let target = display_relative(&normalize_child_path(target_dir)?);
+    let under = |path: &str| format!("{target}/{path}");
+    let bundle = match change.decision {
+        SkillChangeDecision::Write => crate::filesystem::TextBundle {
+            writes: change
+                .writes
+                .iter()
+                .map(|write| crate::filesystem::TextFileWrite {
+                    path: under(write.path.as_str()),
+                    contents: write.contents.clone(),
+                })
+                .collect(),
+            deletes: change
+                .deletes
+                .iter()
+                .map(|path| under(path.as_str()))
+                .collect(),
+        },
+        _ => crate::filesystem::TextBundle::default(),
+    };
+    crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, bounds)
+}
+
 struct ApplyTarget {
     repo_root: PathBuf,
     paths: RunxPaths,

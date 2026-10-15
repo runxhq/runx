@@ -31,6 +31,18 @@ impl CapabilityEffect {
     }
 }
 
+/// What a step that changes the workspace or runs a process would do, as the
+/// person who approves it is shown it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LocalEffect {
+    /// What executes, carried on its approval's gate.
+    pub(crate) payload: JsonValue,
+    /// The workspace-relative files it changes.
+    pub(crate) paths: Vec<String>,
+    /// The argv it runs.
+    pub(crate) argv: Option<Vec<String>>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CapabilityApproval {
     None,

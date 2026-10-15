@@ -151,6 +151,20 @@ impl BoundRun {
             )
             .map_err(|error| error.into_runtime_error())?;
         }
+        // Every later step runs under the person's latest standing approvals:
+        // those this host brings, or those last recorded, or the set the run
+        // started with.
+        let run_authority = run_authority.map(|mut authority| {
+            if let Some(standing) = host
+                .answers
+                .standing()
+                .map(<[_]>::to_vec)
+                .or_else(|| existing.as_ref().and_then(|record| record.standing.clone()))
+            {
+                authority.standing_approvals = standing;
+            }
+            authority
+        });
         let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
         let graph = bind_run_inputs(
             self.runner.graph.clone(),
@@ -171,6 +185,23 @@ impl BoundRun {
         // further: recorded in the stream whose request it answers, so the
         // next driver to reach that request uses it, even after a crash.
         // Decisions recorded earlier that no step has used yet are used now.
+        // The person's new standing approvals replace the run's set for every
+        // later step, and approve each open local effect they cover.
+        if let Some(approvals) = host.answers.standing().map(<[_]>::to_vec)
+            && existing.is_some()
+        {
+            log.record_standing(&approvals)?;
+            let artifacts = self.workspace.paths().artifacts();
+            for request in &waiting {
+                let request_value: ResolutionRequest = serde_json::to_value(&request.value)
+                    .and_then(serde_json::from_value)
+                    .map_err(|source| RuntimeError::json("reading a waited request", source))?;
+                if crate::execution::runner::floor::covers(&request_value, &approvals, &artifacts)?
+                {
+                    host.answers.grant(&request.id, &request.digest);
+                }
+            }
+        }
         if existing.is_some() {
             host.answers.join_recorded(log.admitted()?);
             for answer in host.answers.brought() {

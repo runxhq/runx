@@ -824,6 +824,7 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         max_fanout: fanout,
         max_child_depth: depth,
         agent_bounds: false,
+        standing_approvals: Vec::new(),
     }
 }
 
@@ -1021,6 +1022,275 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
         input(serde_json::json!({ "path": ".env" }))?,
     )?;
     assert!(completed(&read), "{read:?}");
+    Ok(())
+}
+
+/// A one-turn skill whose agent may change files and run commands.
+fn write_develop_skill(root: &Path) -> TestResult<PathBuf> {
+    let skill_dir = root.join("develop-demo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: develop-demo\ndescription: Changes the project, then answers.\n---\n# Develop demo\n\nChange what you need, then answer.\n",
+        r#"skill: develop-demo
+tools: [fs.write, command.execute]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
+fn agents(standing: serde_json::Value) -> TestResult<runx_runtime::RunAuthority> {
+    let mut authority = bounded(None, None);
+    authority.agent_bounds = true;
+    authority.standing_approvals = serde_json::from_value(standing)?;
+    Ok(authority)
+}
+
+/// The run's open floor approval at `address`: its gate.
+fn floor_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts::ApprovalGate> {
+    let TurnCallOutcome::Pending { waiting } = &call.outcome else {
+        return Err(format!("the call waits on the person: {call:?}").into());
+    };
+    match waiting.as_slice() {
+        [ResolutionRequest::Approval { id, gate }] if id.as_str() == address => Ok(gate.clone()),
+        _ => Err(format!("one floor approval at {address}: {waiting:?}").into()),
+    }
+}
+
+fn resume_document(
+    root: &Path,
+    run_id: &str,
+    document: runx_contracts::ResumeDocument,
+) -> TestResult<RunResult> {
+    Ok(LocalOrchestrator::default().resume(&ResumeRequest {
+        run_id: run_id.to_owned(),
+        answers: document,
+        receipt_dir: Some(root.join("receipts")),
+        env: env(root),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+        package_digest: None,
+        execution_closure_digest: None,
+    })?)
+}
+
+#[test]
+fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("README.md"), "old\n")?;
+    let started = start_bounded(
+        root,
+        write_develop_skill(root)?,
+        agents(serde_json::json!([]))?,
+    )?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let turn = opened(root, &started)?;
+    let write = |path: &str, contents: &str| -> TestResult<TurnCallResult> {
+        Ok(turn.call(
+            TURN,
+            "fs_write",
+            None,
+            input(serde_json::json!({"path": path, "contents": contents}))?,
+        )?)
+    };
+
+    let held = write("README.md", "new\n")?;
+    let gate = floor_gate(&held, "answer/0/tool")?;
+    assert_eq!(gate.gate_type.as_deref(), Some("tool"));
+    let payload = gate
+        .payload
+        .clone()
+        .ok_or("the gate carries what executes")?;
+    let file = serde_json::to_value(&payload)?["files"][0].clone();
+    assert_eq!(file["path"], "README.md");
+    let diff = file["diff"].as_str().unwrap_or_default();
+    assert!(diff.contains("-old") && diff.contains("+new"), "{diff}");
+    assert_eq!(
+        gate.summary
+            .as_ref()
+            .and_then(|summary| summary.get("payload_digest")),
+        Some(&JsonValue::String(runx_contracts::canonical_digest(
+            &payload
+        )?))
+    );
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "old\n");
+    // It waits on the person, never "may have run".
+    let paused = Paused {
+        root: root.to_path_buf(),
+        receipts: root.join("receipts"),
+        run_id: run_id.clone(),
+    };
+    assert!(
+        matches!(
+            recorded_calls(&paused)?.as_slice(),
+            [(_, RunCallOutcome::Pending { .. })]
+        ),
+        "the floor decided before the claim"
+    );
+
+    paused.resume(serde_json::json!({"approvals": {"answer/0/tool": true}}))?;
+    assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
+
+    let declined = write("other.md", "no\n")?;
+    floor_gate(&declined, "answer/1/tool")?;
+    paused.resume(serde_json::json!({"approvals": {"answer/1/tool": false}}))?;
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed", "refused"]);
+    assert!(!root.join("other.md").exists());
+    Ok(())
+}
+
+#[test]
+fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let standing = serde_json::json!([
+        {"edits": {"paths": ["docs"]}},
+        {"commands": {"argv_prefix": ["echo"]}}
+    ]);
+    let started = start_bounded(root, write_develop_skill(root)?, agents(standing)?)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let paused = Paused {
+        root: root.to_path_buf(),
+        receipts: root.join("receipts"),
+        run_id: run_id.clone(),
+    };
+    let turn = opened(root, &started)?;
+    let write = |path: &str| -> TestResult<TurnCallResult> {
+        Ok(turn.call(
+            TURN,
+            "fs_write",
+            None,
+            input(serde_json::json!({"path": path, "contents": "made\n"}))?,
+        )?)
+    };
+    let run = |command: &str| -> TestResult<TurnCallResult> {
+        Ok(turn.call(
+            TURN,
+            "command_execute",
+            None,
+            input(serde_json::json!({"command": command, "args": ["hi"]}))?,
+        )?)
+    };
+
+    assert!(
+        completed(&write("docs/a.md")?),
+        "edits under docs run at once"
+    );
+    assert!(
+        completed(&run("echo")?),
+        "a command under its prefix runs at once"
+    );
+    let recorded = recorded_calls(&paused)?;
+    let read = runx_runtime::run_record::read_run(&env(root), root, &run_id, None)?;
+    let standing_of = |index: u32| {
+        read.events
+            .iter()
+            .rev()
+            .find_map(|record| match &record.event {
+                RunEventFact::Call {
+                    index: at,
+                    standing,
+                    ..
+                } if *at == index => Some(standing.clone()),
+                _ => None,
+            })
+    };
+    assert!(
+        standing_of(0)
+            .flatten()
+            .is_some_and(|entry| entry.edits.is_some())
+    );
+    assert!(
+        standing_of(1)
+            .flatten()
+            .is_some_and(|entry| entry.commands.is_some())
+    );
+    assert_eq!(recorded.len(), 2);
+
+    // What the set does not cover waits; the person's new set covers it, and
+    // every later step runs under it.
+    floor_gate(&write("src/b.rs")?, "answer/2/tool")?;
+    resume_document(
+        root,
+        &run_id,
+        runx_contracts::ResumeDocument {
+            standing_approvals: Some(serde_json::from_value(
+                serde_json::json!([{"local": true}]),
+            )?),
+            ..runx_contracts::ResumeDocument::default()
+        },
+    )?;
+    assert_eq!(std::fs::read_to_string(root.join("src/b.rs"))?, "made\n");
+    assert!(completed(&write("anywhere.md")?));
+    let read = runx_runtime::run_record::read_run(&env(root), root, &run_id, None)?;
+    assert!(read.events.iter().any(|record| matches!(
+        &record.event,
+        RunEventFact::Standing { approvals } if approvals.iter().any(|entry| entry.local)
+    )));
+    Ok(())
+}
+
+#[test]
+fn the_floor_holds_a_skills_graph_step_before_it_is_claimed() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let skill_dir = root.join("write-step");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: write-step\ndescription: Writes its notes.\n---\n# Write step\n\nWrite the notes.\n",
+        r#"skill: write-step
+runners:
+  write:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    steps:
+      - id: write
+        tool: fs.write
+        scopes: [fs.write]
+        inputs:
+          path: notes.md
+          contents: hello
+"#,
+    )?;
+    let started = start_bounded(root, skill_dir, agents(serde_json::json!([]))?)?;
+    assert_eq!(requests(&started)?, ["write/tool"]);
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let read = runx_runtime::run_record::read_run(&env(root), root, &run_id, None)?;
+    assert!(
+        !read.events.iter().any(|record| matches!(
+            record.event,
+            RunEventFact::Suspended {
+                hold: runx_contracts::RunHold::Claimed { .. },
+                ..
+            }
+        )),
+        "nothing waiting on the person was claimed"
+    );
+    assert!(!root.join("notes.md").exists());
+
+    let paused = Paused {
+        root: root.to_path_buf(),
+        receipts: root.join("receipts"),
+        run_id,
+    };
+    let sealed = paused.resume(serde_json::json!({"approvals": {"write/tool": true}}))?;
+    assert!(sealed.succeeded(), "{:?}", sealed.output);
+    assert_eq!(std::fs::read_to_string(root.join("notes.md"))?, "hello");
     Ok(())
 }
 

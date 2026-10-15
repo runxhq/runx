@@ -431,36 +431,51 @@ impl GraphExecution {
                 });
             }
         }
-        let claimed = super::reaches_world(&context.step.kind);
-        if claimed {
-            let retry = log.address(&format!("{}/retry", context.plan.step_id));
-            log.record_claim(
-                context.plan.step_id,
-                context.plan.attempt,
-                &super::unsettled_retry(
-                    retry,
-                    &format!("step {}", context.plan.step_id),
-                    super::resend_of(
-                        context.step,
-                        context.graph_dir,
-                        &context.runtime.options.env,
-                    ),
-                ),
-                &std::mem::take(&mut answering.answers),
-            )?;
-        }
-        let result = self.execute_step_plan(
-            StepPlanTarget {
-                runtime: context.runtime,
-                graph_dir: context.graph_dir,
-                graph: context.graph,
-                step: context.step,
-                plan: context.plan,
-            },
+        // The floor decides before the claim, so a step waiting on the
+        // person is held on its gate, never "may have run".
+        let floor = self.floor(
+            context.runtime,
+            context.graph_dir,
+            context.step,
             &mut answering,
-            loaded_skill,
-            policy_approval_refs,
         );
+        let claimed = floor.is_ok() && super::reaches_world(&context.step.kind);
+        let result = match floor {
+            Err(error) => Err(error),
+            Ok(admitted) => {
+                if claimed {
+                    let retry = log.address(&format!("{}/retry", context.plan.step_id));
+                    log.record_claim(
+                        context.plan.step_id,
+                        context.plan.attempt,
+                        &super::unsettled_retry(
+                            retry,
+                            &format!("step {}", context.plan.step_id),
+                            super::resend_of(
+                                context.step,
+                                context.graph_dir,
+                                &context.runtime.options.env,
+                            ),
+                        ),
+                        &std::mem::take(&mut answering.answers),
+                    )?;
+                }
+                let mut policy_approval_refs = policy_approval_refs;
+                policy_approval_refs.extend(admitted.reference()?);
+                self.execute_step_plan(
+                    StepPlanTarget {
+                        runtime: context.runtime,
+                        graph_dir: context.graph_dir,
+                        graph: context.graph,
+                        step: context.step,
+                        plan: context.plan,
+                    },
+                    &mut answering,
+                    loaded_skill,
+                    policy_approval_refs,
+                )
+            }
+        };
         let answers = answering.answers;
         let run = match result {
             Err(RuntimeError::ResolutionPending {
@@ -499,6 +514,33 @@ impl GraphExecution {
             result => result?,
         };
         self.commit_step_run(context.runtime, context.host, context.plan, run, &answers)
+    }
+
+    /// The floor's decision for a tool step of a run worked by an agent,
+    /// over the inputs it would run with.
+    fn floor<A>(
+        &self,
+        runtime: &Runtime<A>,
+        graph_dir: &Path,
+        step: &GraphStep,
+        host: &mut dyn Host,
+    ) -> Result<super::floor::Admitted, RuntimeError>
+    where
+        A: SkillAdapter,
+    {
+        let bounded = runtime
+            .options
+            .run_authority
+            .as_ref()
+            .is_some_and(|authority| authority.agent_bounds);
+        if !bounded || !matches!(step.kind, StepKind::Tool(_)) {
+            return Ok(super::floor::Admitted::Free);
+        }
+        let inputs = super::super::graph::materialize_step_invocation_inputs_with_index(
+            step,
+            &PriorRunIndex::from_positions(&self.runs, &self.run_positions),
+        )?;
+        super::floor::hold(runtime, graph_dir, step, &inputs, host)
     }
 
     fn execute_step_plan<A>(

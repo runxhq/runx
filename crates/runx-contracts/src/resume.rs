@@ -11,8 +11,8 @@ use crate::decision::ClosureDisposition;
 use crate::schema::{NonEmptyString, RunxSchema};
 
 /// Each map is keyed by the address of the request it answers. `answers` is
-/// the agent's lane; `approvals` is the person's, and every entry in it
-/// resolves as theirs. A close comes alone.
+/// the agent's lane; `approvals` and `standing_approvals` are the person's,
+/// and every entry in them resolves as theirs. A close comes alone.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.resume.v1")]
@@ -21,8 +21,86 @@ pub struct ResumeDocument {
     pub answers: BTreeMap<String, BoundAnswer>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, BoundApproval>,
+    /// The person's new standing approvals, which replace the run's set for
+    /// every later step and answer any open approval of a local effect they
+    /// cover.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standing_approvals: Option<Vec<StandingApproval>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub close: Option<RunClose>,
+}
+
+/// A person's bounded confirmation of the local effects a run worked by an
+/// agent would otherwise hold for them: exactly one of `edits`, `commands`
+/// and `local`. It never covers an operation's own declared approval.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StandingApproval {
+    /// File changes under these paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edits: Option<StandingEdits>,
+    /// A command or process whose argv begins with these tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commands: Option<StandingCommands>,
+    /// Every local effect.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub local: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StandingEdits {
+    /// Workspace-relative path prefixes, by whole components; `""` is the
+    /// whole workspace.
+    pub paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StandingCommands {
+    /// The exact leading argv tokens. Argv has no shell, so a prefix admits
+    /// nothing beyond the tokens it names.
+    pub argv_prefix: Vec<NonEmptyString>,
+}
+
+impl StandingApproval {
+    /// One kind of confirmation, each in its bounds: relative paths that
+    /// stay inside the workspace, and a prefix of at least one token.
+    pub fn check(&self) -> Result<(), String> {
+        let kinds = usize::from(self.edits.is_some())
+            + usize::from(self.commands.is_some())
+            + usize::from(self.local);
+        if kinds != 1 {
+            return Err(
+                "a standing approval is exactly one of edits, commands and local".to_owned(),
+            );
+        }
+        if let Some(edits) = &self.edits {
+            if edits.paths.is_empty() {
+                return Err("standing edits name at least one path".to_owned());
+            }
+            for path in &edits.paths {
+                let relative = std::path::Path::new(path);
+                if relative.is_absolute()
+                    || relative
+                        .components()
+                        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+                {
+                    return Err(format!(
+                        "standing edits path {path:?} must be workspace-relative, without . or .."
+                    ));
+                }
+            }
+        }
+        if self
+            .commands
+            .as_ref()
+            .is_some_and(|commands| commands.argv_prefix.is_empty())
+        {
+            return Err("standing commands name at least one argv token".to_owned());
+        }
+        Ok(())
+    }
 }
 
 /// An agent's answer to an input request or an agent act.

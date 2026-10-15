@@ -131,6 +131,8 @@ fn approval(id: &str) -> ResolutionRequest {
             reason: "approve the send".into(),
             gate_type: None,
             summary: None,
+            payload: None,
+            payload_ref: None,
         },
     }
 }
@@ -423,6 +425,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             input: &input,
             outcome,
             outputs: &[],
+            standing: None,
             answers: &[],
         })
         .unwrap();
@@ -458,6 +461,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         input: &input,
         outcome: &CallOutcome::Completed(Box::new(step("run_turn_1", "answer/1"))),
         outputs: &[],
+        standing: None,
         answers: &[],
     })
     .unwrap();
@@ -482,6 +486,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         input: &input,
         outcome: &CallOutcome::Refused("not in the turn's allowance".to_owned()),
         outputs: &[],
+        standing: None,
         answers: &[],
     })
     .unwrap();
@@ -535,6 +540,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
                 digest: request_digest(&ask).unwrap(),
             }),
             outputs: &[],
+            standing: None,
             answers: &[],
         })
         .unwrap();
@@ -550,6 +556,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         input: &JsonObject::new(),
         outcome: &CallOutcome::Child(child.run_id().to_owned()),
         outputs: &[],
+        standing: None,
         answers: &[],
     })
     .unwrap();

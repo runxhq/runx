@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, StandingApprovalContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -57,6 +57,11 @@ export interface RunAuthority {
    * own state.
    */
   readonly agent_bounds?: boolean;
+  /**
+   * The person's standing approvals of the local effects the run's approval
+   * floor holds; the person replaces them through `runx resume`.
+   */
+  readonly standing_approvals?: readonly StandingApprovalContract[];
 }
 
 export interface SkillRunOptions extends SkillInspectOptions {

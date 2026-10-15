@@ -171,7 +171,8 @@ static EXECUTE: TypedNativeCapability<CommandInput, CommandExecutionOutput> =
         },
         super::execute,
         crate::process_invocation::NATIVE_COMMAND_EXECUTION_BOUNDARY,
-    );
+    )
+    .describing(super::execute_effect);
 
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
     &[&PLAN, &EXECUTE];

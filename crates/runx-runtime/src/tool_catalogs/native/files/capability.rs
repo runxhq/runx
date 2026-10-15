@@ -446,7 +446,8 @@ static WRITE: TypedNativeCapability<FileWriteInput, FileWriteOutput> = TypedNati
         fields: WRITE_FIELDS,
     },
     super::write,
-);
+)
+.describing(super::write_effect);
 
 static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundleOutput> =
     TypedNativeCapability::new(
@@ -464,7 +465,8 @@ static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundleOutput>
             fields: APPLY_FIELDS,
         },
         super::apply_files,
-    );
+    )
+    .describing(super::files_effect);
 
 static LIST: TypedNativeCapability<FileListInput, FileListOutput> = TypedNativeCapability::new(
     CapabilityDefinition {

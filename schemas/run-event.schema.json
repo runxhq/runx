@@ -437,6 +437,47 @@
                 }
               ]
             },
+            "standing": {
+              "additionalProperties": false,
+              "properties": {
+                "commands": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "argv_prefix": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "argv_prefix"
+                  ],
+                  "type": "object"
+                },
+                "edits": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "paths": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "paths"
+                  ],
+                  "type": "object"
+                },
+                "local": {
+                  "const": true,
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
             "step_id": {
               "minLength": 1,
               "type": "string"
@@ -563,6 +604,64 @@
             "kind",
             "disposition",
             "receipt_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "approvals": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "commands": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "argv_prefix": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "argv_prefix"
+                    ],
+                    "type": "object"
+                  },
+                  "edits": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "paths": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "paths"
+                    ],
+                    "type": "object"
+                  },
+                  "local": {
+                    "const": true,
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "standing",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "approvals"
           ],
           "type": "object"
         },

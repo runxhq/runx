@@ -35,6 +35,7 @@ use crate::receipts::{
 
 mod admission;
 mod dispatch;
+pub(crate) mod floor;
 mod graph_engine;
 mod step_handlers;
 pub mod turn;

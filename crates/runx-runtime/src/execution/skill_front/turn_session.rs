@@ -378,6 +378,7 @@ mod tests {
                 digest: request_digest(&retry)?,
             }),
             outputs: &[],
+            standing: None,
             answers: &[],
         })?;
         Ok((run_id, log))

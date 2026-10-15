@@ -82,6 +82,49 @@ fn plan(
     })
 }
 
+/// What `command.execute` would run: its plan's identity, and the exact argv
+/// the person approving it reads.
+fn execute_effect(
+    invocation: &NativeInvocation<'_, CommandInput>,
+) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
+    let command = prepare(invocation)?;
+    let argv = std::iter::once(command.command.clone())
+        .chain(command.args.iter().cloned())
+        .collect::<Vec<_>>();
+    let payload = JsonObject::from([
+        ("kind".to_owned(), JsonValue::String("command".to_owned())),
+        (
+            "argv".to_owned(),
+            JsonValue::Array(argv.iter().cloned().map(JsonValue::String).collect()),
+        ),
+        ("cwd".to_owned(), JsonValue::String(command.cwd_relative)),
+        (
+            "command_digest".to_owned(),
+            JsonValue::String(command.command_digest),
+        ),
+        (
+            "timeout_ms".to_owned(),
+            JsonValue::Number(JsonNumber::U64(command.timeout_ms)),
+        ),
+        (
+            "env_names".to_owned(),
+            JsonValue::Array(
+                command
+                    .explicit_env
+                    .keys()
+                    .cloned()
+                    .map(JsonValue::String)
+                    .collect(),
+            ),
+        ),
+    ]);
+    Ok(Some(crate::capability::LocalEffect {
+        payload: JsonValue::Object(payload),
+        paths: Vec::new(),
+        argv: Some(argv),
+    }))
+}
+
 fn execute(
     invocation: &NativeInvocation<'_, CommandInput>,
 ) -> Result<CommandExecutionOutput, RuntimeError> {

@@ -8,6 +8,7 @@ use thiserror::Error;
 mod artifacts;
 mod project_artifacts;
 
+pub(crate) use project_artifacts::persist_canonical_json_artifact;
 pub use project_artifacts::{persist_json_artifact, read_json_artifact};
 
 pub(crate) use artifacts::{

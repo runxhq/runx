@@ -589,6 +589,7 @@ where
     let mut run = match &request.step.kind {
         StepKind::Ask(gate) => run_approval_step(
             request.runtime,
+            request.graph_dir,
             request.graph_name,
             request.step,
             gate,
@@ -1303,6 +1304,7 @@ fn agent_answer_disposition_value(
 // and seals one trust-boundary decision without exposing a partially built receipt.
 pub(super) fn run_approval_step<A>(
     runtime: &Runtime<A>,
+    graph_dir: &Path,
     graph_name: &str,
     step: &GraphStep,
     ask: &AskGate,
@@ -1313,7 +1315,18 @@ pub(super) fn run_approval_step<A>(
 where
     A: SkillAdapter,
 {
-    let gate = approval_gate(ask, &inputs);
+    let mut gate = approval_gate(ask, &inputs);
+    // What the person approves is the reason they are asked.
+    crate::approval::carry_payload(
+        &mut gate,
+        JsonValue::Object(JsonObject::from([(
+            "reason".to_owned(),
+            JsonValue::String(ask.reason.clone()),
+        )])),
+        &crate::paths::RunxPaths::resolve(&runtime.options.env, graph_dir).artifacts(),
+        runtime.options.run.run_id(),
+    )
+    .map_err(|message| RuntimeError::effect_state("carrying an ask", message))?;
     // The request is the gate at its address, not the step: a caller's
     // approval names the gate.
     let request_id = runtime.options.run.address(gate.id.as_str());
@@ -1388,6 +1401,8 @@ pub(super) fn approval_gate(ask: &AskGate, inputs: &JsonObject) -> ApprovalGate 
         reason: ask.reason.clone().into(),
         gate_type: ask.gate_type.clone(),
         summary: (!inputs.is_empty()).then(|| inputs.clone()),
+        payload: None,
+        payload_ref: None,
     }
 }
 

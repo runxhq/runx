@@ -34,4 +34,9 @@ pub struct RunAuthority {
     /// operator's run leaves it unset and reaches the roots its inputs name.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub agent_bounds: bool,
+    /// The person's standing approvals of the local effects the run's floor
+    /// holds when it sets `agent_bounds`; a host sets the first set when it
+    /// starts the run, and the person replaces it through `runx resume`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub standing_approvals: Vec<runx_contracts::StandingApproval>,
 }

@@ -134,9 +134,19 @@ pub struct ApprovalGate {
     pub reason: NonEmptyString,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub gate_type: Option<String>,
-    /// Shallow summary payload.
+    /// Shallow summary payload. `payload_digest` in it is the stable digest
+    /// (`runx.stable-json.v1`) of what executes once the gate is approved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<JsonObject>,
+    /// What executes once the gate is approved, when it is at most 64 KiB. A
+    /// host recomputes `summary.payload_digest` over it before it offers
+    /// Approve; the request's digest binds it with the rest of the gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<JsonValue>,
+    /// What executes, when it is larger: a project artifact whose bytes are
+    /// its canonical JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_ref: Option<crate::ProjectArtifactRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

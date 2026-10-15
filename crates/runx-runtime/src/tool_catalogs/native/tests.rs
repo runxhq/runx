@@ -212,3 +212,16 @@ fn a_tool_that_only_reads_can_run_again_and_one_that_changes_cannot() {
         assert!(!only_reads(changes), "{changes} is not resent unseen");
     }
 }
+
+#[test]
+fn every_tool_that_changes_something_describes_its_effect() {
+    for capability in core_capabilities() {
+        let definition = capability.definition();
+        assert_eq!(
+            capability.describes_effect(),
+            definition.effect.mutating(),
+            "{} describes its effect exactly when it changes something",
+            definition.id
+        );
+    }
+}

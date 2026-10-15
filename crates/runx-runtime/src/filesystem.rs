@@ -4,10 +4,14 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonObject;
 
 use crate::RuntimeError;
+use crate::capability::LocalEffect;
 use crate::services::WorkspaceBounds;
 
 mod admission;
 mod apply;
+mod effect;
+
+pub(crate) use effect::text_bundle_effect;
 
 use admission::{admit_file_target, admit_text_bundle, missing_parent_directories, snapshot_paths};
 use apply::{apply_admitted_bundle, bundle_report, rollback_paths};

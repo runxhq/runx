@@ -6,13 +6,29 @@ use crate::{
 };
 
 use super::NativeInvocation;
+use crate::capability::LocalEffect;
 
 pub(super) type TypedNativeHandler<I, O> =
     for<'a> fn(&NativeInvocation<'a, I>) -> Result<O, RuntimeError>;
 
+/// What a call of a tool that changes something would change or run, from
+/// the inputs it would run with, without running it; none when this call
+/// changes nothing.
+pub(super) type TypedEffectDescriber<I> =
+    for<'a> fn(&NativeInvocation<'a, I>) -> Result<Option<LocalEffect>, RuntimeError>;
+
 pub(super) trait NativeCapability: CapabilityContract {
     fn invoke(&self, invocation: RawNativeInvocation<'_>) -> Result<JsonValue, RuntimeError>;
     fn execution_boundary(&self) -> runx_contracts::ExecutionBoundaryKind;
+    /// What a call with these inputs would change or run; none for a tool
+    /// that only reads.
+    fn local_effect(
+        &self,
+        invocation: RawNativeInvocation<'_>,
+    ) -> Result<Option<LocalEffect>, RuntimeError>;
+    /// Whether the tool describes the effect it has.
+    #[cfg(test)]
+    fn describes_effect(&self) -> bool;
 }
 
 pub(super) fn decode_typed_output<O: CapabilityOutput>(
@@ -43,6 +59,7 @@ pub(super) struct TypedNativeCapability<I, O> {
     contract: TypedCapability<I>,
     handler: TypedNativeHandler<I, O>,
     execution_boundary: runx_contracts::ExecutionBoundaryKind,
+    describe: Option<TypedEffectDescriber<I>>,
 }
 
 impl<I, O> TypedNativeCapability<I, O> {
@@ -55,6 +72,7 @@ impl<I, O> TypedNativeCapability<I, O> {
             contract: TypedCapability::new(definition),
             handler,
             execution_boundary: runx_contracts::ExecutionBoundaryKind::NativeCapability,
+            describe: None,
         }
     }
 
@@ -68,6 +86,16 @@ impl<I, O> TypedNativeCapability<I, O> {
             contract: TypedCapability::new(definition),
             handler,
             execution_boundary,
+            describe: None,
+        }
+    }
+
+    /// The tool changes something, and `describe` says what a call would.
+    #[must_use]
+    pub(super) const fn describing(self, describe: TypedEffectDescriber<I>) -> Self {
+        Self {
+            describe: Some(describe),
+            ..self
         }
     }
 }
@@ -116,6 +144,38 @@ where
 {
     fn execution_boundary(&self) -> runx_contracts::ExecutionBoundaryKind {
         self.execution_boundary
+    }
+
+    #[cfg(test)]
+    fn describes_effect(&self) -> bool {
+        self.describe.is_some()
+    }
+
+    fn local_effect(
+        &self,
+        invocation: RawNativeInvocation<'_>,
+    ) -> Result<Option<LocalEffect>, RuntimeError> {
+        if !self.definition().effect.mutating() {
+            return Ok(None);
+        }
+        let describe = self.describe.ok_or_else(|| RuntimeError::EngineInvariant {
+            context: "describing a local effect",
+            message: format!(
+                "{} changes something but describes no effect",
+                self.definition().id
+            ),
+        })?;
+        let inputs = self.contract.decode_inputs(invocation.inputs)?;
+        describe(&NativeInvocation {
+            inputs: &inputs,
+            observed_at: invocation.observed_at,
+            env: invocation.env,
+            skill_directory: invocation.skill_directory,
+            credential_delivery: invocation.credential_delivery,
+            local_artifacts: invocation.local_artifacts,
+            effects: invocation.effects,
+            bounds: invocation.bounds,
+        })
     }
 
     fn invoke(&self, invocation: RawNativeInvocation<'_>) -> Result<JsonValue, RuntimeError> {

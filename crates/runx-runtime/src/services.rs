@@ -14,12 +14,13 @@ pub(crate) use receipt_query::{ReceiptQueryInput, query_receipts};
 pub(crate) use receipts::{ReceiptReadContext, ReceiptServices};
 pub(crate) use skill_packages::{
     apply_skill_change, bind_skill_change, inspect_skill_workspace, plan_skill_architecture,
-    validate_skill_package,
+    skill_change_effect, validate_skill_package,
 };
 pub use verified_receipts::VerifiedReceiptStore;
 pub(crate) use workspace_files::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
-    LocalArtifactService, WorkspaceBounds, WorkspaceFile, is_secret_path, resolve_scoped_root,
+    LocalArtifactService, WorkspaceBounds, WorkspaceFile, is_secret_path,
+    persist_canonical_json_artifact, resolve_scoped_root,
 };
 pub use workspace_files::{
     WorkspaceFileError, persist_json_artifact, read_json_artifact, read_workspace_text,

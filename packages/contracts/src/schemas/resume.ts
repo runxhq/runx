@@ -20,8 +20,23 @@ export type ResumeDocumentContract = DeepReadonly<{
     string,
     { request_digest: string; approved?: boolean; reason?: string; value?: unknown }
   >;
+  /** The person's new standing approvals, replacing the run's set. */
+  standing_approvals?: readonly StandingApprovalContract[];
   close?: { disposition: "declined" | "superseded" };
 }>;
+
+/**
+ * A person's bounded confirmation of the local effects a run worked by an
+ * agent would otherwise hold for them: exactly one of `edits` (file changes
+ * under these workspace-relative paths, `""` the whole workspace),
+ * `commands` (an argv beginning with these tokens) and `local` (every local
+ * effect). It never covers an operation's own declared approval.
+ */
+export type StandingApprovalContract = DeepReadonly<
+  | { edits: { paths: string[] } }
+  | { commands: { argv_prefix: string[] } }
+  | { local: true }
+>;
 
 export const resumeDocumentSchema = generatedSchema<ResumeDocumentContract>("resume.schema.json");
 

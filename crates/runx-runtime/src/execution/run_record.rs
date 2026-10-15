@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 pub use runx_contracts::RunState;
 use runx_contracts::{
     CallAct, ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
-    RunCallOutput, RunDriver, TurnTarget,
+    RunCallOutput, RunDriver, StandingApproval, TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -66,6 +66,7 @@ enum RunEvent {
     Call(Box<CallEvent>),
     Sealed(Box<SealedEvent>),
     Answered(Box<AnsweredEvent>),
+    Standing(Box<StandingEvent>),
 }
 
 impl StreamEvent for RunEvent {
@@ -82,12 +83,21 @@ impl StreamEvent for RunEvent {
             Self::Call(_) => "call",
             Self::Sealed(_) => "sealed",
             Self::Answered(_) => ANSWERED,
+            Self::Standing(_) => "standing",
         }
     }
 }
 
 /// The event type of an answer a resume admitted.
 const ANSWERED: &str = "answered";
+
+/// The person's standing approvals, replacing the run's set for every later
+/// step.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StandingEvent {
+    approvals: Vec<StandingApproval>,
+}
 
 /// What a top-level run is bound to. A pinned run id is a submission
 /// identity: a continuation under it must present the same identity.
@@ -238,6 +248,9 @@ struct CallEvent {
     /// Blob: the call's input.
     input: String,
     outcome: CallOutcomeEvent,
+    /// The standing approval that admitted it on the approval floor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    standing: Option<StandingApproval>,
     /// The answers the call consumed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     answers: Vec<AnswerEvent>,
@@ -382,6 +395,7 @@ pub(crate) struct RecordedCall {
     pub call_id: Option<String>,
     pub target: TurnTarget,
     pub input: JsonObject,
+    pub standing: Option<StandingApproval>,
     pub outcome: CallOutcome,
 }
 
@@ -410,6 +424,8 @@ pub(crate) struct CallRecord<'a> {
     pub outcome: &'a CallOutcome,
     /// A completed call's output, persisted as project artifacts.
     pub outputs: &'a [RunCallOutput],
+    /// The standing approval that admitted it on the approval floor.
+    pub standing: Option<&'a StandingApproval>,
     pub answers: &'a [Answer],
 }
 
@@ -453,6 +469,9 @@ pub(crate) struct RunRecord {
     /// The answers a resume admitted that no step, call or claim has used
     /// yet, in the order they were admitted.
     pub admitted: Vec<Answer>,
+    /// The standing approvals the person last set, which replace the set the
+    /// run started with.
+    pub standing: Option<Vec<StandingApproval>>,
     /// Every call agents made during the run's turns, each as its latest
     /// event settled it, in the order they were first made.
     pub calls: Vec<RecordedCall>,
@@ -913,6 +932,20 @@ impl RunLog {
         )
     }
 
+    /// The person's new standing approvals, recorded before the run goes
+    /// further.
+    pub(crate) fn record_standing(
+        &self,
+        approvals: &[StandingApproval],
+    ) -> Result<(), RunRecordError> {
+        self.append(
+            RunEvent::Standing(Box::new(StandingEvent {
+                approvals: approvals.to_vec(),
+            })),
+            Vec::new(),
+        )
+    }
+
     /// Every answer a resume admitted in this run's tree that no step, call
     /// or claim has used yet.
     pub(crate) fn admitted(&self) -> Result<Vec<Answer>, RunRecordError> {
@@ -1017,6 +1050,7 @@ impl RunLog {
             target: call.target.clone(),
             input: blobs[1].digest().to_owned(),
             outcome,
+            standing: call.standing.cloned(),
             answers: call
                 .answers
                 .iter()
@@ -1223,15 +1257,17 @@ fn standing(latest: &RunEvent) -> (RunState, Option<ClosureDisposition>, Option<
             Some(sealed.disposition.clone()),
             Some(sealed.receipt_id.clone()),
         ),
-        RunEvent::Suspended(_) | RunEvent::Call(_) | RunEvent::Answered(_) => {
-            (RunState::Paused, None, None)
-        }
+        RunEvent::Suspended(_)
+        | RunEvent::Call(_)
+        | RunEvent::Answered(_)
+        | RunEvent::Standing(_) => (RunState::Paused, None, None),
         _ => (RunState::Running, None, None),
     }
 }
 
 /// The latest event that says where a stream stands: its last, stepping
-/// back past the answers admitted while it waited, which never move it.
+/// back past the answers and standing approvals a person gave while it
+/// waited, which never move it.
 fn standing_event(
     store: &KernelStore,
     key: &str,
@@ -1239,7 +1275,7 @@ fn standing_event(
     let Some(mut latest) = store.latest::<RunEvent>(key)? else {
         return Ok(None);
     };
-    while matches!(latest.event, RunEvent::Answered(_)) {
+    while matches!(latest.event, RunEvent::Answered(_) | RunEvent::Standing(_)) {
         let earlier = match latest.version.checked_sub(2) {
             Some(after) => store
                 .read_after::<RunEvent>(key, after, 1)?
@@ -1340,6 +1376,7 @@ fn replay(
         suspension: None,
         answers: Vec::new(),
         admitted: Vec::new(),
+        standing: None,
         calls: Vec::new(),
         retries: 0,
         sealed: None,
@@ -1415,6 +1452,8 @@ fn replay(
                 record.consume(store, &call.answers)?;
                 settle_call(&mut record.calls, recorded_call(store, call)?);
             }
+            // A new standing set leaves the run where it waits.
+            RunEvent::Standing(standing) => record.standing = Some(standing.approvals),
             // An admitted answer leaves the run where it waits, and replaces
             // one admitted to the same request that no step used.
             RunEvent::Answered(answered) => {
@@ -1486,6 +1525,7 @@ fn recorded_call(store: &KernelStore, call: CallEvent) -> Result<RecordedCall, R
         index: call.index,
         call_id: call.call_id,
         target: call.target,
+        standing: call.standing,
     })
 }
 

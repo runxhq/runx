@@ -255,6 +255,7 @@ export {
   resumeDocumentSchema,
   validateResumeDocumentContract,
   type ResumeDocumentContract,
+  type StandingApprovalContract,
 } from "./schemas/resume.js";
 
 export {

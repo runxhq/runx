@@ -136,6 +136,8 @@ struct Made {
     call_id: Option<String>,
     target: TurnTarget,
     input: JsonObject,
+    /// The standing approval that admitted it on the floor, if one did.
+    standing: Option<runx_contracts::StandingApproval>,
 }
 
 impl Made {
@@ -145,6 +147,7 @@ impl Made {
             call_id: call.call_id.clone(),
             target: call.target.clone(),
             input: call.input.clone(),
+            standing: call.standing.clone(),
         }
     }
 }
@@ -313,6 +316,35 @@ where
                 return self.settled(made, refused, &host.answers);
             }
         };
+        // The floor decides before the claim: a call waiting on the person is
+        // pending on its gate, never "may have run", and one they declined is
+        // refused.
+        let admitted = match super::floor::hold(
+            self.scope.runtime,
+            self.scope.graph_dir,
+            &step,
+            &step.inputs,
+            &mut host,
+        ) {
+            Ok(admitted) => admitted,
+            Err(RuntimeError::ResolutionPending { request, .. }) => {
+                let pending = CallOutcome::Pending(pending_request(&request)?);
+                return self.settled(made, pending, &host.answers);
+            }
+            Err(RuntimeError::AuthorityDenied { reason, .. }) => {
+                return self.settled(made, CallOutcome::Refused(reason), &host.answers);
+            }
+            Err(error) if error.is_fatal_step_fault() => return Err(error),
+            // A call whose effect cannot even be described could not run.
+            Err(error) => {
+                let failed = CallOutcome::Failed(error.to_string());
+                return self.settled(made, failed, &host.answers);
+            }
+        };
+        let made = Made {
+            standing: admitted.standing().cloned(),
+            ..made
+        };
         let claim = match &made.target {
             _ if super::reaches_world(&step.kind) => {
                 Some(CallOutcome::Claimed(self.retry(made.index, &step)?))
@@ -326,8 +358,9 @@ where
             let authorized = std::mem::take(&mut host.answers);
             self.record(&made, claim.clone(), &authorized)?;
         }
+        let admitted_by = admitted.reference()?.into_iter().collect();
         match (
-            self.run_call_step(&step, &made.target, act, &mut host)?,
+            self.run_call_step(&step, &made.target, act, admitted_by, &mut host)?,
             claim,
         ) {
             (Ran::Settled(outcome), _) => self.settled(made, outcome, &host.answers),
@@ -363,7 +396,7 @@ where
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self.run_call_step(&step, &made.target, act, &mut answering)? {
+        match self.run_call_step(&step, &made.target, act, Vec::new(), &mut answering)? {
             Ran::Settled(outcome) => {
                 let answers = answering.answers;
                 self.settled(made, outcome, &answers)
@@ -438,6 +471,7 @@ where
             input: &made.input,
             outcome: &outcome,
             outputs: &outputs,
+            standing: made.standing.as_ref(),
             answers,
         })?;
         let call = RecordedCall {
@@ -447,6 +481,7 @@ where
             call_id: made.call_id.clone(),
             target: made.target.clone(),
             input: made.input.clone(),
+            standing: made.standing.clone(),
             outcome,
         };
         let calls = self.recorded_mut()?;
@@ -547,12 +582,14 @@ where
         })
     }
 
-    /// Run a call as its step; a skill call's act becomes its child run's.
+    /// Run a call as its step; a skill call's act becomes its child run's,
+    /// and what admitted it on the floor rides in its receipt.
     fn run_call_step(
         &self,
         step: &GraphStep,
         target: &TurnTarget,
         act: Option<CallAct>,
+        admitted_by: Vec<runx_contracts::Reference>,
         host: &mut dyn Host,
     ) -> Result<Ran, RuntimeError> {
         let scope = &self.scope;
@@ -565,7 +602,7 @@ where
             inputs: step.inputs.clone(),
             child_act: act,
             provenance: Vec::new(),
-            policy_approval_refs: Vec::new(),
+            policy_approval_refs: admitted_by,
             host,
         };
         let result = match target {
@@ -993,6 +1030,7 @@ where
             call_id,
             target,
             input,
+            standing: None,
         };
         self.run(AnsweringHost::new(host, None), made)
     }

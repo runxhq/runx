@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RetryResend};
+use runx_contracts::{
+    JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RetryResend, StandingApproval,
+};
 
 use super::{SkillRunError, invalid};
 use crate::execution::run_record::{Answer, PendingRequest};
@@ -14,6 +16,8 @@ use crate::execution::run_record::{Answer, PendingRequest};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ResolutionAnswers {
     entries: BTreeMap<String, Entry>,
+    /// The person's new standing approvals, when this host brings them.
+    standing: Option<Vec<StandingApproval>>,
 }
 
 #[derive(Clone, Debug)]
@@ -27,6 +31,9 @@ struct Entry {
 
 impl ResolutionAnswers {
     pub(super) fn from_document(document: ResumeDocument) -> Result<Self, SkillRunError> {
+        for approval in document.standing_approvals.iter().flatten() {
+            approval.check().map_err(invalid)?;
+        }
         let mut entries = document
             .answers
             .into_iter()
@@ -70,7 +77,10 @@ impl ResolutionAnswers {
                 )));
             }
         }
-        Ok(Self { entries })
+        Ok(Self {
+            entries,
+            standing: document.standing_approvals,
+        })
     }
 
     /// The answer to the request at `address` whose digest is `digest`; a
@@ -94,7 +104,32 @@ impl ResolutionAnswers {
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.entries.is_empty() && self.standing.is_none()
+    }
+
+    /// The person's new standing approvals this host brings.
+    pub(super) fn standing(&self) -> Option<&[StandingApproval]> {
+        self.standing.as_deref()
+    }
+
+    /// Approve the request at `address` for the person, as a standing
+    /// approval they just granted covers it; a decision this host brings for
+    /// it stands instead.
+    pub(super) fn grant(&mut self, address: &str, digest: &str) {
+        self.entries
+            .entry(address.to_owned())
+            .or_insert_with(|| Entry {
+                digest: digest.to_owned(),
+                value: JsonValue::Object(JsonObject::from([
+                    ("approved".to_owned(), JsonValue::Bool(true)),
+                    (
+                        "reason".to_owned(),
+                        JsonValue::String("a standing approval covers it".to_owned()),
+                    ),
+                ])),
+                human: true,
+                brought: true,
+            });
     }
 
     /// Every entry answers a request the run waits on now, by its address
@@ -275,6 +310,8 @@ mod tests {
                 reason: "Send it?".into(),
                 gate_type: None,
                 summary: None,
+                payload: None,
+                payload_ref: None,
             },
         }
     }

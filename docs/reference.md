@@ -461,6 +461,36 @@ operator's run is unchanged and reaches the roots its inputs name, another
 repository included. A process the run starts is not confined by this; it runs
 with its user's rights.
 
+**The approval floor.** In the same run, at any depth, every step that changes
+the workspace or runs a process waits on an approval of gate type `tool`
+before it is claimed: a native tool that changes something (`fs.write`,
+`fs.apply_bundle`, `runx.skill.apply`, `command.execute`), a catalog tool runx
+runs as a process, and a graph's process step, whether an agent's turn call
+made it or a skill's graph reached it. Its gate carries exactly what executes:
+for an edit each file with its unified diff and the digests of what it replaces
+and becomes, for a command its argv, directory and digest. A person who
+declines it refuses the call. A connector operation is governed by its own
+declared approval, whatever implements it, and the floor never holds one.
+
+`standing_approvals` on the run's authority are a person's bounded
+confirmation, each exactly one of `{"edits": {"paths": [...]}}` (changes to
+files under those workspace-relative paths, by whole components; `""` is the
+whole workspace), `{"commands": {"argv_prefix": [...]}}` (a command whose argv
+begins with those exact tokens; argv has no shell, so a prefix admits nothing
+beyond it) and `{"local": true}` (every step the floor holds). A covered step
+runs without pausing, and its record and receipt name the entry that admitted
+it. A `runx resume` document may carry `standing_approvals` in the person's
+lane: runx records the new set, runs every later step under it, and approves
+each open floor approval it covers. Standing approvals never cover an
+operation's own declared approval.
+
+**What an approval executes.** Every approval gate carries what executes once it
+is approved: an operation its input, a local effect what the floor shows, an ask
+its `{reason}`. `summary.payload_digest` is that value's stable digest
+(`runx.stable-json.v1`); the value rides as `payload` up to 64 KiB and beyond
+that as `payload_ref`, a project artifact holding its canonical JSON. A host
+recomputes the digest before it offers Approve.
+
 ### Local Process Boundary
 
 Process tools (`tool: { command: ... }`) are trusted host code.

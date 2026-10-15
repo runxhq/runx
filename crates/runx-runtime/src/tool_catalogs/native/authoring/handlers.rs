@@ -161,6 +161,25 @@ fn resolve_catalog_skill_target(
     ))
 }
 
+/// What `runx.skill.apply` would change.
+pub(super) fn apply_skill_effect(
+    invocation: &NativeInvocation<'_, ApplyInput>,
+) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
+    let repo_root = resolve_repo_root_for(
+        APPLY_TOOL,
+        &invocation.inputs.repo_root,
+        invocation.env,
+        invocation.skill_directory,
+        invocation.bounds,
+    )?;
+    crate::services::skill_change_effect(
+        &repo_root,
+        &invocation.inputs.target_dir,
+        &invocation.inputs.change_bundle,
+        invocation.bounds,
+    )
+}
+
 pub(super) fn apply_skill(
     invocation: &NativeInvocation<'_, ApplyInput>,
 ) -> Result<ApplyOutput, RuntimeError> {

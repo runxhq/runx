@@ -304,12 +304,16 @@ fn project(
                 target: call.target,
                 input_digest: input_digest(&input)?.into(),
                 call_id: call.call_id.map(Into::into),
+                standing: call.standing,
                 outcome,
             }
         }
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {
             disposition: sealed.disposition,
             receipt_id: sealed.receipt_id.into(),
+        },
+        RunEvent::Standing(standing) => RunEventFact::Standing {
+            approvals: standing.approvals,
         },
         RunEvent::Answered(answered) => RunEventFact::Answered {
             address: answered.request_id.into(),

@@ -151,11 +151,20 @@ pub enum RunEventFact {
         /// The id its host pinned on the call.
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<NonEmptyString>,
+        /// The standing approval that admitted it on the approval floor,
+        /// when one did.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        standing: Option<crate::StandingApproval>,
         outcome: RunCallOutcome,
     },
     Sealed {
         disposition: ClosureDisposition,
         receipt_id: NonEmptyString,
+    },
+    /// The person replaced the run's standing approvals for every later
+    /// step.
+    Standing {
+        approvals: Vec<crate::StandingApproval>,
     },
     /// A resume admitted a person's decision on the request at `address`,
     /// before it took the run further; the run's next driver to reach the

@@ -66,6 +66,8 @@ ignore = "0.4.33"
 globset = "0.4.20"
 # Whether a lock's path still names the file a driver locked.
 same-file = "1.0.6"
+# The unified diff an edit's approval shows.
+similar = "3.2.0"
 rusqlite = { version = "0.40.1", default-features = false, features = ["backup", "bundled", "cache"] }
 postgres = { version = "0.19.14", default-features = false, optional = true }
 tokio-postgres-rustls = { version = "0.14.0", optional = true }
