@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="444" viewBox="0 0 1120 444" role="img" aria-labelledby="title desc">
+  <title id="title">Organic growth: discovery to activation and back</title>
+  <desc id="desc">Google Search Console supplies discovery evidence, Google Analytics supplies acquisition evidence, Product-analytics supplies funnel and retention evidence from the selected analytics provider, and web-fetch and research supply site and market evidence. The caller brings them to organic-growth. Its ranked actions can feed content-pipeline or work-plan and issue-to-pr. The owning workflow publishes or releases approved changes. A comparable later measurement informs the next analysis.</desc>
+  <defs>
+    <style>
+      :root{color-scheme:light dark;--bg:#fcfbf9;--card:#fff;--line:#e4e0d9;--ink:#242522;--muted:#666963;--p:#7957be;--t:#087f79;--a:#b06c10;--b:#346ab6}
+      @media(prefers-color-scheme:dark){:root{--bg:#141719;--card:#1b1f22;--line:#343a3c;--ink:#f0f1eb;--muted:#aeb7b2;--p:#ba9af0;--t:#5ed1bd;--a:#f2bf67;--b:#8ab4f3}}
+      .title{font:650 18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--ink)}
+      .label{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--muted)}
+      .small{font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--muted)}
+      .card{fill:var(--card);stroke:var(--line);stroke-width:1.2}
+      .edge{fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}
+      .handoff{stroke-dasharray:4 5}
+    </style>
+    <marker id="arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L6 3 L0 6" fill="var(--muted)"/></marker>
+  </defs>
+  <rect x="1" y="1" width="1118" height="442" rx="16" fill="var(--bg)" stroke="var(--line)"/>
+  <path class="edge handoff" d="M139 96 V128 C139 167 349 157 400 196" stroke="var(--b)"/>
+  <path class="edge handoff" d="M391 96 V125 C391 155 459 164 475 196" stroke="var(--b)"/>
+  <path class="edge handoff" d="M648 96 V196" stroke="var(--t)"/>
+  <path class="edge handoff" d="M953 96 V128 C953 163 760 164 718 196" stroke="var(--p)"/>
+  <path class="edge handoff" d="M475 264 C475 287 235 283 235 312" stroke="var(--t)"/>
+  <path class="edge handoff" d="M648 264 C648 286 692 283 692 312" stroke="var(--p)"/>
+  <path class="edge handoff" d="M842 346 H960" stroke="var(--p)"/>
+  <path class="edge handoff" d="M235 380 V391 Q235 402 246 402 H919 Q934 402 934 388 V372 Q934 360 946 360 H960" stroke="var(--t)"/>
+  <path class="edge handoff" d="M1096 346 H1100 Q1108 346 1108 354 V415 Q1108 427 1096 427 H24 Q12 427 12 415 V72 Q12 60 24 60" stroke="var(--b)" opacity=".6"/>
+  <rect class="card" x="24" y="24" width="230" height="72" rx="11"/>
+  <text class="title" x="42" y="54">google-search-console</text><text class="label" x="42" y="79">Queries · pages · discovery</text>
+  <rect class="card" x="276" y="24" width="230" height="72" rx="11"/>
+  <text class="title" x="294" y="54">google-analytics</text><text class="label" x="294" y="79">Acquisition · behavior</text>
+  <rect class="card" x="528" y="24" width="240" height="72" rx="11"/>
+  <text class="title" x="546" y="54">product-analytics</text><text class="label" x="546" y="79">Activation · funnels · retention</text>
+  <rect class="card" x="810" y="24" width="286" height="72" rx="11"/>
+  <text class="title" x="828" y="54">web-fetch · research</text><text class="label" x="828" y="79">Site + market evidence</text>
+  <rect x="338" y="196" width="430" height="68" rx="12" fill="var(--card)" stroke="var(--t)" stroke-width="1.5"/>
+  <text class="title" x="553" y="224" text-anchor="middle">organic-growth</text><text class="label" x="553" y="248" text-anchor="middle">Evidence → priorities → measurement plan</text>
+  <rect class="card" x="100" y="312" width="270" height="68" rx="11"/>
+  <text class="title" x="118" y="341">content-pipeline</text><text class="label" x="118" y="366">Research → draft → package</text>
+  <rect class="card" x="542" y="312" width="300" height="68" rx="11"/>
+  <text class="title" x="560" y="341">work-plan → issue-to-pr</text><text class="label" x="560" y="366">Code · templates · instrumentation</text>
+  <path d="M902 336 L912 346 L902 356 L892 346 Z" fill="var(--bg)" stroke="var(--p)" stroke-width="1.7"/>
+  <path d="M902 392 L912 402 L902 412 L892 402 Z" fill="var(--bg)" stroke="var(--t)" stroke-width="1.7"/>
+  <rect class="card" x="960" y="293" width="136" height="87" rx="11"/>
+  <text class="title" x="1028" y="320" text-anchor="middle">Ship + verify</text><text class="small" x="1028" y="343" text-anchor="middle">Owning workflow</text><text class="small" x="1028" y="364" text-anchor="middle">Publish / release</text>
+</svg>

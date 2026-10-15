@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc">
+  <title id="title">Business operations: launch team workspaces</title>
+  <desc id="desc">Northstar is launching team workspaces. Ops-desk coordinates the work. Lead-enrichment supplies customer facts for the audience. Release preparation leads to an approved, verified release. Release and product documentation inform content-pipeline, which prepares the setup guide and announcement through research and ghostwrite. Message-send planning hands the announcement to Nitrosend or another email provider. Message-send also coordinates the launch through Slack. Product-analytics compares the workspace-to-first-invitation baseline with later adoption. Moving signals pause at approval boundaries.</desc>
+  <defs>
+    <style>
+      :root{color-scheme:light dark;--bg:#fcfbf9;--card:#fff;--line:#e4e0d9;--ink:#242522;--muted:#666963;--faint:#93988d;--p:#7957be;--t:#087f79;--a:#b06c10;--o:#c95f2b;--b:#346ab6}
+      @media(prefers-color-scheme:dark){:root{--bg:#141719;--card:#1b1f22;--line:#343a3c;--ink:#f0f1eb;--muted:#aeb7b2;--faint:#79857e;--p:#ba9af0;--t:#5ed1bd;--a:#f2bf67;--o:#ff9762;--b:#8ab4f3}}
+      .title{font:650 18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--ink)}
+      .label{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--muted)}
+      .small{font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--muted)}
+      .code{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--ink)}
+      .eyebrow{font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:1.2px;fill:var(--muted)}
+      .card{fill:var(--card);stroke:var(--line);stroke-width:1.2}
+      .edge{fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+      .handoff{stroke-dasharray:4 5}
+      @keyframes travel{to{stroke-dashoffset:-36}}
+      use.handoff{animation:travel 9s linear infinite}
+      .gate{fill:var(--bg);stroke-width:1.8}
+      @media(prefers-reduced-motion:reduce){.motion{display:none}use.handoff{animation:none}}
+    </style>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r=".65" fill="var(--faint)" opacity=".16"/></pattern>
+    <marker id="arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L6 3 L0 6" fill="var(--muted)"/></marker>
+    <path id="product-route" d="M242 282 C290 282 285 113 335 113 H1036"/>
+    <path id="content-route" d="M242 282 C287 282 291 267 335 267 H1100"/>
+    <path id="team-route" d="M242 282 C290 282 285 421 335 421 H1036"/>
+    <path id="return-route" d="M1100 267 V472 Q1100 488 1084 488 H151 Q135 488 135 472 V445 H28 Q12 445 12 429 V298 Q12 282 28 282"/>
+  </defs>
+  <rect x="1" y="1" width="1118" height="518" rx="16" fill="var(--bg)" stroke="var(--line)"/>
+  <rect x="2" y="2" width="1116" height="516" rx="15" fill="url(#grid)"/>
+  <text class="eyebrow" x="28" y="30">BUSINESS OPS</text>
+  <path class="edge" d="M135 207 V240" stroke="var(--o)" marker-end="url(#arrow)"/>
+  <use href="#product-route" class="edge handoff" stroke="var(--p)"/>
+  <use href="#content-route" class="edge handoff" stroke="var(--t)"/>
+  <use href="#team-route" class="edge handoff" stroke="var(--a)"/>
+  <path class="edge handoff" d="M814 161 V179 Q814 191 802 191 H612 Q600 191 600 203 V219" stroke="var(--p)" opacity=".75" marker-end="url(#arrow)"/>
+  <rect x="647" y="181" width="119" height="20" rx="7" fill="var(--bg)"/>
+  <text class="small" x="706" y="195" text-anchor="middle">Release evidence</text>
+  <path class="edge handoff" d="M242 282 C291 282 295 190 335 190" stroke="var(--t)" marker-end="url(#arrow)"/>
+  <path class="edge handoff" d="M445 206 V219" stroke="var(--t)" marker-end="url(#arrow)"/>
+  <path class="edge" d="M1036 113 H1086 Q1100 113 1100 127 V267 M1036 421 H1086 Q1100 421 1100 407 V267" stroke="var(--b)" opacity=".4"/>
+  <use href="#return-route" class="edge handoff" stroke="var(--b)" opacity=".5" marker-end="url(#arrow)"/>
+  <circle class="motion" r="3.5" fill="var(--p)"><animateMotion dur="16s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.32;0.52;0.70;1" keyPoints="0;.622019;.622019;1;1"><mpath href="#product-route"/></animateMotion><animate attributeName="opacity" dur="16s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.04;.67;.71;1"/></circle>
+  <circle class="motion" r="3.5" fill="var(--t)"><animateMotion dur="16s" begin="3s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.42;0.62;0.78;1" keyPoints="0;.810389;.810389;1;1"><mpath href="#content-route"/></animateMotion><animate attributeName="opacity" dur="16s" begin="3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.04;.75;.79;1"/></circle>
+  <circle class="motion" r="3.5" fill="var(--a)"><animateMotion dur="16s" begin="6s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.32;0.52;0.70;1" keyPoints="0;.610716;.610716;1;1"><mpath href="#team-route"/></animateMotion><animate attributeName="opacity" dur="16s" begin="6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.04;.67;.71;1"/></circle>
+  <circle class="motion" r="2.5" fill="var(--b)" opacity=".8"><animateMotion dur="16s" begin="10s" repeatCount="indefinite"><mpath href="#return-route"/></animateMotion></circle>
+  <rect class="card" x="28" y="111" width="214" height="96" rx="12"/>
+  <circle cx="48" cy="131" r="4" fill="var(--o)"/>
+  <text class="title" x="45" y="156">Launch team</text>
+  <text class="title" x="45" y="178">workspaces</text>
+  <text class="small" x="45" y="196">Northstar · Product launch</text>
+  <rect class="card" x="28" y="240" width="214" height="90" rx="12"/>
+  <rect x="28" y="254" width="3" height="62" rx="1.5" fill="var(--o)"/>
+  <text class="title" x="47" y="270">ops-desk</text>
+  <text class="label" x="47" y="295">Read state. Rank actions.</text>
+  <text class="small" x="47" y="316">Proposals · blockers · proof</text>
+  <rect class="card" x="28" y="385" width="214" height="74" rx="12"/>
+  <text class="title" x="47" y="411">product-analytics</text>
+  <text class="small" x="47" y="433">Workspace → first invite</text>
+  <text class="small" x="47" y="451">Baseline → adoption</text>
+  <rect class="card" x="335" y="65" width="330" height="96" rx="12"/>
+  <rect x="335" y="79" width="3" height="68" rx="1.5" fill="var(--p)"/>
+  <text class="eyebrow" x="353" y="87">PREPARE THE RELEASE</text>
+  <text class="title" x="353" y="116">release#prepare</text>
+  <text class="label" x="353" y="142">Version · release notes · checks</text>
+  <rect class="card" x="724" y="65" width="188" height="96" rx="12"/>
+  <text class="title" x="742" y="96">release</text>
+  <text class="label" x="742" y="121">Project commands</text>
+  <text class="small" x="742" y="144">Publish → verify</text>
+  <path class="gate" d="M694 103 L704 113 L694 123 L684 113 Z" stroke="var(--p)"/>
+  <rect class="card" x="335" y="174" width="220" height="32" rx="9"/>
+  <text class="code" x="445" y="195" text-anchor="middle">lead-enrichment</text>
+  <rect class="card" x="335" y="219" width="330" height="96" rx="12"/>
+  <rect x="335" y="233" width="3" height="68" rx="1.5" fill="var(--t)"/>
+  <text class="eyebrow" x="353" y="241">DOCS &amp; ANNOUNCEMENT</text>
+  <text class="title" x="353" y="267">content-pipeline</text>
+  <text class="code" x="353" y="289">research → ghostwrite</text>
+  <text class="small" x="353" y="306">Setup guide + launch announcement</text>
+  <rect class="card" x="724" y="219" width="188" height="96" rx="12"/>
+  <text class="code" x="739" y="249">message-send#plan</text>
+  <text class="label" x="739" y="274">Who · what · to whom</text>
+  <text class="small" x="739" y="298">Exact content + send plan</text>
+  <rect class="card" x="962" y="219" width="130" height="96" rx="12"/>
+  <text class="title" x="1027" y="249" text-anchor="middle">Nitrosend</text>
+  <text class="small" x="1027" y="273" text-anchor="middle">or email provider</text>
+  <text class="small" x="1027" y="298" text-anchor="middle">Send → read back</text>
+  <path class="gate" d="M937 257 L947 267 L937 277 L927 267 Z" stroke="var(--t)"/>
+  <rect class="card" x="335" y="373" width="330" height="96" rx="12"/>
+  <rect x="335" y="387" width="3" height="68" rx="1.5" fill="var(--a)"/>
+  <text class="eyebrow" x="353" y="395">TEAM COORDINATION</text>
+  <text class="title" x="353" y="422">message-send#send</text>
+  <text class="label" x="353" y="449">Plan → approval → post → read back</text>
+  <rect class="card" x="724" y="373" width="188" height="96" rx="12"/>
+  <text class="title" x="742" y="406">Slack</text>
+  <text class="label" x="742" y="432">Exact channel + text</text>
+  <text class="small" x="742" y="454">Post + readback</text>
+  <path class="gate" d="M694 411 L704 421 L694 431 L684 421 Z" stroke="var(--a)"/>
+  <g fill="var(--bg)" stroke="var(--b)" stroke-width="1.8"><circle cx="1036" cy="113" r="12"/><circle cx="1100" cy="267" r="7"/><circle cx="1036" cy="421" r="12"/></g>
+  <g fill="var(--b)"><circle cx="1036" cy="113" r="3"/><circle cx="1100" cy="267" r="2.5"/><circle cx="1036" cy="421" r="3"/></g>
+  <text class="label" x="1036" y="88" text-anchor="middle">Receipt</text><text class="label" x="1036" y="458" text-anchor="middle">Receipt</text>
+  <text class="small" x="1027" y="336" text-anchor="middle">Provider evidence</text>
+  <g class="motion" fill="none" stroke-width="1.5">
+    <circle cx="694" cy="113" r="17" stroke="var(--p)" opacity="0"><animate attributeName="opacity" dur="16s" repeatCount="indefinite" values="0;0;.5;.5;0;0" keyTimes="0;.32;.34;.50;.53;1"/></circle>
+    <circle cx="937" cy="267" r="17" stroke="var(--t)" opacity="0"><animate attributeName="opacity" dur="16s" begin="3s" repeatCount="indefinite" values="0;0;.5;.5;0;0" keyTimes="0;.42;.44;.60;.63;1"/></circle>
+    <circle cx="694" cy="421" r="17" stroke="var(--a)" opacity="0"><animate attributeName="opacity" dur="16s" begin="6s" repeatCount="indefinite" values="0;0;.5;.5;0;0" keyTimes="0;.32;.34;.50;.53;1"/></circle>
+  </g>
+  <path class="gate" d="M34 504 L39 509 L34 514 L29 509 Z" stroke="var(--muted)"/><text class="small" x="47" y="513">Approval boundary</text>
+</svg>
