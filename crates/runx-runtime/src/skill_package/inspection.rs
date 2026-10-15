@@ -12,7 +12,9 @@ use super::LoadedSkillPackage;
 use execution_closure::inspect_local_execution_closure;
 use execution_closure::unheld_registry_refs;
 pub(crate) use execution_closure::{CaseClosureTarget, LocalExecutionClosure};
-use execution_closure::{UnheldRegistryRefs, inspect_execution_closures};
+use execution_closure::{
+    UnheldRegistryRefs, inspect_execution_closures, inspect_runner_execution_closure,
+};
 use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_runner};
 use thiserror::Error;
 
@@ -237,6 +239,9 @@ pub(crate) fn inspect_loaded_skill_package(
 pub(crate) struct InspectedExecutionClosureBinding {
     pub(crate) digest: String,
     pub(crate) fully_bound: bool,
+    /// Every package the closure binds, as it was loaded, by canonical
+    /// directory.
+    pub(crate) packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
 }
 
 pub(crate) fn inspect_loaded_execution_closure_binding(
@@ -244,13 +249,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     selected_runner: &str,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<InspectedExecutionClosureBinding, SkillInspectionError> {
-    let mut closures = inspect_execution_closures(loaded, Some(env), UnheldRegistryRefs::Reject)?;
-    let closure =
-        closures
-            .remove(selected_runner)
-            .ok_or_else(|| SkillInspectionError::ClosureMissing {
-                runner: selected_runner.to_owned(),
-            })?;
+    let (closure, packages) = inspect_runner_execution_closure(loaded, selected_runner, env)?;
     let closure = closure
         .as_object()
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
@@ -276,6 +275,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     Ok(InspectedExecutionClosureBinding {
         digest,
         fully_bound,
+        packages,
     })
 }
 

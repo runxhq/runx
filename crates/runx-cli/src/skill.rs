@@ -169,23 +169,9 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             plan.diagnostics,
         );
     }
-    let _driver = match plan
-        .run_id
-        .as_deref()
-        .map(|run_id| crate::runtime::drive(workspace, run_id))
-        .transpose()
-    {
-        Ok(driver) => driver,
-        Err(error) => {
-            return write_skill_failure(
-                &error,
-                plan.json,
-                "skill_error",
-                1,
-                entry_provenance(&resolved),
-            );
-        }
-    };
+    if plan.run_id.is_some() {
+        crate::runtime::end_with_host();
+    }
     if let Err(error) = crate::runtime::stop_on_terminate() {
         return write_skill_failure(
             &error,

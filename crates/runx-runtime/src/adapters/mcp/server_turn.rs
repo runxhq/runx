@@ -148,8 +148,8 @@ fn session(
                 .sessions
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(session) = sessions.get(run_id).and_then(std::sync::Weak::upgrade) {
-                return Ok(session);
+            if let Some(session) = sessions.get(run_id) {
+                return Ok(Arc::clone(session));
             }
             let execution = &runs.execution;
             let workspace = crate::WorkspaceEnv::from_admitted(execution.env.clone())
@@ -165,8 +165,7 @@ fn session(
             })
             .map(Arc::new)
             .map_err(|error| error.to_string())?;
-            sessions.retain(|_, held| held.strong_count() > 0);
-            sessions.insert(run_id.to_owned(), Arc::downgrade(&session));
+            sessions.insert(run_id.to_owned(), Arc::clone(&session));
             Ok(session)
         }
     }
@@ -218,6 +217,15 @@ pub(super) fn execute_mcp_turn_tool(
             };
             ended
                 .map(|result| {
+                    // A run that no longer waits on a turn is no longer driven.
+                    if result.status != crate::execution::orchestrator::RunStatus::NeedsAgent
+                        && let McpTurnRuns::Named(runs) = &tool.runs
+                    {
+                        runs.sessions
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .remove(session.run_id());
+                    }
                     super::server::mcp_tool_result_from_run_result(result, session.receipt_dir())
                 })
                 .map_err(|error| error.to_string())

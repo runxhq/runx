@@ -12,6 +12,7 @@
 mod connector;
 mod credential;
 mod doctor;
+mod drivers;
 mod export;
 mod harness;
 mod list;

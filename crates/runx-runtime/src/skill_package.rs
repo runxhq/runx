@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use runx_parser::harness_fixture::HarnessExpectedStatus;
 use runx_parser::{
@@ -128,13 +129,54 @@ fn usable_example_status(status: Option<&HarnessExpectedStatus>) -> bool {
     matches!(status, Some(HarnessExpectedStatus::Sealed))
 }
 
+/// The packages a run admitted, by canonical directory: its skill and every
+/// child skill its execution closure binds, as they were when the run was
+/// bound. A run reads every package it executes from here and never from
+/// disk again: its modules, its child skills' runners, its agents'
+/// instructions. So what a run executes is what it admitted, however the
+/// files change while it runs; a run continued in another process binds
+/// again, under the digests it started with.
+#[derive(Clone, Debug)]
+pub(crate) struct AdmittedPackages(Arc<BTreeMap<PathBuf, Arc<LoadedSkillPackage>>>);
+
+impl AdmittedPackages {
+    /// The admitted package at `directory`, as the run names it or as the
+    /// loader resolves it. A package the run did not admit is refused.
+    pub(crate) fn get(&self, directory: &Path) -> Result<Arc<LoadedSkillPackage>, RuntimeError> {
+        if let Some(package) = self.0.get(directory) {
+            return Ok(Arc::clone(package));
+        }
+        let resolved = resolve_skill_package_directory(directory)?;
+        let canonical = fs::canonicalize(&resolved).map_err(|source| {
+            RuntimeError::io(
+                format!("resolving skill package directory {}", resolved.display()),
+                source,
+            )
+        })?;
+        self.0.get(&canonical).cloned().ok_or_else(|| {
+            runx_parser::SkillPackageError::invalid(
+                canonical.to_string_lossy(),
+                "is not a skill package this run admitted",
+            )
+            .into()
+        })
+    }
+}
+
+/// What a run binds to: its execution closure's digest, when the closure is
+/// fully bound, and every package the closure binds.
+pub(crate) struct ExecutionBinding {
+    pub(crate) closure_digest: Option<String>,
+    pub(crate) packages: AdmittedPackages,
+}
+
 pub(crate) fn verify_loaded_execution_binding(
-    loaded: impl Into<std::sync::Arc<LoadedSkillPackage>>,
+    loaded: impl Into<Arc<LoadedSkillPackage>>,
     runner: &str,
     env: &std::collections::BTreeMap<String, String>,
     expected_package_digest: Option<&str>,
     expected_execution_closure_digest: Option<&str>,
-) -> Result<Option<String>, SkillInspectionError> {
+) -> Result<ExecutionBinding, SkillInspectionError> {
     let loaded = loaded.into();
     if let Some(expected) = expected_package_digest
         && expected != loaded.package.package_digest
@@ -158,7 +200,10 @@ pub(crate) fn verify_loaded_execution_binding(
             });
         }
     }
-    Ok(closure.fully_bound.then_some(closure.digest))
+    Ok(ExecutionBinding {
+        closure_digest: closure.fully_bound.then_some(closure.digest),
+        packages: AdmittedPackages(Arc::new(closure.packages)),
+    })
 }
 
 pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, RuntimeError> {

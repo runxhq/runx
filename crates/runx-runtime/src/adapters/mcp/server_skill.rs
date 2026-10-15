@@ -70,6 +70,7 @@ pub(super) fn load_mcp_server_tool(
         None,
     )
     .map_err(|error| mcp_runner_error(&skill.name, error))?
+    .closure_digest
     .ok_or_else(|| mcp_runner_error(&skill.name, "skill requires an execution-closure binding"))?;
     Ok(McpServerTool {
         name: skill.name.clone(),

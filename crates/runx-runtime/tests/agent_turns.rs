@@ -283,6 +283,9 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
         input(serde_json::json!({"reason": "Send it?"}))?,
     )?;
     assert_eq!(waiting_on(&asked)?, ["answer/3"]);
+    // A person's answer needs the run's driver lock: the host closes its
+    // session to deliver it, and opens it again after.
+    drop(turn);
 
     // The paused run lists what the human must answer beside the act.
     let waiting = paused.resume(serde_json::json!({}))?;
@@ -291,6 +294,7 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
     // The human's answer settles the pending call; the turn stays open.
     let settled = paused.resume(serde_json::json!({"approvals": {"answer/3": true}}))?;
     assert_eq!(requests(&settled)?, [TURN]);
+    let turn = paused.open()?;
     assert_eq!(
         statuses(&turn.status(TURN)?),
         ["completed", "refused", "completed", "completed"]
@@ -365,7 +369,9 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
         "{refused}"
     );
 
+    drop(turn);
     paused.resume(serde_json::json!({"approvals": {"answer/0": false}}))?;
+    let turn = paused.open()?;
     let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "after"}))?)?;
     assert_eq!(paused.sealed_step_children(&sealed)?, 1);
     Ok(())
@@ -449,9 +455,7 @@ fn a_turn_the_run_has_left_cannot_be_worked() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let turn = paused.open()?;
-    paused.resume(serde_json::json!({
-        "answers": {TURN: {"answer": "done"}}
-    }))?;
+    turn.complete(TURN, input(serde_json::json!({"answer": "done"}))?)?;
 
     let error = turn
         .call(
@@ -463,6 +467,7 @@ fn a_turn_the_run_has_left_cannot_be_worked() -> TestResult {
         .err()
         .ok_or("a sealed run's turn takes no calls")?;
     assert!(error.to_string().contains("has no open turn"), "{error}");
+    drop(turn);
     let error = paused
         .open()
         .err()
@@ -505,6 +510,7 @@ runners:
         ["second"],
         "the second step asks its own act"
     );
+    drop(first);
     let second = paused.open()?;
     assert_eq!(step(second.status("second")?), Some("second".to_owned()));
     let sealed = second.complete("second", input(serde_json::json!({"answer": "two"}))?)?;
@@ -591,6 +597,7 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     )?;
     let ask = "answer/0#answer/0";
     assert_eq!(waiting_on(&asked)?, [ask]);
+    drop(turn);
 
     // The run lists the child's ask beside both turns, and a resume answers
     // it where it waits.
@@ -598,6 +605,7 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     assert_eq!(requests(&waiting)?, [TURN, child_turn, ask]);
     let settled = paused.resume(serde_json::json!({"approvals": {ask: true}}))?;
     assert_eq!(requests(&settled)?, [TURN, child_turn]);
+    let turn = paused.open()?;
     assert_eq!(statuses(&turn.status(child_turn)?), ["completed"]);
 
     turn.complete(
@@ -1096,15 +1104,18 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
         .ok_or("missing run_id")?
         .to_owned();
     let turn = opened(root, &started)?;
-    let write = |inputs: serde_json::Value| -> TestResult<TurnCallResult> {
+    let write = |turn: &TurnSession, inputs: serde_json::Value| -> TestResult<TurnCallResult> {
         Ok(turn.call(TURN, "fs_write", None, input(inputs)?)?)
     };
 
-    let held = write(serde_json::json!({
-        "path": "README.md",
-        "contents": "new\n",
-        "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
-    }))?;
+    let held = write(
+        &turn,
+        serde_json::json!({
+            "path": "README.md",
+            "contents": "new\n",
+            "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
+        }),
+    )?;
     let gate = floor_gate(&held, "answer/0/tool")?;
     assert_eq!(gate.gate_type.as_deref(), Some("tool"));
     let payload = gate
@@ -1138,14 +1149,20 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
         "the floor decided before the claim"
     );
 
+    drop(turn);
     paused.resume(serde_json::json!({"approvals": {"answer/0/tool": true}}))?;
     assert_eq!(std::fs::read_to_string(root.join("README.md"))?, "new\n");
+    let turn = paused.open()?;
     assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
 
-    let declined =
-        write(serde_json::json!({"path": "other.md", "contents": "no\n", "create": true}))?;
+    let declined = write(
+        &turn,
+        serde_json::json!({"path": "other.md", "contents": "no\n", "create": true}),
+    )?;
     floor_gate(&declined, "answer/1/tool")?;
+    drop(turn);
     paused.resume(serde_json::json!({"approvals": {"answer/1/tool": false}}))?;
+    let turn = paused.open()?;
     assert_eq!(statuses(&turn.status(TURN)?), ["completed", "refused"]);
     assert!(!root.join("other.md").exists());
     Ok(())
@@ -1202,7 +1219,7 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
         run_id: run_id.clone(),
     };
     let turn = opened(root, &started)?;
-    let write = |path: &str| -> TestResult<TurnCallResult> {
+    let write = |turn: &TurnSession, path: &str| -> TestResult<TurnCallResult> {
         Ok(turn.call(
             TURN,
             "fs_write",
@@ -1220,7 +1237,7 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
     };
 
     assert!(
-        completed(&write("docs/a.md")?),
+        completed(&write(&turn, "docs/a.md")?),
         "edits under docs run at once"
     );
     assert!(
@@ -1256,7 +1273,8 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
 
     // What the set does not cover waits; the person's new set covers it, and
     // every later step runs under it.
-    floor_gate(&write("src/b.rs")?, "answer/2/tool")?;
+    floor_gate(&write(&turn, "src/b.rs")?, "answer/2/tool")?;
+    drop(turn);
     resume_document(
         root,
         &run_id,
@@ -1268,7 +1286,8 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
         },
     )?;
     assert_eq!(std::fs::read_to_string(root.join("src/b.rs"))?, "made\n");
-    assert!(completed(&write("anywhere.md")?));
+    let turn = paused.open()?;
+    assert!(completed(&write(&turn, "anywhere.md")?));
     let read = runx_runtime::run_record::read_run(&env(root), root, &run_id, None)?;
     assert!(read.events.iter().any(|record| matches!(
         &record.event,
@@ -1303,6 +1322,7 @@ fn an_agent_asks_the_person_questions_and_reads_their_answers() -> TestResult {
         questions[1].free_text,
         "a question without options takes text"
     );
+    drop(turn);
 
     let refused = paused
         .resume(
@@ -1315,6 +1335,7 @@ fn an_agent_asks_the_person_questions_and_reads_their_answers() -> TestResult {
         "base": {"option": "next"},
         "note": {"text": "ship it"}
     }}}}))?;
+    let turn = paused.open()?;
     let [call] = turn
         .status(TURN)?
         .calls
@@ -1516,7 +1537,9 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
     );
     let recorded = recorded_calls(&paused)?;
     assert!(
-        matches!(recorded.as_slice(), [(Some(id), RunCallOutcome::Failed { reason })] if id == "child" && reason.as_str().contains("the source is gone")),
+        // The child ran, and sealed its failure: the call completed without
+        // succeeding, and its receipt holds the child's work.
+        matches!(recorded.as_slice(), [(Some(id), RunCallOutcome::Completed { succeeded: false, reason: Some(reason), .. })] if id == "child" && reason.as_str().contains("the source is gone")),
         "{recorded:?}"
     );
 

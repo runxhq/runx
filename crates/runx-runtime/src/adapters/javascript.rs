@@ -94,12 +94,15 @@ impl JavaScriptAdapter {
         }
     }
 
+    /// Prepare `request` to run from `package`, the validated package its
+    /// run admitted: its modules are that package's, never reread.
     pub(crate) fn prepare_invocation(
         &self,
         request: &SkillInvocation,
+        package: &crate::LoadedSkillPackage,
     ) -> Result<PreparedJavaScriptInvocation, RuntimeError> {
         validate_pure_javascript_boundary(request)?;
-        validated_module(request)
+        validated_module(request, package)
     }
 
     pub(crate) fn invoke_prepared(
@@ -112,19 +115,17 @@ impl JavaScriptAdapter {
         project_worker_outcome(started, outcome)
     }
 
+    /// Run `request` from `package`, the validated package its run admitted.
     pub(crate) fn invoke_with_artifacts(
         &self,
         request: SkillInvocation,
+        package: &crate::LoadedSkillPackage,
         local_artifacts: &crate::services::LocalArtifactService,
     ) -> Result<InvocationOutput, RuntimeError> {
         if worker(&request)?.pages.is_some() {
-            return paged::invoke(self, request, local_artifacts);
+            return paged::invoke(self, request, package, local_artifacts);
         }
-        self.invoke_once(request)
-    }
-
-    fn invoke_once(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
-        let prepared = self.prepare_invocation(&request)?;
+        let prepared = self.prepare_invocation(&request, package)?;
         self.invoke_prepared(&prepared, &request.inputs)
     }
 }
@@ -145,9 +146,16 @@ impl std::fmt::Debug for JavaScriptAdapter {
     }
 }
 
+/// The adapter alone, outside any run, runs the package as it is now.
 impl SkillAdapter for JavaScriptAdapter {
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
-        self.invoke_with_artifacts(request, &crate::services::LocalArtifactService::default())
+        validate_pure_javascript_boundary(&request)?;
+        let package = crate::load_validated_skill_package(&request.skill_directory)?;
+        self.invoke_with_artifacts(
+            request,
+            &package,
+            &crate::services::LocalArtifactService::default(),
+        )
     }
 }
 

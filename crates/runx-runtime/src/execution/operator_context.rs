@@ -386,7 +386,7 @@ impl ExpansionState {
             let Some(target) = child.skill() else {
                 continue;
             };
-            let loaded = load_step_skill(graph_dir, &child, StepSkillLoadOptions { env })?;
+            let loaded = load_step_skill(graph_dir, &child, StepSkillLoadOptions::from_disk(env))?;
             let child_path = match &step.kind {
                 StepKind::Skill(_) => node_path.clone(),
                 _ => format!("{node_path}[{}]", target.reference),

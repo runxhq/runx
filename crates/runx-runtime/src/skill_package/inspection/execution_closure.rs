@@ -28,6 +28,9 @@ struct ClosureAccumulator {
     connector_bindings: BTreeMap<ExecutionConnectorBinding, Arc<LoadedConnector>>,
     local_packages: BTreeMap<PathBuf, BTreeSet<String>>,
     local_skill_edges: BTreeSet<LocalSkillEdge>,
+    /// Every package the closure binds, as it was loaded, by its canonical
+    /// directory.
+    packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
     profiles: BTreeSet<String>,
     environment_required: BTreeSet<String>,
     environment_optional: BTreeSet<String>,
@@ -153,6 +156,20 @@ pub(super) fn inspect_execution_closures(
             Ok((runner_name, closure))
         })
         .collect()
+}
+
+/// The closure of `loaded`'s runner `runner_name`, and every package it binds
+/// as it was loaded, by canonical directory: what a run of that runner admits.
+pub(super) fn inspect_runner_execution_closure(
+    loaded: Arc<LoadedSkillPackage>,
+    runner_name: &str,
+    env: &BTreeMap<String, String>,
+) -> Result<(JsonValue, BTreeMap<PathBuf, Arc<LoadedSkillPackage>>), SkillInspectionError> {
+    let mut inspector =
+        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
+    let mut closure = inspector.inspect_root_runner_accumulator(runner_name)?;
+    let packages = std::mem::take(&mut closure.packages);
+    Ok((serialize_closure(closure)?, packages))
 }
 
 pub(super) fn inspect_local_execution_closure(
@@ -433,6 +450,10 @@ impl<'a> ExecutionClosureInspector<'a> {
         )) {
             return Ok(());
         }
+        walk.closure
+            .packages
+            .entry(skill_directory.clone())
+            .or_insert_with(|| loaded.clone());
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
         let mut scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
             .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
@@ -707,9 +728,9 @@ impl<'a> ExecutionClosureInspector<'a> {
         let loaded_step = crate::execution::graph::load_step_skill_package(
             graph_directory,
             step,
-            crate::execution::graph::StepSkillLoadOptions { env },
+            crate::execution::graph::StepSkillLoadOptions::from_disk(env),
         )?;
-        let nested = Arc::new(loaded_step.package);
+        let nested = loaded_step.package;
         let canonical_directory = canonical_directory(&nested.directory, "referenced sub-skill")?;
         let manifest =
             nested

@@ -26,6 +26,8 @@ pub(crate) struct LoadedStepSkill {
     pub(crate) runner: SkillRunnerDefinition,
     pub(crate) requirements: runx_contracts::ExecutionRequirements,
     pub(crate) directory: PathBuf,
+    /// What the skill says it does, as its manual declares.
+    pub(crate) description: Option<String>,
     pub(crate) manual_path: PathBuf,
     pub(crate) manual_markdown: Arc<str>,
     pub(crate) manual_digest: String,
@@ -50,7 +52,7 @@ struct ResolvedStepSkillDirectory {
 }
 
 pub(crate) struct LoadedStepSkillPackage {
-    pub(crate) package: crate::LoadedSkillPackage,
+    pub(crate) package: Arc<crate::LoadedSkillPackage>,
     pub(crate) registry: Option<LoadedStepSkillRegistryProvenance>,
 }
 
@@ -78,6 +80,27 @@ impl StepSkillCache {
 #[derive(Clone, Copy)]
 pub(crate) struct StepSkillLoadOptions<'a> {
     pub(crate) env: &'a BTreeMap<String, String>,
+    /// The packages the run admitted, which a child skill step runs; none
+    /// while admission walks the packages from disk.
+    pub(crate) packages: Option<&'a crate::skill_package::AdmittedPackages>,
+}
+
+impl<'a> StepSkillLoadOptions<'a> {
+    /// How a run loads its child skills: from the packages it admitted.
+    pub(crate) fn of_run(options: &'a crate::execution::runner::RuntimeOptions) -> Self {
+        Self {
+            env: &options.env,
+            packages: options.packages.as_ref(),
+        }
+    }
+
+    /// How admission loads child skills: from disk, as they are.
+    pub(crate) fn from_disk(env: &'a BTreeMap<String, String>) -> Self {
+        Self {
+            env,
+            packages: None,
+        }
+    }
 }
 
 pub(crate) fn load_graph(graph_path: &Path) -> Result<ExecutionGraph, RuntimeError> {
@@ -404,6 +427,7 @@ pub(crate) fn load_step_skill(
         runner,
         requirements,
         directory,
+        description: package.package.skill.description.clone(),
         manual_path: manual_path.clone(),
         manual_markdown,
         manual_digest,
@@ -466,7 +490,10 @@ pub(crate) fn load_step_skill_package(
 ) -> Result<LoadedStepSkillPackage, RuntimeError> {
     let resolved = resolve_step_skill_directory(graph_dir, step, options)?;
     Ok(LoadedStepSkillPackage {
-        package: crate::load_validated_skill_package(&resolved.directory)?,
+        package: match options.packages {
+            Some(admitted) => admitted.get(&resolved.directory)?,
+            None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
+        },
         registry: resolved.registry,
     })
 }

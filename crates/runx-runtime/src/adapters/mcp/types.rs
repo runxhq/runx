@@ -60,11 +60,13 @@ pub enum McpTurnRuns {
 }
 
 /// The runs a skill server's own calls opened. Each is worked through one
-/// session, its one driver, however many calls work it at once.
+/// session, its one driver, however many calls work it at once. The server
+/// drives a run for as long as it waits on a turn: its session is held until
+/// the run seals.
 #[derive(Debug)]
 pub struct NamedRuns {
     pub(super) execution: McpServerExecutionOptions,
-    pub(super) sessions: std::sync::Mutex<BTreeMap<String, std::sync::Weak<TurnSession>>>,
+    pub(super) sessions: std::sync::Mutex<BTreeMap<String, Arc<TurnSession>>>,
 }
 
 impl NamedRuns {

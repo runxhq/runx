@@ -5,14 +5,9 @@ use runx_contracts::javascript_worker::InvocationLimits;
 use super::PreparedJavaScriptInvocation;
 use crate::{RuntimeError, SkillInvocation};
 
+/// The invocation's module and every module it reaches, from `loaded`, the
+/// validated package it runs from.
 pub(super) fn validated_module(
-    request: &SkillInvocation,
-) -> Result<PreparedJavaScriptInvocation, RuntimeError> {
-    let loaded = crate::load_validated_skill_package(&request.skill_directory)?;
-    validated_module_from_package(request, &loaded)
-}
-
-pub(super) fn validated_module_from_package(
     request: &SkillInvocation,
     loaded: &crate::LoadedSkillPackage,
 ) -> Result<PreparedJavaScriptInvocation, RuntimeError> {

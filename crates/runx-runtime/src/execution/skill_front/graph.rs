@@ -9,8 +9,8 @@ use super::{
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    ClosureDisposition, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, RunDriver, SealReason, TurnCallOutcome, TurnCallResult, TurnStatus,
+    JsonObject, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
+    RunDriver, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
 
@@ -73,7 +73,7 @@ impl BoundRun {
             .execution_closure_digest
             .as_deref()
             .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
-        let log = run_log(request, &self.workspace, &self.manifest.skill)?;
+        let log = self.log()?;
         // A pass that executes a call apart from its session's driver writes
         // nothing of the run's own, and reads the run as it finds it.
         let log = if host.executes() { log.reading() } else { log };
@@ -249,30 +249,6 @@ impl BoundRun {
         match runtime.run_graph_with_host(&self.skill_dir, graph.clone(), host) {
             Ok(completed) => run.seal_completed(completed),
             Err(RuntimeError::ResolutionPending { .. }) => self.paused(&log),
-            Err(RuntimeError::StepClosed {
-                step_id,
-                disposition,
-                reason,
-                ..
-            }) => run.seal_stopped(&step_id, reason, Stop::Closed(disposition)),
-            Err(RuntimeError::GraphBlocked { step_id, reason }) => run.seal_stopped(
-                &step_id.clone(),
-                Some(SealReason::GraphBlocked),
-                Stop::Blocked(RuntimeError::GraphBlocked { step_id, reason }),
-            ),
-            Err(RuntimeError::AuthorityDenied {
-                verb,
-                step_id,
-                reason,
-            }) => run.seal_stopped(
-                &step_id.clone(),
-                Some(SealReason::AuthorityDenied),
-                Stop::Blocked(RuntimeError::AuthorityDenied {
-                    verb,
-                    step_id,
-                    reason,
-                }),
-            ),
             // The mutation may be applied and its readback is pending. The
             // run stays open, unsealed, so the call seals once, when its
             // outcome is known: retried while readback may yet arrive, then
@@ -294,37 +270,7 @@ impl BoundRun {
                 )?;
                 self.paused(&log)
             }
-            #[cfg(feature = "agent")]
-            Err(RuntimeError::ManagedAgentResolution {
-                step_id,
-                request_id,
-                source,
-            }) => {
-                let reason = source.reason();
-                let error = RuntimeError::ManagedAgentResolution {
-                    step_id: step_id.clone(),
-                    request_id,
-                    source,
-                };
-                run.seal_stopped(&step_id, Some(reason), Stop::Failed(error))
-            }
-            Err(error) if !error.is_fatal_step_fault() => {
-                let step_id =
-                    crate::execution::runner::failed_step_id(&graph, &error).ok_or_else(|| {
-                        RuntimeError::EngineInvariant {
-                            context: "sealing graph step failure",
-                            message: format!(
-                                "sealable graph error has no authoritative step: {error}"
-                            ),
-                        }
-                    })?;
-                run.seal_stopped(
-                    &step_id,
-                    Some(SealReason::GraphStepFailed),
-                    Stop::Failed(error),
-                )
-            }
-            Err(error) => Err(error.into()),
+            Err(error) => run.seal_stopped(error),
         }
     }
 
@@ -359,6 +305,7 @@ impl BoundRun {
             effects: self.effects.clone(),
             run: log.clone(),
             effect_gate,
+            packages: Some(self.packages.clone()),
         };
         Ok(match &self.overrides.javascript {
             Some(javascript) => Runtime::with_native_services(
@@ -373,8 +320,21 @@ impl BoundRun {
 
     /// Every request the run waits on, by address.
     pub(super) fn waiting(&self) -> Result<Vec<PendingRequest>, SkillRunError> {
-        let log = run_log(&self.request, &self.workspace, &self.manifest.skill)?;
+        let log = self.log()?;
         Ok(waiting_requests(log.store(), log.run_id())?)
+    }
+
+    /// The run this binding drives.
+    pub(super) fn run_id(&self) -> &str {
+        self.driver.run_id()
+    }
+
+    /// The record of the run this binding drives.
+    fn log(&self) -> Result<RunLog, SkillRunError> {
+        let store = KernelStore::for_project(self.workspace.paths())
+            .map_err(crate::execution::run_record::RunRecordError::from)
+            .map_err(RuntimeError::from)?;
+        Ok(RunLog::open(store, self.run_id()).map_err(RuntimeError::from)?)
     }
 
     /// The run waits on every request open in it, at any depth.
@@ -427,30 +387,6 @@ impl BoundRun {
     }
 }
 
-/// The run a request names: its pinned id, or a new one.
-fn run_log(
-    request: &SkillRunRequest,
-    workspace: &WorkspaceEnv,
-    skill: &str,
-) -> Result<RunLog, SkillRunError> {
-    let run_id = match (&request.run_id, &request.answers) {
-        // A caller-pinned id is a submission identity: a repeated submission
-        // continues the same run, and hosted execution keys its effects on
-        // it, so a retry recovers the same mutation instead of minting one.
-        (Some(run_id), _) => crate::execution::run_record::validate_run_id(run_id)?.to_owned(),
-        (None, Some(_)) => {
-            return Err(invalid(
-                "skill continuation requires both run_id and answers",
-            ));
-        }
-        (None, None) => crate::execution::run_record::mint_run_id(skill)?,
-    };
-    let store = KernelStore::for_project(workspace.paths())
-        .map_err(crate::execution::run_record::RunRecordError::from)
-        .map_err(RuntimeError::from)?;
-    Ok(RunLog::open(store, run_id).map_err(RuntimeError::from)?)
-}
-
 /// A continuation must present the identity its run was started with. A
 /// request that leaves inputs or context empty continues with the recorded
 /// ones.
@@ -501,19 +437,6 @@ fn continuation_identity<'a>(
     Ok(started)
 }
 
-/// Why a run stopped short of completion.
-enum Stop {
-    /// A guard or an authority refused a step. The run returns what its
-    /// steps produced, and the refusal's public projection beside it,
-    /// outside the signed receipt.
-    Blocked(RuntimeError),
-    /// A step sealed its own governed closure (an agent act that declined,
-    /// deferred, blocked, or was superseded). The run stops with that
-    /// disposition and returns the step's declared outputs.
-    Closed(ClosureDisposition),
-    Failed(RuntimeError),
-}
-
 /// A run being driven, and what sealing it needs.
 struct Driven<'a> {
     bound: &'a BoundRun,
@@ -544,50 +467,20 @@ impl Driven<'_> {
         ))
     }
 
-    fn seal_stopped(
-        &self,
-        step_id: &str,
-        reason: Option<SealReason>,
-        stop: Stop,
-    ) -> Result<RunResult, SkillRunError> {
+    /// Seal the run where `error` stopped it. A run blocked by a guard or an
+    /// authority returns what its steps produced, and the refusal's public
+    /// projection beside it, outside the signed receipt; one a step's own
+    /// governed closure stopped returns that step's declared outputs.
+    fn seal_stopped(&self, error: RuntimeError) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let mut host = RunHost::new(ResolutionAnswers::default());
-        let failure_result = match &stop {
-            Stop::Failed(error) => Some(JsonValue::Object(error.public_failure_projection())),
-            Stop::Blocked(_) | Stop::Closed(_) => None,
-        };
-        let refusal = match &stop {
-            Stop::Blocked(error) => Some(error.public_failure_projection()),
-            Stop::Failed(_) | Stop::Closed(_) => None,
-        };
-        let (disposition, failure) = match stop {
-            Stop::Blocked(_) => (ClosureDisposition::Blocked, None),
-            Stop::Closed(disposition) => (disposition, None),
-            Stop::Failed(error) => (ClosureDisposition::Failed, Some(error)),
-        };
-        let closure = crate::receipts::GraphClosure {
-            disposition,
-            reason,
-        };
-        let run = match failure {
-            Some(error) => self.runtime.seal_failed_with_host(
-                self.graph.clone(),
-                step_id,
-                error,
-                closure,
-                &mut host,
-            )?,
-            None => self.runtime.seal_stopped_with_host(
-                self.graph.clone(),
-                step_id,
-                closure,
-                &mut host,
-            )?,
-        };
-        let result = match failure_result {
-            Some(result) => result,
-            None => crate::execution::runner::graph_terminal_result(&run)?,
-        };
+        let crate::execution::runner::Stopped {
+            run,
+            result,
+            refusal,
+        } = self
+            .runtime
+            .seal_stop(self.graph.clone(), error, &mut host)?;
         self.log.record_sealed(&run.receipt, Some(&result))?;
         write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
         let output = graph_run_skill_output(&result, &run)?;
@@ -955,6 +848,8 @@ fn write_graph_receipts(
 mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
+
+    use runx_contracts::ClosureDisposition;
 
     use super::*;
 

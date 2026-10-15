@@ -97,6 +97,7 @@ impl HarnessOptions {
             effects: self.effects,
             run,
             effect_gate: None,
+            packages: None,
         })
     }
 }

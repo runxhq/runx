@@ -12,6 +12,11 @@ use super::build_agent_act_invocation;
 use super::profiles::{BUNDLED_VOICE_PROFILE_CONTENT, bundled_profile};
 use crate::{CredentialDelivery, Executable, SkillInvocation};
 
+/// The package an invocation's run would admit: its skill as it is.
+fn package_of(request: &SkillInvocation) -> Result<crate::LoadedSkillPackage, crate::RuntimeError> {
+    crate::load_validated_skill_package(&request.skill_directory)
+}
+
 fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
     let directory = tempfile::tempdir()?;
     fs::write(
@@ -78,7 +83,9 @@ fn agent_invocation_requires_declared_outputs() -> Result<(), Box<dyn std::error
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     let request = invocation(skill.path().to_path_buf(), None);
 
-    let Err(error) = build_agent_act_invocation(&request, "agent".to_owned()) else {
+    let Err(error) =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())
+    else {
         return Err("missing outputs must fail".into());
     };
 
@@ -91,7 +98,8 @@ fn agent_invocation_pins_voice_and_output_contracts() -> Result<(), Box<dyn std:
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     let request = invocation(skill.path().to_path_buf(), Some(outputs()));
 
-    let resolved = build_agent_act_invocation(&request, "agent".to_owned())?;
+    let resolved =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
 
     assert!(resolved.envelope.voice_profile.is_some());
     assert_eq!(
@@ -129,7 +137,8 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
         packet: None,
     });
 
-    let resolved = build_agent_act_invocation(&request, "agent".to_owned())?;
+    let resolved =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -201,7 +210,8 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
         packet: Some("runx.test.complete-agent-result.v1".to_owned()),
     });
 
-    let resolved = build_agent_act_invocation(&request, "agent".to_owned())?;
+    let resolved =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -263,7 +273,8 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
         ("UNDECLARED".to_owned(), "never-visible".to_owned()),
     ]);
 
-    let resolved = build_agent_act_invocation(&request, "agent".to_owned())?;
+    let resolved =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
     assert_eq!(
         resolved.envelope.requirements.declaration,
         request.requirements
@@ -305,7 +316,8 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
         receipt_id: Some("rx_research".to_owned()),
     }];
 
-    let resolved = build_agent_act_invocation(&request, "agent".to_owned())?;
+    let resolved =
+        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
 
     assert_eq!(resolved.envelope.instructions.as_ref(), manual);
     assert_eq!(
@@ -325,8 +337,11 @@ fn agent_step_fails_without_skill_instructions() -> Result<(), Box<dyn std::erro
     let directory = tempfile::tempdir()?;
     let request = invocation(directory.path().to_path_buf(), Some(outputs()));
 
-    let error = build_agent_act_invocation(&request, "agent".to_owned())
-        .expect_err("agent tasks without SKILL.md instructions must fail closed");
+    // An act's instructions come from its run's package, and a directory
+    // without SKILL.md is no package to admit.
+    let error = package_of(&request)
+        .err()
+        .ok_or("agent tasks without SKILL.md instructions must fail closed")?;
 
     assert!(error.to_string().contains("SKILL.md"));
     Ok(())

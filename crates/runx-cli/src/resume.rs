@@ -169,10 +169,7 @@ pub fn run_native_resume_with_workspace(plan: ResumePlan, workspace: &WorkspaceE
         Ok(answers) => answers,
         Err(error) => return write_resume_failure(&error, plan.json, 1),
     };
-    let _driver = match crate::runtime::drive(workspace, &plan.run_id) {
-        Ok(driver) => driver,
-        Err(error) => return write_resume_failure(&error, plan.json, 1),
-    };
+    crate::runtime::end_with_host();
     if let Err(error) = crate::runtime::stop_on_terminate() {
         return write_resume_failure(&error, plan.json, 1);
     }

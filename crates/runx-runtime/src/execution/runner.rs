@@ -188,6 +188,9 @@ pub struct RuntimeOptions {
     /// The gate a session's calls take where they reach the world, when the
     /// run is worked as a session whose calls run concurrently.
     pub(crate) effect_gate: Option<std::sync::Arc<EffectGate>>,
+    /// The packages a bound run admitted, which it executes; none for a
+    /// runtime no binding made (a harness replay reads packages as they are).
+    pub(crate) packages: Option<crate::skill_package::AdmittedPackages>,
 }
 
 /// The gate a session's calls take where they reach the world: a read shares
@@ -234,6 +237,18 @@ impl RuntimeOptions {
     pub(crate) fn effect_pass(&self, reads: bool) -> Option<EffectPass<'_>> {
         self.effect_gate.as_deref().map(|gate| gate.pass(reads))
     }
+
+    /// The package at `directory` the run executes: the one it admitted, or
+    /// the package as it is for a runtime no binding made.
+    pub(crate) fn package(
+        &self,
+        directory: &Path,
+    ) -> Result<Arc<crate::LoadedSkillPackage>, RuntimeError> {
+        match &self.packages {
+            Some(admitted) => admitted.get(directory),
+            None => crate::load_validated_skill_package(directory).map(Arc::new),
+        }
+    }
 }
 
 impl RuntimeOptions {
@@ -272,6 +287,7 @@ impl RuntimeOptions {
             effects: RuntimeEffectRegistry::default(),
             run,
             effect_gate: None,
+            packages: None,
         }
     }
 
@@ -429,6 +445,69 @@ pub(crate) fn failed_step_id(graph: &ExecutionGraph, error: &RuntimeError) -> Op
             .any(|step| step.id == *skill_name)
             .then(|| skill_name.clone())
     })
+}
+
+/// A run sealed where it stopped short of completion.
+pub(crate) struct Stopped {
+    pub(crate) run: GraphRun,
+    /// What the run returns: the failure's public projection when a step
+    /// failed, else what its steps produced.
+    pub(crate) result: JsonValue,
+    /// Why a guard or an authority refused it, when one did.
+    pub(crate) refusal: Option<JsonObject>,
+}
+
+/// How a run that stopped short closes.
+enum StopKind {
+    Blocked,
+    Closed(ClosureDisposition),
+    Failed,
+}
+
+/// Where and why `error` stops a run it seals, and how the run closes;
+/// `None` when the error leaves the run open.
+fn sealing_stop(
+    graph: &ExecutionGraph,
+    error: &RuntimeError,
+) -> Result<Option<(String, Option<SealReason>, StopKind)>, RuntimeError> {
+    Ok(Some(match error {
+        RuntimeError::ResolutionPending { .. } | RuntimeError::ProviderReadbackPending { .. } => {
+            return Ok(None);
+        }
+        RuntimeError::StepClosed {
+            step_id,
+            disposition,
+            reason,
+            ..
+        } => (
+            step_id.clone(),
+            *reason,
+            StopKind::Closed(disposition.clone()),
+        ),
+        RuntimeError::GraphBlocked { step_id, .. } => (
+            step_id.clone(),
+            Some(SealReason::GraphBlocked),
+            StopKind::Blocked,
+        ),
+        RuntimeError::AuthorityDenied { step_id, .. } => (
+            step_id.clone(),
+            Some(SealReason::AuthorityDenied),
+            StopKind::Blocked,
+        ),
+        #[cfg(feature = "agent")]
+        RuntimeError::ManagedAgentResolution {
+            step_id, source, ..
+        } => (step_id.clone(), Some(source.reason()), StopKind::Failed),
+        error if error.is_fatal_step_fault() => return Ok(None),
+        error => (
+            failed_step_id(graph, error).ok_or_else(|| RuntimeError::EngineInvariant {
+                context: "sealing graph step failure",
+                message: format!("sealable graph error has no authoritative step: {error}"),
+            })?,
+            Some(SealReason::GraphStepFailed),
+            StopKind::Failed,
+        ),
+    }))
 }
 
 /// The closure a governed stop seals: a policy block, an authority denial, a
@@ -724,6 +803,61 @@ where
             LifecycleEvent::graph_stopped(&graph.name, &step_id, &receipt),
         )?;
         Ok(execution.finish(graph, receipt))
+    }
+
+    /// Seal this runtime's run where `error` stopped it, as every run is
+    /// sealed, a child run as its parent: closed by a step's own governed
+    /// closure, blocked by a guard or an authority, or failed at the step
+    /// that failed, over every step it ran. An error that leaves the run open
+    /// comes back unsealed: a request only a host answers, a provider
+    /// readback still pending, or a fault no step owns.
+    pub(crate) fn seal_stop(
+        &self,
+        graph: ExecutionGraph,
+        error: RuntimeError,
+        host: &mut dyn Host,
+    ) -> Result<Stopped, RuntimeError> {
+        let Some((step_id, reason, stop)) = sealing_stop(&graph, &error)? else {
+            return Err(error);
+        };
+        let projection = error.public_failure_projection();
+        let why = error.to_string();
+        let (mut run, failure, refusal) = match stop {
+            StopKind::Failed => {
+                let closure = crate::receipts::GraphClosure {
+                    disposition: ClosureDisposition::Failed,
+                    reason,
+                };
+                let run = self.seal_failed_with_host(graph, &step_id, error, closure, host)?;
+                (run, Some(projection), None)
+            }
+            StopKind::Blocked => {
+                let closure = crate::receipts::GraphClosure {
+                    disposition: ClosureDisposition::Blocked,
+                    reason,
+                };
+                let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
+                (run, None, Some(projection))
+            }
+            StopKind::Closed(disposition) => {
+                let closure = crate::receipts::GraphClosure {
+                    disposition,
+                    reason,
+                };
+                let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
+                (run, None, None)
+            }
+        };
+        run.stop = Some(why);
+        let result = match failure {
+            Some(failure) => JsonValue::Object(failure),
+            None => graph_terminal_result(&run)?,
+        };
+        Ok(Stopped {
+            run,
+            result,
+            refusal,
+        })
     }
 
     /// Seal a recorded run that stopped at `step_id` short of completion:

@@ -14,6 +14,7 @@ mod connect_requests;
 mod credential_delivery;
 mod credential_delivery_core;
 mod doctor;
+mod execution_integrity;
 mod governance_witness;
 mod graph_context_materialization;
 mod harness_fixtures;

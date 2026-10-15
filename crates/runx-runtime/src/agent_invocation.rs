@@ -17,9 +17,10 @@ mod profiles;
 /// it, as an approval is the address of its gate.
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,
+    package: &crate::LoadedSkillPackage,
     address: String,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let invocation = build_agent_act_invocation(request, address)?;
+    let invocation = build_agent_act_invocation(request, package, address)?;
     Ok(ResolutionRequest::AgentAct {
         id: invocation.id.clone(),
         invocation: Box::new(invocation),
@@ -33,8 +34,11 @@ fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, Runt
         .ok_or_else(|| invalid_agent_invocation(request, "the invocation is not an agent act"))
 }
 
+/// The act `request` asks, under the instructions of `package`, the skill
+/// package its run admitted.
 pub(crate) fn build_agent_act_invocation(
     request: &SkillInvocation,
+    package: &crate::LoadedSkillPackage,
     id: String,
 ) -> Result<AgentActInvocation, RuntimeError> {
     let agent = agent_task(request)?;
@@ -46,18 +50,20 @@ pub(crate) fn build_agent_act_invocation(
         id: id.into(),
         role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,
-        envelope: envelope(request)?,
+        envelope: envelope(request, package)?,
         allowance: agent.allowance.clone(),
     })
 }
 
-fn envelope(request: &SkillInvocation) -> Result<AgentContextEnvelope, RuntimeError> {
+fn envelope(
+    request: &SkillInvocation,
+    package: &crate::LoadedSkillPackage,
+) -> Result<AgentContextEnvelope, RuntimeError> {
     crate::execution_environment::resolve_declared_environment(
         &request.requirements,
         &request.env,
         &request.skill_directory,
     )?;
-    let manual = load_skill_instructions(&request.skill_directory)?;
     let raw_output = request
         .outputs
         .as_ref()
@@ -80,8 +86,8 @@ fn envelope(request: &SkillInvocation) -> Result<AgentContextEnvelope, RuntimeEr
             .unwrap_or_else(|| "rx_pending".into()),
         step_id: optional_non_empty(request.step_id.as_deref()),
         skill: skill_name(request).into(),
-        instructions_sha256: manual.digest.into(),
-        instructions: envelope_instructions(request, &manual.markdown)?.into(),
+        instructions_sha256: package.package.manual_digest.clone().into(),
+        instructions: envelope_instructions(request, &package.package.manual_markdown)?.into(),
         inputs: request.inputs.clone(),
         requirements: AgentExecutionRequirements {
             declaration: request.requirements.clone(),
@@ -116,21 +122,6 @@ fn envelope_instructions(
         ));
     }
     Ok(skill_instructions.to_owned())
-}
-
-struct SkillManualInstructions {
-    markdown: String,
-    digest: String,
-}
-
-fn load_skill_instructions(
-    skill_directory: &Path,
-) -> Result<SkillManualInstructions, RuntimeError> {
-    let loaded = crate::load_validated_skill_package(skill_directory)?;
-    Ok(SkillManualInstructions {
-        markdown: loaded.package.manual_markdown,
-        digest: loaded.package.manual_digest,
-    })
 }
 
 fn invalid_agent_invocation(request: &SkillInvocation, message: impl Into<String>) -> RuntimeError {

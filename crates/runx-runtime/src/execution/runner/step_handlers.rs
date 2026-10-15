@@ -31,8 +31,8 @@ use super::admission::{
 };
 use super::turn::{OpenTurn, TurnScope};
 use super::{
-    GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result,
-    graph_run_result_artifacts, graph_run_skill_output,
+    GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result_artifacts,
+    graph_run_skill_output,
 };
 use crate::RuntimeError;
 use crate::adapter::{
@@ -136,6 +136,9 @@ struct RegularSkillSeal<'a, A> {
     skill_name: String,
     authority: Option<&'a StepAuthorityContext>,
     admission_refs: Vec<Reference>,
+    /// How the step closes when its output does not say: a skill step whose
+    /// child stopped short closes as its child sealed.
+    closure: Option<StepSealClosure>,
 }
 
 pub(super) fn output_error(run: &StepRun) -> String {
@@ -264,7 +267,14 @@ where
             skill_directory: &skill.directory,
         },
     )?;
-    let result = graph_run_result(&run)?;
+    // The step closes as its child sealed: a child that stopped short
+    // stops its step with the same closure, carrying every receipt it made.
+    let child_seal = &run.receipt.seal;
+    let closure = (child_seal.disposition != ClosureDisposition::Closed).then(|| StepSealClosure {
+        disposition: child_seal.disposition.clone(),
+        reason: child_seal.reason,
+    });
+    let result = super::graph_terminal_result(&run)?;
     let ephemeral_result = graph_run_ephemeral_result(&run);
     let mut output = graph_run_skill_output(&result, &run)?;
     let mut projection = build_step_output_projection(request.step, &output, None, None)?;
@@ -302,6 +312,7 @@ where
             skill_name,
             authority: request.authority.as_ref(),
             admission_refs,
+            closure,
         },
         RegularSkillStepOutput {
             output,
@@ -375,7 +386,7 @@ where
         runtime.local_artifacts.clone(),
     )
     .with_inherited_provenance(inherited);
-    match child_runtime.run_graph_with_host(nested.skill_directory, graph, host) {
+    match child_runtime.run_graph_with_host(nested.skill_directory, graph.clone(), host) {
         Ok(run) => {
             log.record_sealed(&run.receipt, None)?;
             Ok(run)
@@ -391,7 +402,14 @@ where
             request,
             child: Some(log.run_id().to_owned()),
         }),
-        Err(error) => Err(error),
+        // A child that stopped short seals as a run of it would, over every
+        // step it ran, and its parent step closes over it. What leaves the
+        // child open leaves its parent open.
+        Err(error) => {
+            let stopped = child_runtime.seal_stop(graph, error, host)?;
+            log.record_sealed(&stopped.run.receipt, Some(&stopped.result))?;
+            Ok(stopped.run)
+        }
     }
 }
 
@@ -432,9 +450,11 @@ where
     let skill_directory = invocation.skill_directory.clone();
     let invocation_env = invocation.env.clone();
     let mut output = if matches!(invocation.executable, Executable::Worker(_)) {
+        // A worker runs the modules its run admitted.
+        let package = runtime.options.package(&invocation.skill_directory)?;
         runtime
             .javascript
-            .invoke_with_artifacts(invocation, &runtime.local_artifacts)?
+            .invoke_with_artifacts(invocation, &package, &runtime.local_artifacts)?
     } else {
         runtime.configured_adapter.invoke(invocation)?
     };
@@ -507,7 +527,7 @@ where
             admission_refs: context.admission_refs,
             child_receipts: &receipt_lineage.direct_children,
             descendant_receipts: &receipt_lineage.descendants,
-            closure: None,
+            closure: context.closure,
         },
         context.runtime.options.signature_policy(),
     )?;
@@ -558,12 +578,12 @@ where
 
 fn loaded_skill_or_load(
     loaded_skill: Option<LoadedStepSkill>,
-    runtime_env: &std::collections::BTreeMap<String, String>,
+    options: &super::RuntimeOptions,
     graph_dir: &Path,
     step: &GraphStep,
 ) -> Result<LoadedStepSkill, RuntimeError> {
     loaded_skill.map_or_else(
-        || load_step_skill(graph_dir, step, StepSkillLoadOptions { env: runtime_env }),
+        || load_step_skill(graph_dir, step, StepSkillLoadOptions::of_run(options)),
         Ok,
     )
 }
@@ -607,7 +627,7 @@ where
 {
     let skill = loaded_skill_or_load(
         request.loaded_skill.take(),
-        &request.runtime.options.env,
+        &request.runtime.options,
         request.graph_dir,
         request.step,
     )?;
@@ -675,6 +695,7 @@ where
             skill_name: step.id.clone(),
             authority: authority.as_ref(),
             admission_refs,
+            closure: None,
         },
         regular,
     )
@@ -817,7 +838,9 @@ where
         .extend(runtime.options.current_context.clone());
     invocation.historical_context = runtime.options.historical_context.clone();
     let request_id = runtime.options.run.address(&step.id);
-    let request = agent_act_resolution_request(&invocation, request_id.clone())?;
+    // The act's instructions are the manual its run admitted.
+    let package = runtime.options.package(&invocation.skill_directory)?;
+    let request = agent_act_resolution_request(&invocation, &package, request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),

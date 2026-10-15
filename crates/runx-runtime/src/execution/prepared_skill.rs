@@ -282,9 +282,17 @@ impl PreparedSkillRun {
         &self.runner
     }
 
+    /// The prepared package, checked against everything it was prepared
+    /// under, and every package its execution closure binds, as admitted.
     pub(crate) fn verify_artifacts(
         &self,
-    ) -> Result<std::sync::Arc<crate::LoadedSkillPackage>, SkillRunError> {
+    ) -> Result<
+        (
+            std::sync::Arc<crate::LoadedSkillPackage>,
+            crate::skill_package::AdmittedPackages,
+        ),
+        SkillRunError,
+    > {
         for guard in &self.guards {
             let content = fs::read(&guard.path).map_err(|source| {
                 RuntimeError::io(
@@ -305,14 +313,17 @@ impl PreparedSkillRun {
         let loaded = std::sync::Arc::new(crate::load_validated_skill_package(
             &self.report.request.skill_path,
         )?);
+        let workspace =
+            crate::services::WorkspaceEnv::new(self.request.env.clone(), self.request.cwd.clone())
+                .map_err(RuntimeError::from)?;
         crate::skill_package::verify_loaded_execution_binding(
             loaded.clone(),
             &self.selected_runner,
-            &self.request.env,
+            workspace.env(),
             Some(&self.package_digest),
             self.execution_closure_digest(),
         )
-        .map(|_| loaded)
+        .map(|binding| (loaded, binding.packages))
         .map_err(|message| {
             SkillRunError::Invalid(format!(
                 "skill execution binding drift at execution boundary: {message}"
@@ -369,19 +380,20 @@ pub(crate) fn prepare_skill_run_with_effects(
     let package_digest = loaded.package.package_digest.clone();
     let skill_dir = loaded.directory.clone();
     let runner = selected_runner(&manifest, selected_runner_name)?.clone();
+    let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
+        .map_err(RuntimeError::from)?;
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
         loaded.clone(),
         &runner.name,
-        &request.env,
+        workspace.env(),
         entry.package_digest.as_deref(),
         entry.execution_closure_digest.as_deref(),
     )
-    .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
+    .map_err(|error| SkillRunError::Invalid(error.to_string()))?
+    .closure_digest;
     if entry.execution_closure_digest.is_none() {
         entry.execution_closure_digest = execution_closure_digest.clone();
     }
-    let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
-        .map_err(RuntimeError::from)?;
     super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let input_failure = match crate::input_contract::materialize_present_runner_inputs(
@@ -1458,9 +1470,7 @@ runners:
         let error = match load_step_skill(
             &entry,
             step,
-            StepSkillLoadOptions {
-                env: &prepared.request.env,
-            },
+            StepSkillLoadOptions::from_disk(&prepared.request.env),
         ) {
             Ok(_) => return Err("child drift must fail at load boundary".into()),
             Err(error) => error,

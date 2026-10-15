@@ -799,9 +799,7 @@ where
             TurnTarget::Skill { .. } => load_step_skill(
                 scope.graph_dir,
                 step,
-                StepSkillLoadOptions {
-                    env: &scope.runtime.options.env,
-                },
+                StepSkillLoadOptions::of_run(&scope.runtime.options),
             )
             .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
             _ => run_step_with_inputs(request),
@@ -1041,7 +1039,7 @@ where
             TurnTarget::Skill { skill } => load_step_skill(
                 self.scope.graph_dir,
                 step,
-                StepSkillLoadOptions { env: &options.env },
+                StepSkillLoadOptions::of_run(options),
             )
             .map(|loaded| ("runner", loaded.runner.inputs))
             .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
@@ -1193,14 +1191,11 @@ where
         let loaded = load_step_skill(
             self.scope.graph_dir,
             &call.step,
-            StepSkillLoadOptions {
-                env: &self.scope.runtime.options.env,
-            },
+            StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
-        let description = crate::load_validated_skill_package(&loaded.directory)?
-            .package
-            .skill
+        let description = loaded
             .description
+            .clone()
             .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
         // Beside its inputs, a skill call states why it runs the skill.
         let mut input_schema =

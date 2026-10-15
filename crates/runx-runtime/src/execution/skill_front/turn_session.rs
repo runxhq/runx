@@ -4,7 +4,8 @@
 //! step, under its runtime, at whatever depth the step runs. A turn a call
 //! opens in a child skill is reached the same way.
 //!
-//! The session is the run's one driver. A call is admitted and claimed in
+//! The session is the run's one driver, and holds the run's driver lock for
+//! as long as it is open. A call is admitted and claimed in
 //! order under the driver, executes apart from it, concurrently with the
 //! session's other admitted calls, and is recorded under it again. Where a
 //! call reaches the world it takes the session's effect gate: a read shares
@@ -70,7 +71,7 @@ impl TurnSession {
 
     #[must_use]
     pub fn run_id(&self) -> &str {
-        self.run.request.run_id.as_deref().unwrap_or_default()
+        self.run.run_id()
     }
 
     /// Where the run's receipts go, when its host named a directory.
@@ -517,6 +518,19 @@ mod tests {
                 .contains("call 0 of its turn has not settled"),
             "{early}"
         );
+        // A person's answer needs the driver lock: the host closes the
+        // session to deliver it.
+        let held = answer(
+            root,
+            &run_id,
+            "approvals",
+            "answer/0/retry",
+            serde_json::json!({"retry": true}),
+        )
+        .err()
+        .ok_or("an open session refuses a second driver")?;
+        assert!(held.to_string().contains("driven"), "{held}");
+        drop(session);
 
         let refused = answer(
             root,
@@ -550,6 +564,7 @@ mod tests {
             serde_json::json!({"retry": true}),
         )?;
         assert!(settled.needs_resolution());
+        let session = open(root, &run_id)?;
         assert!(matches!(
             &session.status(address)?.calls[0].outcome,
             TurnCallOutcome::Completed { .. }
@@ -673,6 +688,7 @@ mod tests {
             &session.status("answer")?.calls[0].outcome,
             TurnCallOutcome::Completed { .. }
         ));
+        drop(session);
 
         // Delivered again, it answers nothing the run still waits on.
         let again = resume(serde_json::json!({

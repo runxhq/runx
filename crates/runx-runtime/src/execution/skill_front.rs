@@ -85,6 +85,8 @@ pub(crate) struct SkillRunOverrides {
 
 pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) loaded: &'a std::sync::Arc<crate::LoadedSkillPackage>,
+    /// Every package the run's execution closure binds, as admitted.
+    pub(crate) packages: crate::skill_package::AdmittedPackages,
     pub(crate) request: &'a SkillRunRequest,
     pub(crate) overrides: &'a SkillRunOverrides,
     pub(crate) effects: &'a RuntimeEffectRegistry,
@@ -96,12 +98,19 @@ pub(crate) struct ResolvedSkillRun<'a> {
 }
 
 /// A skill run bound to its verified package: everything a run of it needs
-/// before its record is opened. One binding serves every pass a driver makes.
+/// before its record is opened. One binding serves every pass a driver makes,
+/// and is the run's one driver: it holds the run's driver lock for as long as
+/// it lives, so nothing else advances the run meanwhile, in this process or
+/// another, however the run was started or named.
 pub(crate) struct BoundRun {
+    driver: crate::execution::run_record::DriverLock,
+    /// The request, naming the run the binding drives.
     request: SkillRunRequest,
     overrides: SkillRunOverrides,
     /// The package directory, canonical as the loader resolved it.
     skill_dir: PathBuf,
+    /// The packages the run executes, as it admitted them.
+    packages: crate::skill_package::AdmittedPackages,
     effects: RuntimeEffectRegistry,
     workspace: WorkspaceEnv,
     receipts: ReceiptServices,
@@ -208,10 +217,14 @@ pub(crate) fn bind_skill_run(
     })?;
     let runner = selected_runner(&manifest, overrides.runner.as_deref())?.clone();
     let package_digest = loaded.package.package_digest.clone();
-    let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
+    // The closure resolves in the workspace the run executes in, so what it
+    // admits is what the run's steps reach.
+    let workspace =
+        WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
+    let binding = crate::skill_package::verify_loaded_execution_binding(
         loaded.clone(),
         &runner.name,
-        &request.env,
+        workspace.env(),
         expected_package_digest,
         expected_execution_closure_digest,
     )
@@ -219,6 +232,7 @@ pub(crate) fn bind_skill_run(
     bind_resolved(
         ResolvedSkillRun {
             loaded: &loaded,
+            packages: binding.packages,
             request,
             overrides,
             effects,
@@ -226,7 +240,7 @@ pub(crate) fn bind_skill_run(
             manifest: &manifest,
             runner: &runner,
             package_digest: &package_digest,
-            execution_closure_digest: execution_closure_digest.as_deref(),
+            execution_closure_digest: binding.closure_digest.as_deref(),
         },
         false,
     )
@@ -250,8 +264,8 @@ pub(crate) struct Continuation<'a> {
 /// that is not sealed, whether it waits at an act or stopped between steps.
 /// Nothing is bound first, so a package or execution closure that changed
 /// since the run started never traps it open, and an effect the run left
-/// unconfirmed stays unconfirmed. Its driver lock, which the caller holds,
-/// is what keeps a live driver out.
+/// unconfirmed stays unconfirmed. The close holds the run's driver lock, so
+/// a live driver refuses it.
 pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, SkillRunError> {
     use crate::execution::run_record::{Origin, Replayed, RunLog, validate_run_id};
 
@@ -273,6 +287,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         .map_err(RuntimeError::from)?;
     let receipts = ReceiptServices::resolve(&workspace)
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
+    let _driver = crate::execution::run_record::DriverLock::acquire(workspace.paths(), run_id)?;
     let store = crate::kernel::store::KernelStore::for_project(workspace.paths())
         .map_err(crate::execution::run_record::RunRecordError::from)?;
     let log = RunLog::open(store, run_id)?;
@@ -432,6 +447,7 @@ fn bind_resolved(
 ) -> Result<BoundRun, SkillRunError> {
     let ResolvedSkillRun {
         loaded,
+        packages,
         request,
         overrides,
         effects,
@@ -441,8 +457,17 @@ fn bind_resolved(
         package_digest,
         execution_closure_digest,
     } = resolved;
-    let (request, workspace, receipts) =
+    let (mut request, workspace, receipts) =
         prepare_skill_execution(request, manifest, runner, trusted_prepared)?;
+    // A caller-pinned id is a submission identity: a repeated submission
+    // continues the same run, and hosted execution keys its effects on it,
+    // so a retry recovers the same mutation instead of minting one.
+    let run_id = match &request.run_id {
+        Some(run_id) => crate::execution::run_record::validate_run_id(run_id)?.to_owned(),
+        None => crate::execution::run_record::mint_run_id(&manifest.skill)?,
+    };
+    let driver = crate::execution::run_record::DriverLock::acquire(workspace.paths(), &run_id)?;
+    request.run_id = Some(run_id);
     let skill_env = workspace.skill_env_for_skill(skill_dir);
     if !trusted_prepared {
         super::operator_context::load_skill_operator_context_chain_from_package(
@@ -462,9 +487,11 @@ fn bind_resolved(
         skill_dir,
     )?;
     Ok(BoundRun {
+        driver,
         request,
         overrides: overrides.clone(),
         skill_dir: skill_dir.to_path_buf(),
+        packages,
         effects: effects.clone(),
         workspace,
         receipts,

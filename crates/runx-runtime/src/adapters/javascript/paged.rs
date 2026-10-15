@@ -15,6 +15,7 @@ const MAX_CONTINUATION_BYTES: usize = 2 * 1024 * 1024;
 pub(super) fn invoke(
     adapter: &JavaScriptAdapter,
     mut request: SkillInvocation,
+    package: &crate::LoadedSkillPackage,
     artifacts: &LocalArtifactService,
 ) -> Result<InvocationOutput, RuntimeError> {
     let page_source = super::worker(&request)?
@@ -46,7 +47,7 @@ pub(super) fn invoke(
             crate::services::WorkspaceBounds::Operator,
         )
         .map_err(|error| page_error(error.to_string()))?;
-    let prepared = adapter.prepare_invocation(&request)?;
+    let prepared = adapter.prepare_invocation(&request, package)?;
 
     let mut state = JsonValue::Null;
     let mut offset = 0_u64;

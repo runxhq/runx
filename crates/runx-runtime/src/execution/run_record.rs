@@ -545,7 +545,7 @@ pub enum RunRecordError {
     Entropy,
     #[error("invalid {field} filter '{value}': expected an RFC 3339 timestamp")]
     InvalidFilter { field: &'static str, value: String },
-    #[error("run {run_id} is driven by another process; this driver is refused")]
+    #[error("run {run_id} is driven by another driver; this driver is refused")]
     Driven { run_id: String },
     #[error("run {run_id}'s driver lock is unavailable: {source}")]
     DriverLock {

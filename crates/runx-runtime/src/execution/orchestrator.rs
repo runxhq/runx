@@ -371,7 +371,7 @@ impl LocalOrchestrator {
             )
             .into());
         }
-        let loaded = prepared.verify_artifacts()?;
+        let (loaded, packages) = prepared.verify_artifacts()?;
         let overrides = super::skill_front::SkillRunOverrides {
             runner: Some(prepared.selected_runner().to_owned()),
             ..Default::default()
@@ -379,6 +379,7 @@ impl LocalOrchestrator {
         let output = super::skill_front::execute_prepared_skill_run_with_resolved(
             super::skill_front::ResolvedSkillRun {
                 loaded: &loaded,
+                packages,
                 request: prepared.request(),
                 overrides: &overrides,
                 effects: &self.effects,

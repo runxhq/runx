@@ -796,9 +796,7 @@ impl GraphExecution {
             .load(
                 graph_dir,
                 step,
-                StepSkillLoadOptions {
-                    env: &runtime.options().env,
-                },
+                StepSkillLoadOptions::of_run(runtime.options()),
             )
             .map(Some)
     }

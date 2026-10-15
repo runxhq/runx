@@ -1,15 +1,16 @@
 //! A run's driver lock: whether a process is driving a run now.
 //!
-//! The process that drives a named run holds an exclusive lock on
-//! `.runx/drivers/<digest>.lock`, which the OS releases however the process
-//! ends. A driver that ends normally removes the file while it still holds
-//! the lock; one that is killed or interrupted leaves it unlocked, and the
-//! run's next driver takes it. A driver that locked a file another driver
-//! had just removed holds nothing, so after locking it checks that the path
-//! still names the file it locked, and takes the path again if not: two
-//! drivers can never hold one run across a handoff. The lock is the liveness
-//! signal a host waits on after a restart; the run record's stream versions
-//! remain what refuses a second writer.
+//! Whatever drives a run, however it was started or named, holds an
+//! exclusive lock on `.runx/drivers/<digest>.lock` while it does, which the
+//! OS releases however the process ends: a run's binding takes it, and so
+//! does a close. A second driver is refused before it runs a step, in this
+//! process or another. A driver that ends normally removes the file while it
+//! still holds the lock; one that is killed or interrupted leaves it
+//! unlocked, and the run's next driver takes it. A driver that locked a file
+//! another driver had just removed holds nothing, so after locking it checks
+//! that the path still names the file it locked, and takes the path again if
+//! not: two drivers can never hold one run across a handoff. The lock is
+//! also the liveness signal a host waits on after a restart.
 
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io;
@@ -18,13 +19,15 @@ use std::path::{Path, PathBuf};
 use super::RunRecordError;
 use crate::paths::RunxPaths;
 
+#[derive(Debug)]
 pub struct DriverLock {
     file: File,
     path: PathBuf,
+    run_id: String,
 }
 
 impl DriverLock {
-    /// Hold `run_id`'s driver lock, or refuse while another process holds it.
+    /// Hold `run_id`'s driver lock, or refuse while another driver holds it.
     pub fn acquire(paths: &RunxPaths, run_id: &str) -> Result<Self, RunRecordError> {
         let path = lock_path(paths, run_id);
         let failed = unavailable(run_id);
@@ -40,7 +43,11 @@ impl DriverLock {
                 .map_err(&failed)?;
             match file.try_lock() {
                 Ok(()) if names(&path, &file).map_err(&failed)? => {
-                    return Ok(Self { file, path });
+                    return Ok(Self {
+                        file,
+                        path,
+                        run_id: run_id.to_owned(),
+                    });
                 }
                 // The file was removed after this open: lock what the path
                 // names now.
@@ -53,6 +60,12 @@ impl DriverLock {
                 Err(TryLockError::Error(error)) => return Err(failed(error)),
             }
         }
+    }
+
+    /// The run this lock drives.
+    #[must_use]
+    pub fn run_id(&self) -> &str {
+        &self.run_id
     }
 }
 
