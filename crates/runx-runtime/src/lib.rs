@@ -47,6 +47,7 @@ pub use private_file::{DirectoryProblem, PrivateFileFault};
 mod process;
 pub mod process_invocation;
 mod provider_operations;
+pub mod purchase;
 pub mod receipts;
 pub mod registry;
 mod secret_refs;
@@ -112,11 +113,10 @@ pub use hosted_api::{
     HOSTED_API_TOKEN_ENV, HostedApiCredentialPurpose, HostedApiEnvironment, HostedApiError,
     HostedApiErrorPayload, HostedApiOperationError, HostedConnectAction, HostedConnectStart,
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,
-    HostedSkillChallenge, HostedSkillEndpointError, ReceiptNotarization, complete_hosted_login,
-    exchange_hosted_provider_token, execute_hosted_connect, hosted_api_transport,
-    hosted_private_network_allowed, hosted_provider_api_transport, notarize_hosted_receipt,
-    parse_hosted_api_error, request_hosted_skill_challenge, start_hosted_login,
-    store_authenticated_hosted_environment,
+    ReceiptNotarization, complete_hosted_login, exchange_hosted_provider_token,
+    execute_hosted_connect, hosted_api_transport, hosted_private_network_allowed,
+    hosted_provider_api_transport, notarize_hosted_receipt, parse_hosted_api_error,
+    read_hosted_purchase, start_hosted_login, store_authenticated_hosted_environment,
 };
 pub use http::RuntimeHttpError;
 pub use http::{

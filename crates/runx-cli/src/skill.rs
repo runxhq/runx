@@ -138,36 +138,48 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         },
     };
     if resolved.paid_listing.is_some() && resolved.hosted_registry_url.is_some() {
-        let mut output = match marketplace::discover_paid_skill(
-            &resolved,
-            plan.runner.as_deref(),
-            &inputs,
-            &env,
-        ) {
-            Ok(output) => output,
-            Err(error) => {
-                return write_skill_failure(
-                    &error,
+        // A paid skill runs as its seller; the kernel buys it (S10).
+        return match marketplace::purchase_paid_skill(&plan, &resolved, &inputs, &env, &cwd) {
+            Ok(marketplace::PurchaseOutcome::Payment(payment)) => write_run_result(
+                &payment,
+                RunOutput {
+                    json: plan.json,
+                    diagnostics: plan.diagnostics,
+                    receipt_dir: plan.receipt_dir.as_deref(),
+                    answers_path: None,
+                    artifacts: &artifacts,
+                },
+            ),
+            Ok(marketplace::PurchaseOutcome::Purchase(mut output)) => {
+                attach_entry_provenance(&mut output, &resolved);
+                let exit_code = match output
+                    .as_object()
+                    .and_then(|object| object_string(object, "status"))
+                {
+                    Some("success") => ExitCode::SUCCESS,
+                    Some("pending") => ExitCode::from(2),
+                    _ => ExitCode::from(1),
+                };
+                write_skill_output(
+                    &output,
                     plan.json,
-                    "marketplace_error",
-                    1,
-                    entry_provenance(&resolved),
-                );
+                    exit_code,
+                    ResumeHint {
+                        receipt_dir: plan.receipt_dir.as_deref(),
+                        answers_path: None,
+                    },
+                    &artifacts,
+                    plan.diagnostics,
+                )
             }
+            Err(error) => write_skill_failure(
+                &error,
+                plan.json,
+                "marketplace_error",
+                1,
+                entry_provenance(&resolved),
+            ),
         };
-        attach_entry_provenance(&mut output, &resolved);
-        let exit_code = ExitCode::from(2);
-        return write_skill_output(
-            &output,
-            plan.json,
-            exit_code,
-            ResumeHint {
-                receipt_dir: plan.receipt_dir.as_deref(),
-                answers_path: None,
-            },
-            &artifacts,
-            plan.diagnostics,
-        );
     }
     if plan.run_id.is_some() {
         crate::runtime::end_with_host();

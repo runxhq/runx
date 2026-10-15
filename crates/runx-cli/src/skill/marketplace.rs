@@ -1,98 +1,235 @@
-// Module rationale: paid registry skills keep the ordinary `runx skill`
-// command while a named runtime service owns the hosted HTTP boundary. The CLI
-// validates and renders the x402 presentation; settlement remains an ordinary
-// skill and never enters this router.
+// Module rationale: a paid registry skill keeps the ordinary `runx skill`
+// command. The kernel buys it (S10): it pays runx's paid-run route through the
+// canonical `pay` skill, so the purchase passes the same approval, money limit
+// and receipts as any payment; follows the purchase its buyer reads; and
+// claims from the seller what runx never holds.
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
-use runx_contracts::{JsonObject, JsonValue, X402_PAYMENT_REQUIRED_HEADER};
-use runx_runtime::{HostedSkillChallenge, request_hosted_skill_challenge};
-use runx_x402::payment_required_from_answer;
+use runx_contracts::{JsonObject, JsonValue, PaidSkillListing, PriceError, Purchase};
+use runx_runtime::purchase::{
+    PAY_SKILL, PurchaseState, PurchaseTerms, PurchaserKeyPair, claim_purchase, new_purchase_run_id,
+    pay_inputs, purchase_state,
+};
+use runx_runtime::{
+    HostedApiEnvironment, ReqwestHttpTransport, RunResult, SkillRunRequest, hosted_api_transport,
+    hosted_private_network_allowed, read_hosted_purchase,
+};
 
+use super::SkillPlan;
 use super::resolver::ResolvedSkillRef;
 
-pub(super) fn discover_paid_skill(
+/// How long the buyer waits for the seller's run before reporting the
+/// purchase as still open; running the command again with the same run id
+/// continues it.
+const PURCHASE_WAIT_ENV: &str = "RUNX_PURCHASE_WAIT_SECONDS";
+const DEFAULT_PURCHASE_WAIT: Duration = Duration::from_secs(600);
+const PURCHASE_POLL: Duration = Duration::from_secs(2);
+
+/// Where a purchase stopped.
+pub(super) enum PurchaseOutcome {
+    /// The payment waits on an approval or answer; resuming the payment run,
+    /// then running the same command with `--run-id`, continues the purchase.
+    Payment(RunResult),
+    /// The purchase as its buyer reads it, with the seller's claim answer.
+    Purchase(JsonValue),
+}
+
+pub(super) fn purchase_paid_skill(
+    plan: &SkillPlan,
     resolved: &ResolvedSkillRef,
-    requested_runner: Option<&str>,
     inputs: &JsonObject,
     env: &BTreeMap<String, String>,
-) -> Result<JsonValue, String> {
+    cwd: &Path,
+) -> Result<PurchaseOutcome, String> {
     let listing = resolved
         .paid_listing
         .as_ref()
         .ok_or_else(|| "paid registry listing is unavailable".to_owned())?;
-    let runner = selected_runner(listing, requested_runner)?;
-    let base_url = resolved
-        .hosted_registry_url
-        .as_deref()
-        .ok_or_else(|| "paid registry skill has no hosted execution surface".to_owned())?;
-    let challenge = request_hosted_skill_challenge(
-        base_url,
-        listing.skill_id.as_str(),
-        runner.as_str(),
-        runx_runtime::hosted_private_network_allowed(false, env),
-    )
-    .map_err(|error| format!("marketplace discovery failed: {error}"))?;
-    render_paid_skill_challenge(listing, runner, inputs, challenge)
+    let runner = selected_runner(listing, plan.runner.as_deref())?;
+    let offer = &listing.offers.as_map()[runner.as_str()];
+    let (amount_minor, max_amount_minor) = match offer.price.amount_minor(inputs, None) {
+        Ok(amount) => (Some(amount.get()), amount.get()),
+        // Priced by a stored artifact's size, which runx reads before payment:
+        // the buyer authorizes the offer's ceiling and runx charges the exact amount.
+        Err(PriceError::ArtifactSizeUnknown) => {
+            let ceiling = offer
+                .price
+                .ceiling_minor()
+                .ok_or_else(|| "the offer states no ceiling for its price".to_owned())?;
+            (None, ceiling.get())
+        }
+        Err(error) => {
+            return Err(format!(
+                "the offer prices no purchase with these inputs: {error}"
+            ));
+        }
+    };
+
+    let hosted = HostedApiEnvironment::resolve(resolved.hosted_registry_url.as_deref(), env, cwd)
+        .map_err(|error| format!("buying a paid skill needs a runx account: {error}"))?;
+    let token = hosted
+        .require_token()
+        .map_err(|error| format!("buying a paid skill needs a runx account: {error}"))?;
+    let resource_url = paid_run_url(hosted.base_url(), listing.skill_id.as_str())?;
+    let run_id = match &plan.run_id {
+        Some(run_id) => run_id.clone(),
+        None => new_purchase_run_id().map_err(|error| error.to_string())?,
+    };
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
+    let key = PurchaserKeyPair::for_purchase(&paths, &run_id).map_err(|error| error.to_string())?;
+    let purchaser_key = key.public_key();
+
+    let payment = pay(
+        plan,
+        pay_inputs(&PurchaseTerms {
+            resource_url: &resource_url,
+            runner: &runner,
+            inputs,
+            purchaser_key: &purchaser_key,
+            purchase_key: &run_id,
+            amount_minor,
+            max_amount_minor,
+            currency: offer.currency.as_str(),
+        }),
+        &run_id,
+        env,
+        cwd,
+    )?;
+    if !payment.succeeded() {
+        return Ok(PurchaseOutcome::Payment(payment));
+    }
+    let purchase_id = paid_invocation_id(&payment.output)?;
+
+    let transport = hosted_api_transport(hosted_private_network_allowed(false, env))
+        .map_err(|error| error.to_string())?;
+    let purchase = follow(
+        &transport,
+        hosted.base_url(),
+        token,
+        &purchase_id,
+        wait(env),
+    )?;
+    let claimed = match purchase_state(&purchase) {
+        PurchaseState::Fulfilled => {
+            let seller = ReqwestHttpTransport::new().map_err(|error| error.to_string())?;
+            claim_purchase(&seller, &key, &purchase, &runx_runtime::now_iso8601())
+                .map_err(|error| error.to_string())?
+        }
+        PurchaseState::Open | PurchaseState::Refunded => None,
+    };
+    render_purchase(listing, &runner, &run_id, &purchase, claimed).map(PurchaseOutcome::Purchase)
 }
 
-fn render_paid_skill_challenge(
-    listing: &runx_contracts::PaidSkillListing,
-    runner: String,
-    inputs: &JsonObject,
-    challenge: HostedSkillChallenge,
-) -> Result<JsonValue, String> {
-    let HostedSkillChallenge { response, .. } = challenge;
-    if response.status != 402 {
-        return Err(format!(
-            "marketplace discovery returned HTTP {}; expected 402",
-            response.status
-        ));
-    }
-    let header = response
-        .headers
-        .iter()
-        .find(|header| {
-            header
-                .name
-                .eq_ignore_ascii_case(X402_PAYMENT_REQUIRED_HEADER)
-        })
-        .map(|header| header.value.as_str());
-    let body = payment_required_from_answer(&response.body, header)
-        .map_err(|error| format!("marketplace challenge: {error}"))?;
-    // The registry transport may be an internal origin behind a proxy. The
-    // canonical paid resource is the one declared by the matching x402 header
-    // and body, not the address used to fetch that challenge.
-    let resource_url = body.resource.url.as_str().to_owned();
-    if !listing.offers.as_map().contains_key(runner.as_str()) {
-        return Err(format!("paid listing has no offer for runner '{runner}'"));
-    }
+/// Pay runx's paid-run route through the canonical `pay` skill.
+fn pay(
+    plan: &SkillPlan,
+    inputs: JsonObject,
+    run_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RunResult, String> {
+    let pay_skill = super::resolve_skill_package(Path::new(PAY_SKILL), env, cwd)
+        .map_err(|error| format!("the payment skill {PAY_SKILL} is unavailable: {error}"))?;
+    let request = SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: plan.run_authority.as_deref().cloned(),
+        act: plan.act.clone(),
+        skill_path: pay_skill,
+        receipt_dir: plan.receipt_dir.clone(),
+        run_id: Some(run_id.to_owned()),
+        answers: None,
+        inputs,
+        env: env.clone(),
+        cwd: PathBuf::from(cwd),
+        managed_agent: plan.managed_agent.clone(),
+    };
+    crate::runtime::local_orchestrator(env)
+        .map_err(|error| format!("failed to initialize runtime effects: {error}"))?
+        .run_skill(&request)
+        .map_err(|error| error.to_string())
+}
 
+/// The paid invocation the payment bought: the purchase id.
+fn paid_invocation_id(output: &JsonValue) -> Result<String, String> {
+    let output = serde_json::to_value(output).map_err(|error| error.to_string())?;
+    output["result"]["provider_operation"]["data"]["result"]["invocation_id"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| "the payment names no purchase it bought".to_owned())
+}
+
+/// Read the purchase until the seller's run reaches an outcome, or the wait ends.
+fn follow(
+    transport: &impl runx_runtime::RuntimeHttpTransport,
+    base_url: &str,
+    token: &str,
+    purchase_id: &str,
+    wait: Duration,
+) -> Result<Purchase, String> {
+    let started = Instant::now();
+    loop {
+        let purchase = read_hosted_purchase(transport, base_url, token, purchase_id)
+            .map_err(|error| error.to_string())?;
+        if !matches!(purchase_state(&purchase), PurchaseState::Open) || started.elapsed() >= wait {
+            return Ok(purchase);
+        }
+        std::thread::sleep(PURCHASE_POLL);
+    }
+}
+
+fn wait(env: &BTreeMap<String, String>) -> Duration {
+    env.get(PURCHASE_WAIT_ENV)
+        .and_then(|value| value.parse::<u64>().ok())
+        .map_or(DEFAULT_PURCHASE_WAIT, Duration::from_secs)
+}
+
+fn paid_run_url(base_url: &str, skill_id: &str) -> Result<String, String> {
+    let (owner, name) = skill_id
+        .split_once('/')
+        .filter(|(owner, name)| !owner.is_empty() && !name.is_empty() && !name.contains('/'))
+        .ok_or_else(|| format!("paid skill id {skill_id} is not owner/name"))?;
+    Ok(format!(
+        "{}/v1/skills/{owner}/{name}/run",
+        base_url.trim_end_matches('/')
+    ))
+}
+
+/// The purchase as the command reports it. The claim answer reaches only the
+/// caller: no receipt records it.
+fn render_purchase(
+    listing: &PaidSkillListing,
+    runner: &str,
+    run_id: &str,
+    purchase: &Purchase,
+    claimed: Option<JsonValue>,
+) -> Result<JsonValue, String> {
+    let (status, outcome) = match purchase_state(purchase) {
+        PurchaseState::Fulfilled => ("success", "fulfilled"),
+        PurchaseState::Refunded => ("failure", "refunded"),
+        PurchaseState::Open => ("pending", "deferred"),
+    };
+    let mut result = serde_json::json!({ "purchase": purchase });
+    if let (Some(claimed), Some(object)) = (claimed, result.as_object_mut()) {
+        object.insert(
+            "claimed".to_owned(),
+            serde_json::to_value(claimed).map_err(|error| error.to_string())?,
+        );
+    }
     serde_json::from_value(serde_json::json!({
-        "status": "payment_required",
-        "outcome": "deferred",
+        "status": status,
+        "outcome": outcome,
         "skill_name": listing.skill_id,
         "runner": runner,
-        "result": {
-            "payment_required": body,
-            "resource": {
-                "url": resource_url,
-                "method": "POST",
-                "body": {
-                    "runner": runner,
-                    "inputs": inputs,
-                },
-            },
-            "requires_idempotency_key": true,
-            "summary": "Hosted marketplace settlement is required before this skill can run."
-        }
+        "run_id": run_id,
+        "result": result,
     }))
-    .map_err(|error| format!("failed to render marketplace challenge: {error}"))
+    .map_err(|error| format!("failed to render the purchase: {error}"))
 }
 
-fn selected_runner(
-    listing: &runx_contracts::PaidSkillListing,
-    requested: Option<&str>,
-) -> Result<String, String> {
+fn selected_runner(listing: &PaidSkillListing, requested: Option<&str>) -> Result<String, String> {
     if let Some(runner) = requested {
         return listing
             .offers
@@ -115,117 +252,36 @@ fn selected_runner(
 
 #[cfg(test)]
 mod tests {
-    use runx_contracts::PaidSkillListing;
-    use runx_runtime::{RuntimeHttpHeader, RuntimeHttpResponse};
-
     use super::*;
-
-    #[test]
-    fn paid_registry_skill_renders_the_exact_hosted_x402_challenge() -> Result<(), String> {
-        let body = challenge_body("300000");
-        let challenge = hosted_challenge(&body, &body)?;
-        let listing = listing()?;
-        let output = render_paid_skill_challenge(
-            &listing,
-            "invoke".to_owned(),
-            &JsonObject::from([("document".to_owned(), JsonValue::String("ref".to_owned()))]),
-            challenge,
-        )?;
-
-        let output: serde_json::Value =
-            serde_json::to_value(output).map_err(|error| error.to_string())?;
-        assert_eq!(output["status"], "payment_required");
-        assert_eq!(output["runner"], "invoke");
-        assert_eq!(output["result"]["payment_required"], body);
-        assert_eq!(output["result"]["resource"]["url"], body["resource"]["url"]);
-        assert_eq!(
-            output["result"]["resource"]["body"]["inputs"],
-            serde_json::json!({"document": "ref"})
-        );
-        assert!(output["result"]["resource"].get("headers").is_none());
-        assert_eq!(output["result"]["requires_idempotency_key"], true);
-        assert!(
-            output["result"]["resource"]
-                .get("requires_idempotency_key")
-                .is_none()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn paid_registry_skill_rejects_different_header_and_body_challenges() -> Result<(), String> {
-        let body = challenge_body("300000");
-        let header = challenge_body("400000");
-
-        let result = render_paid_skill_challenge(
-            &listing()?,
-            "invoke".to_owned(),
-            &JsonObject::new(),
-            hosted_challenge(&body, &header)?,
-        );
-
-        assert!(matches!(
-            &result,
-            Err(error) if error.contains("header and body are different challenges")
-        ));
-        Ok(())
-    }
-
-    fn hosted_challenge(
-        body: &serde_json::Value,
-        header: &serde_json::Value,
-    ) -> Result<HostedSkillChallenge, String> {
-        let header: runx_contracts::X402PaymentRequired =
-            serde_json::from_value(header.clone()).map_err(|error| error.to_string())?;
-        let encoded = runx_x402::encode_payment_required_header(&header)
-            .map_err(|error| error.to_string())?;
-        let mut response = RuntimeHttpResponse::new(402, body.to_string());
-        response.headers = vec![RuntimeHttpHeader::new(
-            X402_PAYMENT_REQUIRED_HEADER,
-            encoded,
-        )];
-        Ok(HostedSkillChallenge {
-            resource_url: "https://registry.internal.test/v1/skills/ausca/document-ocr/run"
-                .to_owned(),
-            response,
-        })
-    }
-
-    fn challenge_body(amount: &str) -> serde_json::Value {
-        serde_json::json!({
-            "x402Version": 2,
-            "resource": {
-                "url": "https://api.runx.test/v1/skills/ausca/document-ocr/run",
-                "description": "OCR",
-                "mimeType": "application/json"
-            },
-            "accepts": [{
-                "scheme": "exact",
-                "network": "eip155:8453",
-                "amount": amount,
-                "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-                "payTo": "0x26572ff23c6c52bfb1a69cb0c9114a8be443b422",
-                "maxTimeoutSeconds": 300
-            }]
-        })
-    }
 
     fn listing() -> Result<PaidSkillListing, String> {
         serde_json::from_value(serde_json::json!({
-            "skill_id": "ausca/document-ocr",
-            "version": "0.1.0",
+            "skill_id": "ausca/agent-inbox",
+            "version": "1.0.0",
             "skill_digest": format!("sha256:{}", "a".repeat(64)),
             "profile_digest": format!("sha256:{}", "b".repeat(64)),
             "package_digest": format!("sha256:{}", "c".repeat(64)),
             "vendor_ref": { "type": "principal", "uri": "runx:principal:ausca" },
             "offers": {
-                "invoke": {
-                    "amount_minor": 30,
+                "create": {
+                    "price": {"model": "fixed", "amount_minor": 5},
                     "currency": "USD",
                     "accepted_settlement_families": ["x402"],
                     "offer_revision": {
-                        "offer_id": "ausca/document-ocr#invoke",
-                        "revision": "0.1.0",
+                        "offer_id": "ausca/agent-inbox#create",
+                        "revision": "1.0.0",
+                        "revision_digest": format!("sha256:{}", "d".repeat(64)),
+                        "input_schema_digest": format!("sha256:{}", "e".repeat(64)),
+                        "output_schema_digest": format!("sha256:{}", "f".repeat(64))
+                    }
+                },
+                "extend": {
+                    "price": {"model": "fixed", "amount_minor": 5},
+                    "currency": "USD",
+                    "accepted_settlement_families": ["x402"],
+                    "offer_revision": {
+                        "offer_id": "ausca/agent-inbox#extend",
+                        "revision": "1.0.0",
                         "revision_digest": format!("sha256:{}", "d".repeat(64)),
                         "input_schema_digest": format!("sha256:{}", "e".repeat(64)),
                         "output_schema_digest": format!("sha256:{}", "f".repeat(64))
@@ -234,5 +290,34 @@ mod tests {
             }
         }))
         .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn a_purchase_names_one_offered_runner() -> Result<(), String> {
+        let listing = listing()?;
+        assert_eq!(selected_runner(&listing, Some("create"))?, "create");
+        assert!(selected_runner(&listing, Some("delete")).is_err());
+        assert!(selected_runner(&listing, None).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn the_paid_run_route_is_the_skill_s_run_endpoint() -> Result<(), String> {
+        assert_eq!(
+            paid_run_url("https://api.runx.ai/", "ausca/agent-inbox")?,
+            "https://api.runx.ai/v1/skills/ausca/agent-inbox/run"
+        );
+        assert!(paid_run_url("https://api.runx.ai", "agent-inbox").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn the_purchase_id_is_the_paid_invocation_the_payment_bought() -> Result<(), String> {
+        let output: JsonValue = serde_json::from_value(serde_json::json!({
+            "result": {"provider_operation": {"data": {"result": {"invocation_id": "paid_7Hq2x9"}}}}
+        }))
+        .map_err(|error| error.to_string())?;
+        assert_eq!(paid_invocation_id(&output)?, "paid_7Hq2x9");
+        Ok(())
     }
 }

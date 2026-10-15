@@ -8,9 +8,9 @@ mod connect;
 mod environment;
 mod error;
 mod login;
+mod purchases;
 mod receipts;
 pub(crate) mod request;
-mod skill_endpoint;
 
 pub use connect::{
     ConnectSession, HostedConnectAction, HostedConnectStart, execute_hosted_connect,
@@ -27,10 +27,8 @@ pub use login::{
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,
     complete_hosted_login, exchange_hosted_provider_token, start_hosted_login,
 };
+pub use purchases::read_hosted_purchase;
 pub use receipts::{ReceiptNotarization, notarize_hosted_receipt};
-pub use skill_endpoint::{
-    HostedSkillChallenge, HostedSkillEndpointError, request_hosted_skill_challenge,
-};
 
 pub const DEFAULT_HOSTED_API_BASE_URL: &str = "https://api.runx.ai";
 pub const HOSTED_API_BASE_URL_ENV: &str = "RUNX_PUBLIC_API_BASE_URL";

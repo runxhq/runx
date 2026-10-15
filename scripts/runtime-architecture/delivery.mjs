@@ -109,7 +109,8 @@ export function checkHttpTransportOwnership(findings) {
   const requestOwners = [
     "crates/runx-runtime/src/hosted_api/environment.rs",
     "crates/runx-runtime/src/hosted_api/request.rs",
-    "crates/runx-runtime/src/hosted_api/skill_endpoint.rs",
+    // The purchase claim: a purchaser's signed claim to a seller's endpoint (S10).
+    "crates/runx-runtime/src/purchase.rs",
     "crates/runx-runtime/src/registry/http.rs",
     "crates/runx-runtime/src/adapters/agent_anthropic_messages.rs",
     "crates/runx-runtime/src/adapters/agent_chat_completions.rs",

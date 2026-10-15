@@ -46,10 +46,6 @@ pub enum X402PresentationError {
     ChallengeKindMismatch,
     #[error("the rail-neutral challenge payload digest does not match")]
     ChallengeDigestMismatch,
-    #[error("a 402 answer omitted its PAYMENT-REQUIRED header")]
-    ChallengeHeaderMissing,
-    #[error("a 402 answer's PAYMENT-REQUIRED header and body are different challenges")]
-    ChallengeHeaderMismatch,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -152,21 +148,6 @@ pub fn payment_required_from_challenge(
         .clone()
         .deserialize_into()
         .map_err(|_| X402PresentationError::InvalidPayload)
-}
-
-/// The challenge a 402 answer states: its body, which must be the exact
-/// challenge its PAYMENT-REQUIRED header encodes.
-pub fn payment_required_from_answer(
-    body: &str,
-    header: Option<&str>,
-) -> Result<X402PaymentRequired, X402PresentationError> {
-    let stated: X402PaymentRequired =
-        serde_json::from_str(body).map_err(|_| X402PresentationError::InvalidPayload)?;
-    let encoded = header.ok_or(X402PresentationError::ChallengeHeaderMissing)?;
-    if decode_payment_required_header(encoded)? != stated {
-        return Err(X402PresentationError::ChallengeHeaderMismatch);
-    }
-    Ok(stated)
 }
 
 /// Validate only immutable presentation commitments. This performs no payment

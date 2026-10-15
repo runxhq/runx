@@ -254,6 +254,17 @@ impl PaidSkillPrice {
         }
     }
 
+    /// The most one call can cost: the fixed amount, the dearest case, or
+    /// the byte price at `max_bytes`. A buyer authorizes this when the exact
+    /// amount waits on a size only the seller's host knows.
+    pub fn ceiling_minor(&self) -> Option<PortableAmountMinor> {
+        match self {
+            Self::Fixed { amount_minor } => Some(*amount_minor),
+            Self::InputChoice { cases, .. } => cases.iter().map(|case| case.amount_minor).max(),
+            Self::ArtifactBytes { max_bytes, .. } => self.artifact_amount(max_bytes.get()),
+        }
+    }
+
     /// The stored artifact an `artifact_bytes` price reads: the
     /// `artifact_ref` its input holds. Its committed size, looked up by the
     /// caller, is what the call costs.
@@ -850,6 +861,7 @@ mod tests {
             price.amount_minor(&none, None),
             Err(PriceError::ArtifactSizeUnknown)
         );
+        assert_eq!(price.ceiling_minor(), Some(amount(75)));
 
         let overflowing = json!({
             "model": "artifact_bytes",
