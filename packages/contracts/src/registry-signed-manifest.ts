@@ -18,8 +18,9 @@ export type RegistrySubjectKind = "skill" | "connector";
 export interface RegistrySubject {
   readonly kind: RegistrySubjectKind;
   /**
-   * `publisher/name` for a skill, `publisher/id` for a connector.
-   * @pattern ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$
+   * `publisher/name` for a skill; the connector's name, one or two segments,
+   * for a connector. Each kind's own grammar is checked by `isRegistrySubjectRef`.
+   * @pattern ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?(/[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?)?$
    */
   readonly ref: string;
 }
