@@ -69,7 +69,41 @@ pub trait Turn {
         call_id: Option<String>,
         target: TurnTarget,
         input: JsonObject,
-    ) -> Result<TurnCallResult, RuntimeError>;
+    ) -> Result<TurnCallResult, RuntimeError> {
+        match self.admit(host, call_id, target, input)? {
+            Admission::Settled(result) => Ok(result),
+            Admission::Admitted(admitted) => {
+                let executed = self.execute(host, *admitted)?;
+                self.conclude(executed)
+            }
+        }
+    }
+
+    /// Admit a new call as `call` makes it, without executing it. A call that
+    /// settles at admission (refused, held on the floor, made before under
+    /// its `call_id`, or one that reaches nothing and runs at once) returns
+    /// its result; one that reaches the world is claimed in the run's record,
+    /// its index reserved, and returned to execute apart from the turn's
+    /// driver.
+    fn admit(
+        &mut self,
+        host: &mut dyn Host,
+        call_id: Option<String>,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<Admission, RuntimeError>;
+
+    /// Execute an admitted call, recording nothing: what it came to is
+    /// recorded by `conclude`.
+    fn execute(
+        &self,
+        host: &mut dyn Host,
+        admitted: AdmittedCall,
+    ) -> Result<ExecutedCall, RuntimeError>;
+
+    /// Record what an executed call came to, and return it as its agent reads
+    /// it.
+    fn conclude(&mut self, executed: ExecutedCall) -> Result<TurnCallResult, RuntimeError>;
 
     /// Take the pending call `index` further under `host`, which now brings
     /// something for what it waits on.
@@ -84,8 +118,25 @@ pub(crate) fn call_tool(
     call_id: Option<String>,
     input: JsonObject,
 ) -> Result<TurnCallResult, RuntimeError> {
-    let target = turn
-        .tools()?
+    let target = offered_target(turn, tool)?;
+    turn.call(host, call_id, target, input)
+}
+
+/// Admit the call the turn offers as `tool`.
+pub(crate) fn admit_tool(
+    turn: &mut dyn Turn,
+    host: &mut dyn Host,
+    tool: &str,
+    call_id: Option<String>,
+    input: JsonObject,
+) -> Result<Admission, RuntimeError> {
+    let target = offered_target(turn, tool)?;
+    turn.admit(host, call_id, target, input)
+}
+
+/// What the tool a turn offers as `tool` names.
+fn offered_target(turn: &dyn Turn, tool: &str) -> Result<TurnTarget, RuntimeError> {
+    turn.tools()?
         .into_iter()
         .find(|offered| offered.name.as_str() == tool)
         .map(|offered| offered.target)
@@ -94,8 +145,7 @@ pub(crate) fn call_tool(
                 "turn {} offers no tool {tool}",
                 turn.invocation().id.as_str()
             ),
-        })?;
-    turn.call(host, call_id, target, input)
+        })
 }
 
 /// The controls a host presents beside a turn's own tools; a turn's tools
@@ -168,6 +218,40 @@ struct CallStep {
 struct Fed {
     edge: Option<ProvenanceEntry>,
     artifact: Reference,
+}
+
+/// What admitting a call came to.
+pub enum Admission {
+    /// It settled at admission.
+    Settled(TurnCallResult),
+    /// It is claimed, and executes apart from the turn's driver.
+    Admitted(Box<AdmittedCall>),
+}
+
+/// A call claimed in its run's record, its index reserved, to execute.
+pub struct AdmittedCall {
+    made: Made,
+    call: CallStep,
+    claim: CallOutcome,
+    /// What admitted it on the floor, for its receipt.
+    admitted_by: Vec<Reference>,
+}
+
+impl AdmittedCall {
+    /// The call's place in its turn.
+    #[must_use]
+    pub fn index(&self) -> u32 {
+        self.made.index
+    }
+}
+
+/// What an admitted call's execution came to, to record.
+pub struct ExecutedCall {
+    made: Made,
+    claim: CallOutcome,
+    ran: Ran,
+    /// The answers its execution consumed.
+    answers: Vec<Answer>,
 }
 
 /// How a call's step went.
@@ -310,91 +394,161 @@ where
             .then(|| format!("the run's delegation lets a turn start at most {limit} child runs")))
     }
 
-    /// Run the call at `index` through `host`, which carries what the call
-    /// already consumed. A call outside the allowance, or malformed, is
-    /// refused before it runs. A call that performs an effect is claimed
-    /// first, and a skill call links the child run it starts: either enters
-    /// the run's record, with what authorized it, under the version this
-    /// driver last read, so a second driver of the turn is refused before
-    /// anything runs. A claimed call whose effect is unconfirmed, or whose
-    /// driver stopped, waits on its retry; a skill call waits on its child.
+    /// Run the call `made` through `host`, which carries what the call
+    /// already consumed: admitted, executed and recorded at once.
     fn run(
         &mut self,
         mut host: AnsweringHost<'_>,
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
+        match self.admit_made(&mut host, made)? {
+            Admission::Settled(result) => Ok(result),
+            Admission::Admitted(admitted) => {
+                let executed = self.execute_admitted(&mut host, *admitted)?;
+                self.conclude_executed(executed)
+            }
+        }
+    }
+
+    /// Admit the call `made`. A call outside the allowance, or malformed, is
+    /// refused before it runs, and the floor decides before the claim: a
+    /// call waiting on the person is pending on its gate, never "may have
+    /// run", and one they declined is refused. A call that performs an effect
+    /// is claimed, and a skill call links the child run it starts: either
+    /// enters the run's record, with what authorized it, under the version
+    /// this driver last read, so a second driver of the turn is refused
+    /// before anything runs. A call that reaches nothing runs at once.
+    fn admit_made(
+        &mut self,
+        host: &mut AnsweringHost<'_>,
+        made: Made,
+    ) -> Result<Admission, RuntimeError> {
         self.admits(made.index)?;
+        let settled = |turn: &mut Self, made, outcome, answers: &[Answer]| {
+            turn.settled(made, outcome, answers).map(Admission::Settled)
+        };
         let call = match self.refusal(&made.target)?.map_or_else(
             || self.call_step(made.index, &made.target, &made.input),
             Err,
         ) {
             Ok(call) => call,
             Err(reason) => {
-                let refused = CallOutcome::Refused(reason);
-                return self.settled(made, refused, &host.answers);
+                let answers = host.answers.clone();
+                return settled(self, made, CallOutcome::Refused(reason), &answers);
             }
         };
-        // The floor decides before the claim: a call waiting on the person is
-        // pending on its gate, never "may have run", and one they declined is
-        // refused.
         let admitted = match super::floor::hold(
             self.scope.runtime,
             self.scope.graph_dir,
             &call.step,
             &call.step.inputs,
-            &mut host,
+            host,
         ) {
             Ok(admitted) => admitted,
             Err(RuntimeError::ResolutionPending { request, .. }) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
-                return self.settled(made, pending, &host.answers);
+                let answers = host.answers.clone();
+                return settled(self, made, pending, &answers);
             }
             Err(RuntimeError::AuthorityDenied { reason, .. }) => {
-                return self.settled(made, CallOutcome::Refused(reason), &host.answers);
+                let answers = host.answers.clone();
+                return settled(self, made, CallOutcome::Refused(reason), &answers);
             }
             Err(error) if error.is_fatal_step_fault() => return Err(error),
             // A call whose effect cannot even be described could not run.
             Err(error) => {
-                let failed = CallOutcome::Failed(error.to_string());
-                return self.settled(made, failed, &host.answers);
+                let answers = host.answers.clone();
+                return settled(self, made, CallOutcome::Failed(error.to_string()), &answers);
             }
         };
         let made = Made {
             standing: admitted.standing().cloned(),
             ..made
         };
+        let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
         let claim = match &made.target {
             _ if super::reaches_world(&call.step.kind) => {
-                Some(CallOutcome::Claimed(self.retry(made.index, &call.step)?))
+                CallOutcome::Claimed(self.retry(made.index, &call.step)?)
             }
-            TurnTarget::Skill { .. } => Some(CallOutcome::Child(
-                self.scope.runtime.options.run.child_id(&call.step.id),
-            )),
-            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } | TurnTarget::Ask => None,
+            TurnTarget::Skill { .. } => {
+                CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
+            }
+            // A call that reaches nothing holds no claim: it runs now, under
+            // the driver.
+            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } | TurnTarget::Ask => {
+                let ran = self.run_call_step(&call, &made.target, admitted_by, host)?;
+                return match ran {
+                    Ran::Settled(outcome) => {
+                        let answers = host.answers.clone();
+                        settled(self, made, outcome, &answers)
+                    }
+                    Ran::Waiting(request) => {
+                        let pending = CallOutcome::Pending(pending_request(&request)?);
+                        let answers = host.answers.clone();
+                        settled(self, made, pending, &answers)
+                    }
+                    Ran::Unconfirmed => Err(RuntimeError::EngineInvariant {
+                        context: "running a turn call",
+                        message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
+                    }),
+                };
+            }
         };
-        if let Some(claim) = &claim {
-            let authorized = std::mem::take(&mut host.answers);
-            self.record(&made, claim.clone(), &authorized)?;
-        }
-        let admitted_by = admitted.reference()?.into_iter().collect();
-        match (
-            self.run_call_step(&call, &made.target, admitted_by, &mut host)?,
+        let authorized = std::mem::take(&mut host.answers);
+        self.record(&made, claim.clone(), &authorized)?;
+        Ok(Admission::Admitted(Box::new(AdmittedCall {
+            made,
+            call,
             claim,
-        ) {
-            (Ran::Settled(outcome), _) => self.settled(made, outcome, &host.answers),
-            // The child run holds what it waits on; its link stands.
-            (Ran::Waiting(_) | Ran::Unconfirmed, Some(claim @ CallOutcome::Child(_))) => {
+            admitted_by,
+        })))
+    }
+
+    /// Execute an admitted call through `host`; what it consumed rides with
+    /// what it came to.
+    fn execute_admitted(
+        &self,
+        host: &mut AnsweringHost<'_>,
+        admitted: AdmittedCall,
+    ) -> Result<ExecutedCall, RuntimeError> {
+        let AdmittedCall {
+            made,
+            call,
+            claim,
+            admitted_by,
+        } = admitted;
+        let ran = self.run_call_step(&call, &made.target, admitted_by, host)?;
+        Ok(ExecutedCall {
+            made,
+            claim,
+            ran,
+            answers: std::mem::take(&mut host.answers),
+        })
+    }
+
+    /// Record what an executed call came to. A claimed call whose effect is
+    /// unconfirmed, or whose driver stopped, waits on its retry; a skill call
+    /// waits on its child, which holds what it waits on.
+    fn conclude_executed(
+        &mut self,
+        executed: ExecutedCall,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        let ExecutedCall {
+            made,
+            claim,
+            ran,
+            answers,
+        } = executed;
+        match (ran, claim) {
+            (Ran::Settled(outcome), _) => self.settled(made, outcome, &answers),
+            (Ran::Waiting(_) | Ran::Unconfirmed, claim @ CallOutcome::Child(_)) => {
                 self.result(&made, &claim, &[])
             }
             (Ran::Waiting(request), _) => {
                 let pending = CallOutcome::Pending(pending_request(&request)?);
-                self.settled(made, pending, &host.answers)
+                self.settled(made, pending, &answers)
             }
-            (Ran::Unconfirmed, Some(claim)) => self.result(&made, &claim, &[]),
-            (Ran::Unconfirmed, None) => Err(RuntimeError::EngineInvariant {
-                context: "running a turn call",
-                message: "an unclaimed call has no effect to leave unconfirmed".to_owned(),
-            }),
+            (Ran::Unconfirmed, claim) => self.result(&made, &claim, &[]),
         }
     }
 
@@ -1160,13 +1314,13 @@ where
             .collect()
     }
 
-    fn call(
+    fn admit(
         &mut self,
         host: &mut dyn Host,
         call_id: Option<String>,
         target: TurnTarget,
         input: JsonObject,
-    ) -> Result<TurnCallResult, RuntimeError> {
+    ) -> Result<Admission, RuntimeError> {
         if let Some(call_id) = &call_id {
             if call_id.is_empty()
                 || call_id.len() > CALL_ID_BYTES
@@ -1192,7 +1346,9 @@ where
                         ),
                     });
                 }
-                return self.result(&Made::of(known), &known.outcome, &known.outputs);
+                return self
+                    .result(&Made::of(known), &known.outcome, &known.outputs)
+                    .map(Admission::Settled);
             }
         }
         let index = self
@@ -1208,7 +1364,19 @@ where
             input,
             standing: None,
         };
-        self.run(AnsweringHost::new(host, None), made)
+        self.admit_made(&mut AnsweringHost::new(host, None), made)
+    }
+
+    fn execute(
+        &self,
+        host: &mut dyn Host,
+        admitted: AdmittedCall,
+    ) -> Result<ExecutedCall, RuntimeError> {
+        self.execute_admitted(&mut AnsweringHost::new(host, None), admitted)
+    }
+
+    fn conclude(&mut self, executed: ExecutedCall) -> Result<TurnCallResult, RuntimeError> {
+        self.conclude_executed(executed)
     }
 
     fn settle(&mut self, host: &mut dyn Host, index: u32) -> Result<TurnCallResult, RuntimeError> {

@@ -23,7 +23,7 @@ use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
     Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest, waiting_requests,
 };
-use crate::execution::runner::turn::{Turn, call_tool};
+use crate::execution::runner::turn::{Admission, AdmittedCall, ExecutedCall, Turn, admit_tool};
 use crate::execution::runner::{
     GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, graph_run_context, graph_run_result,
     graph_run_skill_output, graph_run_trace, sealed_graph_run,
@@ -74,9 +74,14 @@ impl BoundRun {
             .as_deref()
             .ok_or_else(|| invalid("graph execution requires an execution-closure digest"))?;
         let log = run_log(request, &self.workspace, &self.manifest.skill)?;
+        // A pass that executes a call apart from its session's driver writes
+        // nothing of the run's own, and reads the run as it finds it.
+        let log = if host.executes() { log.reading() } else { log };
         // A change a crash left half-applied is rolled back before the run
         // goes further.
-        crate::filesystem::recover(log.store(), log.run_id())?;
+        if host.recovers() {
+            crate::filesystem::recover(log.store(), log.run_id())?;
+        }
         let existing = log.load()?;
         let waiting = waiting_requests(log.store(), log.run_id())?;
         host.check_turn(log.run_id(), &waiting)?;
@@ -168,7 +173,13 @@ impl BoundRun {
             }
             authority
         });
-        let runtime = self.runtime(&log, run_context, run_authority, prepared.as_ref())?;
+        let runtime = self.runtime(
+            &log,
+            run_context,
+            run_authority,
+            prepared.as_ref(),
+            host.gate.clone(),
+        )?;
         let graph = bind_run_inputs(
             self.runner.graph.clone(),
             &graph_inputs,
@@ -325,6 +336,7 @@ impl BoundRun {
         context: RunContext,
         run_authority: Option<RunAuthority>,
         prepared: Option<&PreparedContext>,
+        effect_gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
     ) -> Result<Runtime<ExecutableAdapter>, RuntimeError> {
         let mut env = self.workspace.skill_env_for_skill(&self.skill_dir);
         PreparedContext::apply(prepared, &mut env)?;
@@ -346,6 +358,7 @@ impl BoundRun {
             receipt_signature: self.receipts.signature_config().clone(),
             effects: self.effects.clone(),
             run: log.clone(),
+            effect_gate,
         };
         Ok(match &self.overrides.javascript {
             Some(javascript) => Runtime::with_native_services(
@@ -602,12 +615,16 @@ pub(super) struct TurnAct {
 
 pub(super) enum TurnAction {
     Status,
-    /// Make the call the turn offers as `tool`, under the id its host pins.
-    Call {
+    /// Admit the call the turn offers as `tool`, under the id its host pins.
+    Admit {
         tool: String,
         call_id: Option<String>,
         input: JsonObject,
     },
+    /// Execute an admitted call, recording nothing.
+    Execute(Box<AdmittedCall>),
+    /// Record what an executed call came to.
+    Conclude(Box<ExecutedCall>),
     /// Answer the act; the run continues.
     Complete(JsonObject),
     /// End the act as failed, saying why: its step fails, and a skill call
@@ -618,7 +635,9 @@ pub(super) enum TurnAction {
 /// What an action on a turn did.
 pub(super) enum TurnActed {
     Status(Box<TurnStatus>),
-    Call(TurnCallResult),
+    Admitted(Box<Admission>),
+    Executed(Box<ExecutedCall>),
+    Call(Box<TurnCallResult>),
     Completed,
 }
 
@@ -633,6 +652,12 @@ pub(super) struct RunHost {
     act: Option<TurnAct>,
     /// What the act did, once the run reached its turn.
     acted: Option<TurnActed>,
+    /// The calls a session executes apart from this pass, by turn and
+    /// index: this pass never takes them further.
+    in_flight: std::collections::BTreeSet<(String, u32)>,
+    /// The gate the run's calls take where they reach the world, when its
+    /// session executes calls concurrently.
+    gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
     #[cfg(feature = "agent")]
     managed: Option<std::rc::Rc<crate::adapters::managed_agent::ManagedAgent>>,
 }
@@ -644,6 +669,8 @@ impl RunHost {
             given: BTreeMap::new(),
             act: None,
             acted: None,
+            in_flight: std::collections::BTreeSet::new(),
+            gate: None,
             #[cfg(feature = "agent")]
             managed: None,
         }
@@ -660,6 +687,33 @@ impl RunHost {
     /// What the act did; `None` when the run never reached its turn.
     pub(super) fn acted(&mut self) -> Option<TurnActed> {
         self.acted.take()
+    }
+
+    /// Work the run as a session whose calls execute concurrently: `gate` is
+    /// what they take where they reach the world, and `in_flight` the calls
+    /// executing apart from this pass.
+    pub(super) fn in_session(
+        mut self,
+        gate: std::sync::Arc<crate::execution::runner::EffectGate>,
+        in_flight: std::collections::BTreeSet<(String, u32)>,
+    ) -> Self {
+        self.gate = Some(gate);
+        self.in_flight = in_flight;
+        self
+    }
+
+    /// Whether this pass executes a call apart from the session's driver: it
+    /// writes nothing of the run's own, so it reads the run as it finds it.
+    pub(super) fn executes(&self) -> bool {
+        self.act
+            .as_ref()
+            .is_some_and(|act| matches!(act.action, TurnAction::Execute(_)))
+    }
+
+    /// Whether this pass may roll back a change a crash left half-applied:
+    /// never while a call of the session executes, whose change it would be.
+    fn recovers(&self) -> bool {
+        self.in_flight.is_empty() && !self.executes()
     }
 
     #[cfg(feature = "agent")]
@@ -716,9 +770,15 @@ impl RunHost {
     /// Take further each pending call of `turn` this host brings something
     /// for.
     fn settle(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
+        // A pass that executes a call takes nothing else further.
+        if self.executes() {
+            return Ok(());
+        }
+        let address = turn.invocation().id.as_str().to_owned();
         let mut reached = Vec::new();
         for call in turn.calls()? {
             if let TurnCallOutcome::Pending { waiting } = &call.outcome
+                && !self.in_flight.contains(&(address.clone(), call.index))
                 && self.reaches(waiting)?
             {
                 reached.push(call.index);
@@ -799,11 +859,17 @@ impl Host for RunHost {
         if let Some(act) = self.act.take_if(|act| act.turn == address) {
             self.acted = Some(match act.action {
                 TurnAction::Status => TurnActed::Status(Box::new(turn.status()?)),
-                TurnAction::Call {
+                TurnAction::Admit {
                     tool,
                     call_id,
                     input,
-                } => TurnActed::Call(call_tool(turn, self, &tool, call_id, input)?),
+                } => TurnActed::Admitted(Box::new(admit_tool(turn, self, &tool, call_id, input)?)),
+                TurnAction::Execute(admitted) => {
+                    TurnActed::Executed(Box::new(turn.execute(self, *admitted)?))
+                }
+                TurnAction::Conclude(executed) => {
+                    TurnActed::Call(Box::new(turn.conclude(*executed)?))
+                }
                 TurnAction::Complete(output) => {
                     self.given.insert(address, JsonValue::Object(output));
                     TurnActed::Completed

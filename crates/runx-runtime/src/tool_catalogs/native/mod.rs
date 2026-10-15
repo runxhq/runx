@@ -234,6 +234,11 @@ pub(crate) fn is_core_tool(tool_ref: &str) -> bool {
 /// every change is journaled and bound to what it replaces, so a resend
 /// either finds it rolled back or is refused or repeats the same bytes. A
 /// tool that runs a process cannot.
+/// Whether `tool_ref` is a native tool that only reads.
+pub(crate) fn only_reads(tool_ref: &str) -> bool {
+    definition(tool_ref).is_some_and(|capability| !capability.definition().effect.mutating())
+}
+
 pub(crate) fn resends_safely(tool_ref: &str) -> bool {
     definition(tool_ref).is_some_and(|capability| {
         !capability.definition().effect.mutating()

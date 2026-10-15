@@ -215,7 +215,15 @@ Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A host pins its own `call_id` on a call, unique within the turn: a call made
 again with that id returns the recorded call rather than running twice, and one
-naming another tool or input is refused. A completed call returns each packet
+naming another tool or input is refused. Calls made at once run at once: each
+is admitted and claimed in order under the session, the run's one driver,
+executes apart from it, and is recorded under it again. Where a call reaches the
+world it takes the session's effect gate: a native tool that only reads, or an
+operation that reads, shares it; anything else, a tool runx runs as a process
+included, holds it alone, inside a child run too. So effects never overlap and
+reads never wait on each other, and the run's record, by `call_id`, is what a
+host reads back, whatever order the calls finished in. `turn_status`,
+`turn_list` and `turn_complete` wait until no call is executing. A completed call returns each packet
 output's project artifact reference under `artifacts`, by output name; where a
 tool's or skill's input is of a packet type, a call may pass a reference to any
 packet the project holds in place of the packet, one an earlier call returned

@@ -569,6 +569,9 @@ struct RunLogInner {
     store: Arc<KernelStore>,
     run_id: String,
     version: Mutex<u64>,
+    /// Whether a run another writer advanced since this log last read it is
+    /// contended; a log that only reads takes the run as it finds it.
+    strict: bool,
 }
 
 impl std::fmt::Debug for RunLog {
@@ -592,7 +595,21 @@ impl RunLog {
             store,
             run_id,
             version: Mutex::new(version),
+            strict: true,
         })))
+    }
+
+    /// This run's log for a pass that writes nothing of the run's own: it
+    /// reads the run as it finds it, while the run's driver records. Its
+    /// writes are still refused against a version it did not read.
+    #[must_use]
+    pub(crate) fn reading(&self) -> Self {
+        Self(Arc::new(RunLogInner {
+            store: Arc::clone(&self.0.store),
+            run_id: self.0.run_id.clone(),
+            version: Mutex::new(*self.version()),
+            strict: false,
+        }))
     }
 
     #[must_use]
@@ -653,7 +670,7 @@ impl RunLog {
         attempt: u32,
     ) -> Result<Vec<RecordedCall>, RunRecordError> {
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;
-        if events.last().map_or(0, |event| event.version) != *self.version() {
+        if self.0.strict && events.last().map_or(0, |event| event.version) != *self.version() {
             return Err(RunRecordError::Contended {
                 run_id: self.0.run_id.clone(),
             });

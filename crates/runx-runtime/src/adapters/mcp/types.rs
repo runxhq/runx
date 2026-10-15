@@ -56,7 +56,25 @@ pub enum McpTurnRuns {
     /// A run the call names, among those the skill server's own calls
     /// opened: a turn its own skill call opened is worked on the same
     /// connection.
-    Named(Arc<McpServerExecutionOptions>),
+    Named(Arc<NamedRuns>),
+}
+
+/// The runs a skill server's own calls opened. Each is worked through one
+/// session, its one driver, however many calls work it at once.
+#[derive(Debug)]
+pub struct NamedRuns {
+    pub(super) execution: McpServerExecutionOptions,
+    pub(super) sessions: std::sync::Mutex<BTreeMap<String, std::sync::Weak<TurnSession>>>,
+}
+
+impl NamedRuns {
+    #[must_use]
+    pub fn new(execution: McpServerExecutionOptions) -> Self {
+        Self {
+            execution,
+            sessions: std::sync::Mutex::new(BTreeMap::new()),
+        }
+    }
 }
 
 /// The fixed tools a turn session serves; each takes a turn's address.

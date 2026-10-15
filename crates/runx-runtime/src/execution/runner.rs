@@ -185,6 +185,55 @@ pub struct RuntimeOptions {
     pub effects: RuntimeEffectRegistry,
     /// The run this runtime executes, and the stream it records into.
     pub run: RunLog,
+    /// The gate a session's calls take where they reach the world, when the
+    /// run is worked as a session whose calls run concurrently.
+    pub(crate) effect_gate: Option<std::sync::Arc<EffectGate>>,
+}
+
+/// The gate a session's calls take where they reach the world: a read shares
+/// it and a change holds it alone, including inside a child run, so effects
+/// never overlap and reads never wait on each other.
+#[derive(Debug, Default)]
+pub(crate) struct EffectGate(std::sync::RwLock<()>);
+
+/// A step's place in the effect gate, held while it reaches the world and
+/// given up when dropped.
+pub(crate) struct EffectPass<'a> {
+    _shared: Option<std::sync::RwLockReadGuard<'a, ()>>,
+    _alone: Option<std::sync::RwLockWriteGuard<'a, ()>>,
+}
+
+impl EffectGate {
+    /// Pass the gate: shared for a read, alone for anything that changes.
+    pub(crate) fn pass(&self, reads: bool) -> EffectPass<'_> {
+        if reads {
+            EffectPass {
+                _shared: Some(
+                    self.0
+                        .read()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner),
+                ),
+                _alone: None,
+            }
+        } else {
+            EffectPass {
+                _shared: None,
+                _alone: Some(
+                    self.0
+                        .write()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner),
+                ),
+            }
+        }
+    }
+}
+
+impl RuntimeOptions {
+    /// Where a step that reaches the world passes the run's effect gate, if
+    /// the run has one.
+    pub(crate) fn effect_pass(&self, reads: bool) -> Option<EffectPass<'_>> {
+        self.effect_gate.as_deref().map(|gate| gate.pass(reads))
+    }
 }
 
 impl RuntimeOptions {
@@ -222,6 +271,7 @@ impl RuntimeOptions {
             receipt_signature,
             effects: RuntimeEffectRegistry::default(),
             run,
+            effect_gate: None,
         }
     }
 

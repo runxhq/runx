@@ -136,16 +136,25 @@ fn session(
 ) -> Result<Arc<TurnSession>, String> {
     match runs {
         McpTurnRuns::Bound(session) => Ok(Arc::clone(session)),
-        McpTurnRuns::Named(execution) => {
+        McpTurnRuns::Named(runs) => {
             let run_id = text(arguments, "run")?;
             if !run_id.starts_with(served) {
                 return Err(format!(
                     "run {run_id} was not opened by this server; it works only the turns its own skill calls opened"
                 ));
             }
+            // One session drives a run, whichever calls work it at once.
+            let mut sessions = runs
+                .sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(session) = sessions.get(run_id).and_then(std::sync::Weak::upgrade) {
+                return Ok(session);
+            }
+            let execution = &runs.execution;
             let workspace = crate::WorkspaceEnv::from_admitted(execution.env.clone())
                 .map_err(|error| error.to_string())?;
-            crate::execution::orchestrator::LocalOrchestrator::with_effects(
+            let session = crate::execution::orchestrator::LocalOrchestrator::with_effects(
                 execution.effects.clone(),
             )
             .open_turns(&crate::execution::orchestrator::TurnRequest {
@@ -155,7 +164,10 @@ fn session(
                 cwd: workspace.cwd().to_path_buf(),
             })
             .map(Arc::new)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+            sessions.retain(|_, held| held.strong_count() > 0);
+            sessions.insert(run_id.to_owned(), Arc::downgrade(&session));
+            Ok(session)
         }
     }
 }

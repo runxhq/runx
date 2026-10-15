@@ -24,7 +24,7 @@ impl McpServerOptions {
             .map(|path| load_mcp_server_tool(path, &execution))
             .collect::<Result<Vec<_>, _>>()?;
         tools.extend(super::server_turn::turn_tools(&McpTurnRuns::Named(
-            std::sync::Arc::new(execution.clone()),
+            std::sync::Arc::new(super::types::NamedRuns::new(execution.clone())),
         )));
         Ok(Self {
             package_name: package_name.into(),

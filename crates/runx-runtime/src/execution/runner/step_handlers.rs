@@ -661,7 +661,10 @@ where
         env: runtime.options.env.clone(),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
+    // A worker or process step may change anything: it holds the gate alone.
+    let pass = runtime.options.effect_pass(false);
     let regular = invoke_regular_skill_step(runtime, step, invocation, None, authority.as_ref())?;
+    drop(pass);
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime,
@@ -955,6 +958,11 @@ where
         &tool_request,
         &runtime.options.effects,
     )?;
+    // A native tool that only reads shares the gate; anything else, a tool
+    // runx runs as a process included, holds it alone.
+    let _pass = runtime
+        .options
+        .effect_pass(crate::tool_catalogs::native::only_reads(tool_ref));
     let output = crate::tool_catalogs::dispatch::dispatch_tool(
         tool_request,
         &runtime.options.effects,
@@ -1186,6 +1194,7 @@ where
     };
     let started = Instant::now();
     let mut dispatched = None;
+    let _pass = runtime.options.effect_pass(!context.mutation());
     let outcome = crate::kernel::operation::execute(
         context,
         &step.id,

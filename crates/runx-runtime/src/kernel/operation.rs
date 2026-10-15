@@ -333,7 +333,7 @@ impl OperationAdmission {
         )
     }
 
-    fn mutation(&self) -> bool {
+    pub(crate) fn mutation(&self) -> bool {
         self.admitted.operation().access() == OperationAccess::Mutate
     }
 
