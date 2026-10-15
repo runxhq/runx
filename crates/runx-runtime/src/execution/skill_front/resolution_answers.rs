@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RetryResend, StandingApproval,
+    JsonObject, JsonValue, PurchaseMethod, ResolutionRequest, ResumeDocument, RetryResend,
+    StandingApproval,
 };
 
 use super::{SkillRunError, invalid};
@@ -140,10 +141,10 @@ impl ResolutionAnswers {
     }
 
     /// Every entry answers a request the run waits on now, by its address
-    /// and its digest, in its lane: a person's approvals and retries in
-    /// theirs, an agent's inputs and acts in the agent's. A request that
-    /// changed since its host read it refuses the whole resume, and no entry
-    /// reaches a request first asked during it.
+    /// and its digest, in its lane: a person's approvals, purchases and
+    /// retries in theirs, an agent's inputs and acts in the agent's. A
+    /// request that changed since its host read it refuses the whole resume,
+    /// and no entry reaches a request first asked during it.
     pub(super) fn check_waiting(
         &self,
         run_id: &str,
@@ -234,7 +235,11 @@ fn check_lane(
     request: &ResolutionRequest,
 ) -> Result<(), SkillRunError> {
     match request {
-        ResolutionRequest::Approval { .. } | ResolutionRequest::Retry { .. } if !entry.human => {
+        ResolutionRequest::Approval { .. }
+        | ResolutionRequest::Retry { .. }
+        | ResolutionRequest::Purchase { .. }
+            if !entry.human =>
+        {
             Err(invalid(format!(
                 "{address} is a person's to answer: only an entry under approvals carries a host-attested human decision"
             )))
@@ -277,6 +282,37 @@ fn check_lane(
         ResolutionRequest::Retry { .. } if entry.value != retry_acknowledgement() => Err(invalid(
             format!("{address} is acknowledged only with value {{\"retry\": true}}"),
         )),
+        // A purchase is declined, or approved with one of the methods the
+        // person was shown (N10).
+        ResolutionRequest::Purchase { purchase, .. } => {
+            let decision = entry.value.as_object();
+            let field = |name: &str| decision.and_then(|decision| decision.get(name));
+            let offered = |choice: &str| {
+                purchase
+                    .methods
+                    .iter()
+                    .any(|method| method.choice() == choice)
+            };
+            match field("approved").and_then(JsonValue::as_bool) {
+                Some(false) => Ok(()),
+                Some(true)
+                    if field("choice")
+                        .and_then(JsonValue::as_str)
+                        .is_some_and(offered) =>
+                {
+                    Ok(())
+                }
+                _ => Err(invalid(format!(
+                    "{address} is a purchase: decline it with approved false, or approve it with the choice of one of its methods: {}",
+                    purchase
+                        .methods
+                        .iter()
+                        .map(PurchaseMethod::choice)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ))),
+            }
+        }
         _ => Ok(()),
     }
 }
@@ -461,6 +497,81 @@ mod tests {
                 .is_err(),
             "an entry decides something"
         );
+        Ok(())
+    }
+
+    fn purchase(address: &str) -> Result<ResolutionRequest, String> {
+        let digest = |character: char| format!("sha256:{}", character.to_string().repeat(64));
+        let purchase = serde_json::from_value(serde_json::json!({
+            "skill": "acme/documents",
+            "runner": "main",
+            "offer": {
+                "offer_id": "acme/documents#main",
+                "revision": "1.0.0",
+                "revision_digest": digest('a'),
+                "input_schema_digest": digest('b'),
+                "output_schema_digest": digest('c'),
+            },
+            "package_digest": digest('d'),
+            "seller": {"type": "principal", "uri": "runx:principal:acme"},
+            "amount_minor": 5,
+            "currency": "USD",
+            "input_digest": digest('e'),
+            "quote": {
+                "invocation_id": "paid-1",
+                "expires_at": "2026-10-16T00:05:00Z",
+                "network": "eip155:8453",
+                "asset": "usdc",
+                "pay_to": "0xacme",
+            },
+            "methods": [
+                {"kind": "balance", "available_micro": 80000, "total_minor": 5},
+                {"kind": "grant", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5},
+            ],
+        }))
+        .map_err(|error| error.to_string())?;
+        Ok(ResolutionRequest::Purchase {
+            id: address.into(),
+            purchase: Box::new(purchase),
+        })
+    }
+
+    #[test]
+    fn a_purchase_is_the_persons_and_pays_only_with_a_method_it_offered() -> Result<(), String> {
+        let request = purchase("buy")?;
+        let check = |lane: &str, entry: serde_json::Value| {
+            let mut entry = entry;
+            entry["request_digest"] = serde_json::json!("sha256:p");
+            answers(serde_json::json!({lane: {"buy": entry}})).and_then(|bound| {
+                bound
+                    .check_waiting("run", &[waiting("buy", "sha256:p", request.clone())])
+                    .map_err(|error| error.to_string())
+            })
+        };
+        for decided in [
+            serde_json::json!({"approved": true, "choice": "runx:balance"}),
+            serde_json::json!({"approved": true, "choice": "hosted.wallet"}),
+            serde_json::json!({"approved": false, "reason": "too dear"}),
+        ] {
+            assert!(check("approvals", decided.clone()).is_ok(), "{decided}");
+        }
+        let agent = check(
+            "answers",
+            serde_json::json!({"value": {"approved": true, "choice": "runx:balance"}}),
+        )
+        .err()
+        .ok_or("an agent never decides a purchase")?;
+        assert!(agent.contains("a person's to answer"), "{agent}");
+        for refused in [
+            serde_json::json!({"approved": true}),
+            serde_json::json!({"approved": true, "choice": "other.wallet"}),
+            serde_json::json!({"value": {"retry": true}}),
+        ] {
+            let error = check("approvals", refused.clone())
+                .err()
+                .ok_or(format!("{refused} is refused"))?;
+            assert!(error.contains("runx:balance, hosted.wallet"), "{error}");
+        }
         Ok(())
     }
 
