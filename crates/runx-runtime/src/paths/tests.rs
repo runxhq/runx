@@ -100,6 +100,29 @@ fn the_workspace_is_the_nearest_marked_directory() -> std::io::Result<()> {
 }
 
 #[test]
+fn an_otherwise_unmarked_plugin_is_its_own_workspace() -> std::io::Result<()> {
+    // Only where nothing else marks a project does the plugin, the nearest
+    // directory holding connectors/, mark one.
+    let root = tempfile::tempdir()?;
+    let plugin = root.path().join("plugin");
+    let skill = plugin.join("work");
+    std::fs::create_dir_all(plugin.join("connectors"))?;
+    std::fs::create_dir_all(&skill)?;
+
+    assert_eq!(
+        RunxPaths::resolve(&BTreeMap::new(), &skill).workspace(),
+        plugin
+    );
+
+    std::fs::create_dir_all(root.path().join(".git"))?;
+    assert_eq!(
+        RunxPaths::resolve(&BTreeMap::new(), &skill).workspace(),
+        root.path()
+    );
+    Ok(())
+}
+
+#[test]
 fn harness_receipts_follow_the_request_then_the_environment() {
     let base = env(&[(RUNX_CWD_ENV, "/work/app")]);
     let mut overridden = base.clone();

@@ -4,8 +4,8 @@
 //! - the home (`RUNX_HOME`, else `~/.runx`) holds the operator's config,
 //!   keys, install state and registry caches;
 //! - the workspace (`RUNX_CWD`, else the nearest directory holding `.git`,
-//!   `skills/` or `pnpm-workspace.yaml`, else the working directory) holds
-//!   the project's files;
+//!   `skills/` or `pnpm-workspace.yaml`, else the nearest holding
+//!   `connectors/`, else the working directory) holds the project's files;
 //! - the project directory (`RUNX_PROJECT_DIR`, else `<workspace>/.runx`)
 //!   holds the project's runx state: the kernel store, receipts, authoring
 //!   records, harness runs and scratch.
@@ -177,8 +177,8 @@ impl RunxPaths {
 
     /// The project's one connectors directory: the user's own connectors,
     /// every connector added from a registry and the runtime capabilities the
-    /// release carries, the latter two at
-    /// `<publisher>/<id>/<version>/`, each version written once.
+    /// release carries, the latter two at `<name>/<version>/`, each version
+    /// written once.
     #[must_use]
     pub fn connectors(&self) -> PathBuf {
         self.workspace.join("connectors")
@@ -281,7 +281,10 @@ fn env_path<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a Path
 /// a workspace, or holds the project's `skills/` directory, so a skill's
 /// packages land beside the skills, never inside one. Nothing marks a
 /// project but what is already there: the first skill written into
-/// `skills/` makes one.
+/// `skills/` makes one. Where none of those marks one, the plugin `start`
+/// lies in (the nearest ancestor holding `connectors/`) is the project, so
+/// the project's connectors are the plugin's and seeding a runtime
+/// capability never opens a nearer plugin that shadows it.
 fn find_workspace(start: &Path) -> Option<PathBuf> {
     start
         .ancestors()
@@ -289,6 +292,11 @@ fn find_workspace(start: &Path) -> Option<PathBuf> {
             dir.join(".git").exists()
                 || dir.join("pnpm-workspace.yaml").exists()
                 || dir.join("skills").is_dir()
+        })
+        .or_else(|| {
+            start
+                .ancestors()
+                .find(|dir| dir.join("connectors").is_dir())
         })
         .map(Path::to_path_buf)
 }

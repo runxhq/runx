@@ -325,6 +325,34 @@ fn a_missing_connector_says_where_it_was_looked_for() {
     ));
 }
 
+/// A plugin nothing else marks as a project is its own project, so seeding a
+/// runtime capability writes into the plugin's connectors, never into a
+/// nearer directory that would shadow the plugin.
+#[test]
+fn seeding_a_runtime_capability_never_opens_a_nearer_plugin() {
+    let root = tempfile::tempdir().unwrap();
+    let plugin = root.path().canonicalize().unwrap().join("plugin");
+    let skill = plugin.join("work");
+    std::fs::create_dir_all(&skill).unwrap();
+    write_plugin_connector(&plugin.join("connectors"), "acme");
+    let project = crate::paths::RunxPaths::resolve(&BTreeMap::new(), &skill).connectors();
+    assert_eq!(project, plugin.join("connectors"));
+
+    ConnectorScope::at(&skill)
+        .unwrap()
+        .in_project(project)
+        .connector("artifact")
+        .unwrap();
+
+    let again = ConnectorScope::at(&skill).unwrap();
+    assert!(!skill.join("connectors").exists());
+    assert_eq!(again.plugin_root(), Some(plugin.as_path()));
+    assert!(matches!(
+        again.connector("acme").unwrap().origin,
+        ConnectorOrigin::Plugin { .. }
+    ));
+}
+
 #[cfg(unix)]
 #[test]
 fn a_plugin_whose_connectors_cannot_be_read_is_an_error_not_an_empty_plugin() {
