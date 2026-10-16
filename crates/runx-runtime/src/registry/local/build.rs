@@ -232,7 +232,6 @@ fn registry_version_defaults(
         .unwrap_or_else(|| default_registry_publisher(&owner));
     let trust_tier = options
         .trust_tier
-        .clone()
         .unwrap_or_else(|| derive_registry_trust_tier(&owner, None));
     let version = options.version.clone().unwrap_or_else(|| {
         // A version without a label is named by its content digest, as the
@@ -377,7 +376,7 @@ fn normalize_registry_version_governance(
             .ok_or_else(|| missing_field("registry_version.publisher"))?,
         "registry_version.publisher",
     )?;
-    let trust_tier = payload.trust_tier.clone().unwrap_or(TrustTier::Community);
+    let trust_tier = payload.trust_tier.unwrap_or(TrustTier::Community);
     let source_metadata = normalize_source_metadata(payload.source_metadata.clone())?;
     let attestations = normalize_attestations(
         payload.attestations.clone().unwrap_or_default(),

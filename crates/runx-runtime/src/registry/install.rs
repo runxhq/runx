@@ -209,7 +209,7 @@ fn install_skill(
         digest: validated.actual_digest,
         profile_digest: validated.profile_digest,
         runner_names: validated.runner_names,
-        trust_tier: candidate.trust_tier.clone(),
+        trust_tier: candidate.trust_tier,
     })
 }
 
