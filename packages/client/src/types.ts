@@ -38,6 +38,8 @@ export interface SkillInspection extends Readonly<Record<string, unknown>> {
 export interface SkillInspectOptions extends InvocationOptions {
   readonly skillPath: string;
   readonly runner?: string;
+  /** The authority a host would start the run with: inspect projects readiness under it. */
+  readonly runAuthority?: RunAuthority;
 }
 
 /**
@@ -45,6 +47,12 @@ export interface SkillInspectOptions extends InvocationOptions {
  * reads it. The run record binds it; a resumed run keeps it.
  */
 export interface RunAuthority {
+  /**
+   * The hosted grant each connector's calls run under, by connector name: the
+   * host's own statement of the run's instances. Admission reads each grant
+   * through the host, so a host names a grant and never asserts what it covers.
+   */
+  readonly grants?: Readonly<Record<string, string>>;
   /** Who acts; absent, the authority only bounds the run. */
   readonly actor_ref?: ReferenceContract;
   readonly mandate_ref?: ReferenceContract;
@@ -74,7 +82,6 @@ export interface SkillRunOptions extends SkillInspectOptions {
   readonly inputs?: Readonly<Record<string, unknown>>;
   readonly receiptDir: string;
   readonly binding?: ExecutionBinding;
-  readonly runAuthority?: RunAuthority;
   /** The act the run is invoked with: why it is made. The native CLI validates it. */
   readonly act?: Readonly<Record<string, unknown>>;
   /**

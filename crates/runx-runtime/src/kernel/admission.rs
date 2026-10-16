@@ -29,6 +29,7 @@ use runx_core::policy::{
 };
 use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget};
 
+use super::authority::RunAuthority;
 use super::capability::{self, Capability, CapabilityRequest};
 use super::connectors::{ConnectorScope, LoadedConnector};
 use super::custody::{EffectCustody, Pending};
@@ -57,7 +58,7 @@ pub(crate) struct Evaluation<'a> {
     /// The harness's provider fixture stands in for a declared operation's
     /// missing hosted implementation.
     pub fixture_stand_in: bool,
-    pub run_authority: Option<&'a super::authority::RunAuthority>,
+    pub run_authority: Option<&'a RunAuthority>,
     /// Where the act's custody and its evidence uses are kept.
     pub store: &'a Arc<KernelStore>,
     /// The run the call belongs to: a read's custody, and the run a new use
@@ -283,7 +284,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let instance = match held_resource(evaluation, &connector, operation_spec) {
         Some(Ok(instance)) => instance,
         Some(Err(detail)) => return Err(reasons.refuse(AdmissionCheck::Instance, detail)),
-        None => match evaluation.context.instances.resolve(&connector) {
+        None => match standing_instance(evaluation.context, &connector, evaluation.run_authority) {
             Ok(instance) => instance,
             Err(error) => return Err(reasons.refuse(AdmissionCheck::Instance, error.to_string())),
         },
@@ -665,17 +666,19 @@ fn held(
 }
 
 /// The readiness of every operation a skill's connectors block lists, from
-/// the instances and evidence present here. A projection, never an admission.
+/// the instances and evidence present here and the grants `authority` states.
+/// A projection, never an admission.
 pub fn skill_readiness(
     skill_dir: &Path,
     requirements: &BTreeMap<String, ConnectorRequirement>,
+    authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
     let scope = ConnectorScope::at(skill_dir)
         .map_err(|error| error.to_string())?
         .in_project(crate::paths::RunxPaths::resolve(env, cwd).connectors());
-    project(&scope, requirements, env, cwd)
+    project(&scope, requirements, authority, env, cwd)
 }
 
 /// The readiness of every operation of one connector in the workspace at
@@ -697,6 +700,7 @@ pub fn connector_readiness(
     project(
         &scope,
         &BTreeMap::from([(connector.name.as_str().to_owned(), requirement)]),
+        None,
         env,
         cwd,
     )
@@ -705,6 +709,7 @@ pub fn connector_readiness(
 fn project(
     scope: &ConnectorScope,
     requirements: &BTreeMap<String, ConnectorRequirement>,
+    authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
@@ -725,9 +730,30 @@ fn project(
             requirement
                 .operations
                 .iter()
-                .map(move |operation| readiness(key, requirement, operation, context))
+                .map(move |operation| readiness(key, requirement, operation, authority, context))
         })
         .collect())
+}
+
+/// The instance a call runs under outside a purchase's hold: the grant the
+/// run's host states for the connector, else the operator's selection, else
+/// the connector's public instance. Admission and readiness both resolve here.
+fn standing_instance(
+    context: Context<'_>,
+    connector: &LoadedConnector,
+    authority: Option<&RunAuthority>,
+) -> Result<ConnectorInstance, super::instances::InstanceError> {
+    match authority.and_then(|authority| authority.grants.get(&connector.name)) {
+        Some(grant_id) => super::instances::stated(
+            context.instances,
+            connector,
+            grant_id.as_str(),
+            context.hosted,
+            context.env,
+            context.cwd,
+        ),
+        None => context.instances.resolve(connector),
+    }
 }
 
 /// Project whether one requirement's operation could be admitted here,
@@ -738,14 +764,15 @@ fn readiness(
     requirement_key: &str,
     requirement: &ConnectorRequirement,
     operation: &OperationName,
+    authority: Option<&RunAuthority>,
     context: Context<'_>,
 ) -> Readiness {
     let Context {
         scope,
-        instances,
         hosted,
         env,
         cwd,
+        ..
     } = context;
     let mut reasons = Reasons(Vec::new(), None);
     let mut readiness = Readiness {
@@ -803,7 +830,7 @@ fn readiness(
         format!("{}/{operation_name}", connector.manifest.id),
     );
     readiness.cost.clone_from(&spec.cost);
-    let instance = match instances.resolve(&connector) {
+    let instance = match standing_instance(context, &connector, authority) {
         Ok(instance) => instance,
         Err(error) => {
             reasons.push(

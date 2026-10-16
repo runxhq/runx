@@ -85,10 +85,12 @@ pub fn inspect_skill_package(
 }
 
 /// The readiness of each connector operation the selected runner calls,
-/// projected by the kernel from the instances and evidence present for `cwd`.
+/// projected by the kernel from the instances and evidence present for `cwd`,
+/// under the authority a host would start the run with.
 pub fn inspect_connector_readiness(
     skill_path: &Path,
     selected_runner: Option<&str>,
+    authority: Option<&crate::RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<runx_contracts::Readiness>, SkillInspectionError> {
@@ -101,6 +103,7 @@ pub fn inspect_connector_readiness(
     crate::kernel::admission::skill_readiness(
         &loaded.directory,
         &runner_requirements(&manifest.connectors, runner),
+        authority,
         env,
         cwd,
     )

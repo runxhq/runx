@@ -44,11 +44,11 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     } else {
         SkillAction::Run
     };
-    if action == SkillAction::Inspect
-        && (state.run_authority.is_some() || state.context.is_some() || state.max_cost.is_some())
-    {
+    // Inspect projects readiness under the authority a host would start the
+    // run with; context and a money limit bind only a run.
+    if action == SkillAction::Inspect && (state.context.is_some() || state.max_cost.is_some()) {
         return Err(
-            "runx skill --run-authority, --context and --max-cost bind a run and are not accepted by inspect"
+            "runx skill --context and --max-cost bind a run and are not accepted by inspect"
                 .to_owned(),
         );
     }
@@ -107,6 +107,7 @@ fn limit_run(
     };
     let mut authority = authority.unwrap_or_else(|| {
         Box::new(runx_runtime::RunAuthority {
+            grants: std::collections::BTreeMap::new(),
             actor_ref: None,
             mandate_ref: None,
             delegations: Vec::new(),

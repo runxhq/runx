@@ -202,6 +202,17 @@ Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind
 the account in the same project the runs use.
 
+A run a host starts carries its instances in the host's run authority instead:
+`grants` names, for each connector, the runx Connect grant its calls run under,
+as in `--run-authority '{"grants":{"acme/notes":"grant_..."}}'`. Runx reads the
+grant through the host, so it must bind the connector's exact revision, be
+active and be held by the run's principal; the host names it and never asserts
+what it covers. A stated grant stands only for a hosted placement, and a
+different instance selected for the same connector is refused, never chosen.
+`runx skill inspect <skill> <runner> --run-authority` projects readiness under
+the same statement, so a host knows whether a run can be admitted before it
+starts one.
+
 See every authority source, or remove one, without exposing material:
 
 ```bash

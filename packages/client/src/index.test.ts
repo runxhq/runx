@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createRunxClient, executionBindingFromInspection, RunxClientError } from "./index.js";
+import { createRunxClient, executionBindingFromInspection, executionClosureFromInspection, RunxClientError } from "./index.js";
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
 import { receiptCommitments } from "./receipt-tree.js";
@@ -43,6 +43,20 @@ describe("native invocation and decoding", () => {
     const inspection = await createRunxClient(config).skills.inspect({ skillPath: root });
     expect(inspection.runner).toBeUndefined();
     expect(() => executionBindingFromInspection(inspection)).toThrow("selected runner");
+  });
+  it("reads the connector revisions an execution closure runs, and refuses one it cannot read", () => {
+    const binding = { connector: "ausca/inbox", manifest_digest: `sha256:${"a".repeat(64)}`, connector_digest: `sha256:${"b".repeat(64)}` };
+    const closure = (connectorBindings?: unknown) => ({
+      schema: "runx.skill.inspect.v1", status: "ok", name: "agent-inbox", package_digest: `sha256:${"c".repeat(64)}`,
+      execution_closure: {
+        closure_digest: `sha256:${"d".repeat(64)}`, fully_bound: true,
+        package_bindings: [{ skill: "agent-inbox", runner: "create", package_digest: `sha256:${"c".repeat(64)}`, source_kind: "source_root", source_path: "/skill", source_files: ["SKILL.md"] }],
+        ...(connectorBindings === undefined ? {} : { connector_bindings: connectorBindings }),
+      },
+    }) as never;
+    expect(executionClosureFromInspection(closure([binding])).connectorBindings).toEqual([binding]);
+    expect(executionClosureFromInspection(closure()).connectorBindings).toEqual([]);
+    expect(() => executionClosureFromInspection(closure([{ connector: "ausca/inbox" }]))).toThrow("connector_bindings[0]");
   });
   it("passes an exact resume packet without changing approval actors", async () => {
     const { root, config, receiptDir } = await setup();
@@ -149,7 +163,7 @@ describe("native invocation and decoding", () => {
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
       process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
-    const runAuthority = { actor_ref: { type: "principal", uri: "runx:principal:user_1" }, max_child_depth: 2 } as const;
+    const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" }, actor_ref: { type: "principal", uri: "runx:principal:user_1" }, max_child_depth: 2 } as const;
     const act = { purpose: "reply to the thread" };
     const context = { current_context: [] };
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, runAuthority, act, context });
@@ -157,6 +171,18 @@ describe("native invocation and decoding", () => {
     expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
     expect(JSON.parse(args[args.indexOf("--act") + 1]!)).toEqual(act);
     expect(JSON.parse(args[args.indexOf("--context") + 1]!)).toEqual(context);
+  });
+  it("projects inspection readiness under the host's stated grants", async () => {
+    const { root, config } = await setup();
+    const capture = path.join(root, "capture.json");
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+      process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'agent-inbox', package_digest: 'sha256:${"a".repeat(64)}', runners: [] }));`);
+    const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" } } as const;
+    await createRunxClient(config).skills.inspect({ skillPath: "/skill", runner: "create", runAuthority });
+    const args = JSON.parse(await readFile(capture, "utf8")) as string[];
+    expect(args.slice(0, 4)).toEqual(["skill", "inspect", "/skill", "create"]);
+    expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();

@@ -827,6 +827,7 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
 fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthority {
     use runx_contracts::{Reference, ReferenceType};
     runx_runtime::RunAuthority {
+        grants: std::collections::BTreeMap::new(),
         actor_ref: Some(Reference::with_uri(
             ReferenceType::Principal,
             "runx:principal:assistant",

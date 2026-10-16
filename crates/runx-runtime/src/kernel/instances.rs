@@ -1,19 +1,21 @@
 //! Connector instances: what a connector requirement resolves to.
 //!
 //! An instance is confirmed during setup (`runx connector use`) and selected
-//! as its connector's default. A
-//! call resolves to exactly one instance, from one of three sources:
+//! as its connector's default. A call on a resource a purchase holds runs
+//! under that hold; any other call resolves to exactly one instance, from one
+//! of three sources:
 //!
-//! - **Injected:** a host (the hosted worker, an embedder) injects a complete
-//!   hosted grant through the environment. It wins over any selection for a
-//!   connector with a hosted placement, and cannot stand for any other.
+//! - **Stated:** a run's host (the hosted worker, an embedder) names, in the
+//!   run authority, the hosted grant a connector's calls run under. The grant
+//!   is read through the host, never asserted. It stands only for a hosted
+//!   placement, and a selection of another instance is refused.
 //! - **Selected:** the instance the operator selected for the connector.
 //! - **Public:** a connector whose only authority is `none` has exactly one
 //!   instance, which needs no setup.
 //!
-//! There is no fallback. A selected instance that is missing or revoked
-//! refuses, naming itself; work never moves to a sibling instance or another
-//! account.
+//! There is no fallback. A stated or selected instance that is missing or
+//! revoked refuses, naming itself; work never moves to a sibling instance or
+//! another account.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -105,6 +107,22 @@ pub enum InstanceError {
         connector: ConnectorName,
         placement: &'static str,
         authority: &'static str,
+    },
+    #[error(
+        "the run's host states grant {grant_id} for connector {connector}, which is unavailable: {reason}"
+    )]
+    StatedUnavailable {
+        grant_id: String,
+        connector: ConnectorName,
+        reason: String,
+    },
+    #[error(
+        "the run's host states grant {grant_id} for connector {connector}, but instance {selected} is selected; a run never chooses between them"
+    )]
+    StatedConflict {
+        grant_id: String,
+        connector: ConnectorName,
+        selected: InstanceId,
     },
     #[error(transparent)]
     Store(#[from] KernelStoreError),
@@ -277,6 +295,37 @@ impl Instances {
             },
         )?)
     }
+}
+
+/// The instance a run's host states for `connector`: the hosted grant it
+/// names, read through the host and pinned to the connector as loaded. It
+/// stands only for a hosted placement, and a selection of another instance
+/// is refused, never used.
+pub(crate) fn stated(
+    instances: &Instances,
+    connector: &LoadedConnector,
+    grant_id: &str,
+    hosted: &super::operation::hosted::HostedClient,
+    env: &BTreeMap<String, String>,
+    cwd: &std::path::Path,
+) -> Result<ConnectorInstance, InstanceError> {
+    let instance = super::setup::hosted_grant_instance(connector, hosted, grant_id, env, cwd)
+        .map_err(|reason| InstanceError::StatedUnavailable {
+            grant_id: grant_id.to_owned(),
+            connector: connector.name.clone(),
+            reason,
+        })?;
+    check_supported(connector, &instance)?;
+    if let Some(selected) = instances.selected(connector.name.as_str())?
+        && selected != instance.instance_id
+    {
+        return Err(InstanceError::StatedConflict {
+            grant_id: grant_id.to_owned(),
+            connector: connector.name.clone(),
+            selected,
+        });
+    }
+    Ok(instance)
 }
 
 /// Whether the connector, as currently loaded, still supports the instance's

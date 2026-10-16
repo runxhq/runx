@@ -1,17 +1,28 @@
 //! Authority supplied by a trusted run host, separate from skill inputs and
 //! context. A direct run has none, unless its operator bounds what it spends;
-//! an acting host names its actor, the attenuation requests to mint against
-//! live capability evidence, how far the run's child runs may spread and what
-//! the run may spend. The run record binds it: a resumed run keeps the
-//! authority it started with.
+//! an acting host names its actor, the hosted grants its calls run under, the
+//! attenuation requests to mint against live capability evidence, how far the
+//! run's child runs may spread and what the run may spend. The run record
+//! binds it: a resumed run keeps the authority it started with.
+
+use std::collections::BTreeMap;
 
 use runx_contracts::Reference;
+use runx_contracts::connector::ConnectorName;
+use runx_contracts::schema::NonEmptyString;
 use runx_core::policy::AttenuationRequest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunAuthority {
+    /// The hosted grant each connector's calls run under, by connector: the
+    /// host's own statement of the run's instances. A stated grant stands for
+    /// its connector's hosted placement and wins over the operator's
+    /// selection; admission reads the grant itself through the host, so a
+    /// host names a grant and never asserts what it covers.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub grants: BTreeMap<ConnectorName, NonEmptyString>,
     /// Who acts. Absent, each call is made by its instance's principal, and
     /// the authority only bounds the run.
     #[serde(default, skip_serializing_if = "Option::is_none")]

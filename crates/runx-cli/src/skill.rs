@@ -113,6 +113,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             plan.runner.as_deref(),
             plan.json,
             entry_provenance(&resolved),
+            plan.run_authority.as_deref(),
             &env,
             &cwd,
         );
@@ -378,10 +379,11 @@ fn write_skill_inspection(
     runner: Option<&str>,
     json: bool,
     provenance: Option<JsonObject>,
+    authority: Option<&runx_runtime::RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> ExitCode {
-    match inspect_skill(skill_path, runner, provenance, env, cwd) {
+    match inspect_skill(skill_path, runner, provenance, authority, env, cwd) {
         Ok((value, _)) if json => crate::cli_io::write_stdout_code(
             &format!(
                 "{}\n",
@@ -399,6 +401,7 @@ fn inspect_skill(
     skill_path: &Path,
     selected_runner: Option<&str>,
     provenance: Option<JsonObject>,
+    authority: Option<&runx_runtime::RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<(JsonValue, Vec<Readiness>), String> {
@@ -412,9 +415,14 @@ fn inspect_skill(
     }
     let mut readiness = Vec::new();
     if object.get("runner").is_some() {
-        readiness =
-            runx_runtime::inspect_connector_readiness(skill_path, selected_runner, env, cwd)
-                .map_err(|error| error.to_string())?;
+        readiness = runx_runtime::inspect_connector_readiness(
+            skill_path,
+            selected_runner,
+            authority,
+            env,
+            cwd,
+        )
+        .map_err(|error| error.to_string())?;
         if !readiness.is_empty() {
             let status = if readiness.iter().all(|operation| operation.ready) {
                 "ready"

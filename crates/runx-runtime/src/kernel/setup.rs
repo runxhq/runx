@@ -490,12 +490,26 @@ pub(crate) fn confirm_grant_from(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
+    let instance = hosted_grant_instance(connector, hosted, grant_id, env, cwd)?;
+    confirm(instances, connector, instance)
+}
+
+/// The instance a hosted grant stands for, read through `hosted` and pinned
+/// to `connector` as loaded: the grant must bind exactly that revision and be
+/// active. Setup confirms it; a run's host states it.
+pub(crate) fn hosted_grant_instance(
+    connector: &LoadedConnector,
+    hosted: &HostedClient,
+    grant_id: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<ConnectorInstance, String> {
     let grant = hosted.grant(env, cwd, grant_id)?;
     grant.check_binding(connector)?;
     if grant.status != "active" {
         return Err(format!("grant {grant_id} is {}", grant.status));
     }
-    let instance = pinned(
+    Ok(pinned(
         connector,
         super::instances::instance_id(&["hosted", connector.name.as_str(), grant_id])?,
         Placement::Hosted,
@@ -504,8 +518,7 @@ pub(crate) fn confirm_grant_from(
         InstanceAuthority::HostedGrant {
             grant_id: grant.grant_id.into(),
         },
-    );
-    confirm(instances, connector, instance)
+    ))
 }
 
 fn confirm(

@@ -346,6 +346,134 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-stated-grant-journey");
+    let skill_dir = crate::support::repo_root()?.join("skills/google-analytics");
+    let receipt_dir = root.join(".runx/receipts");
+    crate::support::plugin_with_source_connectors(&root, &["google/analytics"])?;
+    let sent = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+    let recorded = std::sync::Arc::clone(&sent);
+    // Connect records each provider call and answers none, so a call that
+    // gets past admission shows the grant it was sent under.
+    let connect = crate::support::MockConnect::with_operations(
+        "seller-1",
+        &[
+            (
+                "grant_google_read",
+                "google/analytics",
+                &["properties.read", "reports.read"],
+            ),
+            (
+                "grant_google_wrong_scope",
+                "google/analytics",
+                &["reports.read"],
+            ),
+        ],
+        Box::new(move |request| {
+            recorded.lock().ok()?.push(request.clone());
+            None
+        }),
+    )?;
+    let operator = |root: &Path| {
+        let mut command = command(root);
+        connect.apply(&mut command);
+        command
+    };
+    let stated = |grant: &str| format!(r#"{{"grants":{{"google/analytics":"{grant}"}}}}"#);
+    let inspect = |authority: &str| -> TestResult<Value> {
+        let output = operator(&root)
+            .arg("skill")
+            .arg("inspect")
+            .arg(&skill_dir)
+            .arg("properties")
+            .args(["--run-authority", authority, "--json"])
+            .output()?;
+        assert_json(&output, 0)
+    };
+    let failed = |inspection: &Value| -> TestResult<(String, String)> {
+        let reason = inspection["connector_readiness"][0]["reasons"]
+            .as_array()
+            .and_then(|reasons| reasons.iter().find(|reason| reason["outcome"] == "fail"))
+            .ok_or("a failing readiness reason")?;
+        Ok((
+            json_string(reason, "check")?.to_owned(),
+            json_string(reason, "detail")?.to_owned(),
+        ))
+    };
+
+    // The stated grant is the run's instance, read through the host: the
+    // project has no setup at all.
+    let ready = inspect(&stated("grant_google_read"))?;
+    assert_eq!(ready["readiness"]["status"], "ready", "{ready}");
+    assert!(
+        ready["connector_readiness"][0]["instance_id"]
+            .as_str()
+            .is_some_and(|instance| instance.starts_with("hosted.")),
+        "{ready}"
+    );
+
+    // A stated grant short of the operation's scopes is not ready, by name.
+    let (check, detail) = failed(&inspect(&stated("grant_google_wrong_scope"))?)?;
+    assert_eq!(check, "capability");
+    assert!(detail.contains("lacks properties.read"), "{detail}");
+
+    // A grant the host does not hold is refused at the instance.
+    let (check, detail) = failed(&inspect(&stated("grant_google_absent"))?)?;
+    assert_eq!(check, "instance");
+    assert!(
+        detail.contains("states grant grant_google_absent for connector google/analytics"),
+        "{detail}"
+    );
+
+    // A run under the stated grant is admitted and calls under that grant.
+    let run = operator(&root)
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("properties")
+        .args(["--run-authority", &stated("grant_google_read")])
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .arg("--json")
+        .output()?;
+    let calls = sent
+        .lock()
+        .map_err(|_| "the Connect fixture panicked")?
+        .clone();
+    assert!(
+        !calls.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&run.stdout)
+    );
+    assert!(
+        calls
+            .iter()
+            .all(|call| call["grant_id"] == "grant_google_read"),
+        "{calls:?}"
+    );
+
+    // An operator's selection of another instance conflicts with the host's
+    // statement, and the run never chooses between them.
+    let confirm = operator(&root)
+        .args([
+            "connector",
+            "use",
+            "google/analytics",
+            "grant_google_wrong_scope",
+            "--json",
+        ])
+        .output()?;
+    assert_json(&confirm, 0)?;
+    let (check, detail) = failed(&inspect(&stated("grant_google_read"))?)?;
+    assert_eq!(check, "instance");
+    assert!(
+        detail.contains("is selected; a run never chooses between them"),
+        "{detail}"
+    );
+
+    Ok(())
+}
+
 #[cfg(unix)]
 #[test]
 fn reference_skill_journeys_execute_or_block_truthfully_without_repeating_phase_producers()

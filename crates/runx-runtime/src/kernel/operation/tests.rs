@@ -682,6 +682,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
     .unwrap();
     let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
     let mut authority = crate::RunAuthority {
+        grants: std::collections::BTreeMap::new(),
         actor_ref: Some(actor_ref.clone()),
         mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
         delegations: Vec::new(),
@@ -898,6 +899,7 @@ fn advisories(id: &str) -> JsonObject {
 /// A run bounded only by what it may spend.
 fn limited(max_cost_micro: u64) -> crate::RunAuthority {
     crate::RunAuthority {
+        grants: std::collections::BTreeMap::new(),
         actor_ref: None,
         mandate_ref: None,
         delegations: Vec::new(),

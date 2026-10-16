@@ -1,3 +1,4 @@
+import { validateConnectorBinding, type ConnectorBinding } from "@runxhq/contracts";
 import type { ExecutionBinding, SkillInspection } from "./types.js";
 import { record as isRecord } from "./decode.js";
 function textOrUndefined(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
@@ -51,6 +52,8 @@ export interface ExecutionPackageBinding {
 export interface ExecutionClosureInspection {
   readonly closureDigest: string;
   readonly packageBindings: readonly ExecutionPackageBinding[];
+  /** The exact connector revisions the closure runs, its packages' dependencies included. */
+  readonly connectorBindings: readonly ConnectorBinding[];
 }
 
 export function executionClosureFromInspection(
@@ -98,7 +101,10 @@ export function executionClosureFromInspection(
     }
     return { skill, runner, packageDigest, sourceKind: admittedSourceKind, sourcePath, sourceFiles };
   });
-  return { closureDigest, packageBindings };
+  const declared = closure.connector_bindings ?? [];
+  if (!Array.isArray(declared)) throw new Error("Native execution closure's connector bindings are not a list.");
+  const connectorBindings = declared.map((value, index) => validateConnectorBinding(value, `execution_closure.connector_bindings[${index}]`));
+  return { closureDigest, packageBindings, connectorBindings };
 }
 
 function stringList(value: unknown): readonly string[] {

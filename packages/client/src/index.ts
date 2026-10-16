@@ -3,7 +3,7 @@ import { validateProcessContract, validateProcessListContract, validateProcessOu
 import { readProjectArtifact } from "./artifacts.js";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
-import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
+import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunAuthority, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
 
 export { hostEnvironmentFrom } from "./environment.js";
 export { RunxClientError } from "./process.js";
@@ -44,14 +44,14 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         try { return validateRunxListReportContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill listing.", { cause: error }); }
       },
       inspect: async (options) => {
-        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...runnerArgs(options.runner), "--json"], options), [0]);
+        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...runnerArgs(options.runner), ...authorityArgs(options.runAuthority), "--json"], options), [0]);
         if (output.schema !== "runx.skill.inspect.v1" || output.status !== "ok" || typeof output.name !== "string" || !output.name.trim() || typeof output.package_digest !== "string" || !output.package_digest.trim() || (output.runner !== undefined && !record(output.runner))) throw new RunxClientError("contract", "Invalid native skill inspection.");
         return output as SkillInspection;
       },
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         if (options.binding && options.runner && options.runner !== options.binding.runner) throw new TypeError("Selected runner differs from the execution binding.");
-        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), ...(options.runAuthority ? ["--run-authority", JSON.stringify(options.runAuthority)] : []), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
+        const result = await execute(["skill", argument(options.skillPath), ...runnerArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       },
     },
@@ -147,6 +147,7 @@ function absolute(value: string): string {
   return argument(value);
 }
 function runnerArgs(value?: string): string[] { return value ? [argument(value)] : []; }
+function authorityArgs(authority?: RunAuthority): string[] { return authority ? ["--run-authority", JSON.stringify(authority)] : []; }
 function bindingArgs(binding?: ExecutionBinding): string[] {
   if (!binding) return [];
   argument(binding.runner);

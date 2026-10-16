@@ -546,7 +546,7 @@ fn routes_canonical_skill_run_to_native_plan() {
 }
 
 #[test]
-fn a_host_gives_a_run_its_authority_and_inspect_refuses_one() -> Result<(), String> {
+fn a_host_gives_a_run_and_its_inspection_its_authority() -> Result<(), String> {
     let authority =
         r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"},"max_child_depth":2}"#;
     let RouterAction::RunSkill(run) = plan(&["skill", "skills/echo", "--run-authority", authority])
@@ -561,14 +561,33 @@ fn a_host_gives_a_run_its_authority_and_inspect_refuses_one() -> Result<(), Stri
         plan(&["skill", "skills/echo", "--run-authority", r#"{"actor":"x"}"#]),
         RouterAction::Error(message) if message.contains("must be a JSON run authority")
     ));
+    // Inspect projects readiness under the grants a host would state.
+    let RouterAction::RunSkill(inspect) = plan(&[
+        "skill",
+        "inspect",
+        "skills/echo",
+        "--run-authority",
+        r#"{"grants":{"ausca/inbox":"grant_ausca_1"}}"#,
+    ]) else {
+        return Err("an inspect plan".to_owned());
+    };
+    let grants = inspect
+        .run_authority
+        .ok_or("the inspection carries its authority")?
+        .grants;
+    assert_eq!(
+        grants
+            .iter()
+            .map(|(connector, grant)| (connector.as_str(), grant.as_str()))
+            .collect::<Vec<_>>(),
+        [("ausca/inbox", "grant_ausca_1")]
+    );
     assert!(matches!(
-        plan(&[
-            "skill",
-            "inspect",
-            "skills/echo",
-            "--run-authority",
-            r#"{"actor_ref":{"type":"principal","uri":"runx:principal:user_1"}}"#,
-        ]),
+        plan(&["skill", "skills/echo", "--run-authority", r#"{"grants":{"Not A Name":"grant_1"}}"#]),
+        RouterAction::Error(message) if message.contains("must be a JSON run authority")
+    ));
+    assert!(matches!(
+        plan(&["skill", "inspect", "skills/echo", "--max-cost", "1"]),
         RouterAction::Error(message) if message.contains("not accepted by inspect")
     ));
     Ok(())
