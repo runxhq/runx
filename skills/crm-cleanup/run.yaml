@@ -1,10 +1,11 @@
 skill: crm-cleanup
-version: "0.1.5"
+version: "0.1.6"
 
 catalog:
   kind: graph
   audience: operator
   visibility: public
+  category: growth
   role: canonical
   execution: plan
   completion: runtime_receipt

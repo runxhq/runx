@@ -1,10 +1,11 @@
 skill: google-analytics
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: graph
   audience: public
   visibility: public
+  category: data
   role: branded
   canonical_skill: runx/organic-growth
   provider: google/analytics

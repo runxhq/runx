@@ -1,10 +1,11 @@
 skill: extract
-version: "0.1.7"
+version: "0.1.8"
 
 catalog:
   kind: skill
   audience: public
   visibility: public
+  category: data
   role: canonical
   execution: read
   completion: runtime_receipt

@@ -1,10 +1,11 @@
 skill: postmortem-maker
-version: "0.1.6"
+version: "0.1.7"
 
 catalog:
   kind: graph
   audience: operator
   visibility: public
+  category: ops
   role: canonical
   execution: plan
   completion: runtime_receipt

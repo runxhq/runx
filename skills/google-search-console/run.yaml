@@ -1,10 +1,11 @@
 skill: google-search-console
-version: "0.1.13"
+version: "0.1.14"
 
 catalog:
   kind: graph
   audience: public
   visibility: public
+  category: growth
   role: branded
   canonical_skill: runx/organic-growth
   provider: google/search-console

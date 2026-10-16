@@ -1,9 +1,10 @@
 skill: work-plan
-version: "0.2.9"
+version: "0.2.10"
 catalog:
   kind: graph
   audience: builder
   visibility: public
+  category: ops
   role: context
   execution: plan
   completion: plan
