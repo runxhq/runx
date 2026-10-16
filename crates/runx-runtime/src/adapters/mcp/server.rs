@@ -194,12 +194,12 @@ impl RmcpProofServer {
 }
 
 impl rmcp::ServerHandler for RmcpProofServer {
-    fn get_info(&self) -> rmcp::model::ServerInfo {
+    fn get_info(&self) -> rmcp::model::ServerConfig {
         let (package_name, package_version) = (
             self.state.options.package_name.clone(),
             self.state.options.package_version.clone(),
         );
-        let info = rmcp::model::ServerInfo::new(
+        let info = rmcp::model::ServerConfig::new(
             rmcp::model::ServerCapabilities::builder()
                 .enable_tools()
                 .build(),
@@ -218,9 +218,15 @@ impl rmcp::ServerHandler for RmcpProofServer {
     fn list_tools(
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,
-        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> impl Future<Output = Result<rmcp::model::ListToolsResult, rmcp::ErrorData>> + Send + '_
     {
+        // From 2026-07-28 a list says how long it may be cached, and by whom.
+        // A turn's tools change as it loads skills and connectors, and are
+        // this client's alone: nothing caches them.
+        let states_cache = context.protocol_version().is_some_and(|version| {
+            version.as_str() >= rmcp::model::ProtocolVersion::V_2026_07_28.as_str()
+        });
         let result = self
             .state
             .options
@@ -228,7 +234,16 @@ impl rmcp::ServerHandler for RmcpProofServer {
             .iter()
             .map(rmcp_tool_from_server_tool)
             .collect::<Result<Vec<_>, _>>()
-            .map(rmcp::model::ListToolsResult::with_all_items);
+            .map(|tools| {
+                let result = rmcp::model::ListToolsResult::with_all_items(tools);
+                if states_cache {
+                    result
+                        .with_ttl_ms(0)
+                        .with_cache_scope(rmcp::model::CacheScope::Private)
+                } else {
+                    result
+                }
+            });
         std::future::ready(result)
     }
 
