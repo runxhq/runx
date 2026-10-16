@@ -445,6 +445,62 @@ runners:
 }
 
 #[test]
+fn native_skill_inspect_reports_a_pin_the_registry_lacks_and_a_run_refuses_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-inspect-registry-absent-pin");
+    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let skill_dir = root.join("parent");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: parent\ndescription: parent fixture.\n---\n# Parent\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"skill: parent
+runners:
+  default:
+    default: true
+    result_from: [child]
+    steps:
+      - id: child
+        skill: registry:acme/echo@2.0.0
+        runner: default
+"#,
+    )?;
+    let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
+
+    // An inspection reports the pin for a caller that supplies registry
+    // records to supply, as the hosted registry closure does.
+    let output = trusted_registry_runx_command(&root)?
+        .current_dir(&root)
+        .env("RUNX_REGISTRY_DIR", &registry_dir)
+        .args(["skill", "inspect", skill, "--json"])
+        .output()?;
+    let inspected = assert_json(&output, Some(0))?;
+    let closure = &inspected["execution_closure"];
+    assert_eq!(closure["fully_bound"], false);
+    assert_eq!(
+        closure["unresolved_skill_edges"],
+        json!(["registry:acme/echo@2.0.0#default"])
+    );
+
+    // A run cannot proceed without it.
+    let output = trusted_registry_runx_command(&root)?
+        .current_dir(&root)
+        .env("RUNX_REGISTRY_DIR", &registry_dir)
+        .args(["skill", skill, "--json"])
+        .output()?;
+    let failed = assert_json(&output, Some(1))?;
+    let message = failed["error"]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("fetching registry:acme/echo@2.0.0: registry skill not found"),
+        "{message}"
+    );
+    Ok(())
+}
+
+#[test]
 fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-exported-shim");
     let source_dir = crate::support::write_agent_task_skill(&root.join("source with spaces"))?;

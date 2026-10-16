@@ -72,6 +72,7 @@ pub(crate) fn resolve_skill_package(
             env,
             registry: None,
             expected_digest: None,
+            absent_pins: resolver::AbsentPins::Fail,
         },
     )
     .map(|resolved| resolved.runnable_path)
@@ -89,6 +90,12 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             env: &env,
             registry: plan.registry.as_deref(),
             expected_digest: plan.expected_digest.as_deref(),
+            // An inspection reports a pin the registry lacks; a run needs it.
+            absent_pins: if plan.action == SkillAction::Inspect {
+                resolver::AbsentPins::Report
+            } else {
+                resolver::AbsentPins::Fail
+            },
         },
     ) {
         Ok(skill_path) => skill_path,

@@ -1,5 +1,5 @@
 // Module rationale: skill resolution centralizes explicit, bundled, installed, and verified registry packages.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,6 +16,40 @@ pub(super) struct SkillResolverOptions<'a> {
     pub(super) env: &'a BTreeMap<String, String>,
     pub(super) registry: Option<&'a str>,
     pub(super) expected_digest: Option<&'a str>,
+    pub(super) absent_pins: AbsentPins,
+}
+
+/// What a nested registry pin the registry does not hold means. A run cannot
+/// proceed without it. An inspection reports it unresolved, so a caller that
+/// supplies registry records, as the hosted registry closure does, can supply
+/// it and inspect again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AbsentPins {
+    Fail,
+    Report,
+}
+
+/// Why a registry skill did not resolve: the registry holds no such version,
+/// or finding or installing the one it holds failed.
+enum RegistryResolveError {
+    NotHeld(String),
+    Failed(String),
+}
+
+impl From<String> for RegistryResolveError {
+    fn from(message: String) -> Self {
+        Self::Failed(message)
+    }
+}
+
+impl From<RegistryResolveError> for String {
+    fn from(error: RegistryResolveError) -> Self {
+        match error {
+            RegistryResolveError::NotHeld(message) | RegistryResolveError::Failed(message) => {
+                message
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,15 +101,20 @@ pub(crate) fn resolve_skill_ref_details(
 /// A skill arrives when run, and so does every registry skill its runners
 /// name: each one the project does not hold is fetched exactly as a top-level
 /// ref is, into the project's skills directory, until the closure holds them
-/// all, since a fetched skill can name its own.
+/// all, since a fetched skill can name its own. With `AbsentPins::Report`, a
+/// pin the registry does not hold stays unfetched for the inspection to report.
 fn fetch_unheld_registry_refs(
     skill_path: &Path,
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<(), String> {
+    let mut absent = BTreeSet::new();
     for _ in 0..=MAX_NESTED_FETCH_DEPTH {
         let unheld = runx_runtime::unheld_registry_refs_at(skill_path, options.env)
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .filter(|reference| !absent.contains(reference))
+            .collect::<Vec<_>>();
         if unheld.is_empty() {
             return Ok(());
         }
@@ -89,7 +128,7 @@ fn fetch_unheld_registry_refs(
                     "fetching {reference}: a package names a registry skill as '<owner>/<name>'"
                 )
             })?;
-            resolve_registry_skill(
+            match resolve_registry_skill(
                 &parsed.skill_id,
                 parsed.version.as_deref(),
                 cwd,
@@ -97,8 +136,17 @@ fn fetch_unheld_registry_refs(
                     expected_digest: None,
                     ..options
                 },
-            )
-            .map_err(|error| format!("fetching {reference}: {error}"))?;
+            ) {
+                Ok(_) => {}
+                Err(RegistryResolveError::NotHeld(_))
+                    if options.absent_pins == AbsentPins::Report =>
+                {
+                    absent.insert(reference);
+                }
+                Err(error) => {
+                    return Err(format!("fetching {reference}: {}", String::from(error)));
+                }
+            }
         }
     }
     Err(format!(
@@ -132,7 +180,8 @@ fn resolve_skill_ref(
                 parsed.skill_id
             ));
         }
-        return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options);
+        return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options)
+            .map_err(String::from);
     }
 
     if let Some(resolved) = resolve_installed_or_workspace_skill(&raw_ref, cwd, &options)? {
@@ -149,7 +198,8 @@ fn resolve_skill_ref(
         {
             return Ok(resolved);
         }
-        return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options);
+        return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options)
+            .map_err(String::from);
     }
 
     Ok(local_resolved(
@@ -175,7 +225,8 @@ fn resolve_bare_skill_ref(
     if let Some(skill_id) = registry::resolve_root_name(&plan, options.env, cwd)
         .map_err(|error| error.into_message())?
     {
-        return resolve_registry_skill(&skill_id, parsed.version.as_deref(), cwd, options);
+        return resolve_registry_skill(&skill_id, parsed.version.as_deref(), cwd, options)
+            .map_err(String::from);
     }
     Err(format!(
         "could not resolve skill ref '{}'; tried {}, {} and the registry's root names. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
@@ -260,7 +311,7 @@ fn resolve_registry_skill(
     version: Option<&str>,
     cwd: &Path,
     options: SkillResolverOptions<'_>,
-) -> Result<ResolvedSkillRef, String> {
+) -> Result<ResolvedSkillRef, RegistryResolveError> {
     let env = options.env;
     let plan = registry_plan(skill_id, version, &options);
     let target = registry::resolve_registry_target(&plan, env, cwd);
@@ -274,10 +325,10 @@ fn resolve_registry_skill(
     let (mut candidate, acquisition) = registry::install_candidate(&plan, target, env, cwd)
         .map_err(|error| error.into_message())?
         .ok_or_else(|| {
-            format!(
+            RegistryResolveError::NotHeld(format!(
                 "registry skill not found: {} in {source_description}",
                 plan.requested_ref()
-            )
+            ))
         })?;
     let paid_listing = acquisition
         .as_ref()
@@ -508,6 +559,7 @@ mod tests {
                 env: &env,
                 registry: None,
                 expected_digest: None,
+                absent_pins: AbsentPins::Fail,
             },
         ) {
             Ok(_) => return Err("missing bare skill should fail".to_owned()),
