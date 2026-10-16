@@ -16,6 +16,7 @@ use crate::services::WorkspaceBounds;
 mod capability;
 #[cfg(test)]
 mod edit_tests;
+mod inverse;
 mod walk;
 
 pub(super) use capability::CAPABILITIES;

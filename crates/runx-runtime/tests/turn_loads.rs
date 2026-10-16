@@ -557,3 +557,100 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     );
     Ok(())
 }
+
+/// Run the runx-maintained `revert` skill over `call_ids` of run `run_id`.
+fn revert(project: &Project, run_id: &str, call_ids: &[&str]) -> TestResult<RunResult> {
+    let skill = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/revert");
+    Ok(project.orchestrator()?.run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill,
+        receipt_dir: Some(project.root.join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::from([
+            ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
+            (
+                "call_ids".to_owned(),
+                serde_json::from_value(serde_json::json!(call_ids))?,
+            ),
+        ]),
+        env: project.env()?,
+        cwd: project.root.clone(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+    })?)
+}
+
+/// How the run came out: `completed`, or `failed`.
+fn outcome(result: &RunResult) -> Option<&str> {
+    result
+        .output
+        .as_object()
+        .and_then(|output| output.get("outcome"))
+        .and_then(JsonValue::as_str)
+}
+
+#[test]
+fn revert_undoes_a_runs_edits_together_or_not_at_all() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let readme = project.root.join("README.md");
+    let notes = project.root.join("notes.md");
+    let edit = |run_id: &str| -> TestResult {
+        std::fs::write(&readme, "old\n")?;
+        let turn = project.open(run_id)?;
+        for (call_id, inputs) in [
+            (
+                "w1",
+                serde_json::json!({
+                    "path": "README.md",
+                    "contents": "new\n",
+                    "expected_digest": runx_contracts::sha256_prefixed(b"old\n"),
+                }),
+            ),
+            (
+                "w2",
+                serde_json::json!({"path": "notes.md", "contents": "notes\n", "create": true}),
+            ),
+        ] {
+            let written = turn.call(TURN, "fs_write", Some(call_id), input(inputs)?)?;
+            assert!(
+                matches!(written.outcome, TurnCallOutcome::Completed { .. }),
+                "{written:?}"
+            );
+        }
+        turn.complete(
+            TURN,
+            input(serde_json::json!({"summary": "Edited two files."}))?,
+        )?;
+        Ok(())
+    };
+    let session = || project.session_with(serde_json::json!([]), &["fs.write"]);
+
+    let run_id = project.start(session()?)?;
+    edit(&run_id)?;
+    let undone = revert(&project, &run_id, &["w1", "w2"])?;
+    assert_eq!(outcome(&undone), Some("completed"), "{:?}", undone.output);
+    assert_eq!(std::fs::read_to_string(&readme)?, "old\n");
+    assert!(!notes.exists(), "a file the edits created is deleted");
+
+    // A file changed since the edits is refused, and nothing is restored.
+    let run_id = project.start(session()?)?;
+    edit(&run_id)?;
+    std::fs::write(&readme, "changed by hand\n")?;
+    let refused = revert(&project, &run_id, &["w1", "w2"])?;
+    assert_eq!(outcome(&refused), Some("failed"), "{:?}", refused.output);
+    assert!(
+        serde_json::to_string(&refused.output)?.contains("README.md"),
+        "the refusal names the file: {:?}",
+        refused.output
+    );
+    assert_eq!(std::fs::read_to_string(&readme)?, "changed by hand\n");
+    assert!(
+        notes.exists(),
+        "nothing is restored when one file is refused"
+    );
+    Ok(())
+}
