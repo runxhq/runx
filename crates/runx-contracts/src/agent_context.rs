@@ -120,7 +120,7 @@ pub struct ProfileFile {
     pub content: String,
 }
 
-/// The optional memory/conventions context block.
+/// The optional memory, conventions and project instructions context block.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextProfiles {
@@ -128,6 +128,11 @@ pub struct AgentContextProfiles {
     pub memory: Option<ProfileFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conventions: Option<ProfileFile>,
+    /// The project's instructions: each `AGENTS.md` and `CLAUDE.md` from the
+    /// repository root that contains the workspace down to the workspace, in
+    /// that order, each `path` relative to the repository root.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instructions: Vec<ProfileFile>,
 }
 
 /// Where the skill executes from on disk.
@@ -147,6 +152,10 @@ pub struct AgentContextEnvelope {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub step_id: Option<NonEmptyString>,
     pub skill: NonEmptyString,
+    /// The act its run's invoker stated: why the run exists, as the run's
+    /// steps read `$act`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<crate::CallAct>,
     /// Digest of the exact owning `SKILL.md` bytes carried in `instructions`.
     pub instructions_sha256: NonEmptyString,
     pub instructions: NonEmptyString,

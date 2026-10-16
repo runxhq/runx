@@ -107,7 +107,9 @@ impl Project {
             current_context: Vec::new(),
             historical_context: Vec::new(),
             run_authority: None,
-            act: None,
+            act: Some(serde_json::from_value(serde_json::json!({
+                "purpose": "Answer the person's question about the project."
+            }))?),
             skill_path: skill_dir,
             receipt_dir: Some(self.root.join("receipts")),
             run_id: None,
@@ -199,6 +201,16 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
     let turn = project.open(&run_id)?;
     assert_eq!(tool_names(&turn)?, ["load"], "a rule offers the load call");
+    assert_eq!(
+        turn.status(TURN)?
+            .invocation
+            .envelope
+            .act
+            .map(|act| act.purpose.as_str().to_owned())
+            .as_deref(),
+        Some("Answer the person's question about the project."),
+        "the act carries why its run exists"
+    );
 
     let load = turn.call(
         TURN,

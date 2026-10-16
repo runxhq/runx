@@ -84,7 +84,7 @@ fn agent_invocation_requires_declared_outputs() -> Result<(), Box<dyn std::error
     let request = invocation(skill.path().to_path_buf(), None);
 
     let Err(error) =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
     else {
         return Err("missing outputs must fail".into());
     };
@@ -99,7 +99,7 @@ fn agent_invocation_pins_voice_and_output_contracts() -> Result<(), Box<dyn std:
     let request = invocation(skill.path().to_path_buf(), Some(outputs()));
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
 
     assert!(resolved.envelope.voice_profile.is_some());
     assert_eq!(
@@ -138,7 +138,7 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
     });
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -211,7 +211,7 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
     });
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -274,7 +274,7 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
     ]);
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     assert_eq!(
         resolved.envelope.requirements.declaration,
         request.requirements
@@ -317,7 +317,7 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
     }];
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, "agent".to_owned())?;
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
 
     assert_eq!(resolved.envelope.instructions.as_ref(), manual);
     assert_eq!(
@@ -344,5 +344,68 @@ fn agent_step_fails_without_skill_instructions() -> Result<(), Box<dyn std::erro
         .ok_or("agent tasks without SKILL.md instructions must fail closed")?;
 
     assert!(error.to_string().contains("SKILL.md"));
+    Ok(())
+}
+
+#[test]
+fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
+-> Result<(), Box<dyn std::error::Error>> {
+    let repository = tempfile::tempdir()?;
+    let root = fs::canonicalize(repository.path())?;
+    fs::create_dir_all(root.join(".git"))?;
+    let workspace = root.join("apps/site");
+    fs::create_dir_all(&workspace)?;
+    fs::write(root.join("AGENTS.md"), "Root rules.\n")?;
+    fs::write(root.join("apps/CLAUDE.md"), "App rules.\n")?;
+    fs::write(workspace.join("AGENTS.md"), "Site rules.\n")?;
+    // A link within its own directory is read as its target.
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("AGENTS.md", workspace.join("CLAUDE.md"))?;
+    let skill = temp_skill("Plan from the project's rules.")?;
+    let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
+    request.env = BTreeMap::from([(
+        "RUNX_CWD".to_owned(),
+        workspace.to_string_lossy().into_owned(),
+    )]);
+
+    let invocation =
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+    let instructions = invocation
+        .envelope
+        .context
+        .map(|profiles| profiles.instructions)
+        .unwrap_or_default();
+    let read = instructions
+        .iter()
+        .map(|profile| (profile.path.as_str().to_owned(), profile.content.clone()))
+        .collect::<Vec<_>>();
+    let mut expected = vec![
+        ("AGENTS.md".to_owned(), "Root rules.\n".to_owned()),
+        ("apps/CLAUDE.md".to_owned(), "App rules.\n".to_owned()),
+        ("apps/site/AGENTS.md".to_owned(), "Site rules.\n".to_owned()),
+    ];
+    if cfg!(unix) {
+        expected.push(("apps/site/CLAUDE.md".to_owned(), "Site rules.\n".to_owned()));
+    }
+    assert_eq!(read, expected);
+    assert!(
+        instructions
+            .iter()
+            .all(|profile| profile.root_path.as_str() == root.to_string_lossy()),
+        "each path is relative to the repository root"
+    );
+
+    // A link leaving its directory is refused.
+    #[cfg(unix)]
+    {
+        fs::remove_file(workspace.join("CLAUDE.md"))?;
+        std::os::unix::fs::symlink("../CLAUDE.md", workspace.join("CLAUDE.md"))?;
+        let refused =
+            build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+        assert!(refused.contains("links outside its directory"), "{refused}");
+    }
     Ok(())
 }

@@ -963,7 +963,10 @@ where
     let request_id = runtime.options.run.address(&step.id);
     // The act's instructions are the manual its run admitted.
     let package = runtime.options.package(&invocation.skill_directory)?;
-    let request = agent_act_resolution_request(&invocation, &package, request_id.clone())?;
+    // The act carries why its run exists.
+    let act = runtime.options.run.load()?.and_then(|record| record.act);
+    let request =
+        agent_act_resolution_request(&invocation, &package, act.as_ref(), request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),

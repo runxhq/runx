@@ -93,6 +93,7 @@ fn agent_act(id: &str) -> ResolutionRequest {
         run_id: "run_turn_1".into(),
         step_id: Some("answer".into()),
         skill: "turn-demo".into(),
+        act: None,
         instructions_sha256: "sha256:instructions".into(),
         instructions: "Answer.".into(),
         inputs: JsonObject::new(),
