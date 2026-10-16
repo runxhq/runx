@@ -290,16 +290,10 @@ fn continuation_dependencies_name_other_declared_runners_once()
 }
 
 #[test]
-fn a_schedule_producer_must_declare_its_fulfilment_continuations()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_schedule_packet_does_not_invent_continuation_edges() -> Result<(), Box<dyn std::error::Error>>
+{
     let source = "skill: async-work\nrunners:\n  schedule:\n    steps:\n      - id: schedule\n        tool: {module: schedule.mjs}\n        outputs: {schedule_intent: object}\n        artifacts:\n          named_emits: {schedule_intent: schedule_intent}\n          packets: {schedule_intent: runx.external_job_schedule_intent.v1}\n";
-    let Err(error) = validate_runner_manifest(parse_runner_manifest_yaml(source)?) else {
-        return Err("a schedule without a continuation was accepted".into());
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("must declare its continuation runners")
-    );
+    let manifest = validate_runner_manifest(parse_runner_manifest_yaml(source)?)?;
+    assert!(manifest.runners["schedule"].continuations.is_empty());
     Ok(())
 }

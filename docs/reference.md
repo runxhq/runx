@@ -401,8 +401,10 @@ A runner that schedules asynchronous work declares `continuations: [runner]`
 beside its `inputs` and `steps`. These are same-package runner names included
 in its immutable execution closure and connector readiness. The declaration
 does not run or schedule anything. A runner emitting the external-job schedule
-packet must declare its continuations; the hosted continuation service refuses
-a stage the source runner did not declare.
+packet must declare its continuations to pass readiness under seller authority;
+structural inspection keeps retained packages readable for settled purchase
+recovery. The hosted continuation service refuses a stage the source runner did
+not declare.
 
 The global link points at `packages/cli` in this checkout. Rebuild with
 `pnpm build`; do not reinstall.

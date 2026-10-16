@@ -114,6 +114,27 @@ pub fn inspect_connector_readiness(
         let Some(runner) = manifest.runners.get(&runner) else {
             continue;
         };
+        // Structural binding remains available when recovering a settled
+        // purchase. Admission under a seller's authority must cover the work
+        // its schedule promises before another payment can be accepted.
+        if authority.is_some()
+            && runner.continuations.is_empty()
+            && runner.graph.steps.iter().any(|step| {
+                step.artifacts
+                    .as_ref()
+                    .and_then(|artifacts| artifacts.packets.as_ref())
+                    .is_some_and(|packets| {
+                        packets.values().any(|packet| {
+                            packet == runx_contracts::EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA
+                        })
+                    })
+            })
+        {
+            return Err(SkillInspectionError::ClosureInvalid {
+                runner: runner.name.clone(),
+                problem: "omits external job continuation declarations",
+            });
+        }
         let unknown = JsonObject::new();
         let known = if package.directory == root_directory && runner.name == root_runner {
             inputs
@@ -775,6 +796,51 @@ operations:
 
         // The root calls no operation itself; its child's is what a run admits.
         assert_eq!(projected(&root, temp.path())?, ["acme/notes notes.write"]);
+        Ok(())
+    }
+
+    #[test]
+    fn structural_binding_remains_readable_when_admission_requires_continuations()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("root");
+        fs::create_dir_all(&root)?;
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL)?;
+        fs::write(
+            root.join("run.yaml"),
+            "skill: root\nversion: \"1.0.0\"\nrunners:\n  schedule:\n    default: true\n    steps:\n      - id: schedule\n        tool: {module: schedule.mjs}\n        outputs: {schedule_intent: object}\n        artifacts:\n          named_emits: {schedule_intent: schedule_intent}\n          packets: {schedule_intent: runx.external_job_schedule_intent.v1}\n",
+        )?;
+        fs::write(
+            root.join("schedule.mjs"),
+            "export default async () => ({schedule_intent: {}});\n",
+        )?;
+        let inspection =
+            serde_json::to_value(inspect_skill_package(&root, Some("schedule"), None)?)?;
+        // Digests produced by the prior runtime, before continuation declarations.
+        assert_eq!(
+            inspection["package_digest"],
+            "sha256:6927bbd009d1cf409d67c9b3aac2e80a5b491f1adf807f093fb3d76bd553eab2"
+        );
+        assert_eq!(
+            inspection["execution_closure"]["closure_digest"],
+            "sha256:e685342753771e501da1d05b0e41fb13554ac788e8d32d094bf85fbcc4b11537"
+        );
+        assert!(projected(&root, temp.path())?.is_empty());
+        let authority = serde_json::from_value(serde_json::json!({}))?;
+        let error = super::inspect_connector_readiness(
+            &root,
+            Some("schedule"),
+            None,
+            Some(&authority),
+            &std::collections::BTreeMap::new(),
+            temp.path(),
+        )
+        .expect_err("a new admission must reject undeclared continuation work");
+        assert!(
+            error
+                .to_string()
+                .contains("omits external job continuation declarations")
+        );
         Ok(())
     }
 
