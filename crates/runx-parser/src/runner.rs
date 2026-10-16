@@ -136,6 +136,33 @@ pub fn validate_runner_manifest(
         );
     }
 
+    for (name, runner) in &runners {
+        if runner.continuations.is_empty()
+            && runner.graph.steps.iter().any(|step| {
+                step.artifacts
+                    .as_ref()
+                    .and_then(|artifacts| artifacts.packets.as_ref())
+                    .is_some_and(|packets| {
+                        packets.values().any(|packet| {
+                            packet == runx_contracts::EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA
+                        })
+                    })
+            })
+        {
+            return Err(FIELDS.validation_error(format!("runners.{name} emits an external job schedule and must declare its continuation runners.")));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for continuation in &runner.continuations {
+            if continuation == name
+                || !runners.contains_key(continuation)
+                || !seen.insert(continuation)
+            {
+                return Err(FIELDS.validation_error(format!(
+                    "runners.{name}.continuations must name distinct other runners in this package; invalid {continuation:?}."
+                )));
+            }
+        }
+    }
     let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
     bind_operation_steps(&mut runners, &connectors)?;
     let tools = validate_limit_refs(raw.document.get("tools"), "tools", |tool| {

@@ -107,17 +107,6 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
         resolved.package_digest = Some(expected_package_digest.clone());
     }
     let skill_path = resolved.runnable_path.clone();
-    if plan.action == SkillAction::Inspect {
-        return write_skill_inspection(
-            &skill_path,
-            plan.runner.as_deref(),
-            plan.json,
-            entry_provenance(&resolved),
-            plan.run_authority.as_deref(),
-            &env,
-            &cwd,
-        );
-    }
     let inputs = match plan.input_document.as_ref() {
         Some(source) => match read_input_document(source, &env, &cwd) {
             Ok(inputs) => inputs,
@@ -144,6 +133,16 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             }
         },
     };
+    if plan.action == SkillAction::Inspect {
+        return write_skill_inspection(
+            &skill_path,
+            &plan,
+            (plan.input_document.is_some() || !plan.inputs.is_empty()).then_some(&inputs),
+            entry_provenance(&resolved),
+            &env,
+            &cwd,
+        );
+    }
     // A runner the registry sells is bought, not run here (S10): the run is
     // one step that calls it through the reference it was resolved by.
     let purchase = match (
@@ -376,15 +375,22 @@ fn prepared_entry_provenance(
 
 fn write_skill_inspection(
     skill_path: &Path,
-    runner: Option<&str>,
-    json: bool,
+    plan: &SkillPlan,
+    inputs: Option<&JsonObject>,
     provenance: Option<JsonObject>,
-    authority: Option<&runx_runtime::RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> ExitCode {
-    match inspect_skill(skill_path, runner, provenance, authority, env, cwd) {
-        Ok((value, _)) if json => crate::cli_io::write_stdout_code(
+    match inspect_skill(
+        skill_path,
+        plan.runner.as_deref(),
+        inputs,
+        provenance,
+        plan.run_authority.as_deref(),
+        env,
+        cwd,
+    ) {
+        Ok((value, _)) if plan.json => crate::cli_io::write_stdout_code(
             &format!(
                 "{}\n",
                 serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_owned())
@@ -392,7 +398,7 @@ fn write_skill_inspection(
             0,
         ),
         Ok((value, readiness)) => write_inspection_text(&value, &readiness),
-        Err(message) => write_skill_failure(&message, json, "skill_error", 1, None),
+        Err(message) => write_skill_failure(&message, plan.json, "skill_error", 1, None),
     }
 }
 
@@ -400,6 +406,7 @@ fn write_skill_inspection(
 fn inspect_skill(
     skill_path: &Path,
     selected_runner: Option<&str>,
+    inputs: Option<&JsonObject>,
     provenance: Option<JsonObject>,
     authority: Option<&runx_runtime::RunAuthority>,
     env: &BTreeMap<String, String>,
@@ -418,6 +425,7 @@ fn inspect_skill(
         readiness = runx_runtime::inspect_connector_readiness(
             skill_path,
             selected_runner,
+            inputs,
             authority,
             env,
             cwd,

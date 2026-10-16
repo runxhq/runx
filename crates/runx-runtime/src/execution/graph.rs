@@ -173,6 +173,36 @@ fn inherit_provenance(
     );
 }
 
+/// Bind only caller-supplied input facts for inspection. Run identity, acts
+/// and preceding step outputs are deliberately unknown before execution.
+pub(crate) fn bind_known_inputs(
+    mut graph: ExecutionGraph,
+    inputs: &JsonObject,
+) -> Result<ExecutionGraph, RuntimeError> {
+    let input = JsonValue::Object(inputs.clone());
+    for step in &mut graph.steps {
+        step.bindings = bind_invoked(
+            &step.id,
+            &mut step.inputs,
+            std::mem::take(&mut step.bindings),
+            &|source| match source {
+                Source::Input { path } => value_at(&input, path).cloned().map(Some),
+                _ => None,
+            },
+        )?;
+        // Raw graph references remain strings until execution binds them.
+        // They are unknown facts here, never literal provider arguments.
+        for binding in &step.bindings {
+            if binding.at.is_empty() {
+                step.inputs.clear();
+            } else {
+                place(&step.id, &mut step.inputs, binding, Some(JsonValue::Null))?;
+            }
+        }
+    }
+    Ok(graph)
+}
+
 /// Bind what the run was invoked as into every step: each reference to the
 /// run's input, each `$act` inside an `act:`, and each `$run.id` in an
 /// operation's key takes its value, and an absent one leaves itself out of

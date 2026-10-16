@@ -356,6 +356,7 @@ impl MockConnect {
                     "provider": connector.manifest.id.as_str(),
                     "connector_binding": connector.binding(),
                     "status": "active",
+                    "credential_material_bound": true,
                     "scopes": scopes,
                 }))
             })

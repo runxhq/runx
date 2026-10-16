@@ -170,6 +170,7 @@ impl Provider {
             "provider": connector.manifest.id.as_str(),
             "connector_binding": connector.binding(),
             "status": "active",
+            "credential_material_bound": true,
             "scopes": scopes,
         }));
     }
@@ -823,6 +824,20 @@ fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
 }
 
 #[test]
+fn unusable_hosted_material_refuses_before_a_provider_call() {
+    let fixture = Fixture::new(&["channel.post"]);
+    for grant in fixture.provider.grants.lock().unwrap().iter_mut() {
+        grant["credential_material_bound"] = serde_json::json!(false);
+    }
+    let error = fixture
+        .admit("post", &post("hi"))
+        .expect_err("unusable material")
+        .to_string();
+    assert!(error.contains("no usable credential"), "{error}");
+    assert!(sent(&fixture).is_empty());
+}
+
+#[test]
 fn a_grant_that_lacks_the_scope_refuses_before_anything_is_sent() {
     let fixture = Fixture::new(&["channel.post.read"]);
     let error = fixture
@@ -1071,6 +1086,32 @@ fn the_approval_carries_what_executes_bound_by_its_digest() {
             runx_contracts::canonical_digest(&input).unwrap()
         ))
     );
+}
+
+#[test]
+fn a_provider_effect_key_survives_a_fresh_native_run_and_kernel_store() {
+    let mut first = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    first.run_id = "external-stage-attempt-1";
+    let mut second = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    second.run_id = "external-stage-attempt-2";
+    let start: JsonObject = serde_json::from_value(serde_json::json!({
+        "input": {"target": "s3://media/interview.mp3"},
+        "idempotency_key": "one-durable-provider-effect",
+    }))
+    .unwrap();
+    first.provider.answer(Answer::TimeOut);
+    first
+        .run("transcribe", &start, None)
+        .expect_err("uncertain provider outcome");
+    second
+        .run("transcribe", &start, None)
+        .expect("the new native attempt resends under provider deduplication");
+    let original = first.provider.calls.lock().unwrap();
+    let retried = second.provider.calls.lock().unwrap();
+    assert_eq!(original.len(), 1);
+    assert_eq!(retried.len(), 1);
+    let key = |call: &JsonObject| call["input"].as_object().unwrap()["idempotency_key"].clone();
+    assert_eq!(key(&original[0]), key(&retried[0]));
 }
 
 #[test]

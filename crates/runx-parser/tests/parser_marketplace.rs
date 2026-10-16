@@ -270,3 +270,36 @@ fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
     }
     Ok(())
 }
+
+#[test]
+fn continuation_dependencies_name_other_declared_runners_once()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = "skill: async-work\nrunners:\n  schedule:\n    continuations: [continue]\n    steps:\n      - id: scheduled\n        tool: data.digest\n        inputs: {value: waiting}\n  continue:\n    steps:\n      - id: observed\n        tool: data.digest\n        inputs: {value: ready}\n";
+    let parsed = validate_runner_manifest(parse_runner_manifest_yaml(source)?)?;
+    assert_eq!(parsed.runners["schedule"].continuations, ["continue"]);
+    for invalid in ["[missing]", "[schedule]", "[continue, continue]"] {
+        assert!(
+            validate_runner_manifest(parse_runner_manifest_yaml(
+                &source.replace("[continue]", invalid)
+            )?)
+            .is_err(),
+            "{invalid}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_schedule_producer_must_declare_its_fulfilment_continuations()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = "skill: async-work\nrunners:\n  schedule:\n    steps:\n      - id: schedule\n        tool: {module: schedule.mjs}\n        outputs: {schedule_intent: object}\n        artifacts:\n          named_emits: {schedule_intent: schedule_intent}\n          packets: {schedule_intent: runx.external_job_schedule_intent.v1}\n";
+    let Err(error) = validate_runner_manifest(parse_runner_manifest_yaml(source)?) else {
+        return Err("a schedule without a continuation was accepted".into());
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("must declare its continuation runners")
+    );
+    Ok(())
+}

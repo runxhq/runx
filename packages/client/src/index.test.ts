@@ -175,12 +175,14 @@ describe("native invocation and decoding", () => {
   it("projects inspection readiness under the host's stated grants", async () => {
     const { root, config } = await setup();
     const capture = path.join(root, "capture.json");
-    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
-      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+    await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({args: process.argv.slice(2), input: JSON.parse(readFileSync(0, "utf8"))}));
       process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'agent-inbox', package_digest: 'sha256:${"a".repeat(64)}', runners: [] }));`);
     const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" } } as const;
-    await createRunxClient(config).skills.inspect({ skillPath: "/skill", runner: "create", runAuthority });
-    const args = JSON.parse(await readFile(capture, "utf8")) as string[];
+    await createRunxClient(config).skills.inspect({ skillPath: "/skill", runner: "create", runAuthority, inputs: {target: "resource-1"} });
+    const {args, input} = JSON.parse(await readFile(capture, "utf8")) as {args: string[]; input: unknown};
+    expect(input).toEqual({target: "resource-1"});
+    expect(args[args.indexOf("--inputs") + 1]).toBe("-");
     expect(args.slice(0, 4)).toEqual(["skill", "inspect", "/skill", "create"]);
     expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
   });

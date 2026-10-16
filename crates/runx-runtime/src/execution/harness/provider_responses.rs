@@ -67,6 +67,7 @@ impl RuntimeHttpTransport for HarnessTransport {
                             "grant_id": grant.grant_id,
                             "provider": connector.manifest.id.as_str(),
                             "connector_binding": connector.binding(),
+                            "credential_material_bound": true,
                             "status": "active",
                             "scopes": grant.scopes,
                         })]

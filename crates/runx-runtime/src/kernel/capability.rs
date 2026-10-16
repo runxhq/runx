@@ -59,6 +59,11 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
             if grant.status != "active" {
                 return Err(format!("hosted grant {grant_id} is {}", grant.status));
             }
+            if !grant.credential_material_bound {
+                return Err(format!(
+                    "hosted grant {grant_id} has no usable credential for its connector declaration; reconnect it"
+                ));
+            }
             if grant.principal_ref != instance.principal_ref.as_str() {
                 return Err(format!(
                     "hosted grant {grant_id} is held by another principal than instance {}",

@@ -35,6 +35,7 @@ pub struct HostedProviderGrant {
     pub provider: String,
     pub scopes: Vec<String>,
     pub status: String,
+    pub credential_material_bound: bool,
     pub target_locator: Option<String>,
 }
 
@@ -120,6 +121,10 @@ fn parse_provider_grant(value: &JsonValue) -> Result<HostedProviderGrant, Provid
         provider,
         scopes,
         status,
+        credential_material_bound: grant
+            .get("credential_material_bound")
+            .and_then(JsonValue::as_bool)
+            .unwrap_or(false),
         target_locator,
     })
 }

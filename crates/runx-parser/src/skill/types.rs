@@ -106,6 +106,10 @@ pub struct ValidatedSkill {
 pub struct SkillRunnerDefinition {
     pub name: String,
     pub default: bool,
+    /// Same-package runners that may fulfil this runner after its turn ends.
+    /// They are part of its pinned execution closure, not implicit execution.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub continuations: Vec<String>,
     pub inputs: BTreeMap<String, SkillInput>,
     /// Complete, parser-validated calls for this runner. These are contract
     /// examples, not fixtures: inspection and generated operator instructions

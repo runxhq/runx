@@ -48,7 +48,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -146,7 +146,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
     );
     assert_help_line(
         &skill_help_text(),
-        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
     );
     assert_help_line(
         &skill_help_text(),

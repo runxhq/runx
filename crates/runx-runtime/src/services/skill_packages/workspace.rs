@@ -26,7 +26,8 @@ pub(crate) fn inspect_skill_workspace(
     let target_exists = target_root.as_ref().is_some_and(|path| path.is_dir());
     let (target_files, target_metrics, base_digest) =
         inspect_target(target_root.as_deref(), target_exists)?;
-    let target_inspection = inspect_target_package(target_root.as_deref(), target_exists);
+    let target_inspection =
+        inspect_target_package(&repo_root, target_root.as_deref(), target_exists);
     let catalog_root = if repo_root.join("skills").is_dir() {
         repo_root.join("skills")
     } else {
@@ -64,14 +65,22 @@ pub(crate) fn inspect_skill_workspace(
     ]))
 }
 
-fn inspect_target_package(target_root: Option<&Path>, target_exists: bool) -> JsonValue {
+fn inspect_target_package(
+    repo_root: &Path,
+    target_root: Option<&Path>,
+    target_exists: bool,
+) -> JsonValue {
     if !target_exists {
         return JsonValue::Null;
     }
     let Some(target_root) = target_root else {
         return invalid_target_inspection("existing skill target has no resolved workspace path");
     };
-    match crate::inspect_skill_package(target_root, None, None) {
+    let env = std::collections::BTreeMap::from([(
+        crate::paths::RUNX_CWD_ENV.to_owned(),
+        repo_root.to_string_lossy().into_owned(),
+    )]);
+    match crate::inspect_skill_package(target_root, None, Some(&env)) {
         Ok(inspection) => inspection,
         Err(error) => invalid_target_inspection(&error.to_string()),
     }

@@ -392,6 +392,18 @@ large immutable content behind the digest-bound artifact/page boundary and put
 durable histories behind data cursors rather than carrying either through graph
 context.
 
+`runx skill inspect` also accepts `--inputs file|-`. Inspection binds known
+caller inputs to check concrete connector targets under `--run-authority`;
+values produced by later steps remain unknown until execution. Every actual
+call rechecks its target and current grant before provider execution.
+
+A runner that schedules asynchronous work declares `continuations: [runner]`
+beside its `inputs` and `steps`. These are same-package runner names included
+in its immutable execution closure and connector readiness. The declaration
+does not run or schedule anything. A runner emitting the external-job schedule
+packet must declare its continuations; the hosted continuation service refuses
+a stage the source runner did not declare.
+
 The global link points at `packages/cli` in this checkout. Rebuild with
 `pnpm build`; do not reinstall.
 

@@ -36,6 +36,8 @@ export interface SkillInspection extends Readonly<Record<string, unknown>> {
 }
 
 export interface SkillInspectOptions extends InvocationOptions {
+  /** Known runner inputs for target readiness; no operations execute. */
+  readonly inputs?: Readonly<Record<string, unknown>>;
   readonly skillPath: string;
   readonly runner?: string;
   /** The authority a host would start the run with: inspect projects readiness under it. */

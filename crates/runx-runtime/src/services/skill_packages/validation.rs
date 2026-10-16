@@ -26,7 +26,7 @@ pub(super) fn validate_candidate(
     if let Some(architecture) = architecture {
         validate_architecture_resources(architecture, &resources)?;
     }
-    let inspection = crate::inspect_skill_package(candidate, None, None)
+    let inspection = crate::inspect_skill_package(candidate, None, Some(env))
         .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))?;
     let harness = if run_harness {
         run_candidate_harness(repo_root, candidate, env, effects)?
@@ -94,7 +94,7 @@ pub(crate) fn validate_skill_package(
         .map(|files| InlineCandidateStage::prepare(&repo_root, files, env))
         .transpose()?;
     let candidate_path = resolve_candidate_path(&repo_root, requested_ref, stage.as_ref())?;
-    let inspected = crate::inspect_skill_package(&candidate_path, None, None);
+    let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
     let run_harness = allow_execute_harness || safe_harness_execution(inspected.as_ref().ok());
     let resolved_ref = if stage.is_some() {
         "inline-candidate".to_owned()
@@ -247,6 +247,56 @@ mod tests {
     use serde_json::json;
 
     use super::resources::{CandidateResourceUsage, validate_architecture_resources};
+
+    #[test]
+    fn candidate_inspection_resolves_the_workspaces_pinned_installed_connector()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let repo = tempfile::tempdir()?;
+        let installed = repo.path().join("connectors/slack/1.0.0");
+        std::fs::create_dir_all(&installed)?;
+        std::fs::write(
+            installed.join("connector.yaml"),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../connectors/slack/connector.yaml"
+            )),
+        )?;
+        let connector = crate::kernel::connectors::ConnectorScope::at(repo.path())?
+            .in_project(repo.path().join("connectors"))
+            .named("slack@1.0.0")?;
+        let candidate = repo.path().join("skills/probe");
+        std::fs::create_dir_all(&candidate)?;
+        std::fs::write(
+            candidate.join("SKILL.md"),
+            "---\nname: probe\ndescription: Inspect an installed dependency.\n---\n# Probe\n",
+        )?;
+        std::fs::write(
+            candidate.join("run.yaml"),
+            format!(
+                "skill: probe\nconnectors:\n  slack:\n    manifest_digest: {}\n    operations: [channel.post]\nrunners:\n  inspect:\n    default: true\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {{value: ready}}\n",
+                connector.manifest_digest
+            ),
+        )?;
+        let env = std::collections::BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            repo.path().display().to_string(),
+        )]);
+        let report = super::validate_candidate(
+            repo.path(),
+            &candidate,
+            &env,
+            &crate::RuntimeEffectRegistry::default(),
+            false,
+            None,
+        )?;
+        assert!(
+            report
+                .get("inspect")
+                .and_then(runx_contracts::JsonValue::as_object)
+                .is_some()
+        );
+        Ok(())
+    }
 
     fn architecture(domain_module: bool) -> SkillArchitectureDecision {
         serde_json::from_value(json!({

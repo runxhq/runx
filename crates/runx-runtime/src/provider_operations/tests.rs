@@ -240,6 +240,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
                     "opaque capability with spaces".to_owned(),
                 ],
                 status: "active".to_owned(),
+                credential_material_bound: true,
                 target_locator: None,
             },
             // A grant Connect executes under no connector still lists; only
@@ -250,6 +251,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
                 provider: "retired".to_owned(),
                 scopes: vec!["records.read".to_owned()],
                 status: "active".to_owned(),
+                credential_material_bound: false,
                 target_locator: None,
             },
         ]

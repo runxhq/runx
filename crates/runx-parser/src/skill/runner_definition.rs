@@ -7,6 +7,7 @@ use super::{FIELDS, SkillRunnerDefinition, validate_inputs};
 
 const RUNNER_FIELDS: &[&str] = &[
     "default",
+    "continuations",
     "examples",
     "inputs",
     "outputs",
@@ -34,6 +35,12 @@ pub(crate) fn validate_runner_definition(
     validate_input_examples(&format!("runners.{name}.examples"), &examples, &inputs)?;
     Ok(SkillRunnerDefinition {
         name: name.to_owned(),
+        continuations: FIELDS
+            .optional_string_array(
+                runner.get("continuations"),
+                &format!("runners.{name}.continuations"),
+            )?
+            .unwrap_or_default(),
         default: FIELDS
             .optional_bool(runner.get("default"), &format!("runners.{name}.default"))?
             .unwrap_or(false),

@@ -109,6 +109,17 @@ fn result_steps(runner: &SkillRunnerDefinition) -> impl Iterator<Item = &runx_pa
 }
 
 fn insert_runner_contract_metadata(output: &mut JsonObject, runner: &SkillRunnerDefinition) {
+    output.insert(
+        "continuations".to_owned(),
+        JsonValue::Array(
+            runner
+                .continuations
+                .iter()
+                .cloned()
+                .map(JsonValue::String)
+                .collect(),
+        ),
+    );
     let scopes = runner.declared_scopes();
     if !scopes.is_empty() {
         output.insert(

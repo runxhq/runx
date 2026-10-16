@@ -264,7 +264,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         top_level_usage: &[],
         usage: &[
             "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
-            "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-j] [--registry url|path] [--digest sha256]",
+            "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
         options: &[

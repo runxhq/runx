@@ -30,6 +30,7 @@ pub(crate) struct HostedGrant {
     pub provider: String,
     pub scopes: Vec<String>,
     pub status: String,
+    pub credential_material_bound: bool,
     pub target_locator: Option<String>,
     pub principal_ref: String,
 }
@@ -220,6 +221,7 @@ impl HostedClient {
             provider: grant.provider.clone(),
             scopes: grant.scopes.clone(),
             status: grant.status.clone(),
+            credential_material_bound: grant.credential_material_bound,
             target_locator: grant.target_locator.clone(),
             principal_ref: session.principal_ref,
         })

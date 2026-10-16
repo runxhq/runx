@@ -91,6 +91,7 @@ pub fn inspect_skill_package(
 pub fn inspect_connector_readiness(
     skill_path: &Path,
     selected_runner: Option<&str>,
+    inputs: Option<&JsonObject>,
     authority: Option<&crate::RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -101,6 +102,8 @@ pub fn inspect_connector_readiness(
     else {
         return Ok(Vec::new());
     };
+    let root_directory = loaded.directory.clone();
+    let root_runner = runner.clone();
     let mut readiness = Vec::new();
     for (package, runner) in
         execution_closure::inspect_runner_closure_runners(Arc::clone(&loaded), &runner, env)?
@@ -111,9 +114,20 @@ pub fn inspect_connector_readiness(
         let Some(runner) = manifest.runners.get(&runner) else {
             continue;
         };
+        let unknown = JsonObject::new();
+        let known = if package.directory == root_directory && runner.name == root_runner {
+            inputs
+        } else {
+            None
+        };
+        let graph = crate::execution::graph::bind_known_inputs(
+            runner.graph.clone(),
+            known.unwrap_or(&unknown),
+        )?;
         let projected = crate::kernel::admission::skill_readiness(
             &package.directory,
             &runner_requirements(&manifest.connectors, runner),
+            &graph.steps,
             authority,
             env,
             cwd,
@@ -718,7 +732,7 @@ operations:
             ),
         ]);
         Ok(
-            super::inspect_connector_readiness(skill, None, None, &env, workspace)?
+            super::inspect_connector_readiness(skill, None, None, None, &env, workspace)?
                 .into_iter()
                 .map(|operation| {
                     format!(
@@ -761,6 +775,37 @@ operations:
 
         // The root calls no operation itself; its child's is what a run admits.
         assert_eq!(projected(&root, temp.path())?, ["acme/notes notes.write"]);
+        Ok(())
+    }
+
+    #[test]
+    fn readiness_covers_declared_continuations_before_the_first_turn_runs()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("root");
+        fs::create_dir_all(root.join("connectors/acme/notes"))?;
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL)?;
+        fs::write(
+            root.join("connectors/acme/notes/connector.yaml"),
+            hosted_connector("acme/notes"),
+        )?;
+        fs::write(
+            root.join("run.yaml"),
+            "skill: root\nconnectors:\n  acme/notes:\n    operations: [notes.write]\nrunners:\n  schedule:\n    default: true\n    continuations: [continue]\n    steps:\n      - id: schedule\n        tool: data.digest\n        inputs: {value: scheduled}\n  continue:\n    steps:\n      - id: write\n        operation: acme/notes/notes.write\n        result_fields: [note]\n        idempotency_key: $run.id\n        input: {value: written}\n",
+        )?;
+        assert_eq!(projected(&root, temp.path())?, ["acme/notes notes.write"]);
+        let inspection = inspect_skill_package(&root, None, None)?;
+        let json = serde_json::to_value(inspection)?;
+        assert_eq!(
+            json["runner"]["continuations"],
+            serde_json::json!(["continue"])
+        );
+        assert!(
+            json["execution_closure"]["profiles"]
+                .as_array()
+                .expect("profiles")
+                .contains(&serde_json::json!("run.yaml#continue"))
+        );
         Ok(())
     }
 

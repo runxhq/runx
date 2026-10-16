@@ -592,7 +592,21 @@ impl<'a> ExecutionClosureInspector<'a> {
             },
             &runner.graph,
             walk,
-        )
+        )?;
+        for continuation in &runner.continuations {
+            self.walk_runner(
+                RunnerWalkTarget {
+                    loaded: loaded.clone(),
+                    skill_directory: skill_directory.clone(),
+                    profile_path: profile_path.clone(),
+                    runner_name: continuation.clone(),
+                    edge_depth,
+                    materialize_local,
+                },
+                walk,
+            )?;
+        }
+        Ok(())
     }
 
     fn walk_graph(

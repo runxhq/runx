@@ -25,7 +25,7 @@ use runx_contracts::{
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
-    derive_execution_term, mint_attenuated,
+    FamilySubsetComparator, derive_execution_term, mint_attenuated,
 };
 use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget};
 
@@ -671,6 +671,7 @@ fn held(
 pub fn skill_readiness(
     skill_dir: &Path,
     requirements: &BTreeMap<String, ConnectorRequirement>,
+    calls: &[runx_parser::GraphStep],
     authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -678,7 +679,7 @@ pub fn skill_readiness(
     let scope = ConnectorScope::at(skill_dir)
         .map_err(|error| error.to_string())?
         .in_project(crate::paths::RunxPaths::resolve(env, cwd).connectors());
-    project(&scope, requirements, authority, env, cwd)
+    project(&scope, requirements, calls, authority, env, cwd)
 }
 
 /// The readiness of every operation of one connector in the workspace at
@@ -700,6 +701,7 @@ pub fn connector_readiness(
     project(
         &scope,
         &BTreeMap::from([(connector.name.as_str().to_owned(), requirement)]),
+        &[],
         None,
         env,
         cwd,
@@ -709,6 +711,7 @@ pub fn connector_readiness(
 fn project(
     scope: &ConnectorScope,
     requirements: &BTreeMap<String, ConnectorRequirement>,
+    calls: &[runx_parser::GraphStep],
     authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -740,7 +743,15 @@ fn project(
             };
             references.into_iter().flat_map(move |reference| {
                 requirement.operations.iter().map(move |operation| {
-                    readiness(key, reference, requirement, operation, authority, context)
+                    readiness(
+                        key,
+                        reference,
+                        requirement,
+                        operation,
+                        calls,
+                        authority,
+                        context,
+                    )
                 })
             })
         })
@@ -777,6 +788,7 @@ fn readiness(
     reference: &str,
     requirement: &ConnectorRequirement,
     operation: &OperationName,
+    calls: &[runx_parser::GraphStep],
     authority: Option<&RunAuthority>,
     context: Context<'_>,
 ) -> Readiness {
@@ -864,6 +876,71 @@ fn readiness(
         cwd,
     }) {
         Ok(capability) => {
+            // Render only what inspection knows. Dynamic values from a later
+            // provider response remain required and are checked at execution.
+            // All concrete targets use the same subset comparator as admission.
+            let arguments = calls
+                .iter()
+                .filter(|step| {
+                    step.operation().is_some_and(|target| {
+                        target.requirement == requirement_key
+                            && target
+                                .operation
+                                .as_ref()
+                                .is_none_or(|name| name == operation)
+                    })
+                })
+                .filter_map(|step| {
+                    step.inputs.get("input").map(|input| {
+                        (
+                            Some(input),
+                            step.bindings
+                                .iter()
+                                .any(|binding| binding.at.first().is_none_or(|key| key == "input")),
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            let arguments = if arguments.is_empty() {
+                vec![(None, false)]
+            } else {
+                arguments
+            };
+            for (arguments, unresolved) in arguments {
+                match spec.target.template.render_string(&TemplateInputs {
+                    arguments,
+                    parameters: Some(&instance.parameters),
+                    ..TemplateInputs::default()
+                }) {
+                    Ok(target) => {
+                        let mut requested = capability.term.clone();
+                        requested.bounds.targets = vec![target.into()];
+                        if !ConnectorBoundsComparator.bounds_subset(&requested, &capability.term) {
+                            reasons.push(
+                                AdmissionCheck::Capability,
+                                CheckOutcome::Fail,
+                                "the granted targets do not cover the operation's target",
+                            );
+                        }
+                    }
+                    Err(runx_contracts::connector::TemplateError::Unavailable { .. }) => reasons
+                        .push(
+                            AdmissionCheck::Capability,
+                            CheckOutcome::Required,
+                            "the concrete target must be checked when its inputs are available",
+                        ),
+                    Err(_) if unresolved => reasons.push(
+                        AdmissionCheck::Capability,
+                        CheckOutcome::Required,
+                        "the concrete target must be checked when its inputs are available",
+                    ),
+                    Err(error) => reasons.push(
+                        AdmissionCheck::Requirement,
+                        CheckOutcome::Fail,
+                        error.to_string(),
+                    ),
+                }
+            }
             let missing = spec
                 .scopes
                 .iter()
