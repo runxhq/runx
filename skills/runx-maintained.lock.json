@@ -1,5 +1,13 @@
 [
   {
+    "skill_id": "runx/agent-session",
+    "version": "sha-207560b7b05a",
+    "digest": "05eb0592d874a185f5313a900812d64e469764eead8d945f6f726c9eae1033fa",
+    "content_digest": "sha256:207560b7b05a65c4e6111db47179cefc2516196769a0dbc3d794790beaee14ea",
+    "catalog_visibility": "public",
+    "catalog_role": "canonical"
+  },
+  {
     "skill_id": "runx/attention-review",
     "version": "sha-3fcaf1656849",
     "digest": "229148ef6d29aa05d98caaf9b995d355f4abcfec642c7da38355b47d8b79c4df",
@@ -390,6 +398,14 @@
     "content_digest": "sha256:a5126617600f08eeac27eb677b662cc7f0e3f2a67f9b37757cb1d9b97fb22d29",
     "catalog_visibility": "public",
     "catalog_role": "context"
+  },
+  {
+    "skill_id": "runx/revert",
+    "version": "sha-033ab3a94918",
+    "digest": "80eaf0bc70a8c70b96adabffdab70169a92a4c8a00a0b32d8e4599e3a5671d79",
+    "content_digest": "sha256:033ab3a94918313ddbb2b33b76d1676d0a58dd4a46756f7a6b6b16fd618adf55",
+    "catalog_visibility": "internal",
+    "catalog_role": "runtime-path"
   },
   {
     "skill_id": "runx/run-history",

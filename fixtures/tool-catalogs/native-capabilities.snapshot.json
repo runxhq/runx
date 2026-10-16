@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 44,
+  "capability_count": 45,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -192,6 +192,21 @@
         "kind": "wrapped",
         "output": "file_edit",
         "packet": "runx.fs.file_edit.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "fs.inverse",
+      "owner": "runx-runtime/fs",
+      "scopes": [
+        "fs.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "inverse_bundle",
+        "packet": "runx.fs.inverse_bundle.v1"
       },
       "execution_boundary": "native_capability"
     },

@@ -1,0 +1,58 @@
+skill: revert
+version: "0.1.0"
+
+catalog:
+  owner: runx
+  kind: graph
+  audience: operator
+  visibility: internal
+  role: runtime-path
+  part_of: [agent-session]
+  execution: execute
+  completion: runtime_receipt
+  approval: none
+  category: code
+
+harness:
+  cases:
+    - name: revert-refuses-a-call-the-run-never-made
+      operator_journeys:
+        - mode: refusal
+          request: Undo a call the run never made.
+          expected_outcome: Refuse with the call id the run has no record of, and change nothing.
+      runner: revert
+      inputs:
+        run_id: run_session_missing
+        call_ids: [edit-1]
+      expect:
+        status: failure
+
+runners:
+  revert:
+    default: true
+    inputs:
+      run_id:
+        type: string
+        required: true
+        description: The run whose edits to undo.
+      call_ids:
+        type: json
+        required: true
+        description: The call ids of the edit calls to undo together.
+    result_from: [apply]
+    steps:
+      - id: inverse
+        label: read what the edits replaced
+        tool: fs.inverse
+        scopes: [fs.read]
+        inputs:
+          run_id: $input.run_id
+          call_ids: $input.call_ids
+      - id: apply
+        label: restore it, all or none
+        tool: fs.apply_bundle
+        scopes: [fs.write, fs.delete]
+        inputs:
+          repo_root: $steps.inverse.inverse_bundle.repo_root
+          writes: $steps.inverse.inverse_bundle.writes
+          deletes: $steps.inverse.inverse_bundle.deletes

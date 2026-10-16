@@ -13,7 +13,7 @@ mod effect;
 mod journal;
 
 pub(crate) use effect::text_bundle_effect;
-pub(crate) use journal::{Journal, recover};
+pub(crate) use journal::{Journal, applied_bundle, recover};
 
 use admission::{admit_file_target, admit_text_bundle, missing_parent_directories, snapshot_paths};
 use apply::{apply_admitted_bundle, bundle_report, rollback_paths};

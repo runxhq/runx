@@ -172,6 +172,52 @@ impl Journal {
     }
 }
 
+/// What one applied bundle of a run changed: its root, and each file's
+/// path under it with what it held before, none for a file it created.
+pub(crate) struct BundleImages {
+    pub(crate) root: PathBuf,
+    pub(crate) files: Vec<(String, Option<Vec<u8>>)>,
+}
+
+/// The before-images of bundle `bundle` of the run `run_id`, which must have
+/// been applied.
+pub(crate) fn applied_bundle(
+    store: &KernelStore,
+    run_id: &str,
+    bundle: u64,
+) -> Result<BundleImages, RuntimeError> {
+    let events = store.read::<BundleEvent>(run_id).map_err(journal_error)?;
+    let applied = events.iter().any(|recorded| {
+        matches!(&recorded.event, BundleEvent::Ended(ended)
+            if ended.bundle == bundle && ended.outcome == Outcome::Applied)
+    });
+    let begun = events
+        .into_iter()
+        .find(|recorded| recorded.version == bundle)
+        .and_then(|recorded| match recorded.event {
+            BundleEvent::Begun(begun) => Some(begun),
+            BundleEvent::Ended(_) => None,
+        })
+        .filter(|_| applied)
+        .ok_or_else(|| {
+            journal_error(format!("run {run_id} journals no applied change {bundle}"))
+        })?;
+    let mut files = Vec::with_capacity(begun.files.len());
+    for file in begun.files {
+        let before = file
+            .before
+            .as_deref()
+            .map(|digest| store.blob(digest))
+            .transpose()
+            .map_err(journal_error)?;
+        files.push((file.path, before));
+    }
+    Ok(BundleImages {
+        root: PathBuf::from(begun.root),
+        files,
+    })
+}
+
 /// Roll back every bundle the run `run_id` or any run below it began and
 /// never ended, restoring each file to what it held and removing the
 /// directories the bundle created, then record it rolled back.
