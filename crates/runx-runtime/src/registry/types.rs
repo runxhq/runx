@@ -1,6 +1,7 @@
 // Module rationale: registry wire/domain types are kept together so
 // local, hosted, install, publish, trust, and signed-manifest envelopes evolve
 // under one serialization contract.
+pub use runx_contracts::TrustTier;
 use runx_contracts::maturity::MaturityTier;
 use runx_contracts::{CopyableCommand, JsonValue, PaidSkillListing};
 use serde::{Deserialize, Serialize};
@@ -15,25 +16,6 @@ pub struct RegistryLinkResolution {
     pub registry_url: Option<String>,
     pub install_command: CopyableCommand,
     pub run_command: CopyableCommand,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TrustTier {
-    FirstParty,
-    Verified,
-    Community,
-}
-
-impl TrustTier {
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::FirstParty => "first_party",
-            Self::Verified => "verified",
-            Self::Community => "community",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

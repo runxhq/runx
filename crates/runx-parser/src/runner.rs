@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{
-    AllowedOperation, ExecutionRequirements, JsonObject, JsonValue, PaidSkillActsOn,
-    PaidSkillOfferTerms, PaidSkillPrice, TurnAllowance, canonical_json::canonical_stable_json,
+    AllowedOperation, CatalogRule, ExecutionRequirements, JsonObject, JsonValue, PaidSkillActsOn,
+    PaidSkillOfferTerms, PaidSkillPrice, SkillAllowance, TurnAllowance,
+    canonical_json::canonical_stable_json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -52,9 +53,10 @@ pub struct SkillRunnerManifest {
     /// The catalog tools an agent turn may call.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<String>,
-    /// The child skills an agent turn may run.
+    /// The child skills an agent turn may run, and the catalog rules it may
+    /// load packages under.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub skills: Vec<String>,
+    pub skills: Vec<SkillAllowance>,
     /// Whether an agent turn may ask the human.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub asks: bool,
@@ -123,12 +125,15 @@ pub fn validate_runner_manifest(
         "input_definitions",
     )?;
     let skill = FIELDS.required_string(raw.document.get("skill"), "skill")?;
+    let limits = TurnLimits::of(&raw.document, "")?;
     let runners_record = FIELDS.required_object(raw.document.get("runners"), "runners")?;
     let mut runners = BTreeMap::new();
+    let mut runner_limits = BTreeMap::new();
     for (name, value) in runners_record {
         let JsonValue::Object(runner) = value else {
             return Err(FIELDS.validation_error(format!("runners.{name} must be an object.")));
         };
+        runner_limits.insert(name.clone(), limits.narrowed(runner, name)?);
         let runner = expand_input_definitions(name, runner, &input_definitions)?;
         runners.insert(
             name.clone(),
@@ -138,19 +143,12 @@ pub fn validate_runner_manifest(
 
     let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
     bind_operation_steps(&mut runners, &connectors)?;
-    let tools = validate_limit_refs(raw.document.get("tools"), "tools", |tool| {
-        let admission = runx_core::policy::admit_agent_tool_ref(tool);
-        (!admission.allowed).then(|| admission.reason.to_owned())
-    })?;
-    let skills = validate_limit_refs(raw.document.get("skills"), "skills", |_| None)?;
-    let asks = FIELDS
-        .optional_bool(raw.document.get("asks"), "asks")?
-        .unwrap_or(false);
-    bind_turn_allowance(
-        &mut runners,
-        &turn_allowance(&connectors, &tools, &skills, asks),
-        &connectors,
-    );
+    bind_turn_allowance(&mut runners, &runner_limits, &connectors);
+    let TurnLimits {
+        tools,
+        skills,
+        asks,
+    } = limits;
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners, &connectors)?;
 
     let harness = validate_harness_manifest(
@@ -179,73 +177,174 @@ pub fn validate_runner_manifest(
     })
 }
 
-/// A list of distinct, non-empty refs; `refuse` names why a ref is not one.
-fn validate_limit_refs(
-    value: Option<&JsonValue>,
-    field: &str,
-    refuse: impl Fn(&str) -> Option<String>,
-) -> Result<Vec<String>, ValidationError> {
-    let Some(value) = value else {
-        return Ok(Vec::new());
-    };
-    let refs = FIELDS.required_plain_array(Some(value), field)?;
-    let mut seen = std::collections::BTreeSet::new();
-    refs.iter()
-        .enumerate()
-        .map(|(index, value)| {
-            let entry = format!("{field}[{index}]");
-            let reference = FIELDS.required_string(Some(value), &entry)?;
-            if let Some(reason) = refuse(&reference) {
-                return Err(FIELDS.validation_error(format!("{entry} {reference:?}: {reason}.")));
-            }
-            if !seen.insert(reference.clone()) {
-                return Err(FIELDS.validation_error(format!("{entry} repeats {reference:?}.")));
-            }
-            Ok(reference)
-        })
-        .collect()
+/// What an agent turn may call beyond the skill's connector operations: the
+/// skill's limits, or a runner's narrowing of them.
+struct TurnLimits {
+    tools: Vec<String>,
+    skills: Vec<SkillAllowance>,
+    asks: bool,
 }
 
-/// The skill's limits as one turn's allowance.
-fn turn_allowance(
-    connectors: &BTreeMap<String, ConnectorRequirement>,
-    tools: &[String],
-    skills: &[String],
-    asks: bool,
-) -> TurnAllowance {
-    TurnAllowance {
-        operations: connectors
+impl TurnLimits {
+    /// The limits `document` declares, its fields named under `prefix`.
+    fn of(document: &JsonObject, prefix: &str) -> Result<Self, ValidationError> {
+        let field = |name: &str| format!("{prefix}{name}");
+        let tools = distinct_entries(document.get("tools"), &field("tools"), |entry, value| {
+            let tool = FIELDS.required_string(Some(value), entry)?;
+            let admission = runx_core::policy::admit_agent_tool_ref(&tool);
+            if !admission.allowed {
+                return Err(
+                    FIELDS.validation_error(format!("{entry} {tool:?}: {}.", admission.reason))
+                );
+            }
+            Ok(tool)
+        })?;
+        let skills = distinct_entries(document.get("skills"), &field("skills"), skill_allowance)?;
+        let asks = FIELDS
+            .optional_bool(document.get("asks"), &field("asks"))?
+            .unwrap_or(false);
+        Ok(Self {
+            tools,
+            skills,
+            asks,
+        })
+    }
+
+    /// The limits runner `name` declares, each a part of the skill's; a
+    /// runner that declares none of a kind keeps the skill's.
+    fn narrowed(&self, runner: &JsonObject, name: &str) -> Result<Self, ValidationError> {
+        let prefix = format!("runners.{name}.");
+        let declared = Self::of(runner, &prefix)?;
+        let beyond = |kind: &str, entry: String| {
+            FIELDS.validation_error(format!(
+                "{prefix}{kind} names {entry}, which the skill's {kind} do not."
+            ))
+        };
+        if let Some(tool) = declared
+            .tools
             .iter()
-            .flat_map(|(requirement, declared)| {
-                declared
-                    .operations
-                    .iter()
-                    .map(|operation| AllowedOperation {
-                        requirement: requirement.as_str().into(),
-                        operation: operation.as_str().into(),
-                    })
-            })
-            .collect(),
-        tools: tools.iter().map(|tool| tool.as_str().into()).collect(),
-        skills: skills.iter().map(|skill| skill.as_str().into()).collect(),
-        asks,
+            .find(|tool| !self.tools.contains(tool))
+        {
+            return Err(beyond("tools", format!("{tool:?}")));
+        }
+        if let Some(skill) = declared
+            .skills
+            .iter()
+            .find(|skill| !self.skills.contains(skill))
+        {
+            return Err(beyond(
+                "skills",
+                serde_json::to_string(skill).unwrap_or_default(),
+            ));
+        }
+        if declared.asks && !self.asks {
+            return Err(FIELDS.validation_error(format!(
+                "{prefix}asks is true, and the skill's asks is not."
+            )));
+        }
+        Ok(Self {
+            tools: if runner.contains_key("tools") {
+                declared.tools
+            } else {
+                self.tools.clone()
+            },
+            skills: if runner.contains_key("skills") {
+                declared.skills
+            } else {
+                self.skills.clone()
+            },
+            asks: if runner.contains_key("asks") {
+                declared.asks
+            } else {
+                self.asks
+            },
+        })
+    }
+
+    /// The limits as one turn's allowance, beside the skill's operations.
+    fn allowance(&self, connectors: &BTreeMap<String, ConnectorRequirement>) -> TurnAllowance {
+        TurnAllowance {
+            operations: connectors
+                .iter()
+                .flat_map(|(requirement, declared)| {
+                    declared
+                        .operations
+                        .iter()
+                        .map(|operation| AllowedOperation {
+                            requirement: requirement.as_str().into(),
+                            operation: operation.as_str().into(),
+                        })
+                })
+                .collect(),
+            tools: self.tools.iter().map(|tool| tool.as_str().into()).collect(),
+            skills: self.skills.clone(),
+            asks: self.asks,
+        }
     }
 }
 
-/// Every agent step of every runner may call the whole of the skill's
-/// limits, admitted under the skill's own declarations.
+/// A list of distinct entries, each read by `entry`.
+fn distinct_entries<T: PartialEq>(
+    value: Option<&JsonValue>,
+    field: &str,
+    entry: impl Fn(&str, &JsonValue) -> Result<T, ValidationError>,
+) -> Result<Vec<T>, ValidationError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let mut entries = Vec::new();
+    for (index, value) in FIELDS
+        .required_plain_array(Some(value), field)?
+        .iter()
+        .enumerate()
+    {
+        let name = format!("{field}[{index}]");
+        let read = entry(&name, value)?;
+        if entries.contains(&read) {
+            return Err(FIELDS.validation_error(format!(
+                "{name} repeats {}.",
+                canonical_stable_json(value).unwrap_or_default()
+            )));
+        }
+        entries.push(read);
+    }
+    Ok(entries)
+}
+
+/// A `skills` entry: a child skill's ref, or a catalog rule.
+fn skill_allowance(entry: &str, value: &JsonValue) -> Result<SkillAllowance, ValidationError> {
+    if let JsonValue::Object(_) = value {
+        let rule = value
+            .clone()
+            .deserialize_into::<CatalogRule>()
+            .map_err(|error| {
+                FIELDS.validation_error(format!("{entry} is not a catalog rule: {error}."))
+            })?;
+        rule.check()
+            .map_err(|reason| FIELDS.validation_error(format!("{entry}: {reason}.")))?;
+        return Ok(SkillAllowance::Rule(rule));
+    }
+    let reference = FIELDS.required_string(Some(value), entry)?;
+    Ok(SkillAllowance::Ref(reference.as_str().into()))
+}
+
+/// Every agent step of a runner may call the whole of the runner's limits,
+/// admitted under the skill's own declarations.
 fn bind_turn_allowance(
     runners: &mut BTreeMap<String, SkillRunnerDefinition>,
-    allowance: &TurnAllowance,
+    limits: &BTreeMap<String, TurnLimits>,
     connectors: &BTreeMap<String, ConnectorRequirement>,
 ) {
-    for step in runners
-        .values_mut()
-        .flat_map(|runner| runner.graph.steps.iter_mut())
-    {
-        if let crate::StepKind::Agent(agent) = &mut step.kind {
-            agent.allowance = allowance.clone();
-            agent.connectors = connectors.clone();
+    for (name, runner) in runners.iter_mut() {
+        let Some(limits) = limits.get(name) else {
+            continue;
+        };
+        let allowance = limits.allowance(connectors);
+        for step in &mut runner.graph.steps {
+            if let crate::StepKind::Agent(agent) = &mut step.kind {
+                agent.allowance = allowance.clone();
+                agent.connectors = connectors.clone();
+            }
         }
     }
 }

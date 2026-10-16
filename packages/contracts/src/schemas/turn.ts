@@ -7,13 +7,52 @@ import type { AgentActInvocationContract } from "./agent-act.js";
 import type { ResolutionRequestContract } from "./resolution.js";
 import type { ProjectArtifactRefContract } from "./skill-output.js";
 
-/** What a turn call names: one entry of the turn's allowance. */
+/** The exact package and execution closure a load bound for one runner. */
+export type BoundClosureContract = DeepReadonly<{
+  package_digest: string;
+  closure_digest: string;
+}>;
+
+/**
+ * What a turn call names: one entry of the turn's allowance. A skill is one
+ * the allowance names, run by its default runner, or one runner of a skill a
+ * load bound. A load's input is `{skill, runner?}` or `{connector}`.
+ */
 export type TurnTargetContract = DeepReadonly<
   | { kind: "tool"; tool: string }
   | { kind: "operation"; requirement: string; operation: string }
-  | { kind: "skill"; skill: string }
+  | { kind: "skill"; skill: string; runner?: string; bound?: BoundClosureContract }
   | { kind: "ask" }
+  | { kind: "load" }
 >;
+
+/** The package a load bound; a project's own has no tier and no publisher. */
+export type LoadedPackageContract = DeepReadonly<
+  | {
+      kind: "skill";
+      skill: string;
+      trust_tier?: "first_party" | "verified" | "community";
+      publisher?: string;
+      package_digest: string;
+    }
+  | {
+      kind: "connector";
+      connector: string;
+      trust_tier?: "first_party" | "verified" | "community";
+      publisher?: string;
+      manifest_digest: string;
+    }
+>;
+
+/**
+ * A completed load's output: what it bound, the calls it adds to the turn,
+ * and each connector it reaches at the manifest digest it binds.
+ */
+export type TurnLoadContract = DeepReadonly<{
+  package: LoadedPackageContract;
+  tools: readonly TurnToolContract[];
+  connectors?: Record<string, string>;
+}>;
 
 /**
  * How a call ended. A completed call's `artifacts` hold each packet output as

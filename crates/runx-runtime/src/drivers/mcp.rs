@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, ClientCapabilities, ClientInfo, Implementation,
+    CallToolRequestParams, CallToolResponse, ClientCapabilities, ClientConfig, Implementation,
 };
 use rmcp::service::RunningService;
 use rmcp::{RoleClient, ServiceError};
@@ -71,7 +71,7 @@ pub(crate) struct StdioOpenFailure {
 
 enum Peer {
     Served {
-        service: Box<RunningService<RoleClient, ClientInfo>>,
+        service: Box<RunningService<RoleClient, ClientConfig>>,
         /// A stdio server's process, stopped when the session is dropped.
         _process: Option<StdioServerProcess>,
     },
@@ -297,12 +297,12 @@ pub(crate) fn served_stdio_tools(
     })?
 }
 
-async fn connect<T, E, A>(transport: T) -> Result<RunningService<RoleClient, ClientInfo>, String>
+async fn connect<T, E, A>(transport: T) -> Result<RunningService<RoleClient, ClientConfig>, String>
 where
     T: rmcp::transport::IntoTransport<RoleClient, E, A>,
     E: std::error::Error + Send + Sync + 'static,
 {
-    let info = ClientInfo::new(
+    let info = ClientConfig::new(
         ClientCapabilities::default(),
         Implementation::new("runx", env!("CARGO_PKG_VERSION")),
     );
@@ -311,7 +311,9 @@ where
         .map_err(|error| format!("the MCP server did not initialize: {error}"))
 }
 
-async fn list(service: &RunningService<RoleClient, ClientInfo>) -> Result<Vec<ServedTool>, String> {
+async fn list(
+    service: &RunningService<RoleClient, ClientConfig>,
+) -> Result<Vec<ServedTool>, String> {
     let tools = service
         .peer()
         .list_all_tools()
@@ -613,7 +615,7 @@ mod tests {
 
     use rmcp::model::{
         CallToolResponse, CallToolResult, ContentBlock, ListToolsResult, PaginatedRequestParams,
-        ServerCapabilities, ServerInfo, Tool,
+        ServerCapabilities, ServerConfig, Tool,
     };
     use rmcp::service::RequestContext;
     use rmcp::{ErrorData, RoleServer};
@@ -626,8 +628,8 @@ mod tests {
     struct Fixture;
 
     impl rmcp::ServerHandler for Fixture {
-        fn get_info(&self) -> ServerInfo {
-            ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
         }
 
         fn list_tools(

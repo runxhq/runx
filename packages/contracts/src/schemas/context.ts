@@ -40,6 +40,11 @@ export const contextSchema = Type.Object(
   {
     memory: Type.Optional(contextDocumentSchema),
     conventions: Type.Optional(contextDocumentSchema),
+    /**
+     * The project's instructions: each AGENTS.md and CLAUDE.md from the
+     * repository root down to the workspace, each path relative to that root.
+     */
+    instructions: Type.Optional(Type.Array(contextDocumentSchema)),
   },
   { additionalProperties: false },
 );
@@ -97,6 +102,8 @@ const agentContextEnvelopeTypeSchema = Type.Object(
     run_id: Type.String({ minLength: 1 }),
     step_id: Type.Optional(Type.String({ minLength: 1 })),
     skill: Type.String({ minLength: 1 }),
+    /** The act its run's invoker stated: why the run exists. */
+    act: Type.Optional(unknownRecordSchema()),
     instructions_sha256: Type.String({ minLength: 1 }),
     instructions: Type.String({ minLength: 1 }),
     inputs: unknownRecordSchema(),

@@ -58,6 +58,7 @@ pub mod schema_artifacts;
 mod schema_reconcile;
 pub mod signal;
 pub mod skill_authoring;
+pub mod skill_inspection;
 pub mod skill_output;
 pub mod source_packet;
 pub mod suppression;
@@ -138,13 +139,14 @@ pub use handoff::{
     SuppressionReason,
 };
 pub use host_protocol::{
-    AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, ExecutionEvent,
-    HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
-    HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, PURCHASE_BALANCE_CHOICE, PurchaseMethod,
-    PurchaseQuote, PurchaseRequest, Question, QuestionOption, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor, RetryResend, TurnAllowance, TurnCallOutcome,
-    TurnCallResult, TurnStatus, TurnTarget, TurnTool, check_answer,
+    AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, BoundClosure,
+    CatalogRule, CatalogTrust, ExecutionEvent, HostNeedsAgentState, HostRunApproval,
+    HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind, HostRunResult,
+    HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState, LoadedPackage,
+    PURCHASE_BALANCE_CHOICE, PurchaseMethod, PurchaseQuote, PurchaseRequest, Question,
+    QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
+    SkillAllowance, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus,
+    TurnTarget, TurnTool, check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
@@ -161,10 +163,12 @@ pub use list::{
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 pub use native_packets::{
-    ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,
-    DataOperationStatus, DataStopCondition, GitBlobDigest, LocalArtifact, LocalArtifactPage,
-    ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk,
-    ProcessState, ProcessStream, RunxProcess, TerminalSize,
+    ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, CatalogHit,
+    CatalogPackageKind, CatalogSource, ConnectorInspection, DataOperationResult,
+    DataOperationStatus, DataStopCondition, GitBlobDigest, InspectedOperation, LocalArtifact,
+    LocalArtifactPage, ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput,
+    ProcessOutputChunk, ProcessState, ProcessStream, RegistryInspection, RegistrySearchPacket,
+    RunxProcess, TerminalSize,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAdmission,
@@ -242,7 +246,7 @@ pub use reference::{
 pub use registry_binding::{
     RegistryBinding, RegistryBindingHarness, RegistryBindingRegistry, RegistryBindingSchema,
     RegistryBindingSkill, RegistryBindingState, RegistryBindingUpstream, RegistryHarnessStatus,
-    RegistryTrustTier,
+    TrustTier,
 };
 pub use registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX,
@@ -308,4 +312,10 @@ pub use x402::{
     parse_runx_invocation_extension, runx_invocation_extension_value,
 };
 
+pub use skill_inspection::{
+    EnvironmentReadiness, EnvironmentReadinessStatus, InspectedInput, InspectedOutput,
+    InspectionReadiness, InspectionReadinessStatus, InspectionResume, OperatorJourney,
+    RunnerInspection, RunnerInspectionEntry, SkillCapabilities, SkillCatalog, SkillInspection,
+    SkillInspectionSchema, SkillInspectionStatus,
+};
 pub use skill_output::{ProjectArtifactRef, SkillOutput};

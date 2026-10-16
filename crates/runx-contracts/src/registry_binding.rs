@@ -23,12 +23,49 @@ pub enum RegistryBindingState {
     Published,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// How far the registry vouches for a publisher: runx's own packages, a
+/// publisher it verified, or anyone's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RegistryTrustTier {
+pub enum TrustTier {
     FirstParty,
     Verified,
     Community,
+}
+
+impl TrustTier {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FirstParty => "first_party",
+            Self::Verified => "verified",
+            Self::Community => "community",
+        }
+    }
+
+    /// The tier `name` names, as `as_str` writes it.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::FirstParty, Self::Verified, Self::Community]
+            .into_iter()
+            .find(|tier| tier.as_str() == name)
+    }
+
+    /// Whether a package of this tier meets `minimum`: first party meets
+    /// every tier, verified meets verified and community, community only
+    /// itself.
+    #[must_use]
+    pub const fn meets(self, minimum: Self) -> bool {
+        self.rank() >= minimum.rank()
+    }
+
+    const fn rank(self) -> u8 {
+        match self {
+            Self::FirstParty => 2,
+            Self::Verified => 1,
+            Self::Community => 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -98,7 +135,7 @@ impl RunxSchema for RegistryBindingUpstream {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryBindingRegistry {
     pub owner: String,
-    pub trust_tier: RegistryTrustTier,
+    pub trust_tier: TrustTier,
     pub version: String,
     pub profile_path: String,
     #[serde(deserialize_with = "deserialize_true_bool")]
@@ -110,7 +147,7 @@ impl RunxSchema for RegistryBindingRegistry {
         object_schema(
             vec![
                 Property::new("owner", String::json_schema(), true),
-                Property::new("trust_tier", RegistryTrustTier::json_schema(), true),
+                Property::new("trust_tier", TrustTier::json_schema(), true),
                 Property::new("version", String::json_schema(), true),
                 Property::new("profile_path", String::json_schema(), true),
                 Property::new(

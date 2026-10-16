@@ -897,6 +897,114 @@
           "connectors": []
         }
       }
+    },
+    {
+      "skill_id": "runx/agent-session",
+      "package": {
+        "markdown": "---\nname: agent-session\ndescription: Work one turn of a host's agent through runx. Read, search and ask in the read runner; also edit the workspace and run commands in the develop runner. Every call is admitted, recorded and receipted, and the turn ends with a summary of what it did.\n---\n\n# Agent session\n\nThis is one turn of your work, run through runx. The act says why it exists.\nEverything you do in it is a call to a tool this turn offers: runx admits it,\nrecords it and seals it into the turn's receipt. There is nothing to do\noutside the calls.\n\n## How to work\n\n- Read before you change anything. `fs.read`, `fs.list`, `fs.search` and the\n  `git` tools return what is there, with each file's digest.\n- An edit names what it replaces. `fs.edit` replaces exact text; `fs.write`\n  takes the digest you read, or `create: true` for a new file. A file that\n  changed since you read it is refused: read it again.\n- A change to the workspace or a command waits on the person unless a\n  standing approval covers it. A call that waits is pending: say what you are\n  waiting for, and carry on with what does not depend on it.\n- Ask the person with `ask_human` when the act leaves a choice that is theirs.\n  Do not ask what you can find out.\n- To use a skill or connector the turn does not offer yet, find it with\n  `registry.search`, read it with `registry.inspect`, then `load` it. A\n  package below the turn's trust rule waits on the person's trust.\n- A call you make again with the same `call_id` returns the call you made,\n  rather than running twice. Pin one on every call that changes something.\n\n## Ending the turn\n\nEnd the turn with `turn_complete` and a `summary`: what you did, what you\nfound, what is still open and what waits on the person. Write it for the\nperson, plainly. If the act cannot be done, end it as failed and say why.\n\nThe project's instructions, when it has any, come with the act. Follow them\nas you would the person's.\n",
+        "profile_document": "skill: agent-session\nversion: \"0.1.0\"\n\ncatalog:\n  owner: runx\n  kind: skill\n  audience: operator\n  visibility: public\n  role: canonical\n  execution: execute\n  completion: runtime_receipt\n  approval: conditional\n  category: code\n\nconnectors:\n  web:\n    operations: [page.read]\n\ntools:\n  - fs.read\n  - fs.read_bundle\n  - fs.list\n  - fs.search\n  - git.status\n  - git.current_branch\n  - git.diff_name_only\n  - git.log\n  - git.show\n  - git.diff\n  - registry.search\n  - registry.inspect\n  - fs.edit\n  - fs.write\n  - fs.apply_bundle\n  - command.execute\n\nskills:\n  - catalog: { trust: verified }\n  - project: true\n\nasks: true\n\nharness:\n  cases:\n    - name: agent-session-read-answers-with-a-summary\n      operator_journeys:\n        - mode: standalone\n          confusors: [research, issue-to-pr]\n          request: Find out how this project builds and tell me.\n          expected_outcome: Read the project, without changing it, and end the turn with a summary of what it found.\n        - mode: composed\n          request: Carry on from the previous turn and answer what it left open.\n          expected_outcome: Start from the previous turn's sealed receipt and summary, read only what they did not settle, and end with a summary that says what changed.\n          prior_evidence:\n            - The previous turn's sealed receipt and summary, which the act names.\n          must_not_repeat:\n            - Do not reread files the previous turn already read unless their digest changed.\n      runner: read\n      caller:\n        answers:\n          read:\n            summary: The project builds with cargo; the workspace manifest is crates/Cargo.toml.\n      expect:\n        status: sealed\n    - name: agent-session-develop-answers-with-a-summary\n      operator_journeys:\n        - mode: standalone\n          request: Fix the typo in the README and tell me what you changed.\n          expected_outcome: Change the workspace through approved calls and end the turn with a summary of the change.\n      runner: develop\n      caller:\n        answers:\n          develop:\n            summary: Fixed the typo in README.md.\n      expect:\n        status: sealed\n\nrunners:\n  read:\n    default: true\n    tools:\n      - fs.read\n      - fs.read_bundle\n      - fs.list\n      - fs.search\n      - git.status\n      - git.current_branch\n      - git.diff_name_only\n      - git.log\n      - git.show\n      - git.diff\n      - registry.search\n      - registry.inspect\n    outputs:\n      summary:\n        type: string\n        required: true\n        description: What the turn did and found, what is still open, and what waits on the person.\n  develop:\n    outputs:\n      summary:\n        type: string\n        required: true\n        description: What the turn did and found, what is still open, and what waits on the person.\n",
+        "package_files": [
+          {
+            "path": "connectors/web/connector.yaml",
+            "content": "schema: runx.connector.v1\nid: web\nname: Web\ndescription: Read public web pages over HTTP(S).\ncategory: search\nruntime_capability: true\nauth:\n  none: {}\nplacements:\n  local:\n    auth: [none]\noperations:\n  page.read:\n    description: Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.\n    verb: read\n    scopes: [web.read]\n    target:\n      template: {\"$argument\": \"/url\"}\n    input_schema:\n      type: object\n      required: [url]\n      additionalProperties: false\n      properties:\n        url: {type: string, format: uri, pattern: \"^https?://\"}\n        allowlist:\n          type: array\n          minItems: 1\n          maxItems: 64\n          uniqueItems: true\n          items: {type: string, minLength: 1, maxLength: 253}\n        extract: {type: string, enum: [text, metadata, links, json]}\n    result_fields: [final_url, status, content_digest, extract_mode, extracted, provenance]\n    implementation:\n      web: {}\n"
+          },
+          {
+            "path": "connectors/web/mark.svg",
+            "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 60 60\">\n  <path fill=\"#252421\" d=\"M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z\"/>\n  <path fill=\"#f56819\" d=\"M10 47h14l4 11H7Z\"/>\n</svg>\n"
+          },
+          {
+            "path": "runx.package.json",
+            "content": "{\n  \"schema\": \"runx.registry.package_bundle.v1\",\n  \"dependencies\": [],\n  \"connectors\": [\n    {\n      \"from\": \".\",\n      \"connector\": \"web\",\n      \"manifest_digest\": \"sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d\",\n      \"connector_digest\": \"sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599\"\n    }\n  ]\n}\n"
+          }
+        ],
+        "metadata": {
+          "name": "agent-session",
+          "description": "Work one turn of a host's agent through runx. Read, search and ask in the read runner; also edit the workspace and run commands in the develop runner. Every call is admitted, recorded and receipted, and the turn ends with a summary of what it did.",
+          "category": "code",
+          "runner_names": [
+            "develop",
+            "read"
+          ],
+          "catalog_kind": "skill",
+          "catalog_audience": "operator",
+          "catalog_visibility": "public",
+          "required_scopes": [],
+          "tags": [
+            "code"
+          ],
+          "harness_cases": [
+            {
+              "name": "agent-session-read-answers-with-a-summary",
+              "runner": "read",
+              "expected_status": "sealed"
+            },
+            {
+              "name": "agent-session-develop-answers-with-a-summary",
+              "runner": "develop",
+              "expected_status": "sealed"
+            }
+          ],
+          "input_names": [],
+          "skill_refs": [],
+          "connectors": [
+            {
+              "ref": "web",
+              "version": "sha-5de9ac4920ac",
+              "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d",
+              "connector_digest": "sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599",
+              "runtime_capability": true,
+              "operations": [
+                "page.read"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "skill_id": "runx/revert",
+      "package": {
+        "markdown": "---\nname: revert\ndescription: Undo edits a run made, by their call ids, together. Each file returns to what it held before them, all or none, and a file that changed since is refused, naming it.\n---\n\n# Revert\n\nUndo the edits a run made: its `fs.write`, `fs.edit` and `fs.apply_bundle`\ncalls, named by their `call_id`. Every file they changed goes back to what it\nheld before the first of them, in one journaled bundle, so either every file\nis restored or none is.\n\nAn undo is bound to what the edits left. A file that changed after them is\nrefused, naming it, and nothing is restored: read what changed and decide what\nto keep before undoing again. A file the edits created is deleted; a file they\ndeleted comes back.\n\nThis is an ordinary run with its own receipt, so an undo is as governed as\nthe edit it undoes.\n",
+        "profile_document": "skill: revert\nversion: \"0.1.0\"\n\ncatalog:\n  owner: runx\n  kind: graph\n  audience: operator\n  visibility: internal\n  role: runtime-path\n  part_of: [agent-session]\n  execution: execute\n  completion: runtime_receipt\n  approval: none\n  category: code\n\nharness:\n  cases:\n    - name: revert-refuses-a-call-the-run-never-made\n      operator_journeys:\n        - mode: refusal\n          request: Undo a call the run never made.\n          expected_outcome: Refuse with the call id the run has no record of, and change nothing.\n      runner: revert\n      inputs:\n        run_id: run_session_missing\n        call_ids: [edit-1]\n      expect:\n        status: failure\n\nrunners:\n  revert:\n    default: true\n    inputs:\n      run_id:\n        type: string\n        required: true\n        description: The run whose edits to undo.\n      call_ids:\n        type: json\n        required: true\n        description: The call ids of the edit calls to undo together.\n    result_from: [apply]\n    steps:\n      - id: inverse\n        label: read what the edits replaced\n        tool: fs.inverse\n        scopes: [fs.read]\n        inputs:\n          run_id: $input.run_id\n          call_ids: $input.call_ids\n      - id: apply\n        label: restore it, all or none\n        tool: fs.apply_bundle\n        scopes: [fs.write, fs.delete]\n        inputs:\n          repo_root: $steps.inverse.inverse_bundle.repo_root\n          writes: $steps.inverse.inverse_bundle.writes\n          deletes: $steps.inverse.inverse_bundle.deletes\n",
+        "package_files": [
+          {
+            "path": "runx.package.json",
+            "content": "{\n  \"schema\": \"runx.registry.package_bundle.v1\",\n  \"dependencies\": [],\n  \"connectors\": []\n}\n"
+          }
+        ],
+        "metadata": {
+          "name": "revert",
+          "description": "Undo edits a run made, by their call ids, together. Each file returns to what it held before them, all or none, and a file that changed since is refused, naming it.",
+          "category": "code",
+          "runner_names": [
+            "revert"
+          ],
+          "catalog_kind": "graph",
+          "catalog_audience": "operator",
+          "catalog_visibility": "internal",
+          "required_scopes": [
+            "fs.read",
+            "fs.write",
+            "fs.delete"
+          ],
+          "tags": [
+            "code"
+          ],
+          "harness_cases": [
+            {
+              "name": "revert-refuses-a-call-the-run-never-made",
+              "runner": "revert",
+              "expected_status": "failure"
+            }
+          ],
+          "input_names": [
+            "call_ids",
+            "run_id"
+          ],
+          "skill_refs": [],
+          "connectors": []
+        }
+      }
     }
   ]
 }

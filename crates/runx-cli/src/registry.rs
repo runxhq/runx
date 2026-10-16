@@ -8,21 +8,19 @@ use std::process::ExitCode;
 use runx_contracts::connector::ConnectorName;
 use runx_runtime::ConfigError;
 use runx_runtime::WorkspaceEnv;
+use runx_runtime::registry::resolve::{
+    RegistryTarget, ResolveError, install_candidate, registry_client, resolve_registry_target,
+    trusted_manifest_keys_for_source,
+};
 use runx_runtime::registry::{
-    AcquireOptions, FileRegistryStore, IngestSkillOptions, InstallCandidate,
-    InstallLocalSkillOptions, PublishSkillMarkdownOptions, RegistryClient,
-    RegistryManifestSourceAuthority, RegistryPublishPackageRequest, RegistryResolveOptions,
-    RegistrySearchOptions, RegistrySkillResolution, TrustTier, TrustedRegistryManifestKey,
-    install_local_skill, materialize_publish_closure, prepare_registry_publish_package,
-    publish_skill_markdown, resolve_registry_skill, search_registry_with_options,
+    FileRegistryStore, IngestSkillOptions, InstallLocalSkillOptions, PublishSkillMarkdownOptions,
+    RegistryPublishPackageRequest, TrustTier, install_local_skill, materialize_publish_closure,
+    prepare_registry_publish_package, publish_skill_markdown,
 };
 
 mod connector;
 mod output;
 mod remote_publish;
-mod target;
-
-pub(crate) use target::{RegistryTarget, registry_source_description, resolve_registry_target};
 
 /// The registry's four verbs; each takes a skill or a connector.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,6 +59,11 @@ impl RegistryPlan {
             Some(version) => format!("{}@{version}", self.subject),
             None => self.subject.clone(),
         }
+    }
+
+    /// The registry the plan targets.
+    pub(crate) fn target(&self, env: &BTreeMap<String, String>, cwd: &Path) -> RegistryTarget {
+        resolve_registry_target(self.registry.as_deref(), env, cwd)
     }
 }
 
@@ -113,7 +116,7 @@ fn run_registry(
     if plan.action == RegistryAction::Package {
         return run_package(plan, env, cwd);
     }
-    let target = resolve_registry_target(&plan, env, cwd);
+    let target = plan.target(env, cwd);
     match plan.action {
         RegistryAction::Search => run_search(plan, target, env),
         RegistryAction::Install => run_install(plan, target, env, cwd),
@@ -194,40 +197,18 @@ fn run_search(
     target: RegistryTarget,
     env: &BTreeMap<String, String>,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let source = target.label();
     let query = plan.subject;
-    let limit = plan.limit.unwrap_or(20);
-    // Connectors are published only to a hosted registry.
-    let mut connectors = Vec::new();
-    let results = match target {
-        RegistryTarget::Remote { registry_url } => {
-            let client = remote_registry_client(&registry_url, env)?;
-            connectors = client.search_connectors(&query, limit)?;
-            client.search_with_limit(&query, limit)?
-        }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => search_registry_with_options(
-            &FileRegistryStore::new(registry_path),
-            &query,
-            RegistrySearchOptions {
-                limit: plan.limit,
-                registry_url,
-            },
-        )?,
-    };
-    let human = output::render_search(&query, source, &results, &connectors);
+    let found = runx_runtime::registry::resolve::search(&query, plan.limit, target, env)?;
+    let human = output::render_search(&query, found.source, &found.results, &found.connectors);
     output::write_output(
         plan.json,
         &output::RegistryEnvelope {
             status: "success",
             registry: output::RegistryPayload::Search {
-                source,
+                source: found.source,
                 query: query.clone(),
-                results,
-                connectors,
+                results: found.results,
+                connectors: found.connectors,
             },
         },
         || human,
@@ -247,7 +228,9 @@ fn run_install(
     let source = target.label();
     let source_authority = target.manifest_source_authority();
     let fallback = target.clone();
-    let Some((candidate, acquisition)) = install_candidate(&plan, target, env, cwd)? else {
+    let Some((candidate, acquisition)) =
+        install_candidate(&plan.subject, plan.version.as_deref(), target, env, cwd)?
+    else {
         return match (fallback, ConnectorName::new(&plan.subject)) {
             // No skill is published under the name; a connector may be.
             (RegistryTarget::Remote { registry_url }, Some(connector_ref)) => {
@@ -266,11 +249,9 @@ fn run_install(
         &InstallLocalSkillOptions {
             destination_root: runx_runtime::RunxPaths::resolve(env, cwd).skills(),
             connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
+            install_records: runx_runtime::RunxPaths::resolve(env, cwd).install_records(),
             expected_digest: plan.expected_digest.clone(),
-            trusted_manifest_keys: trusted_manifest_keys_from_env_for_source(
-                env,
-                source_authority,
-            )?,
+            trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority)?,
         },
     )?;
     let requested = plan.requested_ref();
@@ -316,12 +297,10 @@ fn run_publish(
     // A package naming skills other publishers own binds them from the
     // registry it is published to.
     let closure = match &target {
-        RegistryTarget::Remote { registry_url } => materialize_publish_closure(
-            &remote_registry_client(registry_url, env)?,
-            registry_url,
-            request,
-        )
-        .map_err(|error| usage_error(error.to_string()))?,
+        RegistryTarget::Remote { registry_url } => {
+            materialize_publish_closure(&registry_client(registry_url, env)?, registry_url, request)
+                .map_err(|error| usage_error(error.to_string()))?
+        }
         RegistryTarget::Local { .. } => None,
     };
     let env = closure.as_ref().map_or(env, |closure| &closure.env);
@@ -392,198 +371,6 @@ fn run_publish(
     }
 }
 
-/// The skill `plan` names and how it was acquired, or none when the
-/// registry publishes no skill under that name and version.
-pub(crate) fn install_candidate(
-    plan: &RegistryPlan,
-    target: RegistryTarget,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<
-    Option<(
-        InstallCandidate,
-        Option<runx_runtime::registry::AcquiredRegistrySkill>,
-    )>,
-    RegistryCliError,
-> {
-    let source_authority = target.manifest_source_authority();
-    match target {
-        RegistryTarget::Remote { registry_url } => {
-            let client = remote_registry_client(&registry_url, env)?;
-            // One segment reaches the registry only as a root name, which it
-            // resolves to the canonical `<owner>/<name>` it installs.
-            let skill_id = if plan.subject.contains('/') {
-                plan.subject.clone()
-            } else {
-                match client.read_root(&plan.subject, plan.version.as_deref())? {
-                    Some(detail) => detail.skill_id,
-                    None => return Ok(None),
-                }
-            };
-            let installation_id = remote_installation_id(env, cwd)?;
-            let acquired = match client.acquire(
-                &skill_id,
-                AcquireOptions {
-                    installation_id: &installation_id,
-                    version: plan.version.as_deref(),
-                    channel: Some("cli"),
-                },
-            ) {
-                Err(runx_runtime::registry::RegistryClientError::HttpStatus {
-                    status: 404,
-                    ..
-                }) => return Ok(None),
-                acquired => acquired?,
-            };
-            Ok(Some((
-                candidate_from_acquired(&skill_id, &acquired, source_authority),
-                Some(acquired),
-            )))
-        }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => {
-            let Some(resolution) = resolve_registry_skill(
-                &FileRegistryStore::new(registry_path.clone()),
-                &plan.subject,
-                RegistryResolveOptions {
-                    version: plan.version.clone(),
-                    registry_url,
-                },
-            )?
-            else {
-                return Ok(None);
-            };
-            Ok(Some((
-                candidate_from_resolution(&plan.subject, resolution, source_authority),
-                None,
-            )))
-        }
-    }
-}
-
-/// The canonical `<owner>/<name>` a root name addresses in the registry
-/// `plan` targets; `None` where no skill holds it, or the registry is a
-/// directory, which holds no root names.
-pub(crate) fn resolve_root_name(
-    plan: &RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<Option<String>, RegistryCliError> {
-    let RegistryTarget::Remote { registry_url } = resolve_registry_target(plan, env, cwd) else {
-        return Ok(None);
-    };
-    Ok(remote_registry_client(&registry_url, env)?
-        .read_root(&plan.subject, plan.version.as_deref())?
-        .map(|detail| detail.skill_id))
-}
-
-fn remote_registry_client(
-    registry_url: &str,
-    env: &BTreeMap<String, String>,
-) -> Result<RegistryClient, RegistryCliError> {
-    let transport = runx_runtime::hosted_api_transport(
-        runx_runtime::hosted_private_network_allowed(false, env),
-    )
-    .map_err(|error| internal_error(error.to_string()))?;
-    RegistryClient::with_transport(registry_url, transport).map_err(RegistryCliError::from)
-}
-
-fn remote_installation_id(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<String, RegistryCliError> {
-    if let Some(installation_id) = env
-        .get("RUNX_INSTALLATION_ID")
-        .map(String::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return Ok(installation_id.to_owned());
-    }
-
-    runx_runtime::installation_id(&runx_runtime::RunxPaths::resolve(env, cwd))
-        .map_err(|error| usage_error(error.to_string()))
-}
-
-fn candidate_from_resolution(
-    registry_ref: &str,
-    resolution: RegistrySkillResolution,
-    source_authority: RegistryManifestSourceAuthority,
-) -> InstallCandidate {
-    InstallCandidate {
-        markdown: resolution.markdown,
-        profile_document: resolution.profile_document,
-        package_files: resolution.package_files,
-        package_digest: resolution.package_digest,
-        source: resolution.source,
-        source_label: resolution.source_label,
-        r#ref: registry_ref.to_owned(),
-        skill_id: Some(resolution.skill_id),
-        version: Some(resolution.version),
-        signed_manifest: resolution.signed_manifest,
-        profile_digest: resolution.profile_digest,
-        runner_names: resolution.runner_names,
-        trust_tier: Some(resolution.trust_tier),
-        manifest_source_authority: Some(source_authority),
-    }
-}
-
-fn candidate_from_acquired(
-    registry_ref: &str,
-    acquired: &runx_runtime::registry::AcquiredRegistrySkill,
-    source_authority: RegistryManifestSourceAuthority,
-) -> InstallCandidate {
-    InstallCandidate {
-        markdown: acquired.markdown.clone(),
-        profile_document: acquired.profile_document.clone(),
-        package_files: acquired.package_files.clone(),
-        package_digest: acquired.package_digest.clone(),
-        source: "runx-registry".to_owned(),
-        source_label: "runx registry".to_owned(),
-        r#ref: registry_ref.to_owned(),
-        skill_id: Some(acquired.skill_id.clone()),
-        version: Some(acquired.version.clone()),
-        signed_manifest: acquired.signed_manifest.clone(),
-        profile_digest: acquired.profile_digest.clone(),
-        runner_names: acquired.runner_names.clone(),
-        trust_tier: Some(acquired.trust_tier.clone()),
-        manifest_source_authority: Some(source_authority),
-    }
-}
-
-pub(crate) fn trusted_manifest_keys_from_env_for_source(
-    env: &BTreeMap<String, String>,
-    source_authority: RegistryManifestSourceAuthority,
-) -> Result<Vec<TrustedRegistryManifestKey>, RegistryCliError> {
-    runx_runtime::registry::trusted_registry_manifest_keys_from_env_with_source(
-        env,
-        Some(source_authority),
-    )
-    .map_err(trust_env_error)
-}
-
-fn trust_env_error(
-    error: runx_runtime::registry::RegistryManifestTrustEnvError,
-) -> RegistryCliError {
-    match error {
-        runx_runtime::registry::RegistryManifestTrustEnvError::InvalidKey => {
-            internal_error(error.to_string())
-        }
-        runx_runtime::registry::RegistryManifestTrustEnvError::MissingKeyId => {
-            usage_error(error.to_string())
-        }
-        runx_runtime::registry::RegistryManifestTrustEnvError::MissingOwner => {
-            usage_error(error.to_string())
-        }
-        runx_runtime::registry::RegistryManifestTrustEnvError::MissingSource => {
-            usage_error(error.to_string())
-        }
-    }
-}
-
 pub(crate) struct RegistryCliError {
     message: String,
     exit_code: u8,
@@ -608,10 +395,6 @@ impl std::fmt::Debug for RegistryCliError {
 impl std::error::Error for RegistryCliError {}
 
 impl RegistryCliError {
-    pub(crate) fn into_message(self) -> String {
-        self.message
-    }
-
     fn code(&self) -> &'static str {
         if self.exit_code == 64 {
             "invalid_args"
@@ -659,18 +442,15 @@ impl From<runx_runtime::registry::LocalRegistryError> for RegistryCliError {
 
 impl From<runx_runtime::registry::InstallError> for RegistryCliError {
     fn from(error: runx_runtime::registry::InstallError) -> Self {
-        let error_kind = match &error {
-            runx_runtime::registry::InstallError::UnsignedManifest(_) => Some("unsigned_manifest"),
-            runx_runtime::registry::InstallError::UnknownManifestKey { .. } => Some("unknown_key"),
-            runx_runtime::registry::InstallError::InvalidManifestSignature { .. } => {
-                Some("invalid_signature")
-            }
-            runx_runtime::registry::InstallError::DigestMismatch { .. } => Some("digest_mismatch"),
-            _ => None,
-        };
-        match error_kind {
-            Some(kind) => internal_error(format!("registry install {kind}: {error}")),
-            None => internal_error(error.to_string()),
+        ResolveError::from(error).into()
+    }
+}
+
+impl From<ResolveError> for RegistryCliError {
+    fn from(error: ResolveError) -> Self {
+        match error {
+            ResolveError::Usage(message) => usage_error(message),
+            ResolveError::Failed(message) => internal_error(message),
         }
     }
 }

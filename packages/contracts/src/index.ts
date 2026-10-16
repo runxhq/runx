@@ -246,10 +246,23 @@ export {
 } from "./schemas/agent-act.js";
 
 export {
+  skillInspectionSchema,
+  validateSkillInspectionContract,
+  type InspectedInputContract,
+  type InspectedOutputContract,
+  type OperatorJourneyContract,
+  type RunnerInspectionContract,
+  type SkillInspectionContract,
+} from "./schemas/skill-inspection.js";
+
+export {
   turnCallSchema,
   turnStatusSchema,
   validateTurnCallContract,
   validateTurnStatusContract,
+  type BoundClosureContract,
+  type LoadedPackageContract,
+  type TurnLoadContract,
   type TurnTargetContract,
   type TurnCallOutcomeContract,
   type TurnCallContract,

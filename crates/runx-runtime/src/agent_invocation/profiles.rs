@@ -37,12 +37,77 @@ pub(super) fn resolve_context_profiles(
     };
     let memory = optional("RUNX_MEMORY_PROFILE_PATH", "MEMORY.md")?;
     let conventions = optional("RUNX_CONVENTIONS_PROFILE_PATH", "CONVENTIONS.md")?;
-    Ok((memory.is_some() || conventions.is_some()).then_some(
-        runx_contracts::AgentContextProfiles {
-            memory,
-            conventions,
-        },
-    ))
+    let instructions = project_instructions(request)?;
+    Ok(
+        (memory.is_some() || conventions.is_some() || !instructions.is_empty()).then_some(
+            runx_contracts::AgentContextProfiles {
+                memory,
+                conventions,
+                instructions,
+            },
+        ),
+    )
+}
+
+/// The files of a project's instructions, in the order each directory reads
+/// them.
+const INSTRUCTION_FILES: &[&str] = &["AGENTS.md", "CLAUDE.md"];
+
+/// The project's instructions (agent-sessions §3): each `AGENTS.md` and
+/// `CLAUDE.md` from the repository root that contains the workspace down to
+/// the workspace, in that order. These are the only files runx reads above
+/// the workspace. Each is bounded, and one that is a link leaving its
+/// directory is refused.
+fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, RuntimeError> {
+    let paths = crate::RunxPaths::resolve(&request.env, &request.skill_directory);
+    let workspace =
+        fs::canonicalize(paths.workspace()).unwrap_or_else(|_| paths.workspace().to_path_buf());
+    let root = workspace
+        .ancestors()
+        .find(|directory| directory.join(".git").exists())
+        .unwrap_or(&workspace)
+        .to_path_buf();
+    let mut directories = workspace
+        .ancestors()
+        .take_while(|directory| directory.starts_with(&root))
+        .collect::<Vec<_>>();
+    directories.reverse();
+    let mut instructions = Vec::new();
+    for directory in directories {
+        for name in INSTRUCTION_FILES {
+            let path = directory.join(name);
+            let Ok(metadata) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() {
+                let target = fs::canonicalize(&path).map_err(|error| {
+                    RuntimeError::io(format!("resolving {}", path.display()), error)
+                })?;
+                if target.parent() != Some(directory) {
+                    return Err(RuntimeError::SkillFailed {
+                        skill_name: "agent".to_owned(),
+                        message: format!(
+                            "{} links outside its directory, so it is not read as the project's instructions",
+                            path.display()
+                        ),
+                    });
+                }
+            }
+            if !path.is_file() {
+                continue;
+            }
+            let mut profile = read_profile_file(request, &path)?;
+            profile.root_path = root.to_string_lossy().into_owned().into();
+            profile.path = path
+                .strip_prefix(&root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .into_owned()
+                .into();
+            instructions.push(profile);
+        }
+    }
+    Ok(instructions)
 }
 
 fn resolve_profile(

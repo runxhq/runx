@@ -1,0 +1,69 @@
+{
+  "$id": "https://schemas.runx.ai/runx/registry/search/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hits": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "skill",
+              "connector"
+            ],
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "runners": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "registry",
+              "project"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "trust_tier": {
+            "enum": [
+              "first_party",
+              "verified",
+              "community"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "kind",
+          "source"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "query": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "query",
+    "hits"
+  ],
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.registry.search.v1"
+}

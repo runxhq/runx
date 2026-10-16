@@ -450,8 +450,39 @@ export const runxSchemaArtifacts = {
                           },
                           "skills": {
                             "items": {
-                              "minLength": 1,
-                              "type": "string"
+                              "anyOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "catalog": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "trust": {
+                                          "enum": [
+                                            "first_party",
+                                            "verified",
+                                            "community"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "trust"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "project": {
+                                      "const": true,
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "minItems": 1,
                             "type": "array"
@@ -472,6 +503,50 @@ export const runxSchemaArtifacts = {
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                         "additionalProperties": false,
                         "properties": {
+                          "act": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "decision": {
+                                "enum": [
+                                  "continue",
+                                  "escalate",
+                                  "defer",
+                                  "close",
+                                  "decline",
+                                  "monitor"
+                                ],
+                                "type": "string"
+                              },
+                              "form": {
+                                "enum": [
+                                  "reply",
+                                  "review"
+                                ],
+                                "type": "string"
+                              },
+                              "previous": {
+                                "maxLength": 71,
+                                "pattern": "^sha256:[0-9a-f]{64}$",
+                                "type": "string"
+                              },
+                              "purpose": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "reason": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "target": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "purpose"
+                            ],
+                            "type": "object"
+                          },
                           "context": {
                             "additionalProperties": false,
                             "properties": {
@@ -509,6 +584,45 @@ export const runxSchemaArtifacts = {
                                   "content"
                                 ],
                                 "type": "object"
+                              },
+                              "instructions": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "content": {
+                                      "type": "string"
+                                    },
+                                    "path": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "root_path": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "sha256": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "sharing": {
+                                      "enum": [
+                                        "local_only",
+                                        "configured_model"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "sharing",
+                                    "root_path",
+                                    "path",
+                                    "sha256",
+                                    "content"
+                                  ],
+                                  "type": "object"
+                                },
+                                "minItems": 1,
+                                "type": "array"
                               },
                               "memory": {
                                 "additionalProperties": false,
@@ -1582,8 +1696,39 @@ export const runxSchemaArtifacts = {
           },
           "skills": {
             "items": {
-              "minLength": 1,
-              "type": "string"
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "catalog": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "trust": {
+                          "enum": [
+                            "first_party",
+                            "verified",
+                            "community"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "trust"
+                      ],
+                      "type": "object"
+                    },
+                    "project": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
             },
             "minItems": 1,
             "type": "array"
@@ -1604,6 +1749,50 @@ export const runxSchemaArtifacts = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "act": {
+            "additionalProperties": false,
+            "properties": {
+              "decision": {
+                "enum": [
+                  "continue",
+                  "escalate",
+                  "defer",
+                  "close",
+                  "decline",
+                  "monitor"
+                ],
+                "type": "string"
+              },
+              "form": {
+                "enum": [
+                  "reply",
+                  "review"
+                ],
+                "type": "string"
+              },
+              "previous": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "purpose": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "target": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "purpose"
+            ],
+            "type": "object"
+          },
           "context": {
             "additionalProperties": false,
             "properties": {
@@ -1641,6 +1830,45 @@ export const runxSchemaArtifacts = {
                   "content"
                 ],
                 "type": "object"
+              },
+              "instructions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "root_path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sharing",
+                    "root_path",
+                    "path",
+                    "sha256",
+                    "content"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
               },
               "memory": {
                 "additionalProperties": false,
@@ -2363,6 +2591,50 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "act": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "continue",
+              "escalate",
+              "defer",
+              "close",
+              "decline",
+              "monitor"
+            ],
+            "type": "string"
+          },
+          "form": {
+            "enum": [
+              "reply",
+              "review"
+            ],
+            "type": "string"
+          },
+          "previous": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "purpose": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "target": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose"
+        ],
+        "type": "object"
+      },
       "context": {
         "additionalProperties": false,
         "properties": {
@@ -2400,6 +2672,45 @@ export const runxSchemaArtifacts = {
               "content"
             ],
             "type": "object"
+          },
+          "instructions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "root_path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sharing": {
+                  "enum": [
+                    "local_only",
+                    "configured_model"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sharing",
+                "root_path",
+                "path",
+                "sha256",
+                "content"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
           },
           "memory": {
             "additionalProperties": false,
@@ -23063,6 +23374,1080 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.registry_binding.v1"
   } as JsonSchema,
+  "registry-inspection.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/registry/inspection/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "$id": "https://schemas.runx.ai/runx/skill/inspect/v1.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "completion": {
+                "type": "string"
+              },
+              "execution": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "completion",
+              "approval"
+            ],
+            "type": "object"
+          },
+          "catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "audience": {
+                "type": "string"
+              },
+              "canonical_skill": {
+                "type": "string"
+              },
+              "completion": {
+                "type": "string"
+              },
+              "execution": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "part_of": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "visibility": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "audience",
+              "visibility",
+              "role"
+            ],
+            "type": "object"
+          },
+          "connector_readiness": {
+            "items": {
+              "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "connector": {
+                  "maxLength": 129,
+                  "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+                  "type": "string"
+                },
+                "cost": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "per": {
+                      "enum": [
+                        "request",
+                        "success"
+                      ],
+                      "type": "string"
+                    },
+                    "source": {
+                      "enum": [
+                        "docs",
+                        "rate_card",
+                        "observed"
+                      ],
+                      "type": "string"
+                    },
+                    "source_url": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "usd_micro": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "usd_micro",
+                    "per",
+                    "source"
+                  ],
+                  "type": "object"
+                },
+                "instance_id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                  "type": "string"
+                },
+                "operation": {
+                  "maxLength": 100,
+                  "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+                  "type": "string"
+                },
+                "placement": {
+                  "enum": [
+                    "hosted",
+                    "local"
+                  ],
+                  "type": "string"
+                },
+                "ready": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "check": {
+                        "enum": [
+                          "requirement",
+                          "instance",
+                          "capability",
+                          "delegation",
+                          "cost",
+                          "approval",
+                          "implementation",
+                          "tolerance"
+                        ],
+                        "type": "string"
+                      },
+                      "detail": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "outcome": {
+                        "enum": [
+                          "pass",
+                          "fail",
+                          "required",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "refs": {
+                        "items": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "run",
+                                "act",
+                                "receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "surface",
+                                "target",
+                                "skill_binding",
+                                "principal",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "check",
+                      "outcome",
+                      "detail"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requirement": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "requirement",
+                "operation",
+                "ready",
+                "reasons"
+              ],
+              "type": "object",
+              "x-runx-schema": "runx.readiness.v1"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "entry_provenance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "environment": {
+            "additionalProperties": false,
+            "properties": {
+              "missing": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "status": {
+                "enum": [
+                  "ready",
+                  "needs_environment"
+                ],
+                "type": "string"
+              },
+              "variables": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "required",
+                    "available"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "status",
+              "variables"
+            ],
+            "type": "object"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "execution_closure": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "manual_digest": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "operator_journeys": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "case": {
+                  "type": "string"
+                },
+                "confusors": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "exercises_runner": {
+                  "type": "string"
+                },
+                "expected_outcome": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "must_not_repeat": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "prior_evidence": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "request": {
+                  "type": "string"
+                },
+                "runner": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "case",
+                "mode",
+                "request",
+                "expected_outcome",
+                "confusors",
+                "prior_evidence",
+                "must_not_repeat"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "package_digest": {
+            "type": "string"
+          },
+          "readiness": {
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "ready",
+                  "needs_connector_setup",
+                  "needs_environment"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          "resume": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "may_pause": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "may_pause",
+              "command"
+            ],
+            "type": "object"
+          },
+          "runner": {
+            "additionalProperties": false,
+            "properties": {
+              "connectors": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "declared_result_packets": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "input_schema": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "inputs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "schema": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "required",
+                    "schema"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              },
+              "outputs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "requirements": {
+                "additionalProperties": false,
+                "properties": {
+                  "environment": {
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "properties": {
+                      "optional": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "required": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "scopes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "input_schema",
+              "inputs",
+              "outputs",
+              "declared_result_packets",
+              "requirements"
+            ],
+            "type": "object"
+          },
+          "runner_inspections": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "execution_closure": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "runner": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "connectors": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "declared_result_packets": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "input_schema": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "inputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "schema": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "required",
+                          "schema"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "outputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "requirements": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "environment": {
+                          "additionalProperties": false,
+                          "minProperties": 1,
+                          "properties": {
+                            "optional": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "required": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "scopes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "input_schema",
+                    "inputs",
+                    "outputs",
+                    "declared_result_packets",
+                    "requirements"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "runner",
+                "execution_closure"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "runners": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema": {
+            "enum": [
+              "runx.skill.inspect.v1"
+            ],
+            "type": "string"
+          },
+          "semantic_report": {},
+          "skill_path": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "status",
+          "name",
+          "skill_path",
+          "manual_digest",
+          "package_digest",
+          "runners",
+          "operator_journeys"
+        ],
+        "type": "object",
+        "x-runx-schema": "runx.skill.inspect.v1"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "access": {
+                  "type": "string"
+                },
+                "approval_required": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "operation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "operation",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "items": {
+              "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "connector": {
+                  "maxLength": 129,
+                  "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+                  "type": "string"
+                },
+                "cost": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "per": {
+                      "enum": [
+                        "request",
+                        "success"
+                      ],
+                      "type": "string"
+                    },
+                    "source": {
+                      "enum": [
+                        "docs",
+                        "rate_card",
+                        "observed"
+                      ],
+                      "type": "string"
+                    },
+                    "source_url": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "usd_micro": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "usd_micro",
+                    "per",
+                    "source"
+                  ],
+                  "type": "object"
+                },
+                "instance_id": {
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                  "type": "string"
+                },
+                "operation": {
+                  "maxLength": 100,
+                  "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+                  "type": "string"
+                },
+                "placement": {
+                  "enum": [
+                    "hosted",
+                    "local"
+                  ],
+                  "type": "string"
+                },
+                "ready": {
+                  "type": "boolean"
+                },
+                "reasons": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "check": {
+                        "enum": [
+                          "requirement",
+                          "instance",
+                          "capability",
+                          "delegation",
+                          "cost",
+                          "approval",
+                          "implementation",
+                          "tolerance"
+                        ],
+                        "type": "string"
+                      },
+                      "detail": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "outcome": {
+                        "enum": [
+                          "pass",
+                          "fail",
+                          "required",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "refs": {
+                        "items": {
+                          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "additionalProperties": false,
+                          "properties": {
+                            "label": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "minLength": 1,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                              "type": "string"
+                            },
+                            "proof_kind": {
+                              "enum": [
+                                "effect_evidence",
+                                "effect_finality",
+                                "credential_resolution"
+                              ],
+                              "type": "string"
+                            },
+                            "provider": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "thread",
+                                "comment",
+                                "event",
+                                "tracking_item",
+                                "change_request",
+                                "repository",
+                                "signal",
+                                "run",
+                                "act",
+                                "receipt",
+                                "artifact",
+                                "verification",
+                                "harness",
+                                "host",
+                                "surface",
+                                "target",
+                                "skill_binding",
+                                "principal",
+                                "scope_admission",
+                                "grant",
+                                "mandate",
+                                "credential",
+                                "webhook_delivery",
+                                "redaction_policy",
+                                "external_url",
+                                "connector_instance",
+                                "connector_operation"
+                              ],
+                              "type": "string"
+                            },
+                            "uri": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ],
+                          "type": "object",
+                          "x-runx-schema": "runx.reference.v1"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "check",
+                      "outcome",
+                      "detail"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requirement": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "requirement",
+                "operation",
+                "ready",
+                "reasons"
+              ],
+              "type": "object",
+              "x-runx-schema": "runx.readiness.v1"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "registry",
+              "project"
+            ],
+            "type": "string"
+          },
+          "trust_tier": {
+            "enum": [
+              "first_party",
+              "verified",
+              "community"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connector",
+          "description",
+          "source",
+          "operations"
+        ],
+        "type": "object"
+      }
+    ],
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.registry.inspection.v1"
+  } as JsonSchema,
+  "registry-search.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/registry/search/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "hits": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "skill",
+                "connector"
+              ],
+              "type": "string"
+            },
+            "publisher": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "runners": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "source": {
+              "enum": [
+                "registry",
+                "project"
+              ],
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "trust_tier": {
+              "enum": [
+                "first_party",
+                "verified",
+                "community"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "ref",
+            "kind",
+            "source"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "query": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "query",
+      "hits"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.registry.search.v1"
+  } as JsonSchema,
   "resolution-request.schema.json": {
     "$id": "https://schemas.runx.ai/runx/resolution-request/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -23276,8 +24661,39 @@ export const runxSchemaArtifacts = {
                   },
                   "skills": {
                     "items": {
-                      "minLength": 1,
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "catalog": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "trust": {
+                                  "enum": [
+                                    "first_party",
+                                    "verified",
+                                    "community"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "trust"
+                              ],
+                              "type": "object"
+                            },
+                            "project": {
+                              "const": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      ]
                     },
                     "minItems": 1,
                     "type": "array"
@@ -23298,6 +24714,50 @@ export const runxSchemaArtifacts = {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "additionalProperties": false,
                 "properties": {
+                  "act": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "decision": {
+                        "enum": [
+                          "continue",
+                          "escalate",
+                          "defer",
+                          "close",
+                          "decline",
+                          "monitor"
+                        ],
+                        "type": "string"
+                      },
+                      "form": {
+                        "enum": [
+                          "reply",
+                          "review"
+                        ],
+                        "type": "string"
+                      },
+                      "previous": {
+                        "maxLength": 71,
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "reason": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "target": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "purpose"
+                    ],
+                    "type": "object"
+                  },
                   "context": {
                     "additionalProperties": false,
                     "properties": {
@@ -23335,6 +24795,45 @@ export const runxSchemaArtifacts = {
                           "content"
                         ],
                         "type": "object"
+                      },
+                      "instructions": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "content": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "root_path": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sharing": {
+                              "enum": [
+                                "local_only",
+                                "configured_model"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "sharing",
+                            "root_path",
+                            "path",
+                            "sha256",
+                            "content"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
                       },
                       "memory": {
                         "additionalProperties": false,
@@ -25067,8 +26566,30 @@ export const runxSchemaArtifacts = {
                   {
                     "additionalProperties": false,
                     "properties": {
+                      "bound": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "closure_digest": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "package_digest": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "package_digest",
+                          "closure_digest"
+                        ],
+                        "type": "object"
+                      },
                       "kind": {
                         "const": "skill",
+                        "type": "string"
+                      },
+                      "runner": {
+                        "minLength": 1,
                         "type": "string"
                       },
                       "skill": {
@@ -25087,6 +26608,19 @@ export const runxSchemaArtifacts = {
                     "properties": {
                       "kind": {
                         "const": "ask",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "load",
                         "type": "string"
                       }
                     },
@@ -25800,8 +27334,30 @@ export const runxSchemaArtifacts = {
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "bound": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "closure_digest": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "package_digest": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "package_digest",
+                                "closure_digest"
+                              ],
+                              "type": "object"
+                            },
                             "kind": {
                               "const": "skill",
+                              "type": "string"
+                            },
+                            "runner": {
+                              "minLength": 1,
                               "type": "string"
                             },
                             "skill": {
@@ -25820,6 +27376,19 @@ export const runxSchemaArtifacts = {
                           "properties": {
                             "kind": {
                               "const": "ask",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "load",
                               "type": "string"
                             }
                           },
@@ -26306,8 +27875,39 @@ export const runxSchemaArtifacts = {
                             },
                             "skills": {
                               "items": {
-                                "minLength": 1,
-                                "type": "string"
+                                "anyOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "catalog": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "trust": {
+                                            "enum": [
+                                              "first_party",
+                                              "verified",
+                                              "community"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "trust"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "project": {
+                                        "const": true,
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                ]
                               },
                               "minItems": 1,
                               "type": "array"
@@ -26328,6 +27928,50 @@ export const runxSchemaArtifacts = {
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
                           "properties": {
+                            "act": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "continue",
+                                    "escalate",
+                                    "defer",
+                                    "close",
+                                    "decline",
+                                    "monitor"
+                                  ],
+                                  "type": "string"
+                                },
+                                "form": {
+                                  "enum": [
+                                    "reply",
+                                    "review"
+                                  ],
+                                  "type": "string"
+                                },
+                                "previous": {
+                                  "maxLength": 71,
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "purpose": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "target": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "purpose"
+                              ],
+                              "type": "object"
+                            },
                             "context": {
                               "additionalProperties": false,
                               "properties": {
@@ -26365,6 +28009,45 @@ export const runxSchemaArtifacts = {
                                     "content"
                                   ],
                                   "type": "object"
+                                },
+                                "instructions": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "content": {
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "root_path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "sharing": {
+                                        "enum": [
+                                          "local_only",
+                                          "configured_model"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "sharing",
+                                      "root_path",
+                                      "path",
+                                      "sha256",
+                                      "content"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "minItems": 1,
+                                  "type": "array"
                                 },
                                 "memory": {
                                   "additionalProperties": false,
@@ -30766,6 +32449,742 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.skill.change_draft.v1"
   } as JsonSchema,
+  "skill-inspection.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/skill/inspect/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "capabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "completion": {
+            "type": "string"
+          },
+          "execution": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution",
+          "completion",
+          "approval"
+        ],
+        "type": "object"
+      },
+      "catalog": {
+        "additionalProperties": false,
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string"
+          },
+          "canonical_skill": {
+            "type": "string"
+          },
+          "completion": {
+            "type": "string"
+          },
+          "execution": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "part_of": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "audience",
+          "visibility",
+          "role"
+        ],
+        "type": "object"
+      },
+      "connector_readiness": {
+        "items": {
+          "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "connector": {
+              "maxLength": 129,
+              "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+              "type": "string"
+            },
+            "cost": {
+              "additionalProperties": false,
+              "properties": {
+                "per": {
+                  "enum": [
+                    "request",
+                    "success"
+                  ],
+                  "type": "string"
+                },
+                "source": {
+                  "enum": [
+                    "docs",
+                    "rate_card",
+                    "observed"
+                  ],
+                  "type": "string"
+                },
+                "source_url": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "usd_micro": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "usd_micro",
+                "per",
+                "source"
+              ],
+              "type": "object"
+            },
+            "instance_id": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+              "type": "string"
+            },
+            "operation": {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+              "type": "string"
+            },
+            "placement": {
+              "enum": [
+                "hosted",
+                "local"
+              ],
+              "type": "string"
+            },
+            "ready": {
+              "type": "boolean"
+            },
+            "reasons": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "check": {
+                    "enum": [
+                      "requirement",
+                      "instance",
+                      "capability",
+                      "delegation",
+                      "cost",
+                      "approval",
+                      "implementation",
+                      "tolerance"
+                    ],
+                    "type": "string"
+                  },
+                  "detail": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "pass",
+                      "fail",
+                      "required",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "refs": {
+                    "items": {
+                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "locator": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "minLength": 1,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                          "type": "string"
+                        },
+                        "proof_kind": {
+                          "enum": [
+                            "effect_evidence",
+                            "effect_finality",
+                            "credential_resolution"
+                          ],
+                          "type": "string"
+                        },
+                        "provider": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "thread",
+                            "comment",
+                            "event",
+                            "tracking_item",
+                            "change_request",
+                            "repository",
+                            "signal",
+                            "run",
+                            "act",
+                            "receipt",
+                            "artifact",
+                            "verification",
+                            "harness",
+                            "host",
+                            "surface",
+                            "target",
+                            "skill_binding",
+                            "principal",
+                            "scope_admission",
+                            "grant",
+                            "mandate",
+                            "credential",
+                            "webhook_delivery",
+                            "redaction_policy",
+                            "external_url",
+                            "connector_instance",
+                            "connector_operation"
+                          ],
+                          "type": "string"
+                        },
+                        "uri": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "uri"
+                      ],
+                      "type": "object",
+                      "x-runx-schema": "runx.reference.v1"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "check",
+                  "outcome",
+                  "detail"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "requirement": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "requirement",
+            "operation",
+            "ready",
+            "reasons"
+          ],
+          "type": "object",
+          "x-runx-schema": "runx.readiness.v1"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "description": {
+        "type": "string"
+      },
+      "entry_provenance": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "environment": {
+        "additionalProperties": false,
+        "properties": {
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "needs_environment"
+            ],
+            "type": "string"
+          },
+          "variables": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "available": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "required",
+                "available"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "variables"
+        ],
+        "type": "object"
+      },
+      "examples": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "execution_closure": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "manual_digest": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "operator_journeys": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "type": "string"
+            },
+            "confusors": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "exercises_runner": {
+              "type": "string"
+            },
+            "expected_outcome": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "must_not_repeat": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "prior_evidence": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "request": {
+              "type": "string"
+            },
+            "runner": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "case",
+            "mode",
+            "request",
+            "expected_outcome",
+            "confusors",
+            "prior_evidence",
+            "must_not_repeat"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "package_digest": {
+        "type": "string"
+      },
+      "readiness": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "needs_connector_setup",
+              "needs_environment"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "resume": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "may_pause": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "may_pause",
+          "command"
+        ],
+        "type": "object"
+      },
+      "runner": {
+        "additionalProperties": false,
+        "properties": {
+          "connectors": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "declared_result_packets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "inputs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "required",
+                "schema"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "requirements": {
+            "additionalProperties": false,
+            "properties": {
+              "environment": {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "optional": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "required": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "input_schema",
+          "inputs",
+          "outputs",
+          "declared_result_packets",
+          "requirements"
+        ],
+        "type": "object"
+      },
+      "runner_inspections": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "execution_closure": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "runner": {
+              "additionalProperties": false,
+              "properties": {
+                "connectors": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "declared_result_packets": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "input_schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "inputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "required",
+                      "schema"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "outputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requirements": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "environment": {
+                      "additionalProperties": false,
+                      "minProperties": 1,
+                      "properties": {
+                        "optional": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "required": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "scopes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "input_schema",
+                "inputs",
+                "outputs",
+                "declared_result_packets",
+                "requirements"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "runner",
+            "execution_closure"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "runners": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "schema": {
+        "enum": [
+          "runx.skill.inspect.v1"
+        ],
+        "type": "string"
+      },
+      "semantic_report": {},
+      "skill_path": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "ok"
+        ],
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema",
+      "status",
+      "name",
+      "skill_path",
+      "manual_digest",
+      "package_digest",
+      "runners",
+      "operator_journeys"
+    ],
+    "type": "object",
+    "x-runx-schema": "runx.skill.inspect.v1"
+  } as JsonSchema,
   "skill-output.schema.json": {
     "$id": "https://schemas.runx.ai/runx/skill-run/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -32466,8 +34885,39 @@ export const runxSchemaArtifacts = {
                                 },
                                 "skills": {
                                   "items": {
-                                    "minLength": 1,
-                                    "type": "string"
+                                    "anyOf": [
+                                      {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "catalog": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "trust": {
+                                                "enum": [
+                                                  "first_party",
+                                                  "verified",
+                                                  "community"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "trust"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "project": {
+                                            "const": true,
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "type": "object"
+                                      }
+                                    ]
                                   },
                                   "minItems": 1,
                                   "type": "array"
@@ -32488,6 +34938,50 @@ export const runxSchemaArtifacts = {
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
                               "additionalProperties": false,
                               "properties": {
+                                "act": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "decision": {
+                                      "enum": [
+                                        "continue",
+                                        "escalate",
+                                        "defer",
+                                        "close",
+                                        "decline",
+                                        "monitor"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "form": {
+                                      "enum": [
+                                        "reply",
+                                        "review"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "previous": {
+                                      "maxLength": 71,
+                                      "pattern": "^sha256:[0-9a-f]{64}$",
+                                      "type": "string"
+                                    },
+                                    "purpose": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "target": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "purpose"
+                                  ],
+                                  "type": "object"
+                                },
                                 "context": {
                                   "additionalProperties": false,
                                   "properties": {
@@ -32525,6 +35019,45 @@ export const runxSchemaArtifacts = {
                                         "content"
                                       ],
                                       "type": "object"
+                                    },
+                                    "instructions": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "content": {
+                                            "type": "string"
+                                          },
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "root_path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "sha256": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "sharing": {
+                                            "enum": [
+                                              "local_only",
+                                              "configured_model"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "sharing",
+                                          "root_path",
+                                          "path",
+                                          "sha256",
+                                          "content"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "minItems": 1,
+                                      "type": "array"
                                     },
                                     "memory": {
                                       "additionalProperties": false,
@@ -33589,8 +36122,30 @@ export const runxSchemaArtifacts = {
           {
             "additionalProperties": false,
             "properties": {
+              "bound": {
+                "additionalProperties": false,
+                "properties": {
+                  "closure_digest": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "package_digest": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "package_digest",
+                  "closure_digest"
+                ],
+                "type": "object"
+              },
               "kind": {
                 "const": "skill",
+                "type": "string"
+              },
+              "runner": {
+                "minLength": 1,
                 "type": "string"
               },
               "skill": {
@@ -33616,6 +36171,19 @@ export const runxSchemaArtifacts = {
               "kind"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "load",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
           }
         ]
       }
@@ -33628,6 +36196,239 @@ export const runxSchemaArtifacts = {
     ],
     "type": "object",
     "x-runx-schema": "runx.turn_call.v1"
+  } as JsonSchema,
+  "turn-load.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/turn-load/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "connectors": {
+        "additionalProperties": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "minProperties": 1,
+        "type": "object"
+      },
+      "package": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "skill",
+                "type": "string"
+              },
+              "package_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "publisher": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "skill": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "trust_tier": {
+                "enum": [
+                  "first_party",
+                  "verified",
+                  "community"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "skill",
+              "package_digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "connector": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "connector",
+                "type": "string"
+              },
+              "manifest_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "publisher": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "trust_tier": {
+                "enum": [
+                  "first_party",
+                  "verified",
+                  "community"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "connector",
+              "manifest_digest"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "tools": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "input_schema": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "tool",
+                      "type": "string"
+                    },
+                    "tool": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "tool"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "operation",
+                      "type": "string"
+                    },
+                    "operation": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requirement": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "requirement",
+                    "operation"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bound": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "closure_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "package_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package_digest",
+                        "closure_digest"
+                      ],
+                      "type": "object"
+                    },
+                    "kind": {
+                      "const": "skill",
+                      "type": "string"
+                    },
+                    "runner": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "skill": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "skill"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "load",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "target",
+            "input_schema"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "package",
+      "tools"
+    ],
+    "type": "object",
+    "x-runx-schema": "runx.turn_load.v1"
   } as JsonSchema,
   "turn-status.schema.json": {
     "$id": "https://schemas.runx.ai/runx/turn-status/v1.json",
@@ -33981,8 +36782,39 @@ export const runxSchemaArtifacts = {
                                       },
                                       "skills": {
                                         "items": {
-                                          "minLength": 1,
-                                          "type": "string"
+                                          "anyOf": [
+                                            {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "catalog": {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "trust": {
+                                                      "enum": [
+                                                        "first_party",
+                                                        "verified",
+                                                        "community"
+                                                      ],
+                                                      "type": "string"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "trust"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                "project": {
+                                                  "const": true,
+                                                  "type": "boolean"
+                                                }
+                                              },
+                                              "type": "object"
+                                            }
+                                          ]
                                         },
                                         "minItems": 1,
                                         "type": "array"
@@ -34003,6 +36835,50 @@ export const runxSchemaArtifacts = {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
                                     "properties": {
+                                      "act": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "decision": {
+                                            "enum": [
+                                              "continue",
+                                              "escalate",
+                                              "defer",
+                                              "close",
+                                              "decline",
+                                              "monitor"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "form": {
+                                            "enum": [
+                                              "reply",
+                                              "review"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "previous": {
+                                            "maxLength": 71,
+                                            "pattern": "^sha256:[0-9a-f]{64}$",
+                                            "type": "string"
+                                          },
+                                          "purpose": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "reason": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "target": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "purpose"
+                                        ],
+                                        "type": "object"
+                                      },
                                       "context": {
                                         "additionalProperties": false,
                                         "properties": {
@@ -34040,6 +36916,45 @@ export const runxSchemaArtifacts = {
                                               "content"
                                             ],
                                             "type": "object"
+                                          },
+                                          "instructions": {
+                                            "items": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "content": {
+                                                  "type": "string"
+                                                },
+                                                "path": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "root_path": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "sha256": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "sharing": {
+                                                  "enum": [
+                                                    "local_only",
+                                                    "configured_model"
+                                                  ],
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "sharing",
+                                                "root_path",
+                                                "path",
+                                                "sha256",
+                                                "content"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "minItems": 1,
+                                            "type": "array"
                                           },
                                           "memory": {
                                             "additionalProperties": false,
@@ -35104,8 +38019,30 @@ export const runxSchemaArtifacts = {
                 {
                   "additionalProperties": false,
                   "properties": {
+                    "bound": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "closure_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "package_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package_digest",
+                        "closure_digest"
+                      ],
+                      "type": "object"
+                    },
                     "kind": {
                       "const": "skill",
+                      "type": "string"
+                    },
+                    "runner": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "skill": {
@@ -35124,6 +38061,19 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "kind": {
                       "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "load",
                       "type": "string"
                     }
                   },
@@ -35182,8 +38132,39 @@ export const runxSchemaArtifacts = {
               },
               "skills": {
                 "items": {
-                  "minLength": 1,
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "catalog": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "trust": {
+                              "enum": [
+                                "first_party",
+                                "verified",
+                                "community"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "trust"
+                          ],
+                          "type": "object"
+                        },
+                        "project": {
+                          "const": true,
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
                 },
                 "minItems": 1,
                 "type": "array"
@@ -35204,6 +38185,50 @@ export const runxSchemaArtifacts = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+              "act": {
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "continue",
+                      "escalate",
+                      "defer",
+                      "close",
+                      "decline",
+                      "monitor"
+                    ],
+                    "type": "string"
+                  },
+                  "form": {
+                    "enum": [
+                      "reply",
+                      "review"
+                    ],
+                    "type": "string"
+                  },
+                  "previous": {
+                    "maxLength": 71,
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "reason": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "target": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "purpose"
+                ],
+                "type": "object"
+              },
               "context": {
                 "additionalProperties": false,
                 "properties": {
@@ -35241,6 +38266,45 @@ export const runxSchemaArtifacts = {
                       "content"
                     ],
                     "type": "object"
+                  },
+                  "instructions": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "root_path": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "sharing": {
+                          "enum": [
+                            "local_only",
+                            "configured_model"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "sharing",
+                        "root_path",
+                        "path",
+                        "sha256",
+                        "content"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "memory": {
                     "additionalProperties": false,
@@ -36020,8 +39084,30 @@ export const runxSchemaArtifacts = {
                 {
                   "additionalProperties": false,
                   "properties": {
+                    "bound": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "closure_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "package_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package_digest",
+                        "closure_digest"
+                      ],
+                      "type": "object"
+                    },
                     "kind": {
                       "const": "skill",
+                      "type": "string"
+                    },
+                    "runner": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "skill": {
@@ -36040,6 +39126,19 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "kind": {
                       "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "load",
                       "type": "string"
                     }
                   },

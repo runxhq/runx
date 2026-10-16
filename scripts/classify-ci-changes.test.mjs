@@ -86,9 +86,11 @@ test("an unavailable diff runs every lane", () => {
   });
 });
 
-test("the core skills are the ten the binary bundles", () => {
+test("the core skills are the twelve the binary bundles", () => {
   const names = bundledCoreSkills();
-  assert.equal(names.length, 10);
+  assert.equal(names.length, 12);
   assert.ok(names.includes("skill-build"));
+  assert.ok(names.includes("agent-session"));
+  assert.ok(names.includes("revert"));
   assert.ok(!names.includes("reddit"));
 });

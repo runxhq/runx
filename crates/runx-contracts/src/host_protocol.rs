@@ -325,9 +325,9 @@ pub struct TurnAllowance {
     /// Catalog tool refs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<NonEmptyString>,
-    /// Child skill refs.
+    /// Child skills by ref, and the catalog rules a load is admitted under.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub skills: Vec<NonEmptyString>,
+    pub skills: Vec<SkillAllowance>,
     /// Whether the turn may ask the human.
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub asks: bool,
@@ -337,6 +337,62 @@ impl TurnAllowance {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.operations.is_empty() && self.tools.is_empty() && self.skills.is_empty() && !self.asks
+    }
+
+    /// The child skills the allowance names by ref.
+    pub fn skill_refs(&self) -> impl Iterator<Item = &NonEmptyString> {
+        self.skills.iter().filter_map(|entry| match entry {
+            SkillAllowance::Ref(reference) => Some(reference),
+            SkillAllowance::Rule(_) => None,
+        })
+    }
+
+    /// The catalog rules a load is admitted under.
+    pub fn rules(&self) -> impl Iterator<Item = &CatalogRule> {
+        self.skills.iter().filter_map(|entry| match entry {
+            SkillAllowance::Rule(rule) => Some(rule),
+            SkillAllowance::Ref(_) => None,
+        })
+    }
+}
+
+/// One entry of an allowance's `skills`: a child skill by ref, or a catalog
+/// rule, which admits the skills and connectors a `load` call finds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(untagged)]
+pub enum SkillAllowance {
+    Ref(NonEmptyString),
+    Rule(CatalogRule),
+}
+
+/// What a load admits: exactly one of `catalog`, the registry's packages at
+/// a trust tier or above, and `project: true`, the packages the project
+/// authored. A registry package the project installed keeps its registry
+/// identity, so only `catalog` admits it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogRule {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<CatalogTrust>,
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub project: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogTrust {
+    /// The lowest tier a load admits on its own; a package below it waits
+    /// on the person's trust.
+    pub trust: crate::TrustTier,
+}
+
+impl CatalogRule {
+    /// One kind of rule.
+    pub fn check(&self) -> Result<(), String> {
+        if self.catalog.is_some() == self.project {
+            return Err("a catalog rule is exactly one of catalog and project: true".to_owned());
+        }
+        Ok(())
     }
 }
 
@@ -360,11 +416,73 @@ pub enum TurnTarget {
         requirement: NonEmptyString,
         operation: NonEmptyString,
     },
+    /// A child skill: one the allowance names, run by its default runner, or
+    /// one runner of a skill a load bound, run as the load bound it.
     Skill {
         skill: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        runner: Option<NonEmptyString>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bound: Option<BoundClosure>,
     },
     /// The call's input is `{reason}`; the human approves or declines it.
     Ask,
+    /// The call's input is `{skill, runner?}` or `{connector}`: a package a
+    /// catalog rule admits, whose runners or operations the turn offers from
+    /// then on.
+    Load,
+}
+
+/// The exact package and execution closure a load bound for one runner.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoundClosure {
+    pub package_digest: NonEmptyString,
+    pub closure_digest: NonEmptyString,
+}
+
+/// A completed load's output: what it bound, and the calls it adds to the
+/// turn.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.turn_load.v1")]
+pub struct TurnLoad {
+    pub package: LoadedPackage,
+    /// One per loaded runner, or per operation of a loaded connector, as the
+    /// turn offers it from then on.
+    pub tools: Vec<TurnTool>,
+    /// Each connector what it bound reaches, by name, at the manifest digest
+    /// it binds: a later load that binds another revision is refused.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connectors: BTreeMap<String, NonEmptyString>,
+}
+
+/// The package a load bound. A project's own package has no tier and no
+/// publisher.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum LoadedPackage {
+    Skill {
+        /// The ref each of its tools names: the canonical
+        /// `<owner>/<name>@<version>` of a registry skill, or the project's
+        /// path.
+        skill: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_tier: Option<crate::TrustTier>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        publisher: Option<NonEmptyString>,
+        package_digest: NonEmptyString,
+    },
+    Connector {
+        connector: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_tier: Option<crate::TrustTier>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        publisher: Option<NonEmptyString>,
+        /// The manifest each of its operations runs; one that changed since
+        /// the load is refused.
+        manifest_digest: NonEmptyString,
+    },
 }
 
 /// One call an agent made in its turn, and how it ended.

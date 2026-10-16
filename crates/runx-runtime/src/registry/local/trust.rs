@@ -295,10 +295,10 @@ pub(super) fn search_result_for_version(
         profile_trust_tier: version
             .profile_document
             .as_ref()
-            .map(|_| version.trust_tier.clone()),
+            .map(|_| version.trust_tier),
         required_scopes: version.required_scopes.clone(),
         tags: version.tags.clone(),
-        trust_tier: version.trust_tier.clone(),
+        trust_tier: version.trust_tier,
         trust_signals: derive_trust_signals(version),
         install_command: link.install_command,
         run_command: link.run_command,
@@ -325,7 +325,7 @@ pub(super) fn detail_for_version(
         package_digest: version.package_digest.clone(),
         paid_listing: version.paid_listing.clone(),
         runner_names: version.runner_names.clone(),
-        trust_tier: version.trust_tier.clone(),
+        trust_tier: version.trust_tier,
         required_scopes: version.required_scopes.clone(),
         tags: version.tags.clone(),
         publisher: version.publisher.clone(),

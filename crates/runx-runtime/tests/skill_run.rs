@@ -52,7 +52,7 @@ fn trusted_manifest_env() -> Result<BTreeMap<String, String>, Box<dyn std::error
     trusted_manifest_env_for_owner("acme", None)
 }
 
-fn trusted_manifest_env_for_owner(
+pub(crate) fn trusted_manifest_env_for_owner(
     owner: &str,
     source_authority: Option<&str>,
 ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
@@ -82,7 +82,7 @@ fn trusted_manifest_env_for_owner(
     Ok(env)
 }
 
-fn sign_registry_version(
+pub(crate) fn sign_registry_version(
     registry_dir: &Path,
     skill_id: &str,
     version: &str,
@@ -2638,19 +2638,15 @@ fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
         "RUNX_REGISTRY_DIR".to_owned(),
         registry_dir.to_string_lossy().into_owned(),
     );
-    let closure_of = |inspection: &JsonValue| -> Result<JsonValue, Box<dyn std::error::Error>> {
-        let inspections = object(inspection, "inspection")?
-            .get("runner_inspections")
-            .and_then(JsonValue::as_array)
-            .ok_or("missing runner inspections")?;
-        let first = object(
-            inspections.first().ok_or("no runner inspection")?,
-            "runner inspection",
-        )?;
-        Ok(first
-            .get("execution_closure")
-            .cloned()
-            .ok_or("missing closure")?)
+    let closure_of = |inspection: &runx_contracts::SkillInspection| -> Result<JsonValue, Box<dyn std::error::Error>> {
+        Ok(JsonValue::Object(
+            inspection
+                .runner_inspections
+                .first()
+                .ok_or("no runner inspection")?
+                .execution_closure
+                .clone(),
+        ))
     };
 
     let unheld = closure_of(&runx_runtime::inspect_skill_package(

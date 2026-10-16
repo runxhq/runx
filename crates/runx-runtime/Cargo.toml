@@ -80,7 +80,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 webpki-root-certs = "1.0.9"
 # `pty` and `termios`: the terminal a detached `tty` process runs in.
 rustix = { version = "1.1.4", features = ["fs", "process", "pty", "termios"] }
-rmcp = { version = "=3.3.0", default-features = false, features = ["client", "server"], optional = true }
+rmcp = { version = "=3.5.0", default-features = false, features = ["client", "server"], optional = true }
 # Parse a remote MCP server's bounded SSE body into rmcp's event stream; the same
 # version rmcp's client uses.
 sse-stream = { version = "=0.2.5", optional = true }

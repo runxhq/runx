@@ -155,6 +155,13 @@ impl RunxPaths {
         self.home.join("install.json")
     }
 
+    /// Where a registry package read for inspection is kept, its skills,
+    /// connectors and install records apart from any project's (N6).
+    #[must_use]
+    pub fn inspection_cache(&self) -> PathBuf {
+        self.home.join("inspected")
+    }
+
     #[must_use]
     pub fn registry_cache(&self) -> PathBuf {
         self.home.join("registry")
@@ -235,6 +242,18 @@ impl RunxPaths {
     #[must_use]
     pub fn tmp(&self) -> PathBuf {
         self.project.join("tmp")
+    }
+
+    /// What the project records of each package a registry added to it.
+    #[must_use]
+    pub fn install_records(&self) -> PathBuf {
+        self.project.join("installs")
+    }
+
+    /// The execution closures a person trusted in this project.
+    #[must_use]
+    pub fn trust_records(&self) -> PathBuf {
+        self.project.join("trust")
     }
 
     #[must_use]

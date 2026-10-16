@@ -12,7 +12,9 @@ use runx_contracts::{
     ContextEntry, ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonObject, JsonValue,
     sha256_prefixed,
 };
-use runx_parser::{ExecutionGraph, GraphStep, SkillRunnerDefinition, StepKind, ToolTarget};
+use runx_parser::{
+    ExecutionGraph, GraphStep, LoadTarget, SkillRunnerDefinition, StepKind, ToolTarget,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::RuntimeEffectRegistry;
@@ -152,6 +154,10 @@ impl SkillOperatorContextStep {
             },
             StepKind::Agent(agent) => format!("agent {} task {}", agent.role, agent.task),
             StepKind::Ask(ask) => format!("ask {}", ask.gate),
+            StepKind::Load(load) => match &load.target {
+                LoadTarget::Skill { reference, .. } => format!("load skill {reference}"),
+                LoadTarget::Connector { name } => format!("load connector {name}"),
+            },
         }
     }
 }
@@ -413,7 +419,9 @@ impl ExpansionState {
                 Some(boundary(ExecutionBoundaryKind::TrustedHostProcess))
             }
             StepKind::Agent(_) => Some(boundary(ExecutionBoundaryKind::RemoteProvider)),
-            StepKind::Operation(_) | StepKind::Ask(_) | StepKind::Skill(_) => None,
+            StepKind::Operation(_) | StepKind::Ask(_) | StepKind::Skill(_) | StepKind::Load(_) => {
+                None
+            }
         };
         Ok(SkillOperatorContextStep {
             node_path,
@@ -675,7 +683,7 @@ fn step_declares_result(
         // An ask resolves to its decision; an operation always emits its
         // `runx.provider.operation.v1` packet; a child skill's own graph was
         // validated to declare its result when it was expanded.
-        StepKind::Ask(_) | StepKind::Operation(_) | StepKind::Skill(_) => true,
+        StepKind::Ask(_) | StepKind::Operation(_) | StepKind::Skill(_) | StepKind::Load(_) => true,
         StepKind::Agent(_) | StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_)) => {
             crate::output_contract::declares_output_contract(
                 definition.outputs.as_ref(),

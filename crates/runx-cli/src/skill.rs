@@ -13,17 +13,17 @@ mod inputs;
 mod operator_context;
 pub(crate) mod output;
 mod parser;
-mod resolver;
 
-use environment_readiness::{
-    append_text as append_environment_readiness_text, inspect as inspect_environment_readiness,
-};
+use environment_readiness::append_text as append_environment_readiness_text;
 pub use inputs::CliInputs;
 use inputs::read_input_document;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
 pub use parser::{CallerContext, parse_skill_plan, parse_skill_plan_with_workspace};
-use resolver::{RegistryTrustState, ResolvedSkillRef, resolve_skill_ref_details};
+use runx_runtime::registry::resolve::{
+    AbsentPins, Holder, RegistryTrustState, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
+    resolve_skill_ref_details,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct SkillPlan {
@@ -68,11 +68,12 @@ pub(crate) fn resolve_skill_package(
     resolve_skill_ref_details(
         skill_ref,
         cwd,
-        resolver::SkillResolverOptions {
+        SkillResolverOptions {
             env,
             registry: None,
             expected_digest: None,
-            absent_pins: resolver::AbsentPins::Fail,
+            absent_pins: AbsentPins::Fail,
+            holder: Holder::Project,
         },
     )
     .map(|resolved| resolved.runnable_path)
@@ -86,15 +87,21 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     let mut resolved = match resolve_skill_ref_details(
         &plan.skill_path,
         &cwd,
-        resolver::SkillResolverOptions {
+        SkillResolverOptions {
             env: &env,
             registry: plan.registry.as_deref(),
             expected_digest: plan.expected_digest.as_deref(),
-            // An inspection reports a pin the registry lacks; a run needs it.
+            // An inspection reports a pin the registry lacks, and adds
+            // nothing to the project; a run needs its pins, and adds the skill.
             absent_pins: if plan.action == SkillAction::Inspect {
-                resolver::AbsentPins::Report
+                AbsentPins::Report
             } else {
-                resolver::AbsentPins::Fail
+                AbsentPins::Fail
+            },
+            holder: if plan.action == SkillAction::Inspect {
+                Holder::Cache
+            } else {
+                Holder::Project
             },
         },
     ) {
@@ -339,17 +346,17 @@ fn prepared_entry_provenance(
 ) -> PreparedEntryProvenance {
     PreparedEntryProvenance {
         kind: match resolved.kind {
-            resolver::SkillRefKind::ExplicitPath => "explicit_path",
-            resolver::SkillRefKind::ExportedShim => "exported_shim",
-            resolver::SkillRefKind::WorkspaceLocal => "workspace_local",
-            resolver::SkillRefKind::Installed => "installed",
-            resolver::SkillRefKind::Bundled => "bundled",
-            resolver::SkillRefKind::Registry => "registry",
+            SkillRefKind::ExplicitPath => "explicit_path",
+            SkillRefKind::ExportedShim => "exported_shim",
+            SkillRefKind::WorkspaceLocal => "workspace_local",
+            SkillRefKind::Installed => "installed",
+            SkillRefKind::Bundled => "bundled",
+            SkillRefKind::Registry => "registry",
         }
         .to_owned(),
         reference: resolved.skill_id.clone(),
         source: resolved.registry_source.clone().unwrap_or_else(|| {
-            if resolved.kind == resolver::SkillRefKind::Bundled {
+            if resolved.kind == SkillRefKind::Bundled {
                 "bundled:runx".to_owned()
             } else {
                 "local-path".to_owned()
@@ -359,7 +366,7 @@ fn prepared_entry_provenance(
             .registry_source_fingerprint
             .clone()
             .unwrap_or_else(|| {
-                if resolved.kind == resolver::SkillRefKind::Bundled {
+                if resolved.kind == SkillRefKind::Bundled {
                     "Bundled Runx core".to_owned()
                 } else {
                     resolved.runnable_path.to_string_lossy().into_owned()
@@ -396,7 +403,7 @@ fn write_skill_inspection(
     }
 }
 
-// Function rationale: inspection assembles one public JSON contract from SKILL.md, run.yaml, fixtures, and selected runner metadata.
+/// The skill's inspection with its readiness here, and where it came from.
 fn inspect_skill(
     skill_path: &Path,
     selected_runner: Option<&str>,
@@ -405,63 +412,13 @@ fn inspect_skill(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<(JsonValue, Vec<Readiness>), String> {
-    let mut output = runx_runtime::inspect_skill_package(skill_path, selected_runner, Some(env))
-        .map_err(|error| error.to_string())?;
-    let JsonValue::Object(object) = &mut output else {
-        return Err("native skill inspection returned a non-object".to_owned());
-    };
-    if let Some(provenance) = provenance {
-        object.insert("entry_provenance".to_owned(), JsonValue::Object(provenance));
-    }
-    let mut readiness = Vec::new();
-    if object.get("runner").is_some() {
-        readiness = runx_runtime::inspect_connector_readiness(
-            skill_path,
-            selected_runner,
-            authority,
-            env,
-            cwd,
-        )
-        .map_err(|error| error.to_string())?;
-        if !readiness.is_empty() {
-            let status = if readiness.iter().all(|operation| operation.ready) {
-                "ready"
-            } else {
-                "needs_connector_setup"
-            };
-            object.insert(
-                "connector_readiness".to_owned(),
-                JsonValue::from_serialize(&readiness).map_err(|error| error.to_string())?,
-            );
-            object.insert(
-                "readiness".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "status".to_owned(),
-                    JsonValue::String(status.to_owned()),
-                )])),
-            );
-        }
-    }
-    if object.get("runner").is_some()
-        && let Some(environment) = inspect_environment_readiness(object, env)?
-    {
-        let ready = environment
-            .as_object()
-            .and_then(|value| value.get("status"))
-            .and_then(JsonValue::as_str)
-            == Some("ready");
-        object.insert("environment".to_owned(), environment);
-        if !ready {
-            object.insert(
-                "readiness".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "status".to_owned(),
-                    JsonValue::String("needs_environment".to_owned()),
-                )])),
-            );
-        }
-    }
-    Ok((output, readiness))
+    let mut inspection =
+        runx_runtime::inspect_skill_readiness(skill_path, selected_runner, authority, env, cwd)
+            .map_err(|error| error.to_string())?;
+    inspection.entry_provenance = provenance;
+    let readiness = inspection.connector_readiness.clone();
+    let value = JsonValue::from_serialize(&inspection).map_err(|error| error.to_string())?;
+    Ok((value, readiness))
 }
 
 // Function rationale: text rendering mirrors the inspect JSON shape and is kept adjacent to avoid presentation drift.

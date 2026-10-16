@@ -1,0 +1,233 @@
+{
+  "$id": "https://schemas.runx.ai/runx/turn-load/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "connectors": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "package": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "skill",
+              "type": "string"
+            },
+            "package_digest": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publisher": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "skill": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "trust_tier": {
+              "enum": [
+                "first_party",
+                "verified",
+                "community"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "skill",
+            "package_digest"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "connector": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "connector",
+              "type": "string"
+            },
+            "manifest_digest": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publisher": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "trust_tier": {
+              "enum": [
+                "first_party",
+                "verified",
+                "community"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "connector",
+            "manifest_digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tools": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "tool",
+                    "type": "string"
+                  },
+                  "tool": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "tool"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "operation",
+                    "type": "string"
+                  },
+                  "operation": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "requirement": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "requirement",
+                  "operation"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "bound": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "closure_digest": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "package_digest": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "package_digest",
+                      "closure_digest"
+                    ],
+                    "type": "object"
+                  },
+                  "kind": {
+                    "const": "skill",
+                    "type": "string"
+                  },
+                  "runner": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "skill": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "skill"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "ask",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "load",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "target",
+          "input_schema"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "package",
+    "tools"
+  ],
+  "type": "object",
+  "x-runx-schema": "runx.turn_load.v1"
+}

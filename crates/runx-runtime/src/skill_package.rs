@@ -23,7 +23,9 @@ pub(crate) use inspection::{
     CaseClosureTarget, LocalExecutionClosure, case_closure_connectors,
     inspect_loaded_local_execution_closure, unheld_loaded_registry_refs,
 };
-pub use inspection::{SkillInspectionError, inspect_skill_package, unheld_registry_refs_at};
+pub use inspection::{
+    SkillInspectionError, inspect_skill_package, inspect_skill_readiness, unheld_registry_refs_at,
+};
 pub use resolve::resolve_local_skill_reference;
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;

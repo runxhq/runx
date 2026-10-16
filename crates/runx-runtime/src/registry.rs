@@ -2,6 +2,7 @@ mod bundled;
 mod connector_install;
 mod http;
 mod install;
+mod install_record;
 mod local;
 pub(crate) mod package_bundle;
 mod package_files;
@@ -12,6 +13,7 @@ mod publish;
 mod publish_closure;
 mod publish_package;
 mod refs;
+pub mod resolve;
 mod source_authority;
 mod trust_anchor;
 mod types;
@@ -28,6 +30,8 @@ pub use install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
     InstallStatus, install_local_skill,
 };
+pub use install_record::{InstallRecord, read_install_record};
+pub(crate) use install_record::{TrustRecord, record_trust, trusted};
 pub use local::{
     FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
     PutVersionOptions, RegistryResolveOptions, RegistrySearchOptions, build_skill_id,

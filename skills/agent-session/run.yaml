@@ -1,0 +1,104 @@
+skill: agent-session
+version: "0.1.0"
+
+catalog:
+  owner: runx
+  kind: skill
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: runtime_receipt
+  approval: conditional
+  category: code
+
+connectors:
+  web:
+    operations: [page.read]
+
+tools:
+  - fs.read
+  - fs.read_bundle
+  - fs.list
+  - fs.search
+  - git.status
+  - git.current_branch
+  - git.diff_name_only
+  - git.log
+  - git.show
+  - git.diff
+  - registry.search
+  - registry.inspect
+  - fs.edit
+  - fs.write
+  - fs.apply_bundle
+  - command.execute
+
+skills:
+  - catalog: { trust: verified }
+  - project: true
+
+asks: true
+
+harness:
+  cases:
+    - name: agent-session-read-answers-with-a-summary
+      operator_journeys:
+        - mode: standalone
+          confusors: [research, issue-to-pr]
+          request: Find out how this project builds and tell me.
+          expected_outcome: Read the project, without changing it, and end the turn with a summary of what it found.
+        - mode: composed
+          request: Carry on from the previous turn and answer what it left open.
+          expected_outcome: Start from the previous turn's sealed receipt and summary, read only what they did not settle, and end with a summary that says what changed.
+          prior_evidence:
+            - The previous turn's sealed receipt and summary, which the act names.
+          must_not_repeat:
+            - Do not reread files the previous turn already read unless their digest changed.
+      runner: read
+      caller:
+        answers:
+          read:
+            summary: The project builds with cargo; the workspace manifest is crates/Cargo.toml.
+      expect:
+        status: sealed
+    - name: agent-session-develop-answers-with-a-summary
+      operator_journeys:
+        - mode: standalone
+          request: Fix the typo in the README and tell me what you changed.
+          expected_outcome: Change the workspace through approved calls and end the turn with a summary of the change.
+      runner: develop
+      caller:
+        answers:
+          develop:
+            summary: Fixed the typo in README.md.
+      expect:
+        status: sealed
+
+runners:
+  read:
+    default: true
+    tools:
+      - fs.read
+      - fs.read_bundle
+      - fs.list
+      - fs.search
+      - git.status
+      - git.current_branch
+      - git.diff_name_only
+      - git.log
+      - git.show
+      - git.diff
+      - registry.search
+      - registry.inspect
+    outputs:
+      summary:
+        type: string
+        required: true
+        description: What the turn did and found, what is still open, and what waits on the person.
+  develop:
+    outputs:
+      summary:
+        type: string
+        required: true
+        description: What the turn did and found, what is still open, and what waits on the person.

@@ -14,13 +14,20 @@ use std::path::Path;
 use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AgentActInvocation, AllowedOperation, CallAct, InputDefinition, JsonObject, JsonValue,
-    ProjectArtifactRef, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest,
-    RunCallOutput, TurnCallOutcome, TurnCallResult, TurnStatus, TurnTarget, TurnTool,
+    AgentActInvocation, AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject,
+    JsonValue, LoadedPackage, ProjectArtifactRef, ProvenanceEntry, Reference, ReferenceType,
+    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus,
+    TurnTarget, TurnTool,
 };
-use runx_parser::{AgentTask, AskGate, GraphStep, OperationStepTarget, StepKind, ToolTarget};
+use runx_parser::{
+    AgentTask, AskGate, ConnectorRequirement, GraphStep, LoadStep, LoadTarget, OperationStepTarget,
+    SkillTarget, StepKind, ToolTarget,
+};
 
-use super::super::graph::{StepSkillLoadOptions, load_step_skill, turn_skill_target};
+use super::super::graph::{
+    LoadedStepSkill, LoadedStepSkillPackage, StepSkillLoadOptions, load_step_skill, step_skill,
+    turn_skill_target,
+};
 use super::super::run_record::{
     Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
     waiting_requests,
@@ -71,7 +78,7 @@ pub trait Turn {
         input: JsonObject,
     ) -> Result<TurnCallResult, RuntimeError> {
         match self.admit(host, call_id, target, input)? {
-            Admission::Settled(result) => Ok(result),
+            Admission::Settled(result) => Ok(*result),
             Admission::Admitted(admitted) => {
                 let executed = self.execute(host, *admitted)?;
                 self.conclude(executed)
@@ -223,7 +230,7 @@ struct Fed {
 /// What admitting a call came to.
 pub enum Admission {
     /// It settled at admission.
-    Settled(TurnCallResult),
+    Settled(Box<TurnCallResult>),
     /// It is claimed, and executes apart from the turn's driver.
     Admitted(Box<AdmittedCall>),
 }
@@ -340,18 +347,26 @@ where
     /// Why the turn's allowance refuses `target`, if it does.
     fn refusal(&self, target: &TurnTarget) -> Result<Option<String>, RuntimeError> {
         let allowance = &self.scope.agent.allowance;
-        let allowed = match target {
-            TurnTarget::Tool { tool } => allowance.tools.contains(tool),
-            TurnTarget::Operation {
-                requirement,
-                operation,
-            } => allowance
-                .operations
-                .iter()
-                .any(|item| &item.requirement == requirement && &item.operation == operation),
-            TurnTarget::Skill { skill } => allowance.skills.contains(skill),
-            TurnTarget::Ask => allowance.asks,
-        };
+        let allowed =
+            match target {
+                TurnTarget::Tool { tool } => allowance.tools.contains(tool),
+                TurnTarget::Operation {
+                    requirement,
+                    operation,
+                } => {
+                    allowance.operations.iter().any(|item| {
+                        &item.requirement == requirement && &item.operation == operation
+                    }) || self.loaded_offers(target)?
+                }
+                TurnTarget::Skill {
+                    skill,
+                    runner: None,
+                    bound: None,
+                } => allowance.skill_refs().any(|listed| listed == skill),
+                TurnTarget::Skill { .. } => self.loaded_offers(target)?,
+                TurnTarget::Ask => allowance.asks,
+                TurnTarget::Load => allowance.rules().next().is_some(),
+            };
         if !allowed {
             return Ok(Some(format!(
                 "{} is not in the turn's allowance",
@@ -402,7 +417,7 @@ where
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
         match self.admit_made(&mut host, made)? {
-            Admission::Settled(result) => Ok(result),
+            Admission::Settled(result) => Ok(*result),
             Admission::Admitted(admitted) => {
                 let executed = self.execute_admitted(&mut host, *admitted)?;
                 self.conclude_executed(executed)
@@ -425,7 +440,8 @@ where
     ) -> Result<Admission, RuntimeError> {
         self.admits(made.index)?;
         let settled = |turn: &mut Self, made, outcome, answers: &[Answer]| {
-            turn.settled(made, outcome, answers).map(Admission::Settled)
+            turn.settled(made, outcome, answers)
+                .map(|result| Admission::Settled(Box::new(result)))
         };
         let call = match self.refusal(&made.target)?.map_or_else(
             || self.call_step(made.index, &made.target, &made.input),
@@ -475,7 +491,10 @@ where
             }
             // A call that reaches nothing holds no claim: it runs now, under
             // the driver.
-            TurnTarget::Tool { .. } | TurnTarget::Operation { .. } | TurnTarget::Ask => {
+            TurnTarget::Tool { .. }
+            | TurnTarget::Operation { .. }
+            | TurnTarget::Ask
+            | TurnTarget::Load => {
                 let ran = self.run_call_step(&call, &made.target, admitted_by, host)?;
                 return match ran {
                     Ran::Settled(outcome) => {
@@ -796,6 +815,11 @@ where
             host,
         };
         let result = match target {
+            TurnTarget::Skill {
+                bound: Some(bound), ..
+            } => self
+                .bound_skill(step, bound)
+                .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
             TurnTarget::Skill { .. } => load_step_skill(
                 scope.graph_dir,
                 step,
@@ -856,25 +880,34 @@ where
                             .ok_or_else(|| format!("{operation} is not an operation name"))?,
                     ),
                     declared: self
-                        .scope
-                        .agent
-                        .connectors
-                        .get(requirement.as_str())
-                        .cloned(),
+                        .declared(requirement.as_str())
+                        .map_err(|error| error.to_string())?,
                 };
                 (StepKind::Operation(target), Vec::new())
             }
-            TurnTarget::Skill { skill } => {
+            TurnTarget::Skill { skill, runner, .. } => {
                 // `act` is never a skill input: it is why the skill is run.
                 act = inputs
                     .remove("act")
                     .map(|value| CallAct::parse(&value))
                     .transpose()?;
-                (
-                    StepKind::Skill(turn_skill_target(skill.as_str())),
-                    Vec::new(),
-                )
+                let target = match runner {
+                    Some(runner) => SkillTarget {
+                        reference: skill.as_str().to_owned(),
+                        runner: Some(runner.as_str().to_owned()),
+                    },
+                    None => turn_skill_target(skill.as_str()),
+                };
+                (StepKind::Skill(target), Vec::new())
             }
+            TurnTarget::Load => (
+                StepKind::Load(LoadStep {
+                    target: load_target(input)?,
+                    rules: self.scope.agent.allowance.rules().copied().collect(),
+                    held: self.held().map_err(|error| error.to_string())?,
+                }),
+                Vec::new(),
+            ),
             // An ask is a yes or no on its reason, or questions the person
             // answers.
             TurnTarget::Ask if input.len() == 1 && input.contains_key("questions") => {
@@ -1037,14 +1070,24 @@ where
             )
             .map(|inspected| ("tool", inspected.inputs))
             .map_err(|error| format!("tool {tool} could not be resolved: {error}")),
-            TurnTarget::Skill { skill } => load_step_skill(
+            TurnTarget::Skill {
+                skill,
+                bound: Some(bound),
+                ..
+            } => self
+                .bound_skill(step, bound)
+                .map(|loaded| ("runner", loaded.runner.inputs))
+                .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
+            TurnTarget::Skill { skill, .. } => load_step_skill(
                 self.scope.graph_dir,
                 step,
                 StepSkillLoadOptions::of_run(options),
             )
             .map(|loaded| ("runner", loaded.runner.inputs))
             .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
-            TurnTarget::Operation { .. } | TurnTarget::Ask => Ok(("call", BTreeMap::new())),
+            TurnTarget::Operation { .. } | TurnTarget::Ask | TurnTarget::Load => {
+                Ok(("call", BTreeMap::new()))
+            }
         }
     }
 
@@ -1058,16 +1101,14 @@ where
         let describing =
             |message: String| RuntimeError::effect_state("describing an operation", message);
         let declared = self
-            .scope
-            .agent
-            .connectors
-            .get(allowed.requirement.as_str())
+            .declared(allowed.requirement.as_str())?
             .ok_or_else(|| {
                 describing(format!(
                     "requirement {} is not declared",
                     allowed.requirement
                 ))
             })?;
+        let declared = &declared;
         let connectors = if declared.connector_from.is_some() {
             declared
                 .allowed_connectors
@@ -1079,9 +1120,13 @@ where
         };
         let mut described = Vec::new();
         for id in &connectors {
-            let connector = scope
-                .connector(id)
-                .map_err(|error| describing(error.to_string()))?;
+            // A pinned requirement reaches the version it pins.
+            let connector = if declared.connector_from.is_none() {
+                scope.requirement(id, declared)
+            } else {
+                scope.connector(id)
+            }
+            .map_err(|error| describing(error.to_string()))?;
             let operation = connector
                 .manifest
                 .operations
@@ -1093,99 +1138,11 @@ where
                 })?;
             described.push((id.clone(), operation));
         }
-        let writes = described
-            .iter()
-            .any(|(_, operation)| operation.access() == OperationAccess::Mutate);
-        let amount = described
-            .iter()
-            .any(|(_, operation)| operation.amount == AmountRule::Required);
-        let input = match described.as_slice() {
-            [(_, operation)] => operation.input_schema.clone().map_or_else(
-                || JsonValue::Object(object_schema([], &[])),
-                JsonValue::Object,
-            ),
-            _ => JsonValue::Object(JsonObject::from([(
-                "type".to_owned(),
-                JsonValue::String("object".to_owned()),
-            )])),
-        };
-        let mut properties = vec![("input", input)];
-        let mut required = vec!["input"];
-        if writes {
-            properties.push(("idempotency_key", string_schema()));
-            required.push("idempotency_key");
-        }
-        if amount {
-            properties.push((
-                "amount",
-                JsonValue::Object(object_schema(
-                    [
-                        (
-                            "units",
-                            JsonValue::Object(JsonObject::from([
-                                ("type".to_owned(), JsonValue::String("integer".to_owned())),
-                                ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
-                            ])),
-                        ),
-                        ("unit", string_schema()),
-                    ],
-                    &["units", "unit"],
-                )),
-            ));
-            required.push("amount");
-        }
-        // The act the call performs, as the agent states it: why it is made.
-        let act = JsonValue::from_serialize(&runx_contracts::CallAct::json_schema())
-            .map_err(|error| describing(error.to_string()))?;
-        properties.push(("act", act));
-        if declared.connector_from.is_some() {
-            properties.push((
-                "connector",
-                JsonValue::Object(JsonObject::from([(
-                    "enum".to_owned(),
-                    JsonValue::Array(connectors.iter().cloned().map(JsonValue::String).collect()),
-                )])),
-            ));
-            required.push("connector");
-        }
-        let mut input_schema = object_schema([], &required);
-        input_schema.insert(
-            "properties".to_owned(),
-            JsonValue::Object(
-                properties
-                    .into_iter()
-                    .map(|(name, schema)| (name.to_owned(), schema))
-                    .collect(),
-            ),
-        );
-        let description = described
-            .iter()
-            .map(|(id, operation)| format!("{id}/{}: {}", allowed.operation, operation.description))
-            .collect::<Vec<_>>()
-            .join("; ");
-        let description = if writes {
-            format!(
-                "{description} A write: name it with an idempotency_key you reuse when retrying it."
-            )
-        } else {
-            description
-        };
-        Ok(offered(
-            &format!("{}__{}", allowed.requirement, allowed.operation),
-            description,
-            input_schema,
-            TurnTarget::Operation {
-                requirement: allowed.requirement.clone(),
-                operation: allowed.operation.clone(),
-            },
-        ))
+        operation_descriptor(allowed, declared, &connectors, &described)
     }
 
-    /// A child skill's tool: its description and its runner's inputs.
-    fn skill_tool(&self, skill: &NonEmptyString) -> Result<TurnTool, RuntimeError> {
-        let target = TurnTarget::Skill {
-            skill: skill.clone(),
-        };
+    /// A listed child skill's tool, named for its ref.
+    fn skill_tool(&self, target: TurnTarget, name: String) -> Result<TurnTool, RuntimeError> {
         let call = self
             .call_step(0, &target, &JsonObject::new())
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
@@ -1194,29 +1151,183 @@ where
             &call.step,
             StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
-        let description = loaded
-            .description
-            .clone()
-            .unwrap_or_else(|| format!("Run the {} skill.", loaded.runner.name));
-        // Beside its inputs, a skill call states why it runs the skill.
-        let mut input_schema =
-            runx_contracts::call_input_schema(&loaded.runner.inputs).map_err(|error| {
-                RuntimeError::effect_state("describing a child skill", error.to_string())
-            })?;
-        if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
-            properties.insert(
-                "act".to_owned(),
-                JsonValue::from_serialize(&CallAct::json_schema()).map_err(|error| {
-                    RuntimeError::effect_state("describing a child skill", error.to_string())
-                })?,
-            );
+        skill_descriptor(&name, loaded.description, &loaded.runner, target)
+    }
+
+    /// The loads this turn completed, in order.
+    fn loads(&self) -> Result<Vec<TurnLoad>, RuntimeError> {
+        self.recorded()?
+            .iter()
+            .filter(|call| call.target == TurnTarget::Load)
+            .filter_map(|call| match &call.outcome {
+                CallOutcome::Completed(run) if run.outcome.succeeded() => Some(run),
+                _ => None,
+            })
+            .map(|run| {
+                JsonValue::Object(run.contract.clone())
+                    .deserialize_into::<TurnLoad>()
+                    .map_err(|error| {
+                        RuntimeError::effect_state("reading a load", error.to_string())
+                    })
+            })
+            .collect()
+    }
+
+    /// Whether a load of this turn offers `target`.
+    fn loaded_offers(&self, target: &TurnTarget) -> Result<bool, RuntimeError> {
+        Ok(self
+            .loads()?
+            .iter()
+            .any(|load| load.tools.iter().any(|tool| &tool.target == target)))
+    }
+
+    /// The declaration that admits an operation call on `requirement`: the
+    /// skill's own, else that of a connector this turn loaded, pinned to the
+    /// manifest the load bound.
+    fn declared(&self, requirement: &str) -> Result<Option<ConnectorRequirement>, RuntimeError> {
+        if let Some(declared) = self.scope.agent.connectors.get(requirement) {
+            return Ok(Some(declared.clone()));
         }
-        Ok(offered(
-            &format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
-            description,
-            input_schema,
-            target,
-        ))
+        for load in self.loads()? {
+            let LoadedPackage::Connector {
+                connector,
+                manifest_digest,
+                ..
+            } = &load.package
+            else {
+                continue;
+            };
+            if connector.as_str() != requirement {
+                continue;
+            }
+            return Ok(Some(ConnectorRequirement {
+                operations: load
+                    .tools
+                    .iter()
+                    .filter_map(|tool| match &tool.target {
+                        TurnTarget::Operation { operation, .. } => {
+                            OperationName::new(operation.as_str().to_owned())
+                        }
+                        _ => None,
+                    })
+                    .collect(),
+                manifest_digest: runx_contracts::connector::Digest::new(
+                    manifest_digest.as_str().to_owned(),
+                ),
+                connector_from: None,
+                allowed_connectors: Vec::new(),
+            }));
+        }
+        Ok(None)
+    }
+
+    /// Each connector the turn already reaches, by name, at the manifest it
+    /// binds: its skill's requirements, and what its loads bound.
+    fn held(&self) -> Result<BTreeMap<String, String>, RuntimeError> {
+        let mut held = BTreeMap::new();
+        let connectors = &self.scope.agent.connectors;
+        if !connectors.is_empty() {
+            let scope = self.connector_scope()?;
+            for (key, requirement) in connectors {
+                let references = if requirement.connector_from.is_some() {
+                    requirement.allowed_connectors.clone()
+                } else {
+                    vec![key.clone()]
+                };
+                for reference in references {
+                    let connector =
+                        scope
+                            .requirement(&reference, requirement)
+                            .map_err(|error| {
+                                RuntimeError::effect_state(
+                                    "reading the skill's connectors",
+                                    error.to_string(),
+                                )
+                            })?;
+                    held.insert(
+                        connector.name.as_str().to_owned(),
+                        connector.manifest_digest.as_str().to_owned(),
+                    );
+                }
+            }
+        }
+        for load in self.loads()? {
+            for (name, digest) in load.connectors {
+                held.insert(name, digest.as_str().to_owned());
+            }
+        }
+        Ok(held)
+    }
+
+    /// The connectors the turn's skill may use, within its project.
+    fn connector_scope(&self) -> Result<crate::kernel::connectors::ConnectorScope, RuntimeError> {
+        Ok(
+            crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
+                .map_err(|error| {
+                    RuntimeError::effect_state("reading the skill's connectors", error.to_string())
+                })?
+                .in_project(
+                    crate::paths::RunxPaths::resolve(
+                        &self.scope.runtime.options.env,
+                        self.scope.graph_dir,
+                    )
+                    .connectors(),
+                ),
+        )
+    }
+
+    /// The skill a loaded runner's call runs: the package its load bound,
+    /// read from the project again and refused if it changed since, with the
+    /// packages its closure binds for its child run to execute.
+    fn bound_skill(
+        &self,
+        step: &GraphStep,
+        bound: &BoundClosure,
+    ) -> Result<LoadedStepSkill, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        let target = step.skill().ok_or_else(|| RuntimeError::StepMissingSkill {
+            step_id: step.id.clone(),
+        })?;
+        let runner = target
+            .runner
+            .as_deref()
+            .ok_or_else(|| RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason: "a loaded skill's call names its runner".to_owned(),
+            })?;
+        let directory = crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir)
+            .workspace()
+            .join(&target.reference);
+        let changed = |reason: String| RuntimeError::AuthorityDenied {
+            verb: runx_contracts::AuthorityVerb::Execute,
+            step_id: step.id.clone(),
+            reason: format!(
+                "skill {} is not what the turn loaded: {reason}",
+                target.reference
+            ),
+        };
+        let package = std::sync::Arc::new(
+            crate::load_validated_skill_package(&directory)
+                .map_err(|error| changed(error.to_string()))?,
+        );
+        let binding = crate::skill_package::verify_loaded_execution_binding(
+            std::sync::Arc::clone(&package),
+            runner,
+            &options.env,
+            Some(bound.package_digest.as_str()),
+            Some(bound.closure_digest.as_str()),
+        )
+        .map_err(|error| changed(error.to_string()))?;
+        let mut skill = step_skill(
+            step,
+            LoadedStepSkillPackage {
+                package,
+                registry: None,
+            },
+            &options.env,
+        )?;
+        skill.admitted = Some(binding.packages);
+        Ok(skill)
     }
 
     /// A catalog tool's tool: its description and inputs as the catalog
@@ -1272,23 +1383,39 @@ where
             tools.push(self.catalog_tool(tool)?);
         }
         if !allowance.operations.is_empty() {
-            let connectors = crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
-                .map_err(|error| {
-                    RuntimeError::effect_state("reading the skill's connectors", error.to_string())
-                })?
-                .in_project(
-                    crate::paths::RunxPaths::resolve(
-                        &self.scope.runtime.options.env,
-                        self.scope.graph_dir,
-                    )
-                    .connectors(),
-                );
+            let connectors = self.connector_scope()?;
             for allowed in &allowance.operations {
                 tools.push(self.operation_tool(&connectors, allowed)?);
             }
         }
-        for skill in &allowance.skills {
-            tools.push(self.skill_tool(skill)?);
+        for skill in allowance.skill_refs() {
+            tools.push(self.skill_tool(
+                TurnTarget::Skill {
+                    skill: skill.clone(),
+                    runner: None,
+                    bound: None,
+                },
+                format!("skill__{}", skill.as_str().trim_start_matches(['.', '/'])),
+            )?);
+        }
+        if allowance.rules().next().is_some() {
+            tools.push(offered(
+                "load",
+                "Load a skill or connector the turn's catalog rules admit: {skill, runner?} by ref, or {connector} by name. Each runner or operation it binds is a tool of this turn from then on. A package below the rule's trust tier waits on the person's trust."
+                    .to_owned(),
+                load_schema()?,
+                TurnTarget::Load,
+            ));
+        }
+        // What a load added, as it described it when it bound it: a package
+        // that changed since is refused at its call, never re-read here.
+        for load in self.loads()? {
+            tools.extend(load.tools.into_iter().filter(|tool| {
+                !matches!(&tool.target, TurnTarget::Operation { requirement, operation }
+                if allowance.operations.iter().any(|allowed| {
+                    &allowed.requirement == requirement && &allowed.operation == operation
+                }))
+            }));
         }
         if allowance.asks {
             tools.push(offered(
@@ -1344,7 +1471,7 @@ where
                 }
                 return self
                     .result(&Made::of(known), &known.outcome, &known.outputs)
-                    .map(Admission::Settled);
+                    .map(|result| Admission::Settled(Box::new(result)));
             }
         }
         let index = self
@@ -1450,9 +1577,197 @@ fn label(target: &TurnTarget) -> String {
             requirement,
             operation,
         } => format!("operation {requirement}/{operation}"),
-        TurnTarget::Skill { skill } => format!("skill {skill}"),
+        TurnTarget::Skill {
+            skill,
+            runner: Some(runner),
+            ..
+        } => format!("skill {skill}#{runner}"),
+        TurnTarget::Skill { skill, .. } => format!("skill {skill}"),
         TurnTarget::Ask => "ask".to_owned(),
+        TurnTarget::Load => "load".to_owned(),
     }
+}
+
+/// An operation's tool: the call fields the turn accepts, with the
+/// operation's own input schema when one connector serves it. `described`
+/// holds each connector the call may choose, with its declaration of the
+/// operation.
+pub(super) fn operation_descriptor(
+    allowed: &AllowedOperation,
+    declared: &ConnectorRequirement,
+    connectors: &[String],
+    described: &[(String, runx_contracts::connector::ConnectorOperation)],
+) -> Result<TurnTool, RuntimeError> {
+    let describing =
+        |message: String| RuntimeError::effect_state("describing an operation", message);
+    let writes = described
+        .iter()
+        .any(|(_, operation)| operation.access() == OperationAccess::Mutate);
+    let amount = described
+        .iter()
+        .any(|(_, operation)| operation.amount == AmountRule::Required);
+    let input = match described {
+        [(_, operation)] => operation.input_schema.clone().map_or_else(
+            || JsonValue::Object(object_schema([], &[])),
+            JsonValue::Object,
+        ),
+        _ => JsonValue::Object(JsonObject::from([(
+            "type".to_owned(),
+            JsonValue::String("object".to_owned()),
+        )])),
+    };
+    let mut properties = vec![("input", input)];
+    let mut required = vec!["input"];
+    if writes {
+        properties.push(("idempotency_key", string_schema()));
+        required.push("idempotency_key");
+    }
+    if amount {
+        properties.push((
+            "amount",
+            JsonValue::Object(object_schema(
+                [
+                    (
+                        "units",
+                        JsonValue::Object(JsonObject::from([
+                            ("type".to_owned(), JsonValue::String("integer".to_owned())),
+                            ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
+                        ])),
+                    ),
+                    ("unit", string_schema()),
+                ],
+                &["units", "unit"],
+            )),
+        ));
+        required.push("amount");
+    }
+    // The act the call performs, as the agent states it: why it is made.
+    let act = JsonValue::from_serialize(&runx_contracts::CallAct::json_schema())
+        .map_err(|error| describing(error.to_string()))?;
+    properties.push(("act", act));
+    if declared.connector_from.is_some() {
+        properties.push((
+            "connector",
+            JsonValue::Object(JsonObject::from([(
+                "enum".to_owned(),
+                JsonValue::Array(connectors.iter().cloned().map(JsonValue::String).collect()),
+            )])),
+        ));
+        required.push("connector");
+    }
+    let mut input_schema = object_schema([], &required);
+    input_schema.insert(
+        "properties".to_owned(),
+        JsonValue::Object(
+            properties
+                .into_iter()
+                .map(|(name, schema)| (name.to_owned(), schema))
+                .collect(),
+        ),
+    );
+    let description = described
+        .iter()
+        .map(|(id, operation)| format!("{id}/{}: {}", allowed.operation, operation.description))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let description = if writes {
+        format!(
+            "{description} A write: name it with an idempotency_key you reuse when retrying it."
+        )
+    } else {
+        description
+    };
+    Ok(offered(
+        &format!("{}__{}", allowed.requirement, allowed.operation),
+        description,
+        input_schema,
+        TurnTarget::Operation {
+            requirement: allowed.requirement.clone(),
+            operation: allowed.operation.clone(),
+        },
+    ))
+}
+
+/// A child skill's tool: its description and its runner's inputs, beside
+/// the act a skill call states.
+pub(super) fn skill_descriptor(
+    name: &str,
+    description: Option<String>,
+    runner: &runx_parser::SkillRunnerDefinition,
+    target: TurnTarget,
+) -> Result<TurnTool, RuntimeError> {
+    let describing =
+        |message: String| RuntimeError::effect_state("describing a child skill", message);
+    let description = description.unwrap_or_else(|| format!("Run the {} skill.", runner.name));
+    let mut input_schema = runx_contracts::call_input_schema(&runner.inputs)
+        .map_err(|error| describing(error.to_string()))?;
+    if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
+        properties.insert(
+            "act".to_owned(),
+            JsonValue::from_serialize(&CallAct::json_schema())
+                .map_err(|error| describing(error.to_string()))?,
+        );
+    }
+    Ok(offered(name, description, input_schema, target))
+}
+
+/// What a load call names: `{skill, runner?}` or `{connector}`.
+fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
+    let text = |field: &str| -> Result<Option<String>, String> {
+        input
+            .get(field)
+            .map(|value| {
+                value
+                    .as_str()
+                    .filter(|text| !text.trim().is_empty())
+                    .map(ToOwned::to_owned)
+                    .ok_or_else(|| format!("a load's {field} is a non-empty string"))
+            })
+            .transpose()
+    };
+    if let Some(field) = input
+        .keys()
+        .find(|field| !["skill", "runner", "connector"].contains(&field.as_str()))
+    {
+        return Err(format!(
+            "a load takes skill and runner, or connector, not {field}"
+        ));
+    }
+    match (text("skill")?, text("runner")?, text("connector")?) {
+        (Some(reference), runner, None) => Ok(LoadTarget::Skill { reference, runner }),
+        (None, None, Some(name)) => Ok(LoadTarget::Connector { name }),
+        _ => {
+            Err("a load names a skill, with its runner if it wants one, or a connector".to_owned())
+        }
+    }
+}
+
+/// A loaded runner's tool name: its package, without its version, and its
+/// runner.
+pub(super) fn loaded_tool_name(package: &str, runner: &str) -> String {
+    let name = package.split_once('@').map_or(package, |(name, _)| name);
+    let name = name.strip_prefix("skills/").unwrap_or(name);
+    format!("skill__{name}__{runner}")
+}
+
+/// A load's input: a skill by ref with an optional runner, or a connector by
+/// name.
+fn load_schema() -> Result<JsonObject, RuntimeError> {
+    let text = serde_json::json!({"type": "string", "minLength": 1});
+    serde_json::from_value(serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "skill": text,
+            "runner": text,
+            "connector": text,
+        },
+        "oneOf": [
+            {"required": ["skill"], "not": {"required": ["connector"]}},
+            {"required": ["connector"], "not": {"anyOf": [{"required": ["skill"]}, {"required": ["runner"]}]}},
+        ],
+    }))
+    .map_err(|source| RuntimeError::json("describing a load", source))
 }
 
 /// One call a turn offers, named for MCP.

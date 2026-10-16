@@ -5,18 +5,31 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::PaidSkillListing;
 use runx_contracts::sha256_prefixed;
-use runx_runtime::registry::{
+
+use super::{RegistryTarget, ResolveError, registry_source_description, resolve_registry_target};
+use crate::registry::{
     InstallCandidate, InstallLocalSkillOptions, parse_registry_ref, split_skill_id,
 };
 
-use crate::registry::{self, RegistryAction, RegistryPlan};
-
 #[derive(Clone, Copy)]
-pub(super) struct SkillResolverOptions<'a> {
-    pub(super) env: &'a BTreeMap<String, String>,
-    pub(super) registry: Option<&'a str>,
-    pub(super) expected_digest: Option<&'a str>,
-    pub(super) absent_pins: AbsentPins,
+pub struct SkillResolverOptions<'a> {
+    pub env: &'a BTreeMap<String, String>,
+    /// The registry `--registry` names, if one does.
+    pub registry: Option<&'a str>,
+    pub expected_digest: Option<&'a str>,
+    pub absent_pins: AbsentPins,
+    pub holder: Holder,
+}
+
+/// Where a registry package the resolver fetches is kept.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Holder {
+    /// Added to the project, as a skill arrives when it is first run.
+    Project,
+    /// Read into a cache in the runx home and added to nothing: inspecting is
+    /// not using (N6). A registry skill it names stays unfetched, for the
+    /// inspection to report.
+    Cache,
 }
 
 /// What a nested registry pin the registry does not hold means. A run cannot
@@ -24,7 +37,7 @@ pub(super) struct SkillResolverOptions<'a> {
 /// supplies registry records, as the hosted registry closure does, can supply
 /// it and inspect again.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AbsentPins {
+pub enum AbsentPins {
     Fail,
     Report,
 }
@@ -42,6 +55,12 @@ impl From<String> for RegistryResolveError {
     }
 }
 
+impl From<ResolveError> for RegistryResolveError {
+    fn from(error: ResolveError) -> Self {
+        Self::Failed(error.into_message())
+    }
+}
+
 impl From<RegistryResolveError> for String {
     fn from(error: RegistryResolveError) -> Self {
         match error {
@@ -53,7 +72,7 @@ impl From<RegistryResolveError> for String {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SkillRefKind {
+pub enum SkillRefKind {
     ExplicitPath,
     ExportedShim,
     WorkspaceLocal,
@@ -63,32 +82,39 @@ pub(crate) enum SkillRefKind {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum RegistryTrustState {
+pub enum RegistryTrustState {
     Trusted,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ResolvedSkillRef {
-    pub(crate) kind: SkillRefKind,
-    pub(crate) skill_id: Option<String>,
-    pub(crate) version: Option<String>,
-    pub(crate) digest: Option<String>,
-    pub(crate) profile_digest: Option<String>,
-    pub(crate) package_digest: Option<String>,
-    pub(crate) registry_source: Option<String>,
-    pub(crate) registry_source_fingerprint: Option<String>,
-    pub(crate) trust_state: Option<RegistryTrustState>,
-    pub(crate) trust_tier: Option<String>,
-    pub(crate) registry_key_id: Option<String>,
-    pub(crate) paid_listing: Option<PaidSkillListing>,
-    pub(crate) hosted_registry_url: Option<String>,
-    pub(crate) runnable_path: PathBuf,
+pub struct ResolvedSkillRef {
+    pub kind: SkillRefKind,
+    pub skill_id: Option<String>,
+    pub version: Option<String>,
+    pub digest: Option<String>,
+    pub profile_digest: Option<String>,
+    pub package_digest: Option<String>,
+    pub registry_source: Option<String>,
+    pub registry_source_fingerprint: Option<String>,
+    pub trust_state: Option<RegistryTrustState>,
+    pub trust_tier: Option<String>,
+    pub registry_key_id: Option<String>,
+    pub paid_listing: Option<PaidSkillListing>,
+    pub hosted_registry_url: Option<String>,
+    pub runnable_path: PathBuf,
 }
 
 /// A graph nests skills at most this deep; deeper is a cycle, not a graph.
 const MAX_NESTED_FETCH_DEPTH: usize = 16;
 
-pub(crate) fn resolve_skill_ref_details(
+/// The package `skill_ref` names, with every registry skill it names
+/// fetched into the project.
+///
+/// # Errors
+///
+/// Returns why the ref, or a registry skill its package names, did not
+/// resolve.
+pub fn resolve_skill_ref_details(
     skill_ref: &Path,
     cwd: &Path,
     options: SkillResolverOptions<'_>,
@@ -108,9 +134,12 @@ fn fetch_unheld_registry_refs(
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<(), String> {
+    if options.holder == Holder::Cache {
+        return Ok(());
+    }
     let mut absent = BTreeSet::new();
     for _ in 0..=MAX_NESTED_FETCH_DEPTH {
-        let unheld = runx_runtime::unheld_registry_refs_at(skill_path, options.env)
+        let unheld = crate::unheld_registry_refs_at(skill_path, options.env)
             .map_err(|error| error.to_string())?
             .into_iter()
             .filter(|reference| !absent.contains(reference))
@@ -160,7 +189,7 @@ fn resolve_skill_ref(
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, String> {
-    let local_path = runx_runtime::RunxPaths::resolve(options.env, cwd).existing_input(skill_ref);
+    let local_path = crate::RunxPaths::resolve(options.env, cwd).existing_input(skill_ref);
     if local_path.exists() {
         let path = resolve_exported_skill_shim(&local_path)?;
         let kind = if path == local_path {
@@ -221,9 +250,14 @@ fn resolve_bare_skill_ref(
         return Ok(resolved);
     }
     // Then the registry, which a bare name reaches only as a root name.
-    let plan = registry_plan(&parsed.skill_id, parsed.version.as_deref(), &options);
-    if let Some(skill_id) = registry::resolve_root_name(&plan, options.env, cwd)
-        .map_err(|error| error.into_message())?
+    if let Some(skill_id) = super::resolve_root_name(
+        &parsed.skill_id,
+        parsed.version.as_deref(),
+        options.registry,
+        options.env,
+        cwd,
+    )
+    .map_err(ResolveError::into_message)?
     {
         return resolve_registry_skill(&skill_id, parsed.version.as_deref(), cwd, options)
             .map_err(String::from);
@@ -232,7 +266,7 @@ fn resolve_bare_skill_ref(
         "could not resolve skill ref '{}'; tried {}, {} and the registry's root names. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
         skill_ref.display(),
         cwd.join("skills").join(skill_ref).display(),
-        runx_runtime::RunxPaths::resolve(options.env, cwd)
+        crate::RunxPaths::resolve(options.env, cwd)
             .workspace()
             .to_path_buf()
             .join("skills")
@@ -248,16 +282,13 @@ fn resolve_bundled_skill(
     cwd: &Path,
     options: &SkillResolverOptions<'_>,
 ) -> Result<Option<ResolvedSkillRef>, String> {
-    let paths = runx_runtime::RunxPaths::resolve(options.env, cwd);
+    let paths = crate::RunxPaths::resolve(options.env, cwd);
     let reference = version.map_or_else(
         || skill_id.to_owned(),
         |version| format!("{skill_id}@{version}"),
     );
-    let Some(installed) = runx_runtime::registry::materialize_bundled_skill(
-        &reference,
-        &paths,
-        options.expected_digest,
-    )?
+    let Some(installed) =
+        crate::registry::materialize_bundled_skill(&reference, &paths, options.expected_digest)?
     else {
         return Ok(None);
     };
@@ -284,8 +315,8 @@ fn resolve_installed_or_workspace_skill(
     cwd: &Path,
     options: &SkillResolverOptions<'_>,
 ) -> Result<Option<ResolvedSkillRef>, String> {
-    let paths = runx_runtime::RunxPaths::resolve(options.env, cwd);
-    let Some(candidate) = runx_runtime::resolve_local_skill_reference(
+    let paths = crate::RunxPaths::resolve(options.env, cwd);
+    let Some(candidate) = crate::resolve_local_skill_reference(
         &paths,
         Path::new(name),
         &paths.skill_roots(options.env),
@@ -313,21 +344,22 @@ fn resolve_registry_skill(
     options: SkillResolverOptions<'_>,
 ) -> Result<ResolvedSkillRef, RegistryResolveError> {
     let env = options.env;
-    let plan = registry_plan(skill_id, version, &options);
-    let target = registry::resolve_registry_target(&plan, env, cwd);
-    let source_description = registry::registry_source_description(&target);
+    let requested = version.map_or_else(
+        || skill_id.to_owned(),
+        |version| format!("{skill_id}@{version}"),
+    );
+    let target = resolve_registry_target(options.registry, env, cwd);
+    let source_description = registry_source_description(&target);
     let hosted_registry_url = match &target {
-        registry::RegistryTarget::Remote { registry_url } => Some(registry_url.clone()),
-        registry::RegistryTarget::Local { .. } => None,
+        RegistryTarget::Remote { registry_url } => Some(registry_url.clone()),
+        RegistryTarget::Local { .. } => None,
     };
     let source_fingerprint = registry_source_fingerprint(&target);
     let source_authority = target.manifest_source_authority();
-    let (mut candidate, acquisition) = registry::install_candidate(&plan, target, env, cwd)
-        .map_err(|error| error.into_message())?
-        .ok_or_else(|| {
+    let (mut candidate, acquisition) =
+        super::install_candidate(skill_id, version, target, env, cwd)?.ok_or_else(|| {
             RegistryResolveError::NotHeld(format!(
-                "registry skill not found: {} in {source_description}",
-                plan.requested_ref()
+                "registry skill not found: {requested} in {source_description}"
             ))
         })?;
     let paid_listing = acquisition
@@ -336,26 +368,36 @@ fn resolve_registry_skill(
     canonicalize_candidate_ref(&mut candidate);
     let identity = registry_identity(&candidate)?;
     // A fetched skill is added to the project's skills directory, once per
-    // version, like any other.
-    let destination_root = runx_runtime::RunxPaths::resolve(env, cwd).skills();
-    let install = runx_runtime::registry::install_local_skill(
+    // version, like any other; one read for inspection, to the home's cache.
+    let paths = crate::RunxPaths::resolve(env, cwd);
+    let (destination_root, connectors_root, install_records) = match options.holder {
+        Holder::Project => (paths.skills(), paths.connectors(), paths.install_records()),
+        Holder::Cache => {
+            let cache = paths.inspection_cache();
+            (
+                cache.join("skills"),
+                cache.join("connectors"),
+                cache.join("installs"),
+            )
+        }
+    };
+    let install = crate::registry::install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
-            destination_root: destination_root.to_path_buf(),
-            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
-            expected_digest: plan.expected_digest,
-            trusted_manifest_keys: registry::trusted_manifest_keys_from_env_for_source(
+            destination_root,
+            connectors_root,
+            install_records,
+            expected_digest: options.expected_digest.map(ToOwned::to_owned),
+            trusted_manifest_keys: super::trusted_manifest_keys_for_source(
                 env,
                 candidate
                     .manifest_source_authority
                     .clone()
                     .unwrap_or(source_authority),
-            )
-            .map_err(|error| error.into_message())?,
+            )?,
         },
     )
-    .map_err(crate::registry::RegistryCliError::from)
-    .map_err(|error| error.into_message())?;
+    .map_err(ResolveError::from)?;
     let runnable_path = install
         .destination
         .parent()
@@ -379,7 +421,7 @@ fn resolve_registry_skill(
         registry_source: Some(source_description),
         registry_source_fingerprint: Some(source_fingerprint),
         trust_state: Some(RegistryTrustState::Trusted),
-        trust_tier: install.trust_tier.as_ref().map(trust_tier_string),
+        trust_tier: install.trust_tier.map(|tier| tier.as_str().to_owned()),
         registry_key_id: candidate
             .signed_manifest
             .as_ref()
@@ -416,33 +458,13 @@ struct RegistryIdentity {
     version: Option<String>,
 }
 
-fn registry_plan(
-    subject: &str,
-    version: Option<&str>,
-    options: &SkillResolverOptions<'_>,
-) -> RegistryPlan {
-    RegistryPlan {
-        action: RegistryAction::Install,
-        subject: subject.to_owned(),
-        registry: options.registry.map(ToOwned::to_owned),
-        version: version.map(ToOwned::to_owned),
-        expected_digest: options.expected_digest.map(ToOwned::to_owned),
-        publisher: None,
-        profile: None,
-        trust_tier: None,
-        limit: None,
-        upsert: false,
-        json: true,
-    }
-}
-
 fn canonicalize_candidate_ref(candidate: &mut InstallCandidate) {
     if let (Some(skill_id), Some(version)) = (&candidate.skill_id, &candidate.version) {
         candidate.r#ref = format!("{skill_id}@{version}");
     }
 }
 
-fn registry_source_fingerprint(target: &registry::RegistryTarget) -> String {
+fn registry_source_fingerprint(target: &RegistryTarget) -> String {
     let source = target.fingerprint_source();
     sha256_prefixed(source.as_bytes())
         .trim_start_matches("sha256:")
@@ -476,15 +498,6 @@ fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRe
         hosted_registry_url: None,
         runnable_path,
     }
-}
-
-fn trust_tier_string(value: &runx_runtime::registry::TrustTier) -> String {
-    match value {
-        runx_runtime::registry::TrustTier::FirstParty => "first_party",
-        runx_runtime::registry::TrustTier::Verified => "verified",
-        runx_runtime::registry::TrustTier::Community => "community",
-    }
-    .to_owned()
 }
 
 fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
@@ -560,6 +573,7 @@ mod tests {
                 registry: None,
                 expected_digest: None,
                 absent_pins: AbsentPins::Fail,
+                holder: Holder::Project,
             },
         ) {
             Ok(_) => return Err("missing bare skill should fail".to_owned()),

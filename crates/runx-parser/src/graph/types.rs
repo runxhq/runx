@@ -48,7 +48,8 @@ pub struct GraphWhen {
     pub not_equals: Option<JsonValue>,
 }
 
-/// What one step does: exactly one of the five step kinds.
+/// What one step does: exactly one of the five step kinds a graph declares,
+/// or a load, which only an agent's call makes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepKind {
@@ -62,6 +63,9 @@ pub enum StepKind {
     Ask(AskGate),
     /// An attenuated child run of another skill.
     Skill(SkillTarget),
+    /// A package a turn's catalog rule admits, bound for the turn's later
+    /// calls.
+    Load(LoadStep),
 }
 
 impl StepKind {
@@ -74,8 +78,38 @@ impl StepKind {
             Self::Operation(_) => "operation",
             Self::Ask(_) => "ask",
             Self::Skill(_) => "skill",
+            Self::Load(_) => "load",
         }
     }
+}
+
+/// A load an agent's call makes: what it names, the rules that admit it,
+/// and what the turn already binds, which the load must agree with.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoadStep {
+    pub target: LoadTarget,
+    /// The catalog rules of the turn's allowance.
+    pub rules: Vec<runx_contracts::CatalogRule>,
+    /// Each connector the turn already reaches, by name, at the manifest
+    /// digest it binds: one run binds one revision of a name.
+    pub held: BTreeMap<String, String>,
+}
+
+/// What a load names: a skill by ref, with the one runner it loads or all
+/// of them, or a connector by name.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum LoadTarget {
+    Skill {
+        #[serde(rename = "ref")]
+        reference: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        runner: Option<String>,
+    },
+    Connector {
+        name: String,
+    },
 }
 
 /// An agent act: the role that answers and the task it performs. The step's

@@ -628,5 +628,13 @@ static SEARCH: TypedNativeCapability<FileSearchInput, FileSearchOutput> =
         super::walk::search,
     );
 
-pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
-    &[&READ, &READ_BUNDLE, &LIST, &SEARCH, &WRITE, &EDIT, &APPLY];
+pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] = &[
+    &READ,
+    &READ_BUNDLE,
+    &LIST,
+    &SEARCH,
+    &WRITE,
+    &EDIT,
+    &APPLY,
+    &super::inverse::INVERSE,
+];
