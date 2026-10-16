@@ -31,6 +31,9 @@ struct ClosureAccumulator {
     /// Every package the closure binds, as it was loaded, by its canonical
     /// directory.
     packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
+    /// Every runner the closure binds, by its package's directory: where a run
+    /// may admit an operation.
+    runners: BTreeSet<(PathBuf, String)>,
     profiles: BTreeSet<String>,
     environment_required: BTreeSet<String>,
     environment_optional: BTreeSet<String>,
@@ -170,6 +173,29 @@ pub(super) fn inspect_runner_execution_closure(
     let mut closure = inspector.inspect_root_runner_accumulator(runner_name)?;
     let packages = std::mem::take(&mut closure.packages);
     Ok((serialize_closure(closure)?, packages))
+}
+
+/// Every runner the closure of `loaded`'s runner `runner_name` binds, its
+/// child skills' included, with the package each runs from. A registry child
+/// the project does not hold is left out, as the closure reports it.
+pub(super) fn inspect_runner_closure_runners(
+    loaded: Arc<LoadedSkillPackage>,
+    runner_name: &str,
+    env: &BTreeMap<String, String>,
+) -> Result<Vec<(Arc<LoadedSkillPackage>, String)>, SkillInspectionError> {
+    let mut inspector =
+        ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
+    let closure = inspector.inspect_root_runner_accumulator(runner_name)?;
+    Ok(closure
+        .runners
+        .iter()
+        .filter_map(|(directory, runner)| {
+            closure
+                .packages
+                .get(directory)
+                .map(|package| (Arc::clone(package), runner.clone()))
+        })
+        .collect())
 }
 
 pub(super) fn inspect_local_execution_closure(
@@ -454,6 +480,9 @@ impl<'a> ExecutionClosureInspector<'a> {
             .packages
             .entry(skill_directory.clone())
             .or_insert_with(|| loaded.clone());
+        walk.closure
+            .runners
+            .insert((skill_directory.clone(), runner_name.clone()));
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
         let mut scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
             .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;

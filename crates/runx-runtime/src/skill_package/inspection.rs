@@ -84,9 +84,10 @@ pub fn inspect_skill_package(
     inspect_loaded_skill_package(loaded, selected_runner, env)
 }
 
-/// The readiness of each connector operation the selected runner calls,
-/// projected by the kernel from the instances and evidence present for `cwd`,
-/// under the authority a host would start the run with.
+/// The readiness of each connector operation a run of the selected runner may
+/// call, its child skills' included, projected by the kernel from the
+/// instances and evidence present for `cwd`, under the authority a host would
+/// start the run with.
 pub fn inspect_connector_readiness(
     skill_path: &Path,
     selected_runner: Option<&str>,
@@ -94,25 +95,42 @@ pub fn inspect_connector_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<runx_contracts::Readiness>, SkillInspectionError> {
-    let loaded = super::load_validated_skill_package(skill_path)?;
-    let manifest = loaded.manifest();
-    let Some((manifest, runner)) = manifest.zip(inspected_runner(manifest, selected_runner)?)
+    let loaded = Arc::new(super::load_validated_skill_package(skill_path)?);
+    let Some(runner) =
+        inspected_runner(loaded.manifest(), selected_runner)?.map(|runner| runner.name.clone())
     else {
         return Ok(Vec::new());
     };
-    crate::kernel::admission::skill_readiness(
-        &loaded.directory,
-        &runner_requirements(&manifest.connectors, runner),
-        authority,
-        env,
-        cwd,
-    )
-    .map_err(|message| {
-        SkillInspectionError::Runtime(Box::new(RuntimeError::SkillFailed {
-            skill_name: "connectors".to_owned(),
-            message,
-        }))
-    })
+    let mut readiness = Vec::new();
+    for (package, runner) in
+        execution_closure::inspect_runner_closure_runners(Arc::clone(&loaded), &runner, env)?
+    {
+        let Some(manifest) = package.manifest() else {
+            continue;
+        };
+        let Some(runner) = manifest.runners.get(&runner) else {
+            continue;
+        };
+        let projected = crate::kernel::admission::skill_readiness(
+            &package.directory,
+            &runner_requirements(&manifest.connectors, runner),
+            authority,
+            env,
+            cwd,
+        )
+        .map_err(|message| {
+            SkillInspectionError::Runtime(Box::new(RuntimeError::SkillFailed {
+                skill_name: "connectors".to_owned(),
+                message,
+            }))
+        })?;
+        for operation in projected {
+            if !readiness.contains(&operation) {
+                readiness.push(operation);
+            }
+        }
+    }
+    Ok(readiness)
 }
 
 /// The requirements a runner's operation steps use, narrowed to the
@@ -629,6 +647,154 @@ runners:
             .filter_map(JsonValue::as_str)
             .collect::<Vec<_>>();
         assert_eq!(runner_names, vec!["alternate", "inspect"]);
+        Ok(())
+    }
+
+    /// A hosted connector a vendor bundles, named `id`.
+    fn hosted_connector(id: &str) -> String {
+        format!(
+            r#"schema: runx.connector.v1
+id: {id}
+name: Acme
+description: Write one note to Acme.
+runtime_capability: false
+auth:
+  credentials:
+    service_token:
+      kind: api_key
+      fields:
+        - {{name: token, label: Acme service token}}
+      delivery: {{env: ACME_SERVICE_TOKEN}}
+      audience: [notes.acme.test]
+placements:
+  hosted: {{auth: credential, credential: service_token}}
+operations:
+  notes.write:
+    description: Write one note.
+    verb: create
+    scopes: [notes.write]
+    credentials: [service_token]
+    target:
+      template: "acme:notes"
+    guarantees:
+      provider_idempotency: inherent
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [value]
+      additionalProperties: false
+      properties:
+        value: {{type: string}}
+    result_fields: [note]
+    hosted: {{}}
+    implementation:
+      http:
+        allowed_hosts: [notes.acme.test]
+        auth: {{service_token: {{type: bearer, field: token}}}}
+        requests:
+          - method: POST
+            url: https://notes.acme.test/v1/notes
+            headers: {{accept: application/json}}
+            body:
+              value: {{"$argument": "/value"}}
+        result_paths: {{note: acknowledgement.note}}
+"#
+        )
+    }
+
+    /// Each operation readiness projects, as `connector operation`.
+    fn projected(
+        skill: &std::path::Path,
+        workspace: &std::path::Path,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let env = std::collections::BTreeMap::from([
+            (
+                "RUNX_HOME".to_owned(),
+                workspace.join("home").display().to_string(),
+            ),
+            (
+                "RUNX_PROJECT_DIR".to_owned(),
+                workspace.join("project").display().to_string(),
+            ),
+        ]);
+        Ok(
+            super::inspect_connector_readiness(skill, None, None, &env, workspace)?
+                .into_iter()
+                .map(|operation| {
+                    format!(
+                        "{} {}",
+                        operation
+                            .connector
+                            .map(|name| name.to_string())
+                            .unwrap_or_default(),
+                        operation.operation
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn readiness_covers_the_operations_a_child_skill_calls()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir().expect("temporary skill catalog");
+        let root = temp.path().join("root");
+        let child = root.join("child");
+        fs::create_dir_all(child.join("connectors/acme/notes")).expect("child connector directory");
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
+        fs::write(
+            root.join("run.yaml"),
+            "skill: root\nversion: \"0.1.0\"\nrunners:\n  compose:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: child\n",
+        )
+        .expect("root manifest");
+        fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
+        fs::write(
+            child.join("connectors/acme/notes/connector.yaml"),
+            hosted_connector("acme/notes"),
+        )
+        .expect("child connector");
+        fs::write(
+            child.join("run.yaml"),
+            "skill: child\nversion: \"0.1.0\"\nconnectors:\n  acme/notes:\n    operations: [notes.write]\nrunners:\n  write:\n    default: true\n    steps:\n      - id: write\n        operation: acme/notes/notes.write\n        result_fields: [note]\n        idempotency_key: $run.id\n        input:\n          value: written\n",
+        )
+        .expect("child manifest");
+
+        // The root calls no operation itself; its child's is what a run admits.
+        assert_eq!(projected(&root, temp.path())?, ["acme/notes notes.write"]);
+        Ok(())
+    }
+
+    #[test]
+    fn readiness_covers_every_connector_a_run_may_choose() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let temp = tempfile::tempdir().expect("temporary skill catalog");
+        let root = temp.path().join("chooser");
+        for id in ["acme/notes", "acme/drafts"] {
+            fs::create_dir_all(root.join("connectors").join(id)).expect("connector directory");
+            fs::write(
+                root.join("connectors").join(id).join("connector.yaml"),
+                hosted_connector(id),
+            )
+            .expect("connector");
+        }
+        fs::write(
+            root.join("SKILL.md"),
+            ROOT_MANUAL.replace("root", "chooser"),
+        )
+        .expect("manual");
+        fs::write(
+            root.join("run.yaml"),
+            "skill: chooser\nversion: \"0.1.0\"\nconnectors:\n  target:\n    operations: [notes.write]\n    connector_from: $input.target\n    allowed_connectors: [acme/notes, acme/drafts]\nrunners:\n  write:\n    default: true\n    inputs:\n      target:\n        type: string\n        required: true\n    steps:\n      - id: write\n        operation: target/notes.write\n        result_fields: [note]\n        idempotency_key: $run.id\n        input:\n          value: written\n",
+        )
+        .expect("manifest");
+
+        // Either may be chosen, so neither is assumed ready.
+        let mut operations = projected(&root, temp.path())?;
+        operations.sort();
+        assert_eq!(
+            operations,
+            ["acme/drafts notes.write", "acme/notes notes.write"]
+        );
         Ok(())
     }
 

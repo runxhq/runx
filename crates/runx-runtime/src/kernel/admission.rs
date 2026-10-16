@@ -724,13 +724,25 @@ fn project(
         env,
         cwd,
     };
+    // A connector chosen at run time may be any its requirement allows, so
+    // each is projected.
     Ok(requirements
         .iter()
         .flat_map(|(key, requirement)| {
-            requirement
-                .operations
-                .iter()
-                .map(move |operation| readiness(key, requirement, operation, authority, context))
+            let references = if requirement.connector_from.is_some() {
+                requirement
+                    .allowed_connectors
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+            } else {
+                vec![key.as_str()]
+            };
+            references.into_iter().flat_map(move |reference| {
+                requirement.operations.iter().map(move |operation| {
+                    readiness(key, reference, requirement, operation, authority, context)
+                })
+            })
         })
         .collect())
 }
@@ -762,6 +774,7 @@ fn standing_instance(
 /// approval floor and the implementation.
 fn readiness(
     requirement_key: &str,
+    reference: &str,
     requirement: &ConnectorRequirement,
     operation: &OperationName,
     authority: Option<&RunAuthority>,
@@ -793,15 +806,7 @@ fn readiness(
         readiness.reasons = reasons.0;
         readiness
     };
-    if requirement.connector_from.is_some() {
-        reasons.push(
-            AdmissionCheck::Requirement,
-            CheckOutcome::Unknown,
-            "the connector is chosen at run time",
-        );
-        return finish(readiness, reasons);
-    }
-    let connector = match scope.requirement(requirement_key, requirement) {
+    let connector = match scope.requirement(reference, requirement) {
         Ok(connector) => connector,
         Err(error) => {
             reasons.push(
