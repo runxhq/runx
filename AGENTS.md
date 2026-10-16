@@ -107,9 +107,9 @@ control-plane administration are not domain-operator surfaces.
 
 Runx is tenant-agnostic and connector-neutral. Skills, manifests, packets, and
 public provider-operation contracts must target stable provider capabilities,
-not a Runx-company tenant or one credential backend. Never expose Nango
-connection ids, provider-config keys, hosted tenant ids, connector URLs, or
-Runx-owned credential assumptions in a portable skill contract.
+not a Runx-company tenant or one credential backend. Never expose a credential
+backend's connection ids, provider-config keys, hosted tenant ids, connector
+URLs, or Runx-owned credential assumptions in a portable skill contract.
 
 The operator selects and binds the connector at runtime. It may be local,
 self-hosted, third-party, or Runx-hosted. A Runx-hosted connector is an optional

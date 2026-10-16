@@ -45,10 +45,11 @@ internals. Products own persistence, agent loops and scheduling.
 ## Connector and Tenant Neutrality
 
 Portable Runx behavior targets provider capabilities, not connector vendors or
-Runx-company tenancy. Skills and public contracts must not contain Nango
-connection ids, provider-config keys, hosted tenant ids, connector endpoints,
-or assumptions that credentials are held by Runx Cloud. The operator binds an
-eligible local, self-hosted, third-party, or Runx-hosted connector at runtime.
+Runx-company tenancy. Skills and public contracts must not contain a credential
+backend's connection ids, provider-config keys, hosted tenant ids, connector
+endpoints, or assumptions that credentials are held by Runx Cloud. The operator
+binds an eligible local, self-hosted, third-party, or Runx-hosted connector at
+runtime.
 
 Provider operations therefore have stable names, typed inputs, bounded result
 projections, target-resource constraints, access classification, idempotency,
