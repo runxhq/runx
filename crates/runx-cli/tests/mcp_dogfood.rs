@@ -583,6 +583,42 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A client on the current protocol opens without `initialize`, as Claude
+/// Code does, stating its version on each request; a list result then states
+/// how long it may be cached, and by whom.
+#[test]
+fn a_client_on_the_current_protocol_lists_tools_with_their_cache_terms()
+-> Result<(), Box<dyn std::error::Error>> {
+    let receipt_dir = TestTempDir::new("runx-mcp-current-protocol-receipts")?;
+    let skill_dir = copy_mcp_echo_skill()?;
+    let mut server = spawn_mcp_server(&[
+        skill_dir.path().display().to_string(),
+        "--receipt-dir".to_owned(),
+        receipt_dir.path().display().to_string(),
+    ])?;
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            1,
+            "tools/list",
+            json!({"_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {"name": "current", "version": "1"},
+            }}),
+        ),
+    )?;
+    let tools = server.read_response("tools/list", MCP_INITIALIZE_TIMEOUT)?;
+    assert_eq!(
+        path_text(&tools, &["result", "tools", "0", "name"])?,
+        "mcp-echo",
+        "{tools}"
+    );
+    assert_eq!(tools["result"]["ttlMs"], json!(0), "{tools}");
+    assert_eq!(tools["result"]["cacheScope"], json!("private"), "{tools}");
+    Ok(())
+}
+
 fn spawn_mcp_server(args: &[String]) -> Result<McpProcess, Box<dyn std::error::Error>> {
     let repo_root = repo_root()?;
     spawn_mcp_server_at(args, &repo_root, Some(&repo_root))
