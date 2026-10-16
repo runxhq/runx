@@ -10,7 +10,7 @@ pub use binding::{Binding, Operand, Source};
 pub use tool::validate_process_tool;
 pub use types::{
     AgentTask, AskGate, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy, GraphStep,
-    GraphWhen, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget, StepAct, StepKind,
-    ToolTarget, WorkerTool,
+    GraphWhen, LoadStep, LoadTarget, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget,
+    StepAct, StepKind, ToolTarget, WorkerTool,
 };
 pub use validate::{parse_graph_yaml, validate_graph, validate_graph_document};

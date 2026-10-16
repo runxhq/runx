@@ -259,6 +259,7 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
     };
     let options = InstallRegistryConnectorOptions {
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         expected_content_digest: None,
         trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
             KEY_ID.to_owned(),
@@ -355,6 +356,7 @@ fn options(
 ) -> Result<InstallRegistryConnectorOptions, Box<dyn std::error::Error>> {
     Ok(InstallRegistryConnectorOptions {
         connectors_root: root.join("connectors"),
+        install_records: root.join(".runx").join("installs"),
         expected_content_digest: None,
         trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
             KEY_ID.to_owned(),

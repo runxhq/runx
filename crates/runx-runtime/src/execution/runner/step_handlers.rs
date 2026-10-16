@@ -2,6 +2,7 @@
 // and sub-skill acts behind the typed dispatch boundary.
 
 mod host_resolution;
+mod load;
 mod output;
 
 use std::borrow::Cow;
@@ -369,6 +370,7 @@ where
             provenance: &request.provenance,
             env: &env,
             skill_directory: &skill.directory,
+            admitted: skill.admitted.as_ref(),
         },
     )?;
     // The step closes as its child sealed: a child that stopped short
@@ -443,6 +445,9 @@ struct NestedGraph<'a> {
     provenance: &'a [ProvenanceEntry],
     env: &'a std::collections::BTreeMap<String, String>,
     skill_directory: &'a Path,
+    /// The packages a load bound for the child, which it executes in place
+    /// of its parent's.
+    admitted: Option<&'a crate::skill_package::AdmittedPackages>,
 }
 
 /// Run the child run a nested skill step runs as, or continue it from its
@@ -483,6 +488,9 @@ where
     let mut child_options = runtime.options.as_ref().clone();
     child_options.env = nested.env.clone();
     child_options.run = log.clone();
+    if let Some(admitted) = nested.admitted {
+        child_options.packages = Some(admitted.clone());
+    }
     let child_adapter: Box<dyn SkillAdapter + '_> =
         Box::new(BorrowedSkillAdapter::new(&runtime.configured_adapter));
     let child_runtime = Runtime::with_native_services(
@@ -727,6 +735,7 @@ where
         }
         StepKind::Operation(_) => run_operation_step(request)?,
         StepKind::Skill(_) => run_subskill_step(request)?,
+        StepKind::Load(load) => load::run_load_step(request, load)?,
     };
     run.admission_witness =
         step_admission_witness(&step.id, run.receipt.id.as_str(), authority.as_ref());

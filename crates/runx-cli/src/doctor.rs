@@ -17,8 +17,10 @@ use runx_runtime::{
     receipt_signer, receipt_trust, run_doctor,
 };
 
-use crate::registry::{self, RegistryAction, RegistryPlan};
 use crate::router::{DoctorMode, DoctorPlan};
+use runx_runtime::registry::resolve::{
+    RegistryTarget, registry_source_description, resolve_registry_target,
+};
 
 pub fn run_native_doctor(plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
     match run_doctor_command(&plan, workspace.env(), workspace.cwd()) {
@@ -320,7 +322,7 @@ fn provider_api_key_env(provider: &str) -> Option<&'static str> {
 }
 
 fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorReport {
-    let target = registry::resolve_registry_target(&registry_probe_plan(), env, cwd);
+    let target = resolve_registry_target(None, env, cwd);
     let paths = RunxPaths::resolve(env, cwd);
     let diagnostics = vec![
         registry_target_diagnostic(&target),
@@ -341,28 +343,12 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
     }
 }
 
-fn registry_probe_plan() -> RegistryPlan {
-    RegistryPlan {
-        action: RegistryAction::Install,
-        subject: "runx/registry-probe".to_owned(),
-        registry: None,
-        version: None,
-        expected_digest: None,
-        publisher: None,
-        profile: None,
-        trust_tier: None,
-        limit: None,
-        upsert: false,
-        json: true,
-    }
-}
-
-fn registry_target_diagnostic(target: &registry::RegistryTarget) -> DoctorDiagnostic {
+fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
     let mut evidence = JsonObject::new();
     evidence.insert("source".to_owned(), string_value(target.label()));
     evidence.insert(
         "description".to_owned(),
-        JsonValue::String(registry::registry_source_description(target)),
+        JsonValue::String(registry_source_description(target)),
     );
     evidence.insert(
         "source_fingerprint".to_owned(),
@@ -375,7 +361,7 @@ fn registry_target_diagnostic(target: &registry::RegistryTarget) -> DoctorDiagno
         title: "Registry target".to_owned(),
         message: format!(
             "Registry target selected: {}.",
-            registry::registry_source_description(target)
+            registry_source_description(target)
         ),
         target: object([
             ("kind", string_value("registry")),
@@ -584,10 +570,10 @@ fn registry_trust_policy_evidence(
 }
 
 fn registry_remote_install_diagnostic(
-    target: &registry::RegistryTarget,
+    target: &RegistryTarget,
     env: &BTreeMap<String, String>,
 ) -> DoctorDiagnostic {
-    let remote = matches!(target, registry::RegistryTarget::Remote { .. });
+    let remote = matches!(target, RegistryTarget::Remote { .. });
     let configured = env_contains_non_empty(env, "RUNX_INSTALLATION_ID");
     let severity = DoctorDiagnosticSeverity::Info;
     let message = if remote && configured {

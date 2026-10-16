@@ -186,7 +186,10 @@ fn registry_input_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
 fn registry_skill_refs(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
     let mut refs = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
-        refs.extend(manifest.skills.iter().cloned());
+        refs.extend(manifest.skills.iter().filter_map(|entry| match entry {
+            runx_contracts::SkillAllowance::Ref(reference) => Some(reference.as_str().to_owned()),
+            runx_contracts::SkillAllowance::Rule(_) => None,
+        }));
         for runner in manifest.runners.values() {
             refs.extend(
                 runner

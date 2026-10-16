@@ -17,12 +17,36 @@ const allowedOperationSchema = Type.Object(
   { additionalProperties: false },
 );
 
-/** The calls an open turn admits: the skill's declared limits. */
+/** The lowest registry tier a catalog rule admits on its own. */
+const trustTierSchema = Type.Union([
+  Type.Literal("first_party"),
+  Type.Literal("verified"),
+  Type.Literal("community"),
+]);
+
+/**
+ * What a load admits: exactly one of `catalog`, the registry's packages at a
+ * tier or above, and `project: true`, the packages the project authored.
+ */
+const catalogRuleSchema = Type.Object(
+  {
+    catalog: Type.Optional(
+      Type.Object({ trust: trustTierSchema }, { additionalProperties: false }),
+    ),
+    project: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+/** The calls an open turn admits: the skill's, or its runner's, declared limits. */
 export const turnAllowanceSchema = Type.Object(
   {
     operations: Type.Optional(Type.Array(allowedOperationSchema)),
     tools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
-    skills: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+    /** Child skills by ref, and the catalog rules a load is admitted under. */
+    skills: Type.Optional(
+      Type.Array(Type.Union([Type.String({ minLength: 1 }), catalogRuleSchema])),
+    ),
     asks: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },

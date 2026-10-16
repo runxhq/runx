@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_runtime::registry::{RegistryManifestSourceAuthority, canonical_registry_url};
 use url::Url;
 
-use super::RegistryPlan;
+use crate::registry::{RegistryManifestSourceAuthority, canonical_registry_url};
 
+/// The registry a ref resolves in: a hosted catalog, or a directory.
 #[derive(Clone, Debug)]
-pub(crate) enum RegistryTarget {
+pub enum RegistryTarget {
     Remote {
         registry_url: String,
     },
@@ -20,13 +20,14 @@ pub(crate) enum RegistryTarget {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum LocalRegistrySourceKind {
+pub enum LocalRegistrySourceKind {
     Local,
     File,
 }
 
 impl RegistryTarget {
-    pub(crate) fn label(&self) -> &'static str {
+    #[must_use]
+    pub fn label(&self) -> &'static str {
         match self {
             Self::Remote { .. } => "remote",
             Self::Local { source_kind, .. } => match source_kind {
@@ -36,7 +37,8 @@ impl RegistryTarget {
         }
     }
 
-    pub(crate) fn fingerprint_source(&self) -> String {
+    #[must_use]
+    pub fn fingerprint_source(&self) -> String {
         match self {
             Self::Remote { registry_url } => {
                 format!("remote:{}", canonical_registry_url(registry_url))
@@ -56,12 +58,11 @@ impl RegistryTarget {
         }
     }
 
-    pub(crate) fn manifest_source_authority(&self) -> RegistryManifestSourceAuthority {
+    #[must_use]
+    pub fn manifest_source_authority(&self) -> RegistryManifestSourceAuthority {
         match self {
             Self::Remote { registry_url } => {
-                runx_runtime::registry::registry_manifest_source_authority_from_registry_url(
-                    registry_url,
-                )
+                crate::registry::registry_manifest_source_authority_from_registry_url(registry_url)
             }
             Self::Local {
                 registry_path,
@@ -79,16 +80,16 @@ impl RegistryTarget {
     }
 }
 
-pub(crate) fn resolve_registry_target(
-    plan: &RegistryPlan,
+/// The registry `registry` names (`--registry`), else the environment's,
+/// else the hosted catalog.
+#[must_use]
+pub fn resolve_registry_target(
+    registry: Option<&str>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> RegistryTarget {
-    let configured_registry = plan
-        .registry
-        .as_deref()
-        .or_else(|| env.get("RUNX_REGISTRY_URL").map(String::as_str));
-    if let Some(target) = explicit_registry_target(plan, env, cwd) {
+    let configured_registry = registry.or_else(|| env.get("RUNX_REGISTRY_URL").map(String::as_str));
+    if let Some(target) = explicit_registry_target(registry, env, cwd) {
         return target;
     }
     if let Some(target) = env_registry_dir_target(configured_registry, env, cwd) {
@@ -113,22 +114,22 @@ pub(crate) fn resolve_registry_target(
 
 /// The hosted catalog: the runx API this runtime talks to.
 fn hosted_registry_url(env: &BTreeMap<String, String>) -> String {
-    env.get(runx_runtime::HOSTED_API_BASE_URL_ENV)
+    env.get(crate::HOSTED_API_BASE_URL_ENV)
         .map(|value| value.trim())
         .filter(|value| is_remote_registry_url(value))
-        .unwrap_or(runx_runtime::DEFAULT_HOSTED_API_BASE_URL)
+        .unwrap_or(crate::DEFAULT_HOSTED_API_BASE_URL)
         .to_owned()
 }
 
 fn explicit_registry_target(
-    plan: &RegistryPlan,
+    registry: Option<&str>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Option<RegistryTarget> {
-    let registry = plan.registry.as_ref()?;
+    let registry = registry?;
     if is_remote_registry_url(registry) {
         return Some(RegistryTarget::Remote {
-            registry_url: registry.clone(),
+            registry_url: registry.to_owned(),
         });
     }
     Some(RegistryTarget::Local {
@@ -146,7 +147,7 @@ fn env_registry_dir_target(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Option<RegistryTarget> {
-    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
+    let paths = crate::RunxPaths::resolve(env, cwd);
     Some(local_registry_target(
         paths.registry_dir()?.to_path_buf(),
         remote_registry_url(configured_registry),
@@ -159,7 +160,7 @@ fn default_local_registry_target(
     cwd: &Path,
 ) -> RegistryTarget {
     local_registry_target(
-        runx_runtime::RunxPaths::resolve(env, cwd).registry_cache(),
+        crate::RunxPaths::resolve(env, cwd).registry_cache(),
         configured_registry,
     )
 }
@@ -175,7 +176,8 @@ fn local_registry_target(
     }
 }
 
-pub(crate) fn registry_source_description(target: &RegistryTarget) -> String {
+#[must_use]
+pub fn registry_source_description(target: &RegistryTarget) -> String {
     match target {
         RegistryTarget::Remote { registry_url } => {
             format!("remote {}", canonical_registry_url(registry_url))
@@ -195,7 +197,7 @@ fn registry_path_from_value(value: &str, env: &BTreeMap<String, String>, cwd: &P
     if let Some(path) = file_url_path(value) {
         return path;
     }
-    runx_runtime::RunxPaths::resolve(env, cwd).in_workspace(value)
+    crate::RunxPaths::resolve(env, cwd).in_workspace(value)
 }
 
 fn registry_source_kind(registry: &str) -> LocalRegistrySourceKind {
@@ -225,35 +227,14 @@ fn is_remote_registry_url(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::RegistryAction;
 
-    fn plan(action: RegistryAction, registry: Option<&str>) -> RegistryPlan {
-        RegistryPlan {
-            action,
-            subject: "runx/web-search".to_owned(),
-            registry: registry.map(ToOwned::to_owned),
-            version: None,
-            expected_digest: None,
-            publisher: None,
-            profile: None,
-            trust_tier: None,
-            limit: None,
-            upsert: false,
-            json: true,
-        }
-    }
-
-    fn target(
-        action: RegistryAction,
-        registry: Option<&str>,
-        env: &[(&str, &str)],
-    ) -> RegistryTarget {
+    fn target(registry: Option<&str>, env: &[(&str, &str)]) -> RegistryTarget {
         let env = env
             .iter()
             .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
             .chain([("RUNX_HOME".to_owned(), "/home/runx".to_owned())])
             .collect();
-        resolve_registry_target(&plan(action, registry), &env, Path::new("/work"))
+        resolve_registry_target(registry, &env, Path::new("/work"))
     }
 
     fn remote_url(target: &RegistryTarget) -> Option<&str> {
@@ -264,24 +245,14 @@ mod tests {
     }
 
     #[test]
-    fn every_verb_uses_the_hosted_catalog_when_nothing_names_a_registry() {
-        for action in [
-            RegistryAction::Search,
-            RegistryAction::Install,
-            RegistryAction::Publish,
-        ] {
-            assert_eq!(
-                remote_url(&target(action, None, &[])),
-                Some("https://api.runx.ai")
-            );
-        }
+    fn the_hosted_catalog_serves_when_nothing_names_a_registry() {
+        assert_eq!(remote_url(&target(None, &[])), Some("https://api.runx.ai"));
     }
 
     #[test]
     fn the_hosted_catalog_follows_the_runtime_api_base() {
         assert_eq!(
             remote_url(&target(
-                RegistryAction::Install,
                 None,
                 &[("RUNX_PUBLIC_API_BASE_URL", "https://api.staging.runx.test")],
             )),
@@ -292,13 +263,9 @@ mod tests {
     #[test]
     fn a_named_local_registry_or_an_empty_registry_url_stays_local() {
         let local = [
-            target(RegistryAction::Install, Some("./registry"), &[]),
-            target(
-                RegistryAction::Install,
-                None,
-                &[("RUNX_REGISTRY_DIR", "/srv/registry")],
-            ),
-            target(RegistryAction::Install, None, &[("RUNX_REGISTRY_URL", "")]),
+            target(Some("./registry"), &[]),
+            target(None, &[("RUNX_REGISTRY_DIR", "/srv/registry")]),
+            target(None, &[("RUNX_REGISTRY_URL", "")]),
         ];
         for target in &local {
             assert!(remote_url(target).is_none(), "{target:?}");

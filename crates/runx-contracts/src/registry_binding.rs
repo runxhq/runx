@@ -43,6 +43,14 @@ impl TrustTier {
         }
     }
 
+    /// The tier `name` names, as `as_str` writes it.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::FirstParty, Self::Verified, Self::Community]
+            .into_iter()
+            .find(|tier| tier.as_str() == name)
+    }
+
     /// Whether a package of this tier meets `minimum`: first party meets
     /// every tier, verified meets verified and community, community only
     /// itself.

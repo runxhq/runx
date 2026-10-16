@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use runx_contracts::sha256_prefixed;
 use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install};
 
+use super::install_record::{InstallRecord, write_install_record};
 use super::package_files::{
     registry_package_digest, skill_content_digest, validate_registry_package_file_path,
     validate_registry_skill_package,
@@ -49,6 +50,9 @@ pub struct InstallLocalSkillOptions {
     /// The project's connectors directory: every connector the installed
     /// package carries is added there, so the project can bind its instances.
     pub connectors_root: PathBuf,
+    /// Where the project records each package a registry added
+    /// (`RunxPaths::install_records()`).
+    pub install_records: PathBuf,
     pub expected_digest: Option<String>,
     pub trusted_manifest_keys: Vec<TrustedRegistryManifestKey>,
 }
@@ -143,6 +147,8 @@ pub enum InstallError {
     ConflictingPackageFile(PathBuf),
     #[error("a connector the skill package carries could not be added to the project: {0}")]
     CarriedConnector(String),
+    #[error("recording the install: {0}")]
+    Record(String),
     #[error("io error at {path}: {source}")]
     Io { path: PathBuf, source: io::Error },
 }
@@ -155,6 +161,7 @@ pub fn install_local_skill(
         candidate,
         options,
         allows_unsigned_local_registry_candidate(candidate),
+        candidate.trust_tier,
     )
 }
 
@@ -165,13 +172,16 @@ pub(super) fn install_bundled_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    install_skill(candidate, options, true)
+    install_skill(candidate, options, true, Some(TrustTier::FirstParty))
 }
 
+/// Install `candidate`, recording it as a registry's package of `trust_tier`
+/// when it has one.
 fn install_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
     allow_unsigned: bool,
+    trust_tier: Option<TrustTier>,
 ) -> Result<InstallLocalSkillResult, InstallError> {
     let validated = validate_install_candidate(candidate, options, allow_unsigned)?;
     let paths = install_paths(candidate, options, &validated.install.skill.name);
@@ -189,7 +199,29 @@ fn install_skill(
         candidate.profile_document.as_deref(),
         &candidate.package_files,
     )?;
-    add_carried_connectors(&paths.package_root, &options.connectors_root)?;
+    let record = trust_tier.map(|trust_tier| InstallRecord {
+        reference: match (&candidate.skill_id, &candidate.version) {
+            (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
+            _ => candidate.r#ref.clone(),
+        },
+        trust_tier,
+    });
+    if let Some(record) = &record {
+        write_install_record(
+            &options.install_records,
+            &options.destination_root,
+            &paths.package_root,
+            record,
+        )
+        .map_err(InstallError::Record)?;
+    }
+    add_carried_connectors(
+        &paths.package_root,
+        &options.connectors_root,
+        record
+            .as_ref()
+            .map(|record| (&options.install_records, record.trust_tier)),
+    )?;
 
     Ok(InstallLocalSkillResult {
         status: if write_plan.writes_skill
@@ -216,7 +248,12 @@ fn install_skill(
 /// Adds every connector the installed package at `package_root` carries to
 /// the project's `connectors_root`, as the version it publishes: the package's
 /// own copy, checked against the digests its bundle binds when it is loaded.
-fn add_carried_connectors(package_root: &Path, connectors_root: &Path) -> Result<(), InstallError> {
+/// A registry's package records each one at its own tier.
+fn add_carried_connectors(
+    package_root: &Path,
+    connectors_root: &Path,
+    record: Option<(&PathBuf, TrustTier)>,
+) -> Result<(), InstallError> {
     let invalid = |message: String| InstallError::CarriedConnector(message);
     let scope = crate::kernel::connectors::ConnectorScope::at(package_root)
         .map_err(|error| invalid(error.to_string()))?;
@@ -228,8 +265,28 @@ fn add_carried_connectors(package_root: &Path, connectors_root: &Path) -> Result
         .map_err(|error| invalid(error.to_string()))?
     {
         let source = scope.connector_directory(&connector);
-        crate::registry::write_connector_version(connectors_root, &connector, source.as_deref())
-            .map_err(invalid)?;
+        let directory = crate::registry::write_connector_version(
+            connectors_root,
+            &connector,
+            source.as_deref(),
+        )
+        .map_err(invalid)?;
+        if let Some((records, trust_tier)) = record {
+            let version = directory
+                .file_name()
+                .map(|version| version.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            write_install_record(
+                records,
+                connectors_root,
+                &directory,
+                &InstallRecord {
+                    reference: format!("{}@{version}", connector.name),
+                    trust_tier,
+                },
+            )
+            .map_err(InstallError::Record)?;
+        }
     }
     Ok(())
 }

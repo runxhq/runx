@@ -15,6 +15,7 @@ use runx_contracts::{RegistryContentFile, is_registry_version, registry_content_
 use serde::{Deserialize, Serialize};
 
 use super::install::{InstallStatus, unique_suffix};
+use super::install_record::{InstallRecord, write_install_record};
 use super::package_files::validate_registry_package_file_path;
 use super::publish_package::connector_package;
 use super::source_authority::RegistryManifestSourceAuthority;
@@ -44,6 +45,9 @@ pub struct RegistryConnectorVersion {
 pub struct InstallRegistryConnectorOptions {
     /// The project's connectors directory, `RunxPaths::connectors()`.
     pub connectors_root: PathBuf,
+    /// Where the project records each package a registry added
+    /// (`RunxPaths::install_records()`).
+    pub install_records: PathBuf,
     /// A content digest the caller pinned (`--digest`).
     pub expected_content_digest: Option<String>,
     /// Empty means the default registry trust anchor.
@@ -189,7 +193,8 @@ pub fn install_registry_connector(
         crate::kernel::connectors::name_directory(&options.connectors_root, connector_ref);
     let destination = versions.join(&published.version);
     if destination.exists() {
-        return existing_version(published, &content_digest, destination);
+        return existing_version(published, &content_digest, destination)
+            .and_then(|installed| recorded(installed, published, options));
     }
     fs::create_dir_all(&versions).map_err(|source| io_error(&versions, source))?;
     let staged = versions.join(format!(".staging-{}", unique_suffix()));
@@ -212,7 +217,28 @@ pub fn install_registry_connector(
     if staged.exists() {
         let _ignored = fs::remove_dir_all(&staged);
     }
-    written
+    written.and_then(|installed| recorded(installed, published, options))
+}
+
+/// `installed`, once the project records it as the registry's.
+fn recorded(
+    installed: InstalledRegistryConnector,
+    published: &RegistryConnectorVersion,
+    options: &InstallRegistryConnectorOptions,
+) -> Result<InstalledRegistryConnector, ConnectorInstallError> {
+    write_install_record(
+        &options.install_records,
+        &options.connectors_root,
+        &installed.destination,
+        &InstallRecord {
+            reference: format!("{}@{}", published.name, published.version),
+            trust_tier: published.trust_tier,
+        },
+    )
+    .map_err(|reason| {
+        invalid_package(&published.name, format!("recording the install: {reason}"))
+    })?;
+    Ok(installed)
 }
 
 /// The signed manifest must verify under a trusted key, name this connector

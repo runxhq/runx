@@ -131,7 +131,7 @@ impl TurnSession {
                 _ => return Err(invalid("a turn call did something else")),
             };
             match admission {
-                Admission::Settled(result) => return Ok(result),
+                Admission::Settled(result) => return Ok(*result),
                 Admission::Admitted(admitted) => {
                     self.lock(&self.in_flight)
                         .insert((turn.to_owned(), admitted.index()));

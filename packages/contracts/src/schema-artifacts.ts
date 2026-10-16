@@ -450,8 +450,39 @@ export const runxSchemaArtifacts = {
                           },
                           "skills": {
                             "items": {
-                              "minLength": 1,
-                              "type": "string"
+                              "anyOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "catalog": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "trust": {
+                                          "enum": [
+                                            "first_party",
+                                            "verified",
+                                            "community"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "trust"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "project": {
+                                      "const": true,
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "minItems": 1,
                             "type": "array"
@@ -1582,8 +1613,39 @@ export const runxSchemaArtifacts = {
           },
           "skills": {
             "items": {
-              "minLength": 1,
-              "type": "string"
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "catalog": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "trust": {
+                          "enum": [
+                            "first_party",
+                            "verified",
+                            "community"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "trust"
+                      ],
+                      "type": "object"
+                    },
+                    "project": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
             },
             "minItems": 1,
             "type": "array"
@@ -23276,8 +23338,39 @@ export const runxSchemaArtifacts = {
                   },
                   "skills": {
                     "items": {
-                      "minLength": 1,
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "catalog": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "trust": {
+                                  "enum": [
+                                    "first_party",
+                                    "verified",
+                                    "community"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "trust"
+                              ],
+                              "type": "object"
+                            },
+                            "project": {
+                              "const": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      ]
                     },
                     "minItems": 1,
                     "type": "array"
@@ -25067,8 +25160,30 @@ export const runxSchemaArtifacts = {
                   {
                     "additionalProperties": false,
                     "properties": {
+                      "bound": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "closure_digest": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "package_digest": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "package_digest",
+                          "closure_digest"
+                        ],
+                        "type": "object"
+                      },
                       "kind": {
                         "const": "skill",
+                        "type": "string"
+                      },
+                      "runner": {
+                        "minLength": 1,
                         "type": "string"
                       },
                       "skill": {
@@ -25087,6 +25202,19 @@ export const runxSchemaArtifacts = {
                     "properties": {
                       "kind": {
                         "const": "ask",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "load",
                         "type": "string"
                       }
                     },
@@ -25800,8 +25928,30 @@ export const runxSchemaArtifacts = {
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "bound": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "closure_digest": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "package_digest": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "package_digest",
+                                "closure_digest"
+                              ],
+                              "type": "object"
+                            },
                             "kind": {
                               "const": "skill",
+                              "type": "string"
+                            },
+                            "runner": {
+                              "minLength": 1,
                               "type": "string"
                             },
                             "skill": {
@@ -25820,6 +25970,19 @@ export const runxSchemaArtifacts = {
                           "properties": {
                             "kind": {
                               "const": "ask",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "load",
                               "type": "string"
                             }
                           },
@@ -26306,8 +26469,39 @@ export const runxSchemaArtifacts = {
                             },
                             "skills": {
                               "items": {
-                                "minLength": 1,
-                                "type": "string"
+                                "anyOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "catalog": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "trust": {
+                                            "enum": [
+                                              "first_party",
+                                              "verified",
+                                              "community"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "trust"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "project": {
+                                        "const": true,
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                ]
                               },
                               "minItems": 1,
                               "type": "array"
@@ -32466,8 +32660,39 @@ export const runxSchemaArtifacts = {
                                 },
                                 "skills": {
                                   "items": {
-                                    "minLength": 1,
-                                    "type": "string"
+                                    "anyOf": [
+                                      {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "catalog": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "trust": {
+                                                "enum": [
+                                                  "first_party",
+                                                  "verified",
+                                                  "community"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "trust"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "project": {
+                                            "const": true,
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "type": "object"
+                                      }
+                                    ]
                                   },
                                   "minItems": 1,
                                   "type": "array"
@@ -33589,8 +33814,30 @@ export const runxSchemaArtifacts = {
           {
             "additionalProperties": false,
             "properties": {
+              "bound": {
+                "additionalProperties": false,
+                "properties": {
+                  "closure_digest": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "package_digest": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "package_digest",
+                  "closure_digest"
+                ],
+                "type": "object"
+              },
               "kind": {
                 "const": "skill",
+                "type": "string"
+              },
+              "runner": {
+                "minLength": 1,
                 "type": "string"
               },
               "skill": {
@@ -33609,6 +33856,19 @@ export const runxSchemaArtifacts = {
             "properties": {
               "kind": {
                 "const": "ask",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "load",
                 "type": "string"
               }
             },
@@ -33981,8 +34241,39 @@ export const runxSchemaArtifacts = {
                                       },
                                       "skills": {
                                         "items": {
-                                          "minLength": 1,
-                                          "type": "string"
+                                          "anyOf": [
+                                            {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "catalog": {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "trust": {
+                                                      "enum": [
+                                                        "first_party",
+                                                        "verified",
+                                                        "community"
+                                                      ],
+                                                      "type": "string"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "trust"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                "project": {
+                                                  "const": true,
+                                                  "type": "boolean"
+                                                }
+                                              },
+                                              "type": "object"
+                                            }
+                                          ]
                                         },
                                         "minItems": 1,
                                         "type": "array"
@@ -35104,8 +35395,30 @@ export const runxSchemaArtifacts = {
                 {
                   "additionalProperties": false,
                   "properties": {
+                    "bound": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "closure_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "package_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package_digest",
+                        "closure_digest"
+                      ],
+                      "type": "object"
+                    },
                     "kind": {
                       "const": "skill",
+                      "type": "string"
+                    },
+                    "runner": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "skill": {
@@ -35124,6 +35437,19 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "kind": {
                       "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "load",
                       "type": "string"
                     }
                   },
@@ -35182,8 +35508,39 @@ export const runxSchemaArtifacts = {
               },
               "skills": {
                 "items": {
-                  "minLength": 1,
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "catalog": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "trust": {
+                              "enum": [
+                                "first_party",
+                                "verified",
+                                "community"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "trust"
+                          ],
+                          "type": "object"
+                        },
+                        "project": {
+                          "const": true,
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
                 },
                 "minItems": 1,
                 "type": "array"
@@ -36020,8 +36377,30 @@ export const runxSchemaArtifacts = {
                 {
                   "additionalProperties": false,
                   "properties": {
+                    "bound": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "closure_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "package_digest": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "package_digest",
+                        "closure_digest"
+                      ],
+                      "type": "object"
+                    },
                     "kind": {
                       "const": "skill",
+                      "type": "string"
+                    },
+                    "runner": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "skill": {
@@ -36040,6 +36419,19 @@ export const runxSchemaArtifacts = {
                   "properties": {
                     "kind": {
                       "const": "ask",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "load",
                       "type": "string"
                     }
                   },
