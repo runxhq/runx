@@ -52,7 +52,7 @@ fn trusted_manifest_env() -> Result<BTreeMap<String, String>, Box<dyn std::error
     trusted_manifest_env_for_owner("acme", None)
 }
 
-fn trusted_manifest_env_for_owner(
+pub(crate) fn trusted_manifest_env_for_owner(
     owner: &str,
     source_authority: Option<&str>,
 ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
@@ -82,7 +82,7 @@ fn trusted_manifest_env_for_owner(
     Ok(env)
 }
 
-fn sign_registry_version(
+pub(crate) fn sign_registry_version(
     registry_dir: &Path,
     skill_id: &str,
     version: &str,

@@ -1,0 +1,448 @@
+//! A turn's loads (agent-sessions §4.1): a catalog rule admits what a load
+//! finds, a package below its tier waits on the person's trust once per
+//! closure, and what a load bound is what its tools run.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use runx_contracts::{
+    JsonObject, JsonValue, LoadedPackage, ResolutionRequest, TrustTier, TurnCallOutcome,
+    TurnCallResult, TurnLoad, TurnTarget,
+};
+use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
+use runx_runtime::{
+    LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
+    TurnSession,
+};
+use tempfile::tempdir;
+
+type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+/// The act of the session skill's one-turn runner.
+const TURN: &str = "work";
+
+/// A project with a local registry holding `acme/echo` at each tier asked.
+struct Project {
+    root: PathBuf,
+    registry: PathBuf,
+}
+
+impl Project {
+    fn new(root: &Path) -> TestResult<Self> {
+        let registry = root.join("registry");
+        std::fs::create_dir_all(&registry)?;
+        Ok(Self {
+            root: root.to_path_buf(),
+            registry,
+        })
+    }
+
+    /// Publish `acme/<name>@<version>` at `tier`: one runner, `say`, that
+    /// digests its value.
+    fn publish(&self, name: &str, version: &str, tier: TrustTier, note: &str) -> TestResult {
+        ingest_skill_markdown(
+            &FileRegistryStore::new(&self.registry),
+            &format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n"),
+            IngestSkillOptions {
+                owner: Some("acme".to_owned()),
+                version: Some(version.to_owned()),
+                created_at: Some("2026-10-16T00:00:00Z".to_owned()),
+                profile_document: Some(format!(
+                    "skill: {name}\nrunners:\n  say:\n    default: true\n    inputs:\n      value: {{ type: string, required: true }}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n"
+                )),
+                trust_tier: Some(tier),
+                ..IngestSkillOptions::default()
+            },
+        )?;
+        crate::skill_run::sign_registry_version(&self.registry, &format!("acme/{name}"), version)?;
+        Ok(())
+    }
+
+    /// A session skill whose one turn loads under `rules`.
+    fn session(&self, rules: serde_json::Value) -> TestResult<PathBuf> {
+        let skill_dir = self.root.join("session");
+        crate::support::write_test_skill_package(
+            &skill_dir,
+            "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad what you need, then summarize.\n",
+            &format!(
+                "skill: session\nskills: {}\nrunners:\n  work:\n    default: true\n    outputs:\n      summary: string\n",
+                serde_json::to_string(&rules)?
+            ),
+        )?;
+        Ok(skill_dir)
+    }
+
+    fn env(&self) -> TestResult<BTreeMap<String, String>> {
+        let mut env = crate::skill_run::trusted_manifest_env_for_owner("acme", None)?;
+        env.insert(
+            "RUNX_CWD".to_owned(),
+            self.root.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "RUNX_REGISTRY_DIR".to_owned(),
+            self.registry.to_string_lossy().into_owned(),
+        );
+        crate::support::insert_test_signing_env(&mut env);
+        Ok(env)
+    }
+
+    /// The orchestrator a CLI run uses, with the local effects.
+    fn orchestrator(&self) -> TestResult<LocalOrchestrator> {
+        Ok(LocalOrchestrator::with_effects_and_environment(
+            runx_runtime::RuntimeEffectRegistry::local()?,
+            self.env()?,
+        ))
+    }
+
+    /// Start the session and stop at its turn.
+    fn start(&self, skill_dir: PathBuf) -> TestResult<String> {
+        let started = self.orchestrator()?.run_skill(&SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(self.root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: self.env()?,
+            cwd: self.root.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        })?;
+        started
+            .output
+            .as_object()
+            .and_then(|output| output.get("run_id"))
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| "the run names its id".into())
+    }
+
+    fn open(&self, run_id: &str) -> TestResult<TurnSession> {
+        Ok(self.orchestrator()?.open_turns(&TurnRequest {
+            run_id: run_id.to_owned(),
+            receipt_dir: Some(self.root.join("receipts")),
+            env: self.env()?,
+            cwd: self.root.clone(),
+        })?)
+    }
+
+    fn resume(&self, run_id: &str, answers: serde_json::Value) -> TestResult<RunResult> {
+        let env = self.env()?;
+        Ok(self.orchestrator()?.resume(&ResumeRequest {
+            run_id: run_id.to_owned(),
+            answers: crate::support::bind_resume(&env, &self.root, run_id, answers)?,
+            receipt_dir: Some(self.root.join("receipts")),
+            env,
+            cwd: self.root.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+            package_digest: None,
+            execution_closure_digest: None,
+        })?)
+    }
+}
+
+fn input(value: serde_json::Value) -> TestResult<JsonObject> {
+    Ok(serde_json::from_value(value)?)
+}
+
+fn loaded(call: &TurnCallResult) -> TestResult<TurnLoad> {
+    let TurnCallOutcome::Completed { output, .. } = &call.outcome else {
+        return Err(format!("the load completed: {call:?}").into());
+    };
+    Ok(JsonValue::Object(output.clone()).deserialize_into()?)
+}
+
+fn refused(call: &TurnCallResult) -> TestResult<String> {
+    match &call.outcome {
+        TurnCallOutcome::Refused { reason } => Ok(reason.as_str().to_owned()),
+        _ => Err(format!("the call was refused: {call:?}").into()),
+    }
+}
+
+/// The trust approval a pending load waits on, at `address`.
+fn trust_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts::ApprovalGate> {
+    let TurnCallOutcome::Pending { waiting } = &call.outcome else {
+        return Err(format!("the load waits on the person: {call:?}").into());
+    };
+    match waiting.as_slice() {
+        [ResolutionRequest::Approval { id, gate }] if id.as_str() == address => {
+            Ok(gate.as_ref().clone())
+        }
+        _ => Err(format!("one trust approval at {address}: {waiting:?}").into()),
+    }
+}
+
+fn tool_names(turn: &TurnSession) -> TestResult<Vec<String>> {
+    Ok(turn
+        .status(TURN)?
+        .tools
+        .iter()
+        .map(|tool| tool.name.as_str().to_owned())
+        .collect())
+}
+
+#[test]
+fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("echo", "1.0.0", TrustTier::Verified, "")?;
+    let run_id =
+        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let turn = project.open(&run_id)?;
+    assert_eq!(tool_names(&turn)?, ["load"], "a rule offers the load call");
+
+    let load = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/echo@1.0.0"}))?,
+    )?;
+    let bound = loaded(&load)?;
+    assert!(
+        matches!(
+            &bound.package,
+            LoadedPackage::Skill { skill, trust_tier: Some(TrustTier::Verified), publisher: Some(publisher), .. }
+                if skill.as_str() == "acme/echo@1.0.0" && publisher.as_str() == "acme"
+        ),
+        "{bound:?}"
+    );
+    let [tool] = bound.tools.as_slice() else {
+        return Err(format!("one loaded runner: {bound:?}").into());
+    };
+    let TurnTarget::Skill {
+        skill,
+        runner: Some(runner),
+        bound: Some(_),
+    } = &tool.target
+    else {
+        return Err(format!("a bound runner: {tool:?}").into());
+    };
+    assert_eq!(tool.name.as_str(), "skill__acme_echo__say");
+    assert!(
+        tool.input_schema["properties"]
+            .as_object()
+            .is_some_and(|properties| properties.contains_key("value")),
+        "the load records the runner's inputs: {tool:?}"
+    );
+    assert_eq!(runner.as_str(), "say");
+    assert_eq!(skill.as_str(), "skills/acme/echo/1.0.0");
+    assert_eq!(
+        tool_names(&turn)?,
+        ["load", "skill__acme_echo__say"],
+        "the loaded runner is a tool of the turn"
+    );
+
+    let said = turn.call(
+        TURN,
+        "skill__acme_echo__say",
+        None,
+        input(serde_json::json!({"value": "hi"}))?,
+    )?;
+    assert!(
+        matches!(said.outcome, TurnCallOutcome::Completed { .. }),
+        "{said:?}"
+    );
+
+    // What the load bound is what runs: a changed package is refused.
+    let manual = project.root.join("skills/acme/echo/1.0.0/SKILL.md");
+    std::fs::write(
+        &manual,
+        format!("{}\nChanged.\n", std::fs::read_to_string(&manual)?),
+    )?;
+    let changed = turn.call(
+        TURN,
+        "skill__acme_echo__say",
+        None,
+        input(serde_json::json!({"value": "hi"}))?,
+    )?;
+    assert!(
+        refused(&changed)?.contains("is not what the turn loaded"),
+        "{changed:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("rough", "1.0.0", TrustTier::Community, "")?;
+    project.publish("rough", "1.0.1", TrustTier::Community, "Revised.")?;
+    let session = project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?;
+
+    let run_id = project.start(session.clone())?;
+    let turn = project.open(&run_id)?;
+    let held = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.0"}))?,
+    )?;
+    let gate = trust_gate(&held, "work/0/trust")?;
+    assert_eq!(gate.gate_type.as_deref(), Some("trust"));
+    let payload = serde_json::to_value(
+        gate.payload
+            .as_ref()
+            .ok_or("the gate carries what it trusts")?,
+    )?;
+    assert_eq!(payload["package"]["skill"], "acme/rough@1.0.0");
+    assert_eq!(payload["package"]["trust_tier"], "community");
+    assert_eq!(payload["declares"]["runners"], serde_json::json!(["say"]));
+    drop(turn);
+
+    project.resume(
+        &run_id,
+        serde_json::json!({"approvals": {"work/0/trust": true}}),
+    )?;
+    let turn = project.open(&run_id)?;
+    let status = turn.status(TURN)?;
+    loaded(status.calls.first().ok_or("the load is recorded")?)?;
+    drop(turn);
+
+    // The project trusts that closure now: a later session loads it at once.
+    let again = project.start(session.clone())?;
+    let turn = project.open(&again)?;
+    loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.0"}))?,
+    )?)?;
+
+    // Another closure asks again.
+    let revised = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/rough@1.0.1"}))?,
+    )?;
+    trust_gate(&revised, "work/1/trust")?;
+    drop(turn);
+
+    // A person who does not trust it refuses the load.
+    project.resume(
+        &again,
+        serde_json::json!({"approvals": {"work/1/trust": false}}),
+    )?;
+    let turn = project.open(&again)?;
+    let status = turn.status(TURN)?;
+    refused(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    Ok(())
+}
+
+#[test]
+fn a_rule_admits_only_the_origin_it_names() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("echo", "1.0.0", TrustTier::Verified, "")?;
+    crate::support::write_test_skill_package(
+        &project.root.join("skills/notes"),
+        "---\nname: notes\ndescription: The project's own.\n---\n# Notes\n",
+        "skill: notes\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+
+    let run_id = project.start(project.session(serde_json::json!([{"project": true}]))?)?;
+    let turn = project.open(&run_id)?;
+    let own = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "skills/notes"}))?,
+    )?)?;
+    assert!(
+        matches!(
+            &own.package,
+            LoadedPackage::Skill {
+                trust_tier: None,
+                publisher: None,
+                ..
+            }
+        ),
+        "the project's own has no tier: {own:?}"
+    );
+    assert!(tool_names(&turn)?.contains(&"skill__notes__jot".to_owned()));
+    let registry = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/echo@1.0.0"}))?,
+    )?;
+    assert!(
+        refused(&registry)?.contains("admit only the project's own"),
+        "{registry:?}"
+    );
+    // The install record keeps the acquired copy the registry's.
+    let copy = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "skills/acme/echo/1.0.0"}))?,
+    )?;
+    assert!(
+        refused(&copy)?.contains("admit only the project's own"),
+        "{copy:?}"
+    );
+    drop(turn);
+
+    let run_id = project
+        .start(project.session(serde_json::json!([{"catalog": {"trust": "community"}}]))?)?;
+    let turn = project.open(&run_id)?;
+    let own = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "skills/notes"}))?,
+    )?;
+    assert!(refused(&own)?.contains("admit only the catalog"), "{own:?}");
+    let malformed = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "skills/notes", "connector": "store"}))?,
+    )?;
+    refused(&malformed)?;
+    Ok(())
+}
+
+#[test]
+fn a_loaded_connectors_operations_are_tools_of_the_turn() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let run_id =
+        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let turn = project.open(&run_id)?;
+
+    let bound = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"connector": "store"}))?,
+    )?)?;
+    assert!(
+        matches!(
+            &bound.package,
+            LoadedPackage::Connector { connector, trust_tier: Some(TrustTier::FirstParty), .. }
+                if connector.as_str() == "store"
+        ),
+        "a runtime capability is runx's: {bound:?}"
+    );
+    assert!(bound.connectors.contains_key("store"));
+    let names = tool_names(&turn)?;
+    assert!(names.contains(&"store__heads_list".to_owned()), "{names:?}");
+
+    let heads = turn.call(
+        TURN,
+        "store__heads_list",
+        None,
+        input(
+            serde_json::json!({"input": {"data_source_ref": "local://board", "resource": "items"}}),
+        )?,
+    )?;
+    assert!(
+        matches!(heads.outcome, TurnCallOutcome::Completed { .. }),
+        "{heads:?}"
+    );
+    Ok(())
+}

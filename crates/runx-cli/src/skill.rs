@@ -13,7 +13,6 @@ mod inputs;
 mod operator_context;
 pub(crate) mod output;
 mod parser;
-mod resolver;
 
 use environment_readiness::{
     append_text as append_environment_readiness_text, inspect as inspect_environment_readiness,
@@ -23,7 +22,10 @@ use inputs::read_input_document;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
 pub use parser::{CallerContext, parse_skill_plan, parse_skill_plan_with_workspace};
-use resolver::{RegistryTrustState, ResolvedSkillRef, resolve_skill_ref_details};
+use runx_runtime::registry::resolve::{
+    AbsentPins, RegistryTrustState, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
+    resolve_skill_ref_details,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct SkillPlan {
@@ -68,11 +70,11 @@ pub(crate) fn resolve_skill_package(
     resolve_skill_ref_details(
         skill_ref,
         cwd,
-        resolver::SkillResolverOptions {
+        SkillResolverOptions {
             env,
             registry: None,
             expected_digest: None,
-            absent_pins: resolver::AbsentPins::Fail,
+            absent_pins: AbsentPins::Fail,
         },
     )
     .map(|resolved| resolved.runnable_path)
@@ -86,15 +88,15 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     let mut resolved = match resolve_skill_ref_details(
         &plan.skill_path,
         &cwd,
-        resolver::SkillResolverOptions {
+        SkillResolverOptions {
             env: &env,
             registry: plan.registry.as_deref(),
             expected_digest: plan.expected_digest.as_deref(),
             // An inspection reports a pin the registry lacks; a run needs it.
             absent_pins: if plan.action == SkillAction::Inspect {
-                resolver::AbsentPins::Report
+                AbsentPins::Report
             } else {
-                resolver::AbsentPins::Fail
+                AbsentPins::Fail
             },
         },
     ) {
@@ -338,17 +340,17 @@ fn prepared_entry_provenance(
 ) -> PreparedEntryProvenance {
     PreparedEntryProvenance {
         kind: match resolved.kind {
-            resolver::SkillRefKind::ExplicitPath => "explicit_path",
-            resolver::SkillRefKind::ExportedShim => "exported_shim",
-            resolver::SkillRefKind::WorkspaceLocal => "workspace_local",
-            resolver::SkillRefKind::Installed => "installed",
-            resolver::SkillRefKind::Bundled => "bundled",
-            resolver::SkillRefKind::Registry => "registry",
+            SkillRefKind::ExplicitPath => "explicit_path",
+            SkillRefKind::ExportedShim => "exported_shim",
+            SkillRefKind::WorkspaceLocal => "workspace_local",
+            SkillRefKind::Installed => "installed",
+            SkillRefKind::Bundled => "bundled",
+            SkillRefKind::Registry => "registry",
         }
         .to_owned(),
         reference: resolved.skill_id.clone(),
         source: resolved.registry_source.clone().unwrap_or_else(|| {
-            if resolved.kind == resolver::SkillRefKind::Bundled {
+            if resolved.kind == SkillRefKind::Bundled {
                 "bundled:runx".to_owned()
             } else {
                 "local-path".to_owned()
@@ -358,7 +360,7 @@ fn prepared_entry_provenance(
             .registry_source_fingerprint
             .clone()
             .unwrap_or_else(|| {
-                if resolved.kind == resolver::SkillRefKind::Bundled {
+                if resolved.kind == SkillRefKind::Bundled {
                     "Bundled Runx core".to_owned()
                 } else {
                     resolved.runnable_path.to_string_lossy().into_owned()

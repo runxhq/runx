@@ -36,6 +36,9 @@ pub(crate) struct LoadedStepSkill {
     pub(crate) manual_markdown: Arc<str>,
     pub(crate) manual_digest: String,
     pub(crate) registry: Option<LoadedStepSkillRegistryProvenance>,
+    /// The packages the skill's child run executes, when a turn's load bound
+    /// them apart from the run's own.
+    pub(crate) admitted: Option<crate::skill_package::AdmittedPackages>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -437,6 +440,15 @@ pub(crate) fn load_step_skill(
     options: StepSkillLoadOptions<'_>,
 ) -> Result<LoadedStepSkill, RuntimeError> {
     let resolved = load_step_skill_package(graph_dir, step, options)?;
+    step_skill(step, resolved, options.env)
+}
+
+/// The skill `step` runs, from the package it resolved to.
+pub(crate) fn step_skill(
+    step: &GraphStep,
+    resolved: LoadedStepSkillPackage,
+    env: &BTreeMap<String, String>,
+) -> Result<LoadedStepSkill, RuntimeError> {
     let package = resolved.package;
     let manifest = package
         .manifest()
@@ -473,13 +485,14 @@ pub(crate) fn load_step_skill(
         manual_markdown,
         manual_digest,
         registry: resolved.registry,
+        admitted: None,
     };
     for path in [
         loaded.directory.join(runx_parser::PROFILE_FILE),
         manual_path,
     ] {
         if path.exists() {
-            super::prepared_skill::verify_prepared_artifact_at_use(options.env, &path)?;
+            super::prepared_skill::verify_prepared_artifact_at_use(env, &path)?;
         }
     }
     Ok(loaded)
@@ -528,8 +541,7 @@ pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
         StepKind::Skill(_) => vec![Cow::Borrowed(step)],
         StepKind::Agent(agent) => agent
             .allowance
-            .skills
-            .iter()
+            .skill_refs()
             .map(|skill| {
                 Cow::Owned(GraphStep {
                     id: step.id.clone(),
@@ -547,7 +559,9 @@ pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
                 })
             })
             .collect(),
-        StepKind::Tool(_) | StepKind::Operation(_) | StepKind::Ask(_) => Vec::new(),
+        StepKind::Tool(_) | StepKind::Operation(_) | StepKind::Ask(_) | StepKind::Load(_) => {
+            Vec::new()
+        }
     }
 }
 
@@ -807,6 +821,7 @@ fn materialize_registry_step_skill(
         &InstallLocalSkillOptions {
             destination_root,
             connectors_root: crate::RunxPaths::resolve(options.env, graph_dir).connectors(),
+            install_records: crate::RunxPaths::resolve(options.env, graph_dir).install_records(),
             expected_digest: None,
             trusted_manifest_keys,
         },

@@ -269,6 +269,7 @@ fn local_install_is_idempotent_and_rejects_conflicts() -> Result<(), Box<dyn std
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
         trusted_manifest_keys: trusted_manifest_keys()?,
     };
@@ -305,6 +306,7 @@ fn local_install_accepts_signed_registry_manifest() -> Result<(), Box<dyn std::e
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         // A pinned digest is the content digest the registry signs.
         expected_digest: Some(candidate_content_digest(&candidate)?),
         trusted_manifest_keys: trusted_manifest_keys()?,
@@ -326,6 +328,7 @@ fn non_local_install_requires_signed_registry_manifest() -> Result<(), Box<dyn s
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
         trusted_manifest_keys: trusted_manifest_keys()?,
     };
@@ -346,6 +349,7 @@ fn local_install_rejects_bad_expected_digest() -> Result<(), Box<dyn std::error:
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         expected_digest: Some("sha256:wrong".to_owned()),
         trusted_manifest_keys: trusted_manifest_keys()?,
     };
@@ -372,6 +376,7 @@ fn a_profile_changed_after_signing_leaves_no_partial_install()
     let options = InstallLocalSkillOptions {
         destination_root: temp.path().join("skills"),
         connectors_root: temp.path().join("connectors"),
+        install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
         trusted_manifest_keys: trusted_manifest_keys()?,
     };

@@ -138,13 +138,14 @@ pub use handoff::{
     SuppressionReason,
 };
 pub use host_protocol::{
-    AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, ExecutionEvent,
-    HostNeedsAgentState, HostRunApproval, HostRunApprovalDecision, HostRunKind, HostRunLineage,
-    HostRunLineageKind, HostRunResult, HostRunState, HostRunVerification,
-    HostRunVerificationStatus, HostTerminalState, PURCHASE_BALANCE_CHOICE, PurchaseMethod,
-    PurchaseQuote, PurchaseRequest, Question, QuestionOption, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor, RetryResend, TurnAllowance, TurnCallOutcome,
-    TurnCallResult, TurnStatus, TurnTarget, TurnTool, check_answer,
+    AgentActInvocation, AllowedOperation, ApprovalDecision, ApprovalGate, BoundClosure,
+    CatalogRule, CatalogTrust, ExecutionEvent, HostNeedsAgentState, HostRunApproval,
+    HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind, HostRunResult,
+    HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState, LoadedPackage,
+    PURCHASE_BALANCE_CHOICE, PurchaseMethod, PurchaseQuote, PurchaseRequest, Question,
+    QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
+    SkillAllowance, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus,
+    TurnTarget, TurnTool, check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,

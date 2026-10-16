@@ -23,9 +23,9 @@ pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
     AgentTask, AskGate, Binding, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy,
-    GraphStep, GraphWhen, Operand, OperationStepTarget, ProcessTool, RawGraphIr, SkillTarget,
-    Source, StepAct, StepKind, ToolTarget, WorkerTool, parse_graph_yaml, validate_graph,
-    validate_graph_document, validate_process_tool,
+    GraphStep, GraphWhen, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
+    RawGraphIr, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, parse_graph_yaml,
+    validate_graph, validate_graph_document, validate_process_tool,
 };
 pub use harness_fixture::{
     HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderHoldFixture,

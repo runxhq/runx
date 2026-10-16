@@ -1,4 +1,6 @@
-use runx_contracts::{AllowedOperation, TurnAllowance};
+use runx_contracts::{
+    AllowedOperation, CatalogRule, CatalogTrust, SkillAllowance, TrustTier, TurnAllowance,
+};
 use runx_parser::{
     SkillRunnerManifest, StepKind, parse_graph_yaml, parse_runner_manifest_yaml, validate_graph,
     validate_runner_manifest,
@@ -60,11 +62,11 @@ runners:
             },
         ],
         tools: vec!["fs.read".into(), "git.status".into()],
-        skills: vec!["./label".into()],
+        skills: vec![SkillAllowance::Ref("./label".into())],
         asks: true,
     };
     assert_eq!(manifest.tools, ["fs.read", "git.status"]);
-    assert_eq!(manifest.skills, ["./label"]);
+    assert_eq!(manifest.skills, [SkillAllowance::Ref("./label".into())]);
     assert!(manifest.asks);
     for step in &manifest.runners["review"].graph.steps {
         let StepKind::Agent(agent) = &step.kind else {
@@ -114,6 +116,122 @@ runners:
     );
     assert_eq!(runner.graph.result_from, ["reply"]);
     assert_eq!(allowance(&manifest, "reply")?.tools, ["fs.read"]);
+    Ok(())
+}
+
+#[test]
+fn a_skills_entry_is_a_ref_or_a_catalog_rule() -> Result<(), String> {
+    let manifest = manifest(
+        r#"
+skill: session
+skills:
+  - ./label
+  - { catalog: { trust: verified } }
+  - { project: true }
+runners:
+  work:
+    outputs: { summary: string }
+"#,
+    )?;
+    assert_eq!(
+        manifest.skills,
+        [
+            SkillAllowance::Ref("./label".into()),
+            SkillAllowance::Rule(CatalogRule {
+                catalog: Some(CatalogTrust {
+                    trust: TrustTier::Verified,
+                }),
+                project: false,
+            }),
+            SkillAllowance::Rule(CatalogRule {
+                catalog: None,
+                project: true,
+            }),
+        ]
+    );
+    let allowance = allowance(&manifest, "work")?;
+    assert_eq!(
+        allowance
+            .skill_refs()
+            .map(|r| r.as_str())
+            .collect::<Vec<_>>(),
+        ["./label"]
+    );
+    assert_eq!(allowance.rules().count(), 2);
+
+    for (rule, expected) in [
+        ("{ project: false }", "exactly one of catalog and project"),
+        (
+            "{ catalog: { trust: verified }, project: true }",
+            "exactly one of catalog and project",
+        ),
+        ("{ catalog: { trust: anyone } }", "is not a catalog rule"),
+        ("{ registry: true }", "is not a catalog rule"),
+    ] {
+        let error = refusal(&format!(
+            "skill: session\nskills: [{rule}]\nrunners:\n  work:\n    outputs: {{ summary: string }}\n"
+        ))?;
+        assert!(error.contains("skills[0]"), "{rule}: {error}");
+        assert!(error.contains(expected), "{rule}: {error}");
+    }
+    let repeated = refusal(
+        "skill: session\nskills: [{ project: true }, { project: true }]\nrunners:\n  work:\n    outputs: { summary: string }\n",
+    )?;
+    assert!(repeated.contains("skills[1] repeats"), "{repeated}");
+    Ok(())
+}
+
+#[test]
+fn a_runner_narrows_the_skills_limits() -> Result<(), String> {
+    let manifest = manifest(
+        r#"
+skill: session
+tools: [fs.read, fs.edit]
+skills: [{ catalog: { trust: verified } }, { project: true }]
+asks: true
+runners:
+  read:
+    tools: [fs.read]
+    skills: [{ project: true }]
+    asks: false
+    outputs: { summary: string }
+  develop:
+    outputs: { summary: string }
+"#,
+    )?;
+    let read = allowance(&manifest, "read")?;
+    assert_eq!(read.tools, ["fs.read"]);
+    assert_eq!(read.rules().count(), 1);
+    assert!(!read.asks);
+    let develop = allowance(&manifest, "develop")?;
+    assert_eq!(develop.tools, ["fs.read", "fs.edit"]);
+    assert_eq!(develop.rules().count(), 2);
+    assert!(develop.asks);
+    assert_eq!(
+        manifest.tools,
+        ["fs.read", "fs.edit"],
+        "the skill's limits stay the ceiling its page shows"
+    );
+
+    for (field, expected) in [
+        (
+            "tools: [git.status]",
+            "runners.read.tools names \"git.status\", which the skill's tools do not",
+        ),
+        (
+            "skills: [./other]",
+            "runners.read.skills names \"./other\", which the skill's skills do not",
+        ),
+        (
+            "asks: true",
+            "runners.read.asks is true, and the skill's asks is not",
+        ),
+    ] {
+        let error = refusal(&format!(
+            "skill: session\ntools: [fs.read]\nskills: [{{ project: true }}]\nrunners:\n  read:\n    {field}\n    outputs: {{ summary: string }}\n"
+        ))?;
+        assert!(error.contains(expected), "{field}: {error}");
+    }
     Ok(())
 }
 

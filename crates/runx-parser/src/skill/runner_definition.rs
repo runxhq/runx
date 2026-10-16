@@ -6,6 +6,7 @@ use crate::graph::{RawGraphIr, validate_graph_document};
 use super::{FIELDS, SkillRunnerDefinition, validate_inputs};
 
 const RUNNER_FIELDS: &[&str] = &[
+    "asks",
     "default",
     "continuations",
     "examples",
@@ -13,7 +14,9 @@ const RUNNER_FIELDS: &[&str] = &[
     "outputs",
     "policy",
     "result_from",
+    "skills",
     "steps",
+    "tools",
 ];
 
 /// The graph keys a runner carries for its steps.

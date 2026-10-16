@@ -56,7 +56,7 @@ fn classify_runner(
             StepKind::Tool(ToolTarget::Catalog(tool)) => classify_native_tool(tool, usage),
             StepKind::Tool(ToolTarget::Worker(_)) => usage.domain_modules = true,
             StepKind::Tool(ToolTarget::Process(_)) => classify_process(usage),
-            StepKind::Agent(_) | StepKind::Ask(_) | StepKind::Skill(_) => {}
+            StepKind::Agent(_) | StepKind::Ask(_) | StepKind::Skill(_) | StepKind::Load(_) => {}
         }
     }
 }

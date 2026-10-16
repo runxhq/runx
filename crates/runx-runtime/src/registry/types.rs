@@ -1,8 +1,8 @@
 // Module rationale: registry wire/domain types are kept together so
 // local, hosted, install, publish, trust, and signed-manifest envelopes evolve
 // under one serialization contract.
-use runx_contracts::maturity::MaturityTier;
 pub use runx_contracts::TrustTier;
+use runx_contracts::maturity::MaturityTier;
 use runx_contracts::{CopyableCommand, JsonValue, PaidSkillListing};
 use serde::{Deserialize, Serialize};
 

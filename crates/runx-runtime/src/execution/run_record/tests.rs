@@ -555,6 +555,8 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         call_id: None,
         target: &TurnTarget::Skill {
             skill: "./report".into(),
+            runner: None,
+            bound: None,
         },
         input: &JsonObject::new(),
         outcome: &CallOutcome::Child(child.run_id().to_owned()),

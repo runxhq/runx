@@ -329,8 +329,39 @@
                         },
                         "skills": {
                           "items": {
-                            "minLength": 1,
-                            "type": "string"
+                            "anyOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "catalog": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "trust": {
+                                        "enum": [
+                                          "first_party",
+                                          "verified",
+                                          "community"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "trust"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "project": {
+                                    "const": true,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            ]
                           },
                           "minItems": 1,
                           "type": "array"

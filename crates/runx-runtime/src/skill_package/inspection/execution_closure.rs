@@ -265,6 +265,14 @@ pub(super) fn case_closure_connectors(
     Ok(closure.connector_bindings.into_values().collect())
 }
 
+/// A catalog rule as a closure names it.
+fn load_rule_label(rule: &runx_contracts::CatalogRule) -> String {
+    match rule.catalog {
+        Some(catalog) => format!("catalog:{}", catalog.trust.as_str()),
+        None => "project".to_owned(),
+    }
+}
+
 /// The registry refs a package's runners and harness graphs name that the
 /// environment's registry directory does not hold: what a host supplies
 /// before the package's closure can be bound.
@@ -675,8 +683,15 @@ impl<'a> ExecutionClosureInspector<'a> {
                             allowed.requirement, allowed.operation
                         ));
                     }
+                    // What it may load is the rule's to admit at the call,
+                    // so the closure holds the rule.
+                    for rule in agent.allowance.rules() {
+                        walk.closure
+                            .components
+                            .insert(format!("load:{}", load_rule_label(rule)));
+                    }
                 }
-                StepKind::Ask(_) | StepKind::Skill(_) => {}
+                StepKind::Ask(_) | StepKind::Skill(_) | StepKind::Load(_) => {}
             }
             for child in crate::execution::graph::child_skill_steps(step) {
                 let step = child.as_ref();
