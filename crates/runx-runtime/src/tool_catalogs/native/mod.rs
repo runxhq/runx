@@ -26,6 +26,7 @@ mod input;
 mod policy;
 mod process;
 mod receipt_tools;
+mod registry;
 mod run_tools;
 mod snapshot;
 mod workspace;
@@ -54,6 +55,7 @@ const CAPABILITY_GROUPS: &[&[&dyn NativeCapability]] = &[
     attestation::CAPABILITIES,
     artifacts::CAPABILITIES,
     receipt_tools::CAPABILITIES,
+    registry::CAPABILITIES,
     run_tools::CAPABILITIES,
     policy::CAPABILITIES,
     process::CAPABILITIES,

@@ -58,6 +58,7 @@ pub mod schema_artifacts;
 mod schema_reconcile;
 pub mod signal;
 pub mod skill_authoring;
+pub mod skill_inspection;
 pub mod skill_output;
 pub mod source_packet;
 pub mod suppression;
@@ -162,11 +163,13 @@ pub use list::{
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
 pub use native_packets::{
-    ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, DataOperationResult,
+    ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, CatalogHit,
+    CatalogPackageKind, CatalogSource, ConnectorInspection, DataOperationResult,
     DataOperationStatus, DataStopCondition, DataValidation, DataValidationIssue,
-    DataValueValidation, GitBlobDigest, LocalArtifact, LocalArtifactPage, ProcessExit,
-    ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk, ProcessState,
-    ProcessStream, RunxProcess, TerminalSize,
+    DataValueValidation, GitBlobDigest, InspectedOperation, LocalArtifact, LocalArtifactPage,
+    ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk,
+    ProcessState, ProcessStream, RegistryInspection, RegistrySearchPacket, RunxProcess,
+    TerminalSize,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAdmission,
@@ -310,4 +313,10 @@ pub use x402::{
     parse_runx_invocation_extension, runx_invocation_extension_value,
 };
 
+pub use skill_inspection::{
+    EnvironmentReadiness, EnvironmentReadinessStatus, InspectedInput, InspectedOutput,
+    InspectionReadiness, InspectionReadinessStatus, InspectionResume, OperatorJourney,
+    RunnerInspection, RunnerInspectionEntry, SkillCapabilities, SkillCatalog, SkillInspection,
+    SkillInspectionSchema, SkillInspectionStatus,
+};
 pub use skill_output::{ProjectArtifactRef, SkillOutput};

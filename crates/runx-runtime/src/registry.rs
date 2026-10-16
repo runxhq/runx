@@ -26,12 +26,12 @@ pub use connector_install::{
     RegistryConnectorVersion, install_registry_connector,
 };
 pub use http::{AcquireOptions, RegistryClient, RegistryClientError};
-pub(crate) use install_record::{TrustRecord, record_trust, trusted};
-pub use install_record::{InstallRecord, read_install_record};
 pub use install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
     InstallStatus, install_local_skill,
 };
+pub use install_record::{InstallRecord, read_install_record};
+pub(crate) use install_record::{TrustRecord, record_trust, trusted};
 pub use local::{
     FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
     PutVersionOptions, RegistryResolveOptions, RegistrySearchOptions, build_skill_id,

@@ -60,12 +60,19 @@ impl Project {
 
     /// A session skill whose one turn loads under `rules`.
     fn session(&self, rules: serde_json::Value) -> TestResult<PathBuf> {
+        self.session_with(rules, &[])
+    }
+
+    /// A session skill whose one turn loads under `rules` and may call
+    /// `tools`.
+    fn session_with(&self, rules: serde_json::Value, tools: &[&str]) -> TestResult<PathBuf> {
         let skill_dir = self.root.join("session");
         crate::support::write_test_skill_package(
             &skill_dir,
             "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad what you need, then summarize.\n",
             &format!(
-                "skill: session\nskills: {}\nrunners:\n  work:\n    default: true\n    outputs:\n      summary: string\n",
+                "skill: session\ntools: {}\nskills: {}\nrunners:\n  work:\n    default: true\n    outputs:\n      summary: string\n",
+                serde_json::to_string(tools)?,
                 serde_json::to_string(&rules)?
             ),
         )?;
@@ -443,6 +450,98 @@ fn a_loaded_connectors_operations_are_tools_of_the_turn() -> TestResult {
     assert!(
         matches!(heads.outcome, TurnCallOutcome::Completed { .. }),
         "{heads:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish("echo", "1.0.0", TrustTier::Verified, "")?;
+    crate::support::write_test_skill_package(
+        &project.root.join("skills/notes"),
+        "---\nname: notes\ndescription: Takes the project's notes.\n---\n# Notes\n",
+        "skill: notes\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+    let run_id = project.start(project.session_with(
+        serde_json::json!([{"catalog": {"trust": "verified"}}]),
+        &["registry.search", "registry.inspect"],
+    )?)?;
+    let turn = project.open(&run_id)?;
+
+    let found = |query: &str| -> TestResult<serde_json::Value> {
+        match turn
+            .call(
+                TURN,
+                "registry_search",
+                None,
+                input(serde_json::json!({"query": query}))?,
+            )?
+            .outcome
+        {
+            TurnCallOutcome::Completed { output, .. } => {
+                Ok(serde_json::to_value(output)?["registry_search"]["data"].take())
+            }
+            outcome => Err(format!("the search completed: {outcome:?}").into()),
+        }
+    };
+    let echo = found("digested")?;
+    let hit = echo["hits"]
+        .as_array()
+        .and_then(|hits| hits.iter().find(|hit| hit["ref"] == "acme/echo@1.0.0"))
+        .ok_or_else(|| format!("the registry's skill is found: {echo}"))?;
+    assert_eq!(hit["source"], "registry");
+    assert_eq!(hit["trust_tier"], "verified");
+    assert_eq!(hit["runners"], serde_json::json!(["say"]));
+    let notes = found("notes")?;
+    let hit = notes["hits"]
+        .as_array()
+        .and_then(|hits| hits.iter().find(|hit| hit["ref"] == "skills/notes"))
+        .ok_or("the project's own skill is found")?;
+    assert_eq!(hit["source"], "project");
+    assert_eq!(hit["runners"], serde_json::json!(["jot"]));
+
+    let inspected = turn.call(
+        TURN,
+        "registry_inspect",
+        None,
+        input(serde_json::json!({"ref": "acme/echo@1.0.0"}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &inspected.outcome else {
+        return Err(format!("the inspection completed: {inspected:?}").into());
+    };
+    let inspection: runx_contracts::SkillInspection = serde_json::from_value(
+        serde_json::to_value(output)?["registry_inspection"]["data"].take(),
+    )?;
+    assert_eq!(inspection.name, "echo");
+    assert_eq!(
+        inspection.runner.map(|runner| runner.name).as_deref(),
+        Some("say")
+    );
+    assert!(
+        !project.root.join("skills/acme").exists(),
+        "inspecting is not using: nothing is added to the project"
+    );
+
+    let store = turn.call(
+        TURN,
+        "registry_inspect",
+        None,
+        input(serde_json::json!({"ref": "store"}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &store.outcome else {
+        return Err(format!("the connector inspection completed: {store:?}").into());
+    };
+    let output = serde_json::to_value(output)?["registry_inspection"]["data"].take();
+    let operations = output["operations"]
+        .as_array()
+        .ok_or("a connector inspection lists its operations")?;
+    assert!(
+        operations.iter().any(
+            |operation| operation["operation"] == "heads.list" && operation["access"] == "read"
+        ),
+        "{operations:?}"
     );
     Ok(())
 }

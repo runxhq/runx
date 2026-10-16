@@ -5,8 +5,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::{JsonObject, JsonValue};
-use runx_parser::{CatalogMetadata, SkillRunnerDefinition, StepKind, ToolTarget};
+use runx_contracts::{
+    EnvironmentReadiness, EnvironmentReadinessStatus, InspectionReadiness,
+    InspectionReadinessStatus, InspectionResume, JsonObject, JsonValue, RunnerInspectionEntry,
+    SkillCatalog, SkillInspection, SkillInspectionSchema, SkillInspectionStatus,
+};
+use runx_parser::{CatalogMetadata, StepKind, ToolTarget};
 
 use super::LoadedSkillPackage;
 use execution_closure::inspect_local_execution_closure;
@@ -79,9 +83,77 @@ pub fn inspect_skill_package(
     skill_path: &Path,
     selected_runner: Option<&str>,
     env: Option<&BTreeMap<String, String>>,
-) -> Result<JsonValue, SkillInspectionError> {
+) -> Result<SkillInspection, SkillInspectionError> {
     let loaded = super::load_validated_skill_package(skill_path)?;
     inspect_loaded_skill_package(loaded, selected_runner, env)
+}
+
+/// A package's inspection as a caller reads it before running it: with how
+/// ready its selected runner is to run here, under `authority`, by each
+/// connector operation it may call and the environment it reads.
+pub fn inspect_skill_readiness(
+    skill_path: &Path,
+    selected_runner: Option<&str>,
+    inputs: Option<&JsonObject>,
+    authority: Option<&crate::RunAuthority>,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<SkillInspection, SkillInspectionError> {
+    let mut inspection = inspect_skill_package(skill_path, selected_runner, Some(env))?;
+    let Some(requirements) = inspection
+        .runner
+        .as_ref()
+        .map(|runner| runner.requirements.clone())
+    else {
+        return Ok(inspection);
+    };
+    let readiness =
+        inspect_connector_readiness(skill_path, selected_runner, inputs, authority, env, cwd)?;
+    if !readiness.is_empty() {
+        inspection.readiness = Some(InspectionReadiness {
+            status: if readiness.iter().all(|operation| operation.ready) {
+                InspectionReadinessStatus::Ready
+            } else {
+                InspectionReadinessStatus::NeedsConnectorSetup
+            },
+        });
+        inspection.connector_readiness = readiness;
+    }
+    if let Some(environment) = environment_readiness(&requirements, env) {
+        if environment.status != EnvironmentReadinessStatus::Ready {
+            inspection.readiness = Some(InspectionReadiness {
+                status: InspectionReadinessStatus::NeedsEnvironment,
+            });
+        }
+        inspection.environment = Some(environment);
+    }
+    Ok(inspection)
+}
+
+/// The environment a runner reads, by name and availability, never by
+/// value; none when it reads none.
+fn environment_readiness(
+    requirements: &runx_contracts::ExecutionRequirements,
+    env: &BTreeMap<String, String>,
+) -> Option<EnvironmentReadiness> {
+    if requirements.environment.is_empty() {
+        return None;
+    }
+    let variables = crate::environment_requirement_statuses(&requirements.environment, env);
+    let missing = variables
+        .iter()
+        .filter(|status| status.required && !status.available)
+        .map(|status| status.name.clone())
+        .collect::<Vec<_>>();
+    Some(EnvironmentReadiness {
+        status: if missing.is_empty() {
+            EnvironmentReadinessStatus::Ready
+        } else {
+            EnvironmentReadinessStatus::NeedsEnvironment
+        },
+        variables,
+        missing,
+    })
 }
 
 /// The readiness of each connector operation a run of the selected runner may
@@ -237,7 +309,7 @@ pub(crate) fn inspect_loaded_skill_package(
     loaded: LoadedSkillPackage,
     selected_runner: Option<&str>,
     env: Option<&BTreeMap<String, String>>,
-) -> Result<JsonValue, SkillInspectionError> {
+) -> Result<SkillInspection, SkillInspectionError> {
     let loaded = Arc::new(loaded);
     let mut output = base_inspection(&loaded)?;
     let manifest = loaded.manifest();
@@ -246,50 +318,54 @@ pub(crate) fn inspect_loaded_skill_package(
     // host can supply them and inspect again; binding below rejects them.
     let mut execution_closures =
         inspect_execution_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
+    let mut closure_of = |runner: &str| -> Result<JsonObject, SkillInspectionError> {
+        match execution_closures.remove(runner) {
+            Some(JsonValue::Object(closure)) => Ok(closure),
+            Some(_) => Err(SkillInspectionError::ClosureInvalid {
+                runner: runner.to_owned(),
+                problem: "is not an object",
+            }),
+            None => Err(SkillInspectionError::ClosureMissing {
+                runner: runner.to_owned(),
+            }),
+        }
+    };
     if let Some(manifest) = manifest {
-        output.insert(
-            "runner_inspections".to_owned(),
-            JsonValue::Array(
-                manifest
-                    .runners
-                    .values()
-                    .map(|runner| {
-                        let examples =
-                            super::effective_runner_examples(&loaded.package, manifest, runner);
-                        let closure =
-                            execution_closures
-                                .get(&runner.name)
-                                .cloned()
-                                .ok_or_else(|| SkillInspectionError::ClosureMissing {
-                                    runner: runner.name.clone(),
-                                })?;
-                        Ok(JsonValue::Object(JsonObject::from([
-                            (
-                                "runner".to_owned(),
-                                inspect_runner(manifest, runner, &examples)?,
-                            ),
-                            ("execution_closure".to_owned(), closure),
-                        ])))
-                    })
-                    .collect::<Result<Vec<_>, SkillInspectionError>>()?,
-            ),
-        );
+        for definition in manifest.runners.values() {
+            let examples = super::effective_runner_examples(&loaded.package, manifest, definition);
+            let execution_closure = closure_of(&definition.name)?;
+            if runner.is_some_and(|runner| runner.name == definition.name) {
+                output.execution_closure = Some(execution_closure.clone());
+            }
+            output.runner_inspections.push(RunnerInspectionEntry {
+                runner: inspect_runner(manifest, definition, &examples)?,
+                execution_closure,
+            });
+        }
     }
     if let Some(runner) = runner {
-        let closure = execution_closures.remove(&runner.name).ok_or_else(|| {
-            SkillInspectionError::ClosureMissing {
-                runner: runner.name.clone(),
-            }
-        })?;
-        append_runner_inspection(
-            &mut output,
-            &loaded,
-            manifest.ok_or(SkillInspectionError::ManifestUnavailable)?,
-            runner,
-            closure,
-        )?;
+        let manifest = manifest.ok_or(SkillInspectionError::ManifestUnavailable)?;
+        let examples = super::effective_runner_examples(&loaded.package, manifest, runner);
+        output.runner = Some(inspect_runner(manifest, runner, &examples)?);
+        output.readiness = Some(InspectionReadiness {
+            status: InspectionReadinessStatus::Ready,
+        });
+        output.examples = Some(fixture_examples(
+            &loaded.package,
+            loaded.manifest(),
+            &runner.name,
+        ));
+        output.resume = Some(InspectionResume {
+            may_pause: runner.graph.steps.iter().any(|step| {
+                !matches!(
+                    step.kind,
+                    StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_))
+                )
+            }),
+            command: "runx resume <run-id> answers.json".to_owned(),
+        });
     }
-    Ok(JsonValue::Object(output))
+    Ok(output)
 }
 
 pub(crate) struct InspectedExecutionClosureBinding {
@@ -371,197 +447,69 @@ pub(crate) fn case_closure_connectors(
     execution_closure::case_closure_connectors(Arc::new(loaded.clone()), target, env)
 }
 
-fn base_inspection(loaded: &LoadedSkillPackage) -> Result<JsonObject, SkillInspectionError> {
+fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, SkillInspectionError> {
     let package = &loaded.package;
-    let mut output = JsonObject::from([
-        (
-            "schema".to_owned(),
-            JsonValue::String("runx.skill.inspect.v1".to_owned()),
-        ),
-        ("status".to_owned(), JsonValue::String("ok".to_owned())),
-        (
-            "name".to_owned(),
-            JsonValue::String(package.skill.name.clone()),
-        ),
-        (
-            "skill_path".to_owned(),
-            JsonValue::String(loaded.directory.to_string_lossy().into_owned()),
-        ),
-        (
-            "manual_digest".to_owned(),
-            JsonValue::String(package.manual_digest.clone()),
-        ),
-        // The execution package digest, as a run records it; a listing's
-        // package_digest is the registry's digest of the published files.
-        (
-            "package_digest".to_owned(),
-            JsonValue::String(package.package_digest.clone()),
-        ),
-    ]);
-    if let Some(description) = &package.skill.description {
-        output.insert(
-            "description".to_owned(),
-            JsonValue::String(description.clone()),
-        );
-    }
-    if let Some(manifest) = loaded.manifest() {
-        if let Some(version) = &manifest.version {
-            output.insert("version".to_owned(), JsonValue::String(version.clone()));
-        }
-        if let Some(capabilities) = manifest.catalog.as_ref().and_then(catalog_capabilities) {
-            output.insert("capabilities".to_owned(), capabilities);
-        }
-        if let Some(catalog) = manifest.catalog.as_ref() {
-            output.insert("catalog".to_owned(), inspect_catalog(catalog));
-        }
-        let semantic_report = runx_parser::analyze_package_catalog_semantics(
-            &package.skill.name,
-            manifest,
-            &package.harness_fixtures,
-        );
-        let encoded =
-            serde_json::to_vec(&semantic_report).map_err(|source| SkillInspectionError::Json {
-                context: "serializing catalog semantic report",
-                source,
-            })?;
-        output.insert(
-            "semantic_report".to_owned(),
-            serde_json::from_slice(&encoded).map_err(|source| SkillInspectionError::Json {
+    let manifest = loaded.manifest();
+    let semantic_report = manifest
+        .map(|manifest| {
+            JsonValue::from_serialize(&runx_parser::analyze_package_catalog_semantics(
+                &package.skill.name,
+                manifest,
+                &package.harness_fixtures,
+            ))
+            .map_err(|error| SkillInspectionError::Json {
                 context: "projecting catalog semantic report",
-                source,
-            })?,
-        );
-        output.insert(
-            "runners".to_owned(),
-            JsonValue::Array(
-                manifest
-                    .runners
-                    .keys()
-                    .cloned()
-                    .map(JsonValue::String)
-                    .collect(),
-            ),
-        );
-        output.insert(
-            "operator_journeys".to_owned(),
-            JsonValue::Array(fixture_operator_journeys(package, manifest)),
-        );
-    } else {
-        output.insert("runners".to_owned(), JsonValue::Array(Vec::new()));
-        output.insert("operator_journeys".to_owned(), JsonValue::Array(Vec::new()));
-    }
-    Ok(output)
+                source: serde::ser::Error::custom(error),
+            })
+        })
+        .transpose()?;
+    Ok(SkillInspection {
+        schema: SkillInspectionSchema::V1,
+        status: SkillInspectionStatus::Ok,
+        name: package.skill.name.clone(),
+        skill_path: loaded.directory.to_string_lossy().into_owned(),
+        manual_digest: package.manual_digest.clone(),
+        package_digest: package.package_digest.clone(),
+        description: package.skill.description.clone(),
+        version: manifest.and_then(|manifest| manifest.version.clone()),
+        capabilities: manifest
+            .and_then(|manifest| manifest.catalog.as_ref())
+            .and_then(catalog_capabilities),
+        catalog: manifest
+            .and_then(|manifest| manifest.catalog.as_ref())
+            .map(inspect_catalog),
+        semantic_report,
+        runners: manifest
+            .map(|manifest| manifest.runners.keys().cloned().collect())
+            .unwrap_or_default(),
+        operator_journeys: manifest
+            .map(|manifest| fixture_operator_journeys(package, manifest))
+            .unwrap_or_default(),
+        runner_inspections: Vec::new(),
+        runner: None,
+        execution_closure: None,
+        readiness: None,
+        connector_readiness: Vec::new(),
+        environment: None,
+        examples: None,
+        resume: None,
+        entry_provenance: None,
+    })
 }
 
-fn append_runner_inspection(
-    output: &mut JsonObject,
-    loaded: &LoadedSkillPackage,
-    manifest: &runx_parser::SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-    execution_closure: JsonValue,
-) -> Result<(), SkillInspectionError> {
-    let examples = super::effective_runner_examples(&loaded.package, manifest, runner);
-    output.insert(
-        "runner".to_owned(),
-        inspect_runner(manifest, runner, &examples)?,
-    );
-    output.insert("execution_closure".to_owned(), execution_closure);
-    output.insert(
-        "readiness".to_owned(),
-        JsonValue::Object(JsonObject::from([(
-            "status".to_owned(),
-            JsonValue::String("ready".to_owned()),
-        )])),
-    );
-    output.insert(
-        "examples".to_owned(),
-        JsonValue::Array(fixture_examples(
-            &loaded.package,
-            loaded.manifest(),
-            &runner.name,
-        )),
-    );
-    output.insert(
-        "resume".to_owned(),
-        JsonValue::Object(JsonObject::from([
-            (
-                "may_pause".to_owned(),
-                JsonValue::Bool(runner.graph.steps.iter().any(|step| {
-                    !matches!(
-                        step.kind,
-                        StepKind::Tool(ToolTarget::Worker(_) | ToolTarget::Process(_))
-                    )
-                })),
-            ),
-            (
-                "command".to_owned(),
-                JsonValue::String("runx resume <run-id> answers.json".to_owned()),
-            ),
-        ])),
-    );
-    Ok(())
-}
-
-fn inspect_catalog(catalog: &CatalogMetadata) -> JsonValue {
-    let mut output = JsonObject::from([
-        (
-            "kind".to_owned(),
-            JsonValue::String(catalog.kind.as_str().to_owned()),
-        ),
-        (
-            "audience".to_owned(),
-            JsonValue::String(catalog.audience.as_str().to_owned()),
-        ),
-        (
-            "visibility".to_owned(),
-            JsonValue::String(catalog.visibility.as_str().to_owned()),
-        ),
-        (
-            "role".to_owned(),
-            JsonValue::String(catalog.role.as_str().to_owned()),
-        ),
-    ]);
-    if let Some(canonical_skill) = &catalog.canonical_skill {
-        output.insert(
-            "canonical_skill".to_owned(),
-            JsonValue::String(canonical_skill.clone()),
-        );
+fn inspect_catalog(catalog: &CatalogMetadata) -> SkillCatalog {
+    SkillCatalog {
+        kind: catalog.kind.as_str().to_owned(),
+        audience: catalog.audience.as_str().to_owned(),
+        visibility: catalog.visibility.as_str().to_owned(),
+        role: catalog.role.as_str().to_owned(),
+        canonical_skill: catalog.canonical_skill.clone(),
+        provider: catalog.provider.clone(),
+        part_of: catalog.part_of.clone(),
+        execution: catalog.execution.map(|value| value.as_str().to_owned()),
+        completion: catalog.completion.map(|value| value.as_str().to_owned()),
+        approval: catalog.approval.map(|value| value.as_str().to_owned()),
     }
-    if let Some(provider) = &catalog.provider {
-        output.insert("provider".to_owned(), JsonValue::String(provider.clone()));
-    }
-    if !catalog.part_of.is_empty() {
-        output.insert(
-            "part_of".to_owned(),
-            JsonValue::Array(
-                catalog
-                    .part_of
-                    .iter()
-                    .cloned()
-                    .map(JsonValue::String)
-                    .collect(),
-            ),
-        );
-    }
-    if let Some(execution) = catalog.execution {
-        output.insert(
-            "execution".to_owned(),
-            JsonValue::String(execution.as_str().to_owned()),
-        );
-    }
-    if let Some(completion) = catalog.completion {
-        output.insert(
-            "completion".to_owned(),
-            JsonValue::String(completion.as_str().to_owned()),
-        );
-    }
-    if let Some(approval) = catalog.approval {
-        output.insert(
-            "approval".to_owned(),
-            JsonValue::String(approval.as_str().to_owned()),
-        );
-    }
-    JsonValue::Object(output)
 }
 
 #[cfg(test)]
@@ -572,7 +520,42 @@ mod tests {
 
     use runx_contracts::{JsonObject, JsonValue};
 
-    use super::inspect_skill_package;
+    /// The inspection as its JSON, as a host reads it.
+    fn inspect_skill_package(
+        root: &std::path::Path,
+        runner: Option<&str>,
+        env: Option<&std::collections::BTreeMap<String, String>>,
+    ) -> Result<JsonValue, Box<dyn std::error::Error>> {
+        Ok(serde_json::from_value(serde_json::to_value(
+            super::inspect_skill_package(root, runner, env)?,
+        )?)?)
+    }
+
+    #[test]
+    fn environment_readiness_names_variables_without_their_values() {
+        let requirements = runx_contracts::ExecutionRequirements {
+            scopes: Vec::new(),
+            environment: runx_contracts::EnvironmentRequirements {
+                required: vec!["REGION".to_owned()],
+                optional: vec!["TRACE_LABEL".to_owned()],
+            },
+        };
+        let readiness = super::environment_readiness(
+            &requirements,
+            &std::collections::BTreeMap::from([(
+                "TRACE_LABEL".to_owned(),
+                "do-not-render".to_owned(),
+            )]),
+        )
+        .expect("a runner that reads the environment has readiness");
+        assert_eq!(
+            readiness.status,
+            runx_contracts::EnvironmentReadinessStatus::NeedsEnvironment
+        );
+        assert_eq!(readiness.missing, ["REGION"]);
+        let encoded = serde_json::to_string(&readiness).expect("readiness encodes");
+        assert!(!encoded.contains("do-not-render"), "{encoded}");
+    }
 
     const ROOT_MANUAL: &str =
         "---\nname: root\ndescription: Root inspection fixture.\n---\n\n# Root\n";

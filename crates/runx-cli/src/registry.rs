@@ -14,9 +14,8 @@ use runx_runtime::registry::resolve::{
 };
 use runx_runtime::registry::{
     FileRegistryStore, IngestSkillOptions, InstallLocalSkillOptions, PublishSkillMarkdownOptions,
-    RegistryPublishPackageRequest, RegistrySearchOptions, TrustTier, install_local_skill,
-    materialize_publish_closure, prepare_registry_publish_package, publish_skill_markdown,
-    search_registry_with_options,
+    RegistryPublishPackageRequest, TrustTier, install_local_skill, materialize_publish_closure,
+    prepare_registry_publish_package, publish_skill_markdown,
 };
 
 mod connector;
@@ -205,40 +204,18 @@ fn run_search(
     target: RegistryTarget,
     env: &BTreeMap<String, String>,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let source = target.label();
     let query = plan.subject;
-    let limit = plan.limit.unwrap_or(20);
-    // Connectors are published only to a hosted registry.
-    let mut connectors = Vec::new();
-    let results = match target {
-        RegistryTarget::Remote { registry_url } => {
-            let client = registry_client(&registry_url, env)?;
-            connectors = client.search_connectors(&query, limit)?;
-            client.search_with_limit(&query, limit)?
-        }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => search_registry_with_options(
-            &FileRegistryStore::new(registry_path),
-            &query,
-            RegistrySearchOptions {
-                limit: plan.limit,
-                registry_url,
-            },
-        )?,
-    };
-    let human = output::render_search(&query, source, &results, &connectors);
+    let found = runx_runtime::registry::resolve::search(&query, plan.limit, target, env)?;
+    let human = output::render_search(&query, found.source, &found.results, &found.connectors);
     output::write_output(
         plan.json,
         &output::RegistryEnvelope {
             status: "success",
             registry: output::RegistryPayload::Search {
-                source,
+                source: found.source,
                 query: query.clone(),
-                results,
-                connectors,
+                results: found.results,
+                connectors: found.connectors,
             },
         },
         || human,

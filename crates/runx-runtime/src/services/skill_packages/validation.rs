@@ -27,7 +27,11 @@ pub(super) fn validate_candidate(
         validate_architecture_resources(architecture, &resources)?;
     }
     let inspection = crate::inspect_skill_package(candidate, None, Some(env))
-        .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))?;
+        .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
+        .and_then(|inspection| {
+            JsonValue::from_serialize(&inspection)
+                .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
+        })?;
     let harness = if run_harness {
         run_candidate_harness(repo_root, candidate, env, effects)?
     } else {
@@ -96,6 +100,14 @@ pub(crate) fn validate_skill_package(
     let candidate_path = resolve_candidate_path(&repo_root, requested_ref, stage.as_ref())?;
     let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
     let run_harness = allow_execute_harness || safe_harness_execution(inspected.as_ref().ok());
+    let inspected = inspected.and_then(|inspection| {
+        serde_json::to_value(&inspection)
+            .and_then(serde_json::from_value)
+            .map_err(|source| crate::SkillInspectionError::Json {
+                context: "projecting the skill inspection",
+                source,
+            })
+    });
     let resolved_ref = if stage.is_some() {
         "inline-candidate".to_owned()
     } else {
@@ -203,14 +215,10 @@ fn resolve_candidate_path(
     Ok(resolved)
 }
 
-fn safe_harness_execution(inspection: Option<&JsonValue>) -> bool {
+fn safe_harness_execution(inspection: Option<&runx_contracts::SkillInspection>) -> bool {
     inspection
-        .and_then(JsonValue::as_object)
-        .and_then(|inspection| inspection.get("capabilities"))
-        .and_then(JsonValue::as_object)
-        .and_then(|capabilities| capabilities.get("execution"))
-        .and_then(JsonValue::as_str)
-        .is_none_or(|execution| matches!(execution, "read" | "plan"))
+        .and_then(|inspection| inspection.capabilities.as_ref())
+        .is_none_or(|capabilities| matches!(capabilities.execution.as_str(), "read" | "plan"))
 }
 
 fn skill_validation_report(

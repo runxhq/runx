@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ProcessListContract, ProcessOutputContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxProcessContract, StandingApprovalContract, RunxListReportContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProcessListContract, ProcessOutputContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxProcessContract, StandingApprovalContract, RunxListReportContract, SkillInspectionContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -27,13 +27,8 @@ export interface ExecutionBinding {
   readonly executionClosureDigest: string;
 }
 
-export interface SkillInspection extends Readonly<Record<string, unknown>> {
-  readonly schema: "runx.skill.inspect.v1";
-  readonly status: "ok";
-  readonly name: string;
-  readonly package_digest: string;
-  readonly runner?: Readonly<Record<string, unknown>>;
-}
+/** A skill package's inspection, validated against `runx.skill.inspect.v1`. */
+export type SkillInspection = SkillInspectionContract;
 
 export interface SkillInspectOptions extends InvocationOptions {
   /** Known runner inputs for target readiness; no operations execute. */

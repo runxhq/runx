@@ -18,6 +18,18 @@ pub struct SkillResolverOptions<'a> {
     pub registry: Option<&'a str>,
     pub expected_digest: Option<&'a str>,
     pub absent_pins: AbsentPins,
+    pub holder: Holder,
+}
+
+/// Where a registry package the resolver fetches is kept.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Holder {
+    /// Added to the project, as a skill arrives when it is first run.
+    Project,
+    /// Read into a cache in the runx home and added to nothing: inspecting is
+    /// not using (N6). A registry skill it names stays unfetched, for the
+    /// inspection to report.
+    Cache,
 }
 
 /// What a nested registry pin the registry does not hold means. A run cannot
@@ -122,6 +134,9 @@ fn fetch_unheld_registry_refs(
     cwd: &Path,
     options: SkillResolverOptions<'_>,
 ) -> Result<(), String> {
+    if options.holder == Holder::Cache {
+        return Ok(());
+    }
     let mut absent = BTreeSet::new();
     for _ in 0..=MAX_NESTED_FETCH_DEPTH {
         let unheld = crate::unheld_registry_refs_at(skill_path, options.env)
@@ -353,14 +368,25 @@ fn resolve_registry_skill(
     canonicalize_candidate_ref(&mut candidate);
     let identity = registry_identity(&candidate)?;
     // A fetched skill is added to the project's skills directory, once per
-    // version, like any other.
-    let destination_root = crate::RunxPaths::resolve(env, cwd).skills();
+    // version, like any other; one read for inspection, to the home's cache.
+    let paths = crate::RunxPaths::resolve(env, cwd);
+    let (destination_root, connectors_root, install_records) = match options.holder {
+        Holder::Project => (paths.skills(), paths.connectors(), paths.install_records()),
+        Holder::Cache => {
+            let cache = paths.inspection_cache();
+            (
+                cache.join("skills"),
+                cache.join("connectors"),
+                cache.join("installs"),
+            )
+        }
+    };
     let install = crate::registry::install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
-            destination_root: destination_root.to_path_buf(),
-            connectors_root: crate::RunxPaths::resolve(env, cwd).connectors(),
-            install_records: crate::RunxPaths::resolve(env, cwd).install_records(),
+            destination_root,
+            connectors_root,
+            install_records,
             expected_digest: options.expected_digest.map(ToOwned::to_owned),
             trusted_manifest_keys: super::trusted_manifest_keys_for_source(
                 env,
@@ -547,6 +573,7 @@ mod tests {
                 registry: None,
                 expected_digest: None,
                 absent_pins: AbsentPins::Fail,
+                holder: Holder::Project,
             },
         ) {
             Ok(_) => return Err("missing bare skill should fail".to_owned()),

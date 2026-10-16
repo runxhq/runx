@@ -80,9 +80,13 @@ fn inspect_target_package(
         crate::paths::RUNX_CWD_ENV.to_owned(),
         repo_root.to_string_lossy().into_owned(),
     )]);
-    match crate::inspect_skill_package(target_root, None, Some(&env)) {
+    match crate::inspect_skill_package(target_root, None, Some(&env))
+        .map_err(|error| error.to_string())
+        .and_then(|inspection| {
+            JsonValue::from_serialize(&inspection).map_err(|error| error.to_string())
+        }) {
         Ok(inspection) => inspection,
-        Err(error) => invalid_target_inspection(&error.to_string()),
+        Err(error) => invalid_target_inspection(&error),
     }
 }
 

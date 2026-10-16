@@ -108,11 +108,9 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
 
     let inspection = inspect_skill_package(temp.path(), Some("inspect"), None)?;
     let plan = inspection
-        .as_object()
-        .and_then(|value| value.get("runner"))
-        .and_then(runx_contracts::JsonValue::as_object)
-        .and_then(|value| value.get("input_schema"))
-        .and_then(runx_contracts::JsonValue::as_object)
+        .runner
+        .as_ref()
+        .map(|runner| &runner.input_schema)
         .and_then(|value| value.get("properties"))
         .and_then(runx_contracts::JsonValue::as_object)
         .and_then(|value| value.get("plan"))

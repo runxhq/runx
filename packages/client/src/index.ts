@@ -1,5 +1,5 @@
 import path from "node:path";
-import { validateProcessContract, validateProcessListContract, validateProcessOutputContract, validateRunReadContract, validateRunxListReportContract } from "@runxhq/contracts";
+import { validateProcessContract, validateProcessListContract, validateProcessOutputContract, validateRunReadContract, validateRunxListReportContract, validateSkillInspectionContract } from "@runxhq/contracts";
 import { readProjectArtifact } from "./artifacts.js";
 import { decodeSkill, parseJson, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
@@ -45,8 +45,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
       },
       inspect: async (options) => {
         const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...runnerArgs(options.runner), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
-        if (output.schema !== "runx.skill.inspect.v1" || output.status !== "ok" || typeof output.name !== "string" || !output.name.trim() || typeof output.package_digest !== "string" || !output.package_digest.trim() || (output.runner !== undefined && !record(output.runner))) throw new RunxClientError("contract", "Invalid native skill inspection.");
-        return output as SkillInspection;
+        try { return validateSkillInspectionContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill inspection.", { cause: error }); }
       },
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
