@@ -10,7 +10,7 @@ mod skill;
 mod target;
 
 pub use skill::{
-    AbsentPins, RegistryTrustState, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
+    AbsentPins, Holder, RegistryTrustState, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
     resolve_skill_ref_details,
 };
 pub use target::{
@@ -22,8 +22,9 @@ use runx_contracts::connector::ConnectorName;
 use super::{
     AcquireOptions, AcquiredRegistrySkill, FileRegistryStore, InstallCandidate,
     InstallRegistryConnectorOptions, InstalledRegistryConnector, RegistryClient,
-    RegistryManifestSourceAuthority, RegistryResolveOptions, RegistrySkillResolution,
-    TrustedRegistryManifestKey, install_registry_connector, resolve_registry_skill,
+    RegistryConnectorSearchResult, RegistryManifestSourceAuthority, RegistryResolveOptions,
+    RegistrySearchResult, RegistrySkillResolution, TrustedRegistryManifestKey,
+    install_registry_connector, resolve_registry_skill,
 };
 
 /// Why a ref did not resolve.
@@ -154,6 +155,59 @@ pub fn install_candidate(
             )))
         }
     }
+}
+
+/// What a registry publishes matching a query: skills, and the connectors a
+/// hosted registry holds.
+#[derive(Clone, Debug)]
+pub struct RegistrySearch {
+    /// `remote`, `local` or `file`.
+    pub source: &'static str,
+    pub results: Vec<RegistrySearchResult>,
+    pub connectors: Vec<RegistryConnectorSearchResult>,
+}
+
+/// Search the registry `target` names for `query`, at most `limit` of each
+/// kind (20 from a hosted registry when unset).
+///
+/// # Errors
+///
+/// Returns an error when the registry cannot be reached or read.
+pub fn search(
+    query: &str,
+    limit: Option<usize>,
+    target: RegistryTarget,
+    env: &BTreeMap<String, String>,
+) -> Result<RegistrySearch, ResolveError> {
+    let source = target.label();
+    Ok(match target {
+        // Connectors are published only to a hosted registry.
+        RegistryTarget::Remote { registry_url } => {
+            let client = registry_client(&registry_url, env)?;
+            let limit = limit.unwrap_or(20);
+            RegistrySearch {
+                source,
+                connectors: client.search_connectors(query, limit)?,
+                results: client.search_with_limit(query, limit)?,
+            }
+        }
+        RegistryTarget::Local {
+            registry_path,
+            registry_url,
+            ..
+        } => RegistrySearch {
+            source,
+            results: super::search_registry_with_options(
+                &FileRegistryStore::new(registry_path),
+                query,
+                super::RegistrySearchOptions {
+                    limit,
+                    registry_url,
+                },
+            )?,
+            connectors: Vec::new(),
+        },
+    })
 }
 
 /// Adds connector `name` at `version`, or its current version, from the

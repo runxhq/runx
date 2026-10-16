@@ -155,6 +155,13 @@ impl RunxPaths {
         self.home.join("install.json")
     }
 
+    /// Where a registry package read for inspection is kept, its skills,
+    /// connectors and install records apart from any project's (N6).
+    #[must_use]
+    pub fn inspection_cache(&self) -> PathBuf {
+        self.home.join("inspected")
+    }
+
     #[must_use]
     pub fn registry_cache(&self) -> PathBuf {
         self.home.join("registry")

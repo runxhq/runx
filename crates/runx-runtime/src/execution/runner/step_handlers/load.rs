@@ -27,7 +27,7 @@ use crate::kernel::connectors::{ConnectorScope, LoadedConnector};
 use crate::paths::RunxPaths;
 use crate::receipts::StepSeal;
 use crate::registry::resolve::{
-    AbsentPins, RegistryTarget, SkillRefKind, SkillResolverOptions, install_connector,
+    AbsentPins, Holder, RegistryTarget, SkillRefKind, SkillResolverOptions, install_connector,
     resolve_registry_target, resolve_skill_ref_details,
 };
 
@@ -184,6 +184,7 @@ fn bind_skill(
             registry: None,
             expected_digest: None,
             absent_pins: AbsentPins::Fail,
+            holder: Holder::Project,
         },
     )?;
     let directory = canonical(&resolved.runnable_path)?;

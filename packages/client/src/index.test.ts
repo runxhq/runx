@@ -39,7 +39,7 @@ const output = (status: string, outcome: string, fields = {}) => ({ schema: "run
 
 describe("native invocation and decoding", () => {
   it("inspects a manual-only package without fabricating an execution binding", async () => {
-    const { root, config } = await setup(`process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'manual', package_digest: 'sha256:${"a".repeat(64)}', runners: [] }));`);
+    const { root, config } = await setup(`process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'manual', skill_path: '/skill', manual_digest: 'sha256:${"e".repeat(64)}', package_digest: 'sha256:${"a".repeat(64)}', runners: [], operator_journeys: [] }));`);
     const inspection = await createRunxClient(config).skills.inspect({ skillPath: root });
     expect(inspection.runner).toBeUndefined();
     expect(() => executionBindingFromInspection(inspection)).toThrow("selected runner");
@@ -177,7 +177,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
-      process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'agent-inbox', package_digest: 'sha256:${"a".repeat(64)}', runners: [] }));`);
+      process.stdout.write(JSON.stringify({ schema: 'runx.skill.inspect.v1', status: 'ok', name: 'agent-inbox', skill_path: '/skill', manual_digest: 'sha256:${"e".repeat(64)}', package_digest: 'sha256:${"a".repeat(64)}', runners: [], operator_journeys: [] }));`);
     const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" } } as const;
     await createRunxClient(config).skills.inspect({ skillPath: "/skill", runner: "create", runAuthority });
     const args = JSON.parse(await readFile(capture, "utf8")) as string[];
