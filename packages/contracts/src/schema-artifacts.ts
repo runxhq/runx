@@ -503,6 +503,50 @@ export const runxSchemaArtifacts = {
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                         "additionalProperties": false,
                         "properties": {
+                          "act": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "decision": {
+                                "enum": [
+                                  "continue",
+                                  "escalate",
+                                  "defer",
+                                  "close",
+                                  "decline",
+                                  "monitor"
+                                ],
+                                "type": "string"
+                              },
+                              "form": {
+                                "enum": [
+                                  "reply",
+                                  "review"
+                                ],
+                                "type": "string"
+                              },
+                              "previous": {
+                                "maxLength": 71,
+                                "pattern": "^sha256:[0-9a-f]{64}$",
+                                "type": "string"
+                              },
+                              "purpose": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "reason": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "target": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "purpose"
+                            ],
+                            "type": "object"
+                          },
                           "context": {
                             "additionalProperties": false,
                             "properties": {
@@ -540,6 +584,45 @@ export const runxSchemaArtifacts = {
                                   "content"
                                 ],
                                 "type": "object"
+                              },
+                              "instructions": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "content": {
+                                      "type": "string"
+                                    },
+                                    "path": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "root_path": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "sha256": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "sharing": {
+                                      "enum": [
+                                        "local_only",
+                                        "configured_model"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "sharing",
+                                    "root_path",
+                                    "path",
+                                    "sha256",
+                                    "content"
+                                  ],
+                                  "type": "object"
+                                },
+                                "minItems": 1,
+                                "type": "array"
                               },
                               "memory": {
                                 "additionalProperties": false,
@@ -1666,6 +1749,50 @@ export const runxSchemaArtifacts = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "act": {
+            "additionalProperties": false,
+            "properties": {
+              "decision": {
+                "enum": [
+                  "continue",
+                  "escalate",
+                  "defer",
+                  "close",
+                  "decline",
+                  "monitor"
+                ],
+                "type": "string"
+              },
+              "form": {
+                "enum": [
+                  "reply",
+                  "review"
+                ],
+                "type": "string"
+              },
+              "previous": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "purpose": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "target": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "purpose"
+            ],
+            "type": "object"
+          },
           "context": {
             "additionalProperties": false,
             "properties": {
@@ -1703,6 +1830,45 @@ export const runxSchemaArtifacts = {
                   "content"
                 ],
                 "type": "object"
+              },
+              "instructions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "root_path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "sharing": {
+                      "enum": [
+                        "local_only",
+                        "configured_model"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sharing",
+                    "root_path",
+                    "path",
+                    "sha256",
+                    "content"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
               },
               "memory": {
                 "additionalProperties": false,
@@ -2425,6 +2591,50 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
+      "act": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "continue",
+              "escalate",
+              "defer",
+              "close",
+              "decline",
+              "monitor"
+            ],
+            "type": "string"
+          },
+          "form": {
+            "enum": [
+              "reply",
+              "review"
+            ],
+            "type": "string"
+          },
+          "previous": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "purpose": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "target": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose"
+        ],
+        "type": "object"
+      },
       "context": {
         "additionalProperties": false,
         "properties": {
@@ -2462,6 +2672,45 @@ export const runxSchemaArtifacts = {
               "content"
             ],
             "type": "object"
+          },
+          "instructions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "root_path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sharing": {
+                  "enum": [
+                    "local_only",
+                    "configured_model"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sharing",
+                "root_path",
+                "path",
+                "sha256",
+                "content"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
           },
           "memory": {
             "additionalProperties": false,
@@ -24546,6 +24795,50 @@ export const runxSchemaArtifacts = {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "additionalProperties": false,
                 "properties": {
+                  "act": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "decision": {
+                        "enum": [
+                          "continue",
+                          "escalate",
+                          "defer",
+                          "close",
+                          "decline",
+                          "monitor"
+                        ],
+                        "type": "string"
+                      },
+                      "form": {
+                        "enum": [
+                          "reply",
+                          "review"
+                        ],
+                        "type": "string"
+                      },
+                      "previous": {
+                        "maxLength": 71,
+                        "pattern": "^sha256:[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "reason": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "target": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "purpose"
+                    ],
+                    "type": "object"
+                  },
                   "context": {
                     "additionalProperties": false,
                     "properties": {
@@ -24583,6 +24876,45 @@ export const runxSchemaArtifacts = {
                           "content"
                         ],
                         "type": "object"
+                      },
+                      "instructions": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "content": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "root_path": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sharing": {
+                              "enum": [
+                                "local_only",
+                                "configured_model"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "sharing",
+                            "root_path",
+                            "path",
+                            "sha256",
+                            "content"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
                       },
                       "memory": {
                         "additionalProperties": false,
@@ -27677,6 +28009,50 @@ export const runxSchemaArtifacts = {
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
                           "properties": {
+                            "act": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "continue",
+                                    "escalate",
+                                    "defer",
+                                    "close",
+                                    "decline",
+                                    "monitor"
+                                  ],
+                                  "type": "string"
+                                },
+                                "form": {
+                                  "enum": [
+                                    "reply",
+                                    "review"
+                                  ],
+                                  "type": "string"
+                                },
+                                "previous": {
+                                  "maxLength": 71,
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "purpose": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "target": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "purpose"
+                              ],
+                              "type": "object"
+                            },
                             "context": {
                               "additionalProperties": false,
                               "properties": {
@@ -27714,6 +28090,45 @@ export const runxSchemaArtifacts = {
                                     "content"
                                   ],
                                   "type": "object"
+                                },
+                                "instructions": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "content": {
+                                        "type": "string"
+                                      },
+                                      "path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "root_path": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "sharing": {
+                                        "enum": [
+                                          "local_only",
+                                          "configured_model"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "sharing",
+                                      "root_path",
+                                      "path",
+                                      "sha256",
+                                      "content"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "minItems": 1,
+                                  "type": "array"
                                 },
                                 "memory": {
                                   "additionalProperties": false,
@@ -34616,6 +35031,50 @@ export const runxSchemaArtifacts = {
                               "$schema": "https://json-schema.org/draft/2020-12/schema",
                               "additionalProperties": false,
                               "properties": {
+                                "act": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "decision": {
+                                      "enum": [
+                                        "continue",
+                                        "escalate",
+                                        "defer",
+                                        "close",
+                                        "decline",
+                                        "monitor"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "form": {
+                                      "enum": [
+                                        "reply",
+                                        "review"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "previous": {
+                                      "maxLength": 71,
+                                      "pattern": "^sha256:[0-9a-f]{64}$",
+                                      "type": "string"
+                                    },
+                                    "purpose": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "target": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "purpose"
+                                  ],
+                                  "type": "object"
+                                },
                                 "context": {
                                   "additionalProperties": false,
                                   "properties": {
@@ -34653,6 +35112,45 @@ export const runxSchemaArtifacts = {
                                         "content"
                                       ],
                                       "type": "object"
+                                    },
+                                    "instructions": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "content": {
+                                            "type": "string"
+                                          },
+                                          "path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "root_path": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "sha256": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "sharing": {
+                                            "enum": [
+                                              "local_only",
+                                              "configured_model"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "sharing",
+                                          "root_path",
+                                          "path",
+                                          "sha256",
+                                          "content"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "minItems": 1,
+                                      "type": "array"
                                     },
                                     "memory": {
                                       "additionalProperties": false,
@@ -36430,6 +36928,50 @@ export const runxSchemaArtifacts = {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
                                     "properties": {
+                                      "act": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "decision": {
+                                            "enum": [
+                                              "continue",
+                                              "escalate",
+                                              "defer",
+                                              "close",
+                                              "decline",
+                                              "monitor"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "form": {
+                                            "enum": [
+                                              "reply",
+                                              "review"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "previous": {
+                                            "maxLength": 71,
+                                            "pattern": "^sha256:[0-9a-f]{64}$",
+                                            "type": "string"
+                                          },
+                                          "purpose": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "reason": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "target": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "purpose"
+                                        ],
+                                        "type": "object"
+                                      },
                                       "context": {
                                         "additionalProperties": false,
                                         "properties": {
@@ -36467,6 +37009,45 @@ export const runxSchemaArtifacts = {
                                               "content"
                                             ],
                                             "type": "object"
+                                          },
+                                          "instructions": {
+                                            "items": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "content": {
+                                                  "type": "string"
+                                                },
+                                                "path": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "root_path": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "sha256": {
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                "sharing": {
+                                                  "enum": [
+                                                    "local_only",
+                                                    "configured_model"
+                                                  ],
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "sharing",
+                                                "root_path",
+                                                "path",
+                                                "sha256",
+                                                "content"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "minItems": 1,
+                                            "type": "array"
                                           },
                                           "memory": {
                                             "additionalProperties": false,
@@ -37697,6 +38278,50 @@ export const runxSchemaArtifacts = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+              "act": {
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "continue",
+                      "escalate",
+                      "defer",
+                      "close",
+                      "decline",
+                      "monitor"
+                    ],
+                    "type": "string"
+                  },
+                  "form": {
+                    "enum": [
+                      "reply",
+                      "review"
+                    ],
+                    "type": "string"
+                  },
+                  "previous": {
+                    "maxLength": 71,
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "reason": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "target": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "purpose"
+                ],
+                "type": "object"
+              },
               "context": {
                 "additionalProperties": false,
                 "properties": {
@@ -37734,6 +38359,45 @@ export const runxSchemaArtifacts = {
                       "content"
                     ],
                     "type": "object"
+                  },
+                  "instructions": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "root_path": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "sharing": {
+                          "enum": [
+                            "local_only",
+                            "configured_model"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "sharing",
+                        "root_path",
+                        "path",
+                        "sha256",
+                        "content"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "memory": {
                     "additionalProperties": false,

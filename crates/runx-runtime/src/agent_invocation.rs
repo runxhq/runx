@@ -18,9 +18,10 @@ mod profiles;
 pub(crate) fn agent_act_resolution_request(
     request: &SkillInvocation,
     package: &crate::LoadedSkillPackage,
+    act: Option<&runx_contracts::CallAct>,
     address: String,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let invocation = build_agent_act_invocation(request, package, address)?;
+    let invocation = build_agent_act_invocation(request, package, act, address)?;
     Ok(ResolutionRequest::AgentAct {
         id: invocation.id.clone(),
         invocation: Box::new(invocation),
@@ -35,10 +36,11 @@ fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, Runt
 }
 
 /// The act `request` asks, under the instructions of `package`, the skill
-/// package its run admitted.
+/// package its run admitted, for the run whose invoker stated `act`.
 pub(crate) fn build_agent_act_invocation(
     request: &SkillInvocation,
     package: &crate::LoadedSkillPackage,
+    act: Option<&runx_contracts::CallAct>,
     id: String,
 ) -> Result<AgentActInvocation, RuntimeError> {
     let agent = agent_task(request)?;
@@ -50,7 +52,7 @@ pub(crate) fn build_agent_act_invocation(
         id: id.into(),
         role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,
-        envelope: envelope(request, package)?,
+        envelope: envelope(request, package, act)?,
         allowance: agent.allowance.clone(),
     })
 }
@@ -58,6 +60,7 @@ pub(crate) fn build_agent_act_invocation(
 fn envelope(
     request: &SkillInvocation,
     package: &crate::LoadedSkillPackage,
+    act: Option<&runx_contracts::CallAct>,
 ) -> Result<AgentContextEnvelope, RuntimeError> {
     crate::execution_environment::resolve_declared_environment(
         &request.requirements,
@@ -86,6 +89,7 @@ fn envelope(
             .unwrap_or_else(|| "rx_pending".into()),
         step_id: optional_non_empty(request.step_id.as_deref()),
         skill: skill_name(request).into(),
+        act: act.cloned(),
         instructions_sha256: package.package.manual_digest.clone().into(),
         instructions: envelope_instructions(request, &package.package.manual_markdown)?.into(),
         inputs: request.inputs.clone(),

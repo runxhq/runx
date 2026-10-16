@@ -314,18 +314,28 @@ struct AgentPromptContext<'a> {
     run_id: &'a runx_contracts::schema::NonEmptyString,
     step_id: &'a Option<runx_contracts::schema::NonEmptyString>,
     skill: &'a runx_contracts::schema::NonEmptyString,
+    act: &'a Option<runx_contracts::CallAct>,
     instructions_sha256: &'a runx_contracts::schema::NonEmptyString,
     inputs: &'a JsonObject,
     requirements: &'a runx_contracts::AgentExecutionRequirements,
     current_context: &'a [runx_contracts::ContextEntry],
     historical_context: &'a [runx_contracts::ContextEntry],
     provenance: &'a [runx_contracts::ProvenanceEntry],
-    profiles: &'a Option<runx_contracts::AgentContextProfiles>,
+    profiles: Option<PromptProfiles<'a>>,
     voice_profile: &'a Option<runx_contracts::ProfileFile>,
     execution_location: &'a Option<runx_contracts::ExecutionLocation>,
     output: &'a Option<BTreeMap<String, OutputField>>,
     output_schema: &'a Option<JsonValue>,
     trust_boundary: &'a runx_contracts::schema::NonEmptyString,
+}
+
+/// The profiles a managed agent's provider receives: the project's memory
+/// and conventions. The project's instructions are its host's, read by a
+/// host's agent with its turn, and never sent to a provider.
+#[derive(Serialize)]
+struct PromptProfiles<'a> {
+    memory: &'a Option<runx_contracts::ProfileFile>,
+    conventions: &'a Option<runx_contracts::ProfileFile>,
 }
 
 impl<'a> From<&'a AgentContextEnvelope> for AgentPromptContext<'a> {
@@ -334,13 +344,17 @@ impl<'a> From<&'a AgentContextEnvelope> for AgentPromptContext<'a> {
             run_id: &envelope.run_id,
             step_id: &envelope.step_id,
             skill: &envelope.skill,
+            act: &envelope.act,
             instructions_sha256: &envelope.instructions_sha256,
             inputs: &envelope.inputs,
             requirements: &envelope.requirements,
             current_context: &envelope.current_context,
             historical_context: &envelope.historical_context,
             provenance: &envelope.provenance,
-            profiles: &envelope.context,
+            profiles: envelope.context.as_ref().map(|profiles| PromptProfiles {
+                memory: &profiles.memory,
+                conventions: &profiles.conventions,
+            }),
             voice_profile: &envelope.voice_profile,
             execution_location: &envelope.execution_location,
             output: &envelope.output,
@@ -399,6 +413,10 @@ mod tests {
                 "Remember the product constraint.",
             )),
             conventions: Some(profile_file("CONVENTIONS.md", "Prefer typed boundaries.")),
+            instructions: vec![profile_file(
+                "AGENTS.md",
+                "Never send the project's own instructions.",
+            )],
         });
         envelope.voice_profile = Some(profile_file("VOICE.md", "Write with direct clarity."));
         envelope.execution_location = Some(ExecutionLocation {
@@ -413,6 +431,10 @@ mod tests {
         assert!(prompt.contains("Prefer clear hierarchy."));
         assert!(prompt.contains("Remember the product constraint."));
         assert!(prompt.contains("Prefer typed boundaries."));
+        assert!(
+            !prompt.contains("Never send the project's own instructions."),
+            "the project's instructions are its host's, never a provider's"
+        );
         assert!(prompt.contains("Write with direct clarity."));
         assert!(prompt.contains("research.packet"));
         assert!(prompt.contains("rx_receipt"));
@@ -451,6 +473,7 @@ mod tests {
             run_id: non_empty("rx_prompt"),
             step_id: Some(non_empty("review")),
             skill: non_empty("review"),
+            act: None,
             instructions_sha256: non_empty("sha256:instructions"),
             instructions: non_empty(instructions),
             inputs,
