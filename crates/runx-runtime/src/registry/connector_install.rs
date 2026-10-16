@@ -369,7 +369,7 @@ fn installed(
         content_digest,
         manifest_digest: loaded.manifest_digest,
         connector_digest: loaded.connector_digest,
-        trust_tier: published.trust_tier.clone(),
+        trust_tier: published.trust_tier,
         destination: destination.to_path_buf(),
     }
 }

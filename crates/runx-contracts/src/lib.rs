@@ -243,7 +243,7 @@ pub use reference::{
 pub use registry_binding::{
     RegistryBinding, RegistryBindingHarness, RegistryBindingRegistry, RegistryBindingSchema,
     RegistryBindingSkill, RegistryBindingState, RegistryBindingUpstream, RegistryHarnessStatus,
-    RegistryTrustTier,
+    TrustTier,
 };
 pub use registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX,

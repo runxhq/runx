@@ -379,7 +379,7 @@ fn resolve_registry_skill(
         registry_source: Some(source_description),
         registry_source_fingerprint: Some(source_fingerprint),
         trust_state: Some(RegistryTrustState::Trusted),
-        trust_tier: install.trust_tier.as_ref().map(trust_tier_string),
+        trust_tier: install.trust_tier.map(|tier| tier.as_str().to_owned()),
         registry_key_id: candidate
             .signed_manifest
             .as_ref()
@@ -476,15 +476,6 @@ fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRe
         hosted_registry_url: None,
         runnable_path,
     }
-}
-
-fn trust_tier_string(value: &runx_runtime::registry::TrustTier) -> String {
-    match value {
-        runx_runtime::registry::TrustTier::FirstParty => "first_party",
-        runx_runtime::registry::TrustTier::Verified => "verified",
-        runx_runtime::registry::TrustTier::Community => "community",
-    }
-    .to_owned()
 }
 
 fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
