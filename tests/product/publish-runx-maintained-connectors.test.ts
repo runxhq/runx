@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-const script = fileURLToPath(new URL("../scripts/publish-runx-maintained-connectors.mjs", import.meta.url));
+const script = fileURLToPath(new URL("../../scripts/publish-runx-maintained-connectors.mjs", import.meta.url));
 
 /**
  * A runx stand-in: `package` answers with the facts in `<dir>/package.json`,

@@ -9,7 +9,7 @@ import {
   validateRunnerManifestYaml as validateNativeRunnerManifestYaml,
   validateRunnerManifestYamlBatch as validateNativeRunnerManifestYamlBatch,
   validateSkillMarkdownBatch as validateNativeSkillMarkdownBatch,
-} from "../scripts/lib/native-parser.mjs";
+} from "../../scripts/lib/native-parser.mjs";
 
 type SkillRunner = {
   readonly name: string;

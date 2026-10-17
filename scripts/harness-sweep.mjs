@@ -45,7 +45,8 @@ try {
 async function runSweep(options) {
   const started = performance.now();
   const runxBin = resolveRunxBinary(options);
-  const skills = selectSkills(runxMaintainedSkills(), options.skills);
+  const admitted = options.skills ? new Set([...bundledCoreSkills(), ...options.skills]) : null;
+  const skills = selectSkills(runxMaintainedSkills(admitted), options.skills);
   const allowed = new Set(options.allowed);
   const scratchRoot = path.join(repoRoot, ".runx", "harness-sweep");
   mkdirSync(scratchRoot, { recursive: true });
@@ -599,13 +600,14 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-function runxMaintainedSkills() {
+function runxMaintainedSkills(admitted) {
   const lockPath = path.join(repoRoot, "skills", "runx-maintained.lock.json");
   const lock = JSON.parse(readFileSync(lockPath, "utf8"));
   if (!Array.isArray(lock)) {
     throw new Error("runx-maintained skills lock is not an array");
   }
   return lock
+    .filter((entry) => !admitted || (typeof entry?.skill_id === "string" && admitted.has(entry.skill_id.split("/").at(-1))))
     .map((entry) => {
       const parts = typeof entry?.skill_id === "string" ? entry.skill_id.split("/") : [];
       if (parts.length !== 2 || !parts[0] || !parts[1]) {

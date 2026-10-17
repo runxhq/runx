@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectArchivePage } from "../skills/twitter/twitter-selection.mjs";
+import { selectArchivePage } from "../../skills/twitter/twitter-selection.mjs";
 
 describe("twitter archive selection", () => {
   it("binds plans to stable archive content rather than ephemeral artifact handles", () => {

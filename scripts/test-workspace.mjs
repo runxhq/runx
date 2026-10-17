@@ -2,11 +2,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { cargo, prebuiltBinEnv, rustBuildArgs, workspaceRoot } from "./rust-build.mjs";
 
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+const productOnly = process.argv.includes("--product");
+const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--" && arg !== "--product");
 
 ensureRustKernelBin();
 
-if (forwardedArgs.length > 0) {
+if (productOnly) {
+  await runVitest(["run", "--config", "vitest.product.config.ts", ...forwardedArgs]);
+} else if (forwardedArgs.length > 0) {
   await runVitest(["run", ...forwardedArgs]);
 } else {
   await runVitest(["run", "--exclude", "tests/cli-package.test.ts"]);
