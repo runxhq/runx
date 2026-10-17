@@ -1,10 +1,11 @@
 skill: attention-review
-version: "0.4.9"
+version: "0.4.10"
 
 catalog:
   kind: graph
   audience: operator
   visibility: public
+  category: ops
   role: context
   execution: read
   completion: runtime_receipt

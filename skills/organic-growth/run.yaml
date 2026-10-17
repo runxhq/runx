@@ -1,10 +1,11 @@
 skill: organic-growth
-version: "0.1.7"
+version: "0.1.8"
 
 catalog:
   kind: graph
   audience: public
   visibility: public
+  category: growth
   role: canonical
   execution: plan
   completion: runtime_receipt

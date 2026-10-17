@@ -1,11 +1,12 @@
 skill: skill-build
-version: "0.9.14"
+version: "0.9.15"
 
 catalog:
   owner: runx
   kind: graph
   audience: builder
   visibility: public
+  category: authoring
   role: canonical
   execution: execute
   completion: runtime_receipt

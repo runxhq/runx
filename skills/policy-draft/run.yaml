@@ -1,10 +1,11 @@
 skill: policy-draft
-version: "0.2.4"
+version: "0.2.5"
 catalog:
   owner: runx
   kind: graph
   audience: operator
   visibility: public
+  category: security
   role: canonical
   execution: plan
   completion: plan
