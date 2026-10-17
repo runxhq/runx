@@ -18,7 +18,7 @@ Version: `0.10.2`
 
 Typed Node client for the native Runx runtime
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 | Import | Types | Runtime |
 | --- | --- | --- |
