@@ -207,6 +207,14 @@ Defined in `config.yaml` under `safety`. Key rules:
 
 ## Release Discipline
 
+Skill versions stay on their current major and minor line. Make only a
+necessary patch change when changed package bytes require a new publication.
+Minor or major bumps, including promotion to stable `1.0`, require explicit
+user permission. A cutover, refactor, passing tests, or instruction to ship does
+not grant that permission. New skills start at `0.1.0` unless the user explicitly
+chooses another version. Never churn unchanged skill versions or bump a version
+to repair registry or release-channel drift.
+
 `cli-vX.Y.Z` is the CLI distribution tag, not a workspace-wide crate release. A
 CLI release may stamp versions in `packages/cli/package.json`, its native
 optional dependencies, `crates/runx-cli/Cargo.toml`, and the `runx-cli` lockfile

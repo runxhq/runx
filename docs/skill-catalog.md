@@ -51,6 +51,10 @@ package and connector closure, updated callers, and exact-version readback
 before the old maintained source is removed. Existing suspended runs retain
 their original bound closure.
 
+Repository CI tests the ten skills bundled into the CLI. Optional skill
+packages are checked at registry publication; their local product tests remain
+available through `pnpm test:product`.
+
 The names above describe the maintained source. Registry availability and the
 CLI packaging cutover require separate verification; this list is not a claim
 that those changes are deployed.
@@ -127,7 +131,7 @@ release. Callers that need plan-only behavior select the named `plan` runner;
 unqualified invocation follows the advertised default. Publication and deployment remain separate
 operator decisions.
 
-Package admission and `core-skills:audit` require an executable cold-selection
+Registry package admission requires an executable cold-selection
 journey with at least two real public confusors, a standalone journey through
 the actual default runner, and a composed journey that reuses named prior
 evidence without repeating completed work. The native semantic report owns

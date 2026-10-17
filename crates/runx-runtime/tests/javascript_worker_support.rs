@@ -89,43 +89,11 @@ impl JavaScriptPackage {
         self.invoke_worker(inputs, worker, environment)
     }
 
-    pub(super) fn invoke_export(
-        &self,
-        export: &str,
-        inputs: JsonObject,
-    ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        let mut worker = javascript_worker();
-        worker.export = Some(export.to_owned());
-        self.invoke_worker(inputs, worker, BTreeMap::new())
-    }
-
     pub(super) fn invoke_paged(
         &self,
         archive: &str,
         contents: &str,
         page_bytes: u64,
-        inputs: JsonObject,
-    ) -> Result<InvocationOutput, Box<dyn std::error::Error>> {
-        self.invoke_paged_with_export(archive, contents, page_bytes, None, inputs)
-    }
-
-    pub(super) fn invoke_paged_export(
-        &self,
-        archive: &str,
-        contents: &str,
-        page_bytes: u64,
-        export: &str,
-        inputs: JsonObject,
-    ) -> Result<InvocationOutput, Box<dyn std::error::Error>> {
-        self.invoke_paged_with_export(archive, contents, page_bytes, Some(export), inputs)
-    }
-
-    fn invoke_paged_with_export(
-        &self,
-        archive: &str,
-        contents: &str,
-        page_bytes: u64,
-        export: Option<&str>,
         mut inputs: JsonObject,
     ) -> Result<InvocationOutput, Box<dyn std::error::Error>> {
         let archive_path = self.root.join(archive);
@@ -142,7 +110,6 @@ impl JavaScriptPackage {
             JsonValue::String("skill".to_owned()),
         );
         let mut worker = javascript_worker();
-        worker.export = export.map(str::to_owned);
         worker.pages = Some(ArtifactPageSource {
             path_from: "archive_file".to_owned(),
             path_scope_from: Some("archive_base".to_owned()),

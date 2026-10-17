@@ -6,20 +6,24 @@ use runx_runtime::load_validated_skill_package;
 use runx_runtime::skill_front::{SkillOperatorContextOptions, load_skill_operator_context_chain};
 
 #[test]
-fn every_runx_maintained_runner_prepares_through_the_cli_runtime()
+fn every_bundled_core_runner_prepares_through_the_cli_runtime()
 -> Result<(), Box<dyn std::error::Error>> {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let skills_root = repo_root.join("skills");
+    let bundle: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+        repo_root.join("crates/runx-runtime/bundled-skills.json"),
+    )?)?;
+    let skills = bundle["skills"].as_array().ok_or("bundle omitted skills")?;
     let effects = runx_cli::runtime::runtime_effect_registry()?;
     let mut failures = Vec::new();
-    let mut directories = fs::read_dir(&skills_root)?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_dir() && path.join("SKILL.md").is_file())
-        .collect::<Vec<_>>();
-    directories.sort();
-
-    for directory in directories {
+    for entry in skills {
+        let skill_id = entry["skill_id"]
+            .as_str()
+            .ok_or("bundle skill omitted id")?;
+        let name = skill_id
+            .strip_prefix("runx/")
+            .ok_or("bundle skill has foreign owner")?;
+        let directory = skills_root.join(name);
         let loaded = match load_validated_skill_package(&directory) {
             Ok(loaded) => loaded,
             Err(error) => {
@@ -48,7 +52,7 @@ fn every_runx_maintained_runner_prepares_through_the_cli_runtime()
 
     assert!(
         failures.is_empty(),
-        "every runx-maintained runner must prepare through the complete CLI runtime:\n{}",
+        "every bundled core runner must prepare through the complete CLI runtime:\n{}",
         failures.join("\n")
     );
     Ok(())

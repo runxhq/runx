@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { finalizeExecution } from "../skills/twitter/twitter-execution-result.mjs";
+import { finalizeExecution } from "../../skills/twitter/twitter-execution-result.mjs";
 
 describe("twitter execution provider outcomes", () => {
   it("treats following:false as a completed unfollow", () => {

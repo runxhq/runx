@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const inventoryPath = path.join(root, "docs", "demo-inventory.json");
 const inventory = JSON.parse(readFileSync(inventoryPath, "utf8"));
+const examplesOnly = process.argv.includes("--examples-only");
 const validGroups = ["featured", "runnable_preview", "fixture_support"];
 const failures = [];
 
@@ -29,6 +30,7 @@ for (const group of validGroups) {
   }
   for (const entry of entries) {
     const itemPath = typeof entry === "string" ? entry : entry?.path;
+    if (examplesOnly && (typeof itemPath !== "string" || !itemPath.startsWith("examples/"))) continue;
     if (typeof itemPath !== "string" || !isValidDemoPath(itemPath)) {
       failures.push(`${group} contains invalid path ${JSON.stringify(entry)}`);
       continue;
@@ -61,8 +63,10 @@ const docsDemos = readFileSync(path.join(root, "docs", "demos.md"), "utf8");
 const examplesReadme = readFileSync(path.join(root, "examples", "README.md"), "utf8");
 
 for (const entry of inventory.featured ?? []) {
-  if (!docsDemos.includes(entry.path)) {
-    failures.push(`docs/demos.md does not mention featured demo ${entry.path}`);
+  const itemPath = typeof entry === "string" ? entry : entry?.path;
+  if (examplesOnly && (typeof itemPath !== "string" || !itemPath.startsWith("examples/"))) continue;
+  if (!docsDemos.includes(itemPath)) {
+    failures.push(`docs/demos.md does not mention featured demo ${itemPath}`);
   }
 }
 

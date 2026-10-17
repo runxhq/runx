@@ -171,32 +171,30 @@ fn packet_input_schema_must_exist_and_own_authored_examples()
 }
 
 #[test]
-fn runx_maintained_skill_packages_validate_through_the_aggregate()
+fn bundled_core_skill_packages_validate_through_the_aggregate()
 -> Result<(), Box<dyn std::error::Error>> {
-    let skills_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .join("skills");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bundle: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+        root.join("crates/runx-runtime/bundled-skills.json"),
+    )?)?;
+    let skills = bundle["skills"].as_array().ok_or("bundle omitted skills")?;
     let mut failures = Vec::new();
-    let mut directories = fs::read_dir(&skills_root)?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_dir() && path.join("SKILL.md").is_file())
-        .collect::<Vec<_>>();
-    directories.sort();
-
-    for directory in directories {
+    for entry in skills {
+        let skill_id = entry["skill_id"]
+            .as_str()
+            .ok_or("bundle skill omitted id")?;
+        let name = skill_id
+            .strip_prefix("runx/")
+            .ok_or("bundle skill has foreign owner")?;
+        let directory = root.join("skills").join(name);
         if let Err(error) = load_validated_skill_package(&directory) {
-            let name = directory
-                .file_name()
-                .map(|value| value.to_string_lossy())
-                .unwrap_or_default();
             failures.push(format!("{name}: {error}"));
         }
     }
 
     assert!(
         failures.is_empty(),
-        "runx-maintained skill packages must share one aggregate contract:\n{}",
+        "bundled core skill packages must share one aggregate contract:\n{}",
         failures.join("\n")
     );
     Ok(())

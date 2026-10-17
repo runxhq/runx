@@ -1,5 +1,5 @@
 skill: charge
-version: "1.0.0"
+version: "0.7.0"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   resource:

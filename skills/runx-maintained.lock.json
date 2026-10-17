@@ -22,7 +22,7 @@
   },
   {
     "skill_id": "runx/charge",
-    "version": "sha-cd4480fd5da7",
+    "version": "sha-7b45a583878b",
     "digest": "b3c8fc154ef057879933a32ef8ed465d932b819c69d736c5cd1785301dc9f480",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -323,7 +323,7 @@
   },
   {
     "skill_id": "runx/refund",
-    "version": "sha-33df777138ae",
+    "version": "sha-fe8f81604a61",
     "digest": "35facc8c0e2f960985913c9d6146bc121c61be1771ff6c7bbca3cc94e9bc4d1b",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
@@ -365,7 +365,7 @@
   },
   {
     "skill_id": "runx/settle-invoice",
-    "version": "sha-abdb9e97aa12",
+    "version": "sha-05e04b3e9591",
     "digest": "c6646902c6efd33d1314ec33e51ce01fc6cf12a2fdcbc6727f0f0cb43ab2f99a",
     "catalog_visibility": "public",
     "catalog_role": "canonical"

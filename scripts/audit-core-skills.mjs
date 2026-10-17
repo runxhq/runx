@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { validateRunnerManifestYaml } from "./lib/native-parser.mjs";
+import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 const schema = "runx.core_skill_operator_value_audit.v1";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,12 +53,10 @@ try {
 function buildReport(options) {
   nativeProcessCount = 0;
   const runx = resolveRunxBinary(options.runxBin);
-  const maintained = readRunxMaintainedLock();
-  const review = readProductReview();
-  const catalog = readNativeCatalog(runx);
+  const maintained = readRunxMaintainedLock(options.skills);
+  const review = readProductReview(options.skills);
+  const catalog = readNativeCatalog(runx, options.skills);
   const toolCatalog = readNativeToolCatalog(runx);
-  const findings = validateCoverage({ maintained, review, catalog });
-  // CI audits the skills a change proves; with none named, every one.
   const unknown = [...(options.skills ?? [])].filter(
     (name) => !maintained.some((record) => runxMaintainedName(record) === name),
   );
@@ -65,6 +64,7 @@ function buildReport(options) {
   const audited = options.skills
     ? maintained.filter((record) => options.skills.has(runxMaintainedName(record)))
     : maintained;
+  const findings = validateCoverage({ maintained: audited, review, catalog, selected: options.skills });
   const entries = [];
   let rewrittenManualCount = 0;
   let semanticDiagnosticCount = 0;
@@ -159,17 +159,17 @@ function buildReport(options) {
     );
   }
   entries.sort((left, right) => left.skill.localeCompare(right.skill));
-  const publicCount = maintained.filter((entry) => entry.catalog_visibility === "public").length;
-  const internalCount = maintained.length - publicCount;
+  const publicCount = audited.filter((entry) => entry.catalog_visibility === "public").length;
+  const internalCount = audited.length - publicCount;
   const decisions = countBy(entries, (entry) => entry.decision);
   const archetypes = countBy(entries, (entry) => entry.archetype);
   return {
     schema,
     status: findings.length === 0 ? "passed" : "failed",
     summary: {
-      runx_maintained: maintained.length,
+      runx_maintained: audited.length,
       audited: audited.length,
-      reviewed: review.size,
+      reviewed: options.skills ? [...review.keys()].filter((name) => options.skills.has(name)).length : review.size,
       public: publicCount,
       internal: internalCount,
       native_processes: nativeProcessCount,
@@ -183,10 +183,13 @@ function buildReport(options) {
   };
 }
 
-function readRunxMaintainedLock() {
+function readRunxMaintainedLock(selected) {
   const value = JSON.parse(readFileSync(path.join(root, "skills", "runx-maintained.lock.json"), "utf8"));
   if (!Array.isArray(value)) throw new Error("skills/runx-maintained.lock.json must be an array");
-  return [...value].sort((left, right) => runxMaintainedName(left).localeCompare(runxMaintainedName(right)));
+  const entries = selected
+    ? value.filter((record) => typeof record?.skill_id === "string" && selected.has(record.skill_id.split("/").at(-1)))
+    : value;
+  return [...entries].sort((left, right) => runxMaintainedName(left).localeCompare(runxMaintainedName(right)));
 }
 
 function runxMaintainedName(record) {
@@ -200,12 +203,12 @@ function runxMaintainedName(record) {
   return parts[1];
 }
 
-function readProductReview() {
+function readProductReview(selected) {
   const source = readFileSync(path.join(root, "docs", "core-skill-review.md"), "utf8");
-  return parseReviewTable(source);
+  return parseReviewTable(source, selected);
 }
 
-function parseReviewTable(source) {
+function parseReviewTable(source, selected) {
   const header =
     "| Skill | Archetype | Catalog role | Default execution shape | Evidence | Decision | Rationale | Improvement |";
   const lines = source.split(/\r?\n/u);
@@ -215,6 +218,7 @@ function parseReviewTable(source) {
   const records = new Map();
   for (const line of lines.slice(headerIndex + 2)) {
     if (!line.startsWith("|")) break;
+    if (selected && !selected.has(/^\|\s*([^|]+?)\s*\|/u.exec(line)?.[1]?.trim())) continue;
     const cells = markdownCells(line);
     if (cells.length !== 8) {
       throw new Error(`invalid core skill review row with ${cells.length} cells: ${line}`);
@@ -257,7 +261,7 @@ function markdownCells(line) {
   return cells;
 }
 
-function readNativeCatalog(runx) {
+function readNativeCatalog(runx, selected) {
   const output = runJson(runx, ["list", "skills", "--ok-only", "--json"]);
   if (output.schema !== "runx.list.v1" || !Array.isArray(output.items)) {
     throw new Error("native skill catalog returned an unsupported envelope");
@@ -265,6 +269,7 @@ function readNativeCatalog(runx) {
   const topLevel = new Map();
   for (const item of output.items) {
     if (typeof item?.path !== "string" || typeof item?.name !== "string") continue;
+    if (selected && !selected.has(item.name)) continue;
     if (item.path !== `skills/${item.name}/run.yaml`) continue;
     if (topLevel.has(item.name)) throw new Error(`native catalog returned duplicate ${item.name}`);
     topLevel.set(item.name, item);
@@ -320,7 +325,7 @@ function inspectSkill(runx, name) {
   return runJson(runx, args);
 }
 
-function validateCoverage({ maintained, review, catalog }) {
+function validateCoverage({ maintained, review, catalog, selected }) {
   const findings = [];
   const runxMaintainedNames = new Set();
   for (const record of maintained) {
@@ -338,6 +343,7 @@ function validateCoverage({ maintained, review, catalog }) {
   }
 
   for (const [name, decision] of review) {
+    if (selected && !selected.has(name)) continue;
     if (!runxMaintainedNames.has(name)) findings.push(`${name}: review row is not in the runx-maintained lock`);
     if (!allowedArchetypes.has(decision.archetype)) {
       findings.push(`${name}: unsupported archetype ${decision.archetype}`);
@@ -354,6 +360,7 @@ function validateCoverage({ maintained, review, catalog }) {
     if (!catalog.has(name)) findings.push(`${name}: missing top-level native catalog entry`);
   }
   for (const name of catalog.keys()) {
+    if (selected && !selected.has(name)) continue;
     if (!runxMaintainedNames.has(name)) findings.push(`${name}: top-level native catalog entry is unlocked`);
   }
   return findings;
@@ -704,6 +711,7 @@ function parseOptions(args) {
     selfTest: false,
     runxBin: undefined,
     skills: undefined,
+    coreOnly: false,
     writeComposes: false,
   };
   for (let index = 0; index < args.length; index += 1) {
@@ -712,6 +720,7 @@ function parseOptions(args) {
     if (argument === "--json") options.json = true;
     else if (argument === "--self-test") options.selfTest = true;
     else if (argument === "--write-composes") options.writeComposes = true;
+    else if (argument === "--core-only") options.coreOnly = true;
     else if (argument === "--skills") {
       const value = args[index + 1];
       if (!value) throw new Error("--skills requires a comma-separated list");
@@ -726,6 +735,8 @@ function parseOptions(args) {
     }
     else throw new Error(`unknown option: ${argument}`);
   }
+  if (options.coreOnly && options.skills) throw new Error("--core-only and --skills cannot be combined");
+  if (options.coreOnly) options.skills = new Set(bundledCoreSkills());
   return options;
 }
 

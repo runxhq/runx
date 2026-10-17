@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bindExecution, prepareExecution } from "../skills/twitter/twitter-execution.mjs";
+import { bindExecution, prepareExecution } from "../../skills/twitter/twitter-execution.mjs";
 
 const DIGEST = `sha256:${"a".repeat(64)}`;
 
