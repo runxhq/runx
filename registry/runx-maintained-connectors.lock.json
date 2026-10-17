@@ -12,8 +12,8 @@
     },
     {
       "ref": "aws",
-      "version": "sha-093e41d26d92",
-      "content_digest": "sha256:093e41d26d9294abc5da84de6d49cbfc4c4e3f74e9686a2afe61ab0e78aafa93"
+      "version": "sha-5f3a7b6b1723",
+      "content_digest": "sha256:5f3a7b6b172394e6b961e06f4301d8aa0b6c8d9173a2df0a9bd1b0808303a159"
     },
     {
       "ref": "coinbase/cdp",
@@ -37,8 +37,8 @@
     },
     {
       "ref": "google/calendar",
-      "version": "sha-a076eb8e6041",
-      "content_digest": "sha256:a076eb8e604157dcc7e22826cb705c1790f9b022a5979dd0bf093001885cd9cd"
+      "version": "sha-3dbbdd35d8de",
+      "content_digest": "sha256:3dbbdd35d8de17c4e1c6538584063c403e6e1144d0ceb27546eddb5bdf424fad"
     },
     {
       "ref": "google/search-console",
@@ -47,8 +47,8 @@
     },
     {
       "ref": "google/sheets",
-      "version": "sha-9ca2dae99faf",
-      "content_digest": "sha256:9ca2dae99fafbd0717e6d52ba3ab88cbfb9900029b36b3ff2b421daf08648d68"
+      "version": "sha-1afc5c891e37",
+      "content_digest": "sha256:1afc5c891e37098be92dad431f173e4af88d38ed49013ce8937e7e1928e9bf79"
     },
     {
       "ref": "linear",
@@ -57,8 +57,8 @@
     },
     {
       "ref": "moltbook",
-      "version": "sha-17ea883460af",
-      "content_digest": "sha256:17ea883460afda30117093fbb2b449276c61efcd3872f27f37e859eb2cc0f710"
+      "version": "sha-1253ee8f0f4f",
+      "content_digest": "sha256:1253ee8f0f4f114ce1459e2184a8b342db98554bb196ee283cdb439897be15fa"
     },
     {
       "ref": "n8n",
@@ -67,8 +67,8 @@
     },
     {
       "ref": "national-weather-service",
-      "version": "sha-c2f9888cda5b",
-      "content_digest": "sha256:c2f9888cda5b76249218d851c1e89ccd2fb8d4ec9016c463b61273d6e6ff6ef2"
+      "version": "sha-13a15e255a2c",
+      "content_digest": "sha256:13a15e255a2c8dd900d5a3ae52efe9a120d011708f8fec115a0ac40e6d93d6ef"
     },
     {
       "ref": "notion",
@@ -77,13 +77,13 @@
     },
     {
       "ref": "open-meteo",
-      "version": "sha-93e8b0d2bb9e",
-      "content_digest": "sha256:93e8b0d2bb9e64f337467ae1020caf9263448782c78bc4a3f78bbbb9f526f455"
+      "version": "sha-356bbdab1cd8",
+      "content_digest": "sha256:356bbdab1cd8484d38cdbf2d0ffc5a94aecadc504c4fb90dfcf51dc4a30b0eab"
     },
     {
       "ref": "osv",
-      "version": "sha-72b476235903",
-      "content_digest": "sha256:72b47623590345a9c63d05dd95b3ddd59a6ba9846cbfca839b7ad87723f2958e"
+      "version": "sha-dc8b55abb7c7",
+      "content_digest": "sha256:dc8b55abb7c708d5e7f8d50908a05340b3c12c3f7e095575dbb65e228e1aa5ae"
     },
     {
       "ref": "posthog",
@@ -97,8 +97,8 @@
     },
     {
       "ref": "scafld",
-      "version": "sha-c3547a727a8b",
-      "content_digest": "sha256:c3547a727a8b82b6ab33a79e574189b325e96aa851aef62e67926d462d78c0fb"
+      "version": "sha-54addee3299e",
+      "content_digest": "sha256:54addee3299e625b6c38022e16c07aec1f5c0ba20e727d7e71fc48964d9eeec6"
     },
     {
       "ref": "sentry",
@@ -122,8 +122,8 @@
     },
     {
       "ref": "wallet/evm",
-      "version": "sha-0e9a67b02626",
-      "content_digest": "sha256:0e9a67b0262644edfddcc812b1c127961c316e791fd4ebb4982c335b5a4d6bfc"
+      "version": "sha-32db0cb7f766",
+      "content_digest": "sha256:32db0cb7f76628572a87ba9a54a9eb4420ce1160733b68a5e9d647595cba271d"
     },
     {
       "ref": "web",
@@ -132,8 +132,8 @@
     },
     {
       "ref": "zapier",
-      "version": "sha-c7279083e03a",
-      "content_digest": "sha256:c7279083e03aa84841b2a2bb50a9d3dcc605813e3289ce8e4aa386bb24addd4b"
+      "version": "sha-66e3f39c273e",
+      "content_digest": "sha256:66e3f39c273e490b48b6cd7a206a0925b36ca6ddba5c27e05b4728b87053b6e7"
     }
   ]
 }

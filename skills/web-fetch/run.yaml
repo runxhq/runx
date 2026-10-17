@@ -1,5 +1,5 @@
 skill: web-fetch
-version: "0.4.4"
+version: "0.4.5"
 
 catalog:
   kind: graph
