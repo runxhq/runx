@@ -1,5 +1,5 @@
 skill: taste-profile
-version: "0.2.5"
+version: "0.2.7"
 
 catalog:
   kind: graph
