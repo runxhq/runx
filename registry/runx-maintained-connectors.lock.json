@@ -17,13 +17,13 @@
     },
     {
       "ref": "coinbase/cdp",
-      "version": "sha-2fe2b26fc510",
-      "content_digest": "sha256:2fe2b26fc5102e200d895ec12a6cf8527645300d7b5dd29ff445b15e278fd8bf"
+      "version": "sha-96961c3e1f2c",
+      "content_digest": "sha256:96961c3e1f2cbaed7ecb526256b5dfbbc167f3488310569fddfa7ad20b0c5f6a"
     },
     {
       "ref": "exa",
-      "version": "sha-350f056c5272",
-      "content_digest": "sha256:350f056c52727e6104fc0525250c765ba8780251004930846ebddc414b7c9d8a"
+      "version": "sha-06231c4fca20",
+      "content_digest": "sha256:06231c4fca20543a41e8bff5b301d4298c189b3c8d715a5176c68300cd00f021"
     },
     {
       "ref": "github",
@@ -32,8 +32,8 @@
     },
     {
       "ref": "google/analytics",
-      "version": "sha-bb1c53a281b4",
-      "content_digest": "sha256:bb1c53a281b4e94a4c7e780bcf1853aed401418b3b5d2a0cebe5274fa3ed0970"
+      "version": "sha-8a214909aaa1",
+      "content_digest": "sha256:8a214909aaa138dc5073cdcefc404bc6cbde9ad2df99f8efdaed203460dc024a"
     },
     {
       "ref": "google/calendar",
@@ -42,8 +42,8 @@
     },
     {
       "ref": "google/search-console",
-      "version": "sha-7ce79d3af6cb",
-      "content_digest": "sha256:7ce79d3af6cb56e166807e67de7fbaa240ff5054f0ccbd44a21e3112efaedc8f"
+      "version": "sha-70c6f4266c9c",
+      "content_digest": "sha256:70c6f4266c9c1a8b90d9043e166de83ac24ff836e7a4393c98042daa8c977132"
     },
     {
       "ref": "google/sheets",
@@ -62,8 +62,8 @@
     },
     {
       "ref": "n8n",
-      "version": "sha-3bd963925b3f",
-      "content_digest": "sha256:3bd963925b3ffb4fb8e0d787f410d1e9d7f7bca15645cf7d9fd1fd8ed9f24186"
+      "version": "sha-9d782de177da",
+      "content_digest": "sha256:9d782de177da2ca32db921a19e9c9d7c0f27ee1124bb0911392dfe17d6db5412"
     },
     {
       "ref": "national-weather-service",
@@ -92,8 +92,8 @@
     },
     {
       "ref": "reddit",
-      "version": "sha-869c7606b5ec",
-      "content_digest": "sha256:869c7606b5ec2a899b8036a10691bc54756459146917a14f61945f87e87890d5"
+      "version": "sha-34e80fff00f9",
+      "content_digest": "sha256:34e80fff00f910d02a7a84f27a70fc4b50dbf4e8b9dcf8ebe7cd78da4cd88f32"
     },
     {
       "ref": "scafld",
@@ -117,8 +117,8 @@
     },
     {
       "ref": "twitter",
-      "version": "sha-853e0bee3ec4",
-      "content_digest": "sha256:853e0bee3ec4d8e8ec91b8a093a009dacddc0bf6f7826c3e9f009b3aea2d14d2"
+      "version": "sha-0bf0f4a456d5",
+      "content_digest": "sha256:0bf0f4a456d5def7e56cba033ac9bcefd8bfd39a769dc1f665638fd963a51682"
     },
     {
       "ref": "wallet/evm",
