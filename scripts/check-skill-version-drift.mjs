@@ -139,9 +139,11 @@ function skillVersion(profile) {
 
 function versionFinding(skill, baseVersion, currentVersion, changedPaths) {
   if (baseVersion === null || currentVersion === null) return null;
-  if (compareSemver(currentVersion, baseVersion) > 0) return null;
+  // Labels identify immutable package bytes, not publication order. An
+  // authorized correction can restore a package to its intended 0.x line.
+  if (currentVersion !== baseVersion) return null;
   return [
-    `skills/${skill}: publishable package material changed without a version increase`,
+    `skills/${skill}: publishable package material changed without a version change`,
     `  version: ${baseVersion} -> ${currentVersion}`,
     ...changedPaths.map((changedPath) => `  changed: ${changedPath}`),
   ].join("\n");
@@ -149,16 +151,6 @@ function versionFinding(skill, baseVersion, currentVersion, changedPaths) {
 
 function isSemver(value) {
   return typeof value === "string" && /^\d+\.\d+\.\d+$/u.test(value);
-}
-
-function compareSemver(left, right) {
-  const leftParts = left.split(".").map(Number);
-  const rightParts = right.split(".").map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    const difference = leftParts[index] - rightParts[index];
-    if (difference !== 0) return difference;
-  }
-  return 0;
 }
 
 // The base version is read from the base file's own version line, never by
@@ -210,6 +202,7 @@ function runSelfTests() {
   assert(versionFinding("old-skill", "0.1.0", null, ["skills/old-skill/SKILL.md"]) === null, "deleted skill is allowed");
   assert(versionFinding("same", "0.1.0", "0.1.0", ["skills/same/SKILL.md"]) !== null, "unchanged version fails");
   assert(versionFinding("bumped", "0.1.0", "0.1.1", ["skills/bumped/SKILL.md"]) === null, "increased version passes");
+  assert(versionFinding("corrected", "1.0.0", "0.7.0", ["skills/corrected/run.yaml"]) === null, "corrected prerelease label passes");
   console.log("skill version drift self-tests ok");
 }
 
