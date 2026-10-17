@@ -223,14 +223,14 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
     assert_eq!(string_field(output, "schema"), Some("runx.skill_run.v1"));
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
     let run_id = string_field(output, "run_id").ok_or("missing run id")?;
-    assert!(run_id.starts_with("run_issue-intake_"), "{run_id}");
+    assert!(run_id.starts_with("run_code-intake_"), "{run_id}");
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
     assert_eq!(string_field(request, "kind"), Some("agent_act"));
     assert_eq!(string_field(request, "id"), Some("intake"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
-    assert_eq!(string_field(invocation, "task"), Some("issue-intake"));
+    assert_eq!(string_field(invocation, "task"), Some("code-intake"));
     let envelope = object_field(invocation, "envelope").ok_or("missing envelope")?;
     assert_eq!(string_field(envelope, "run_id"), Some(run_id));
     let instructions = string_field(envelope, "instructions").ok_or("missing instructions")?;
@@ -380,7 +380,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
             act: None,
             skill_path: skill_dir,
             receipt_dir: Some(receipt_dir.clone()),
-            run_id: Some("issue-intake-run".to_owned()),
+            run_id: Some("code-intake-run".to_owned()),
             answers: None,
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
@@ -392,7 +392,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
 
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
-    assert_eq!(string_field(output, "run_id"), Some("issue-intake-run"));
+    assert_eq!(string_field(output, "run_id"), Some("code-intake-run"));
     let closure = object_field(output, "closure").ok_or("missing closure")?;
     assert_eq!(string_field(closure, "disposition"), Some("declined"));
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
@@ -542,7 +542,7 @@ fn native_skill_run_preserves_deferred_closure_disposition()
             act: None,
             skill_path: skill_dir,
             receipt_dir: Some(receipt_dir.clone()),
-            run_id: Some("issue-intake-deferred".to_owned()),
+            run_id: Some("code-intake-deferred".to_owned()),
             answers: None,
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
@@ -3088,7 +3088,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         act: None,
         skill_path: skill_dir.clone(),
         receipt_dir: None,
-        run_id: Some("issue-intake-run".to_owned()),
+        run_id: Some("code-intake-run".to_owned()),
         answers: None,
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
@@ -3097,7 +3097,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
     })?;
     let output = object(&named_start.output, "named start")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
-    assert_eq!(string_field(output, "run_id"), Some("issue-intake-run"));
+    assert_eq!(string_field(output, "run_id"), Some("code-intake-run"));
 
     let answers_only = match run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -3189,16 +3189,16 @@ fn with_test_signing_env(mut request: SkillRunRequest) -> SkillRunRequest {
 }
 
 fn write_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("issue-intake");
+    let skill_dir = root.join("code-intake");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: issue-intake\ndescription: issue-intake fixture.\n---\n# Issue Intake\n",
+        "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# Issue Intake\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: issue-intake
+skill: code-intake
 runners:
   intake:
     default: true
@@ -3208,7 +3208,7 @@ runners:
         required: false
     steps:
       - id: intake
-        agent: { role: builder, task: issue-intake }
+        agent: { role: builder, task: code-intake }
         inputs:
           thread_title: $input.thread_title
         outputs:

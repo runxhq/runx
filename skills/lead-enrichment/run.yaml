@@ -1,5 +1,5 @@
 skill: lead-enrichment
-version: "0.4.5"
+version: "0.4.6"
 catalog:
   kind: graph
   audience: operator

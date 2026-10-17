@@ -1,6 +1,6 @@
 {
   "schema": "runx.inline_harness_report_snapshot.v1",
-  "skill": "issue-intake",
+  "skill": "code-intake",
   "report": {
     "status": "passed",
     "case_count": 5,
@@ -11,7 +11,7 @@
       "feature-needs-decomposition",
       "reply-only-question",
       "request-review-before-mutation",
-      "issue-intake-composes-in-graph"
+      "code-intake-composes-in-graph"
     ],
     "receipt_ids": [
       "<receipt:1>",

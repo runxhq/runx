@@ -1,0 +1,7 @@
+name: schema-check-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [schema-check, digest]
+  receipt: { schema: runx.receipt.v1 }

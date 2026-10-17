@@ -1,0 +1,544 @@
+skill: team-delegate
+version: "0.1.15"
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  approval: none
+  category: ops
+runners:
+  delegate:
+    default: true
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: Bounded work to divide among the declared members.
+        schema:
+          minLength: 1
+          maxLength: 10000
+      roster:
+        type: array
+        required: true
+        description: Operator-selected members and exact skill/runner targets. Scope ceilings are planning
+          limits, never grants.
+        schema:
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required:
+            - member
+            - skill
+            - runner
+            - scope_ceiling
+            - capabilities
+            additionalProperties: false
+            properties:
+              member:
+                type: string
+                minLength: 1
+                maxLength: 200
+              skill:
+                type: string
+                minLength: 1
+                maxLength: 1000
+              runner:
+                type: string
+                minLength: 1
+                maxLength: 200
+              scope_ceiling:
+                type: array
+                maxItems: 100
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              capabilities:
+                type: string
+                minLength: 1
+                maxLength: 10000
+      evidence:
+        type: array
+        required: true
+        description: Already-collected source context to carry into each relevant assignment.
+        schema:
+          maxItems: 100
+          items:
+            type: object
+            required:
+            - source_ref
+            - text
+            additionalProperties: false
+            properties:
+              source_ref:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              text:
+                type: string
+                minLength: 1
+                maxLength: 50000
+      constraints:
+        type: string
+        required: false
+        default: ''
+        description: Time, cost, sequencing and handoff constraints; no implicit approval.
+    result_from:
+    - finalize
+    steps:
+    - id: input-digest
+      tool: data.digest
+      inputs:
+        value:
+          objective: $input.objective
+          roster: $input.roster
+          evidence: $input.evidence
+          constraints: $input.constraints
+    - id: plan
+      agent:
+        role: coordinator
+        task: team-delegate
+      inputs:
+        objective: $input.objective
+        roster: $input.roster
+        evidence: $input.evidence
+        constraints: $input.constraints
+      outputs:
+        draft:
+          type: object
+          schema:
+            required:
+            - decision
+            - rationale
+            - assignments
+            - missing_context
+            additionalProperties: false
+            properties:
+              decision:
+                enum:
+                - propose
+                - needs_input
+              rationale:
+                type: string
+                minLength: 1
+                maxLength: 5000
+              assignments:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  required:
+                  - member
+                  - task
+                  - input_context
+                  - source_refs
+                  - needed_scope
+                  - acceptance
+                  - verification
+                  additionalProperties: false
+                  properties:
+                    member:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    task:
+                      type: string
+                      minLength: 1
+                      maxLength: 10000
+                    input_context:
+                      type: object
+                      additionalProperties: true
+                    source_refs:
+                      type: array
+                      maxItems: 50
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                    needed_scope:
+                      type: array
+                      maxItems: 100
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 500
+                    acceptance:
+                      type: array
+                      maxItems: 30
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                    verification:
+                      type: string
+                      minLength: 1
+                      maxLength: 5000
+              missing_context:
+                type: array
+                maxItems: 30
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+    - id: finalize
+      tool:
+        module: team-delegate.mjs
+      inputs:
+        objective: $input.objective
+        roster: $input.roster
+        evidence: $input.evidence
+        constraints: $input.constraints
+        draft: $steps.plan.draft
+        input_digest: $steps.input-digest.digest_result.digest
+      outputs:
+        delegation_packet:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - rationale
+            - assignments
+            - missing_context
+            - schema
+            - objective
+            - input_digest
+            - execution_status
+            - validation
+            properties:
+              decision:
+                enum:
+                - proposed
+                - needs_input
+                - held
+              rationale:
+                type: string
+                minLength: 1
+                maxLength: 5000
+              assignments:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  required:
+                  - member
+                  - task
+                  - input_context
+                  - source_refs
+                  - needed_scope
+                  - acceptance
+                  - verification
+                  - skill
+                  - runner
+                  - evidence
+                  - authority_status
+                  additionalProperties: false
+                  properties:
+                    member:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    task:
+                      type: string
+                      minLength: 1
+                      maxLength: 10000
+                    input_context:
+                      type: object
+                      additionalProperties: true
+                    source_refs:
+                      type: array
+                      maxItems: 50
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                    needed_scope:
+                      type: array
+                      maxItems: 100
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 500
+                    acceptance:
+                      type: array
+                      maxItems: 30
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                    verification:
+                      type: string
+                      minLength: 1
+                      maxLength: 5000
+                    skill:
+                      type: string
+                    runner:
+                      type: string
+                    evidence:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                        - source_ref
+                        - text
+                        additionalProperties: false
+                        properties:
+                          source_ref:
+                            type: string
+                            minLength: 1
+                            maxLength: 2000
+                          text:
+                            type: string
+                            minLength: 1
+                            maxLength: 50000
+                    authority_status:
+                      const: not_granted
+              missing_context:
+                type: array
+                maxItems: 30
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+              schema:
+                const: runx.team.delegation.v1
+              objective:
+                type: string
+              input_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+              execution_status:
+                const: not_started
+              validation:
+                type: object
+                additionalProperties: false
+                required:
+                - status
+                - findings
+                properties:
+                  status:
+                    enum:
+                    - pass
+                    - fail
+                  findings:
+                    type: array
+                    items:
+                      type: string
+      artifacts:
+        named_emits:
+          delegation_packet: delegation_packet
+        packets:
+          delegation_packet: runx.team.delegation.v1
+harness:
+  files:
+  - fixtures/support/composed.graph
+  cases:
+  - name: proposes-bounded-member-with-source-context
+    inputs:
+      objective: Prepare a grounded documentation update.
+      roster:
+      - member: researcher
+        skill: runx/research
+        runner: analyze
+        scope_ceiling: []
+        capabilities: Review already collected sources and find contradictions.
+      - member: writer
+        skill: runx/ghostwrite
+        runner: draft
+        scope_ceiling: []
+        capabilities: Draft grounded copy from admitted evidence.
+      evidence:
+      - source_ref: issue:docs-drift
+        text: The setup guide omits the new explicit connection selection.
+    operator_journeys:
+    - mode: standalone
+      confusors:
+      - operations-review
+      - code-plan
+      request: Divide this bounded documentation task between the supplied researcher and writer.
+      expected_outcome: Return roster-bound assignments with exact targets, input context and acceptance
+        checks; do not start a standing case or claim execution.
+    - mode: composed
+      request: Prepare assignments from this existing documentation-drift evidence and selected roster.
+      expected_outcome: Reuse the supplied evidence and member selection without rereading the source
+        or creating a second work queue.
+      prior_evidence:
+      - The supplied documentation drift and fixed researcher/writer roster.
+      must_not_repeat:
+      - Do not rediscover the drift or execute a member already completed by the caller.
+    caller:
+      answers:
+        plan:
+          draft:
+            decision: propose
+            rationale: Research the documented change before drafting.
+            assignments:
+            - member: researcher
+              task: Identify the setup instructions affected by connection selection.
+              input_context:
+                question: Which instructions require updating?
+                source_material:
+                - source_ref: issue:docs-drift
+                  text: The setup guide omits the new explicit connection selection.
+              source_refs:
+              - issue:docs-drift
+              needed_scope: []
+              acceptance:
+              - Name affected instructions and unresolved questions.
+              verification: Review the source references in the child receipt and returned analysis.
+            missing_context: []
+    expect:
+      status: sealed
+      step_outputs:
+        finalize:
+          subset:
+            delegation_packet:
+              data:
+                decision: proposed
+                execution_status: not_started
+  - name: rejects-invented-member
+    inputs:
+      objective: Prepare a grounded documentation update.
+      roster:
+      - member: researcher
+        skill: runx/research
+        runner: analyze
+        scope_ceiling: []
+        capabilities: Review already collected sources and find contradictions.
+      - member: writer
+        skill: runx/ghostwrite
+        runner: draft
+        scope_ceiling: []
+        capabilities: Draft grounded copy from admitted evidence.
+      evidence:
+      - source_ref: issue:docs-drift
+        text: The setup guide omits the new explicit connection selection.
+    caller:
+      answers:
+        plan:
+          draft:
+            decision: propose
+            rationale: Research the documented change before drafting.
+            assignments:
+            - member: invented
+              task: Identify the setup instructions affected by connection selection.
+              input_context:
+                question: Which instructions require updating?
+                source_material:
+                - source_ref: issue:docs-drift
+                  text: The setup guide omits the new explicit connection selection.
+              source_refs:
+              - issue:docs-drift
+              needed_scope: []
+              acceptance:
+              - Name affected instructions and unresolved questions.
+              verification: Review the source references in the child receipt and returned analysis.
+            missing_context: []
+    expect:
+      status: sealed
+      step_outputs:
+        finalize:
+          subset:
+            delegation_packet:
+              data:
+                decision: held
+                execution_status: not_started
+  - name: rejects-scope-widening
+    inputs:
+      objective: Prepare a grounded documentation update.
+      roster:
+      - member: researcher
+        skill: runx/research
+        runner: analyze
+        scope_ceiling: []
+        capabilities: Review already collected sources and find contradictions.
+      - member: writer
+        skill: runx/ghostwrite
+        runner: draft
+        scope_ceiling: []
+        capabilities: Draft grounded copy from admitted evidence.
+      evidence:
+      - source_ref: issue:docs-drift
+        text: The setup guide omits the new explicit connection selection.
+    caller:
+      answers:
+        plan:
+          draft:
+            decision: propose
+            rationale: Research the documented change before drafting.
+            assignments:
+            - member: researcher
+              task: Identify the setup instructions affected by connection selection.
+              input_context:
+                question: Which instructions require updating?
+                source_material:
+                - source_ref: issue:docs-drift
+                  text: The setup guide omits the new explicit connection selection.
+              source_refs:
+              - issue:docs-drift
+              needed_scope:
+              - provider:write
+              acceptance:
+              - Name affected instructions and unresolved questions.
+              verification: Review the source references in the child receipt and returned analysis.
+            missing_context: []
+    expect:
+      status: sealed
+      step_outputs:
+        finalize:
+          subset:
+            delegation_packet:
+              data:
+                decision: held
+                execution_status: not_started
+  - name: rejects-invented-context-source
+    inputs:
+      objective: Prepare a grounded documentation update.
+      roster:
+      - member: researcher
+        skill: runx/research
+        runner: analyze
+        scope_ceiling: []
+        capabilities: Review already collected sources and find contradictions.
+      - member: writer
+        skill: runx/ghostwrite
+        runner: draft
+        scope_ceiling: []
+        capabilities: Draft grounded copy from admitted evidence.
+      evidence:
+      - source_ref: issue:docs-drift
+        text: The setup guide omits the new explicit connection selection.
+    caller:
+      answers:
+        plan:
+          draft:
+            decision: propose
+            rationale: Research the documented change before drafting.
+            assignments:
+            - member: researcher
+              task: Identify the setup instructions affected by connection selection.
+              input_context:
+                question: Which instructions require updating?
+                source_material:
+                - source_ref: issue:docs-drift
+                  text: The setup guide omits the new explicit connection selection.
+              source_refs:
+              - not-supplied
+              needed_scope: []
+              acceptance:
+              - Name affected instructions and unresolved questions.
+              verification: Review the source references in the child receipt and returned analysis.
+            missing_context: []
+    expect:
+      status: sealed
+      step_outputs:
+        finalize:
+          subset:
+            delegation_packet:
+              data:
+                decision: held
+                execution_status: not_started

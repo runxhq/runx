@@ -4,7 +4,7 @@ steps:
     skill: ../..
     runner: audit
     inputs:
-      subject: research/deep-research
+      subject: research/research-brief
       granted_scopes:
         - web:read
         - repo:read

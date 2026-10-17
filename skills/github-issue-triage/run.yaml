@@ -1,0 +1,302 @@
+skill: github-issue-triage
+version: "0.4.10"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  approval: none
+  category: ops
+
+harness:
+  files:
+    - fixtures/bin/gh
+    - fixtures/support/composed.graph
+  cases: []
+
+input_definitions:
+  repository:
+    type: string
+    required: true
+    description: GitHub repository as owner/name.
+    schema:
+      pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+      examples: [runxhq/runx]
+  issue_number:
+    type: string
+    required: true
+    description: Positive GitHub issue number.
+    schema:
+      pattern: '^[1-9][0-9]*$'
+      examples: ['241']
+  issue_snapshot:
+    type: object
+    required: true
+    description: One bounded GitHub issue snapshot from a declared provider or supplied source.
+    schema:
+      required: [repository, number, title, state, body]
+      additionalProperties: false
+      properties:
+        repository: { type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }
+        number: { type: string, pattern: '^[1-9][0-9]*$' }
+        title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+        state: { type: string, enum: [open, closed] }
+        body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
+        source_ref: { type: string, minLength: 1, maxLength: 1024 }
+  issue_snapshots:
+    type: array
+    required: true
+    description: One to 100 bounded GitHub issue snapshots from declared providers or supplied sources.
+    schema:
+      minItems: 1
+      maxItems: 100
+      items:
+        type: object
+        required: [repository, number, title, state, body]
+        additionalProperties: false
+        properties:
+          repository: { type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }
+          number: { type: string, pattern: '^[1-9][0-9]*$' }
+          title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
+          state: { type: string, enum: [open, closed] }
+          body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
+          source_ref: { type: string, minLength: 1, maxLength: 1024 }
+
+connectors:
+  github:
+    operations: [issue.read, comments.create]
+runners:
+  provider-respond:
+    default: true
+    inputs:
+      repository: { definition: repository }
+      issue_number: { definition: issue_number }
+      objective:
+        type: string
+        required: false
+        description: Desired outcome for the draft response.
+      maintainer_context:
+        type: string
+        required: false
+        description: Repository norms, tone, and release posture.
+    examples:
+      - repository: runxhq/runx
+        issue_number: '241'
+        objective: Draft the next helpful maintainer response.
+    result_from: [finalize]
+    steps:
+      - id: read-issue
+        operation: github/issue.read
+        input:
+          repository: $input.repository
+          number: $input.issue_number
+
+      - id: digest-snapshot
+        tool: data.digest
+        inputs:
+          value: $steps.read-issue.provider_operation.result.issue
+
+      - id: admit
+        inputs:
+          repository: $input.repository
+          issue_snapshot: $steps.read-issue.provider_operation.result.issue
+          provider_operation: $steps.read-issue.provider_operation
+          snapshot_digest: $steps.digest-snapshot.digest_result.digest
+        tool: { module: github-issue-triage.mjs, export: admitIssue }
+        outputs:
+          issue_evidence: object
+        artifacts:
+          named_emits:
+            issue_evidence: issue_evidence
+
+      - id: draft
+        agent: { role: builder, task: github-issue-triage-respond }
+        outputs:
+          issue_profile: object
+          response_strategy: object
+          response_draft: object
+          follow_up_actions: array
+        inputs:
+          objective: $input.objective
+          maintainer_context: $input.maintainer_context
+          issue_evidence: $steps.admit.issue_evidence
+          repository: $input.repository
+          issue_number: $input.issue_number
+
+      - id: finalize
+        inputs:
+          issue_evidence: $steps.admit.issue_evidence
+          issue_profile: $steps.draft.issue_profile
+          response_strategy: $steps.draft.response_strategy
+          response_draft: $steps.draft.response_draft
+          follow_up_actions: $steps.draft.follow_up_actions
+        tool: { module: github-issue-triage.mjs, export: finalizeResponse }
+        outputs:
+          issue_triage_packet: object
+        artifacts:
+          named_emits:
+            issue_triage_packet: issue_triage_packet
+          packets:
+            issue_triage_packet: runx.issue.triage.v1
+
+  discover:
+    inputs:
+      issue_snapshots: { definition: issue_snapshots }
+      query:
+        type: string
+        required: true
+        description: Selection objective for this bounded issue set.
+        schema:
+          minLength: 1
+          maxLength: 2000
+      maintainer_context:
+        type: string
+        required: false
+        description: Repository norms and response constraints.
+    examples:
+      - query: Find unanswered issues where a maintainer response would unblock progress.
+        issue_snapshots:
+          - { repository: runxhq/runx, number: '241', title: Sourcey output path is unclear, state: open, body: The docs name two different output directories. }
+    result_from: [finalize]
+    steps:
+      - id: digest-snapshots
+        tool: data.digest
+        inputs:
+          value: $input.issue_snapshots
+
+      - id: index
+        inputs:
+          issue_snapshots: $input.issue_snapshots
+          query: $input.query
+          snapshot_digest: $steps.digest-snapshots.digest_result.digest
+        tool: { module: github-issue-triage.mjs, export: indexIssues }
+        outputs:
+          issue_index: object
+        artifacts:
+          named_emits:
+            issue_index: issue_index
+
+      - id: select
+        agent: { role: researcher, task: github-issue-triage-discover }
+        outputs:
+          issue_candidates: array
+          selection_rationale: object
+        inputs:
+          maintainer_context: $input.maintainer_context
+          issue_index: $steps.index.issue_index
+          issue_snapshots: $input.issue_snapshots
+          query: $input.query
+
+      - id: finalize
+        inputs:
+          issue_index: $steps.index.issue_index
+          issue_candidates: $steps.select.issue_candidates
+          selection_rationale: $steps.select.selection_rationale
+        tool: { module: github-issue-triage.mjs, export: finalizeDiscovery }
+        outputs:
+          issue_triage_queue: object
+        artifacts:
+          named_emits:
+            issue_triage_queue: issue_triage_queue
+          packets:
+            issue_triage_queue: runx.issue.triage_queue.v1
+
+  respond:
+    inputs:
+      issue_snapshot: { definition: issue_snapshot }
+      objective:
+        type: string
+        required: false
+        description: Desired outcome for the draft response.
+      maintainer_context:
+        type: string
+        required: false
+        description: Repository norms, tone, and release posture.
+    examples:
+      - issue_snapshot: { repository: runxhq/runx, number: '241', title: Sourcey output path is unclear, state: open, body: The docs name two different output directories. }
+        objective: Draft the next helpful maintainer response.
+    result_from: [finalize]
+    steps:
+      - id: digest-snapshot
+        tool: data.digest
+        inputs:
+          value: $input.issue_snapshot
+
+      - id: admit
+        inputs:
+          issue_snapshot: $input.issue_snapshot
+          snapshot_digest: $steps.digest-snapshot.digest_result.digest
+        tool: { module: github-issue-triage.mjs, export: admitIssue }
+        outputs:
+          issue_evidence: object
+        artifacts:
+          named_emits:
+            issue_evidence: issue_evidence
+
+      - id: draft
+        agent: { role: builder, task: github-issue-triage-respond }
+        outputs:
+          issue_profile: object
+          response_strategy: object
+          response_draft: object
+          follow_up_actions: array
+        inputs:
+          objective: $input.objective
+          maintainer_context: $input.maintainer_context
+          issue_evidence: $steps.admit.issue_evidence
+          issue_snapshot: $input.issue_snapshot
+
+      - id: finalize
+        inputs:
+          issue_evidence: $steps.admit.issue_evidence
+          issue_profile: $steps.draft.issue_profile
+          response_strategy: $steps.draft.response_strategy
+          response_draft: $steps.draft.response_draft
+          follow_up_actions: $steps.draft.follow_up_actions
+        tool: { module: github-issue-triage.mjs, export: finalizeResponse }
+        outputs:
+          issue_triage_packet: object
+        artifacts:
+          named_emits:
+            issue_triage_packet: issue_triage_packet
+          packets:
+            issue_triage_packet: runx.issue.triage.v1
+
+  post:
+    inputs:
+      issue_triage_packet:
+        type: json
+        packet: runx.issue.triage.v1
+        required: true
+        description: Exact draft-ready packet emitted by provider-respond or respond.
+      idempotency_key:
+        type: string
+        required: true
+        description: Stable retry key for this exact issue comment.
+    result_from: [post-comment]
+    steps:
+      - id: validate
+        tool: data.compare
+        inputs:
+          actual:
+            decision: $input.issue_triage_packet.decision
+            validation: $input.issue_triage_packet.validation.status
+            delivery_status: $input.issue_triage_packet.delivery_status
+            channel: $input.issue_triage_packet.response_draft.channel
+          expected:
+            decision: draft_ready
+            validation: pass
+            delivery_status: not_sent
+            channel: github_issue_comment
+      - id: post-comment
+        when: { value: $steps.validate.comparison.equal, equals: true }
+        operation: github/comments.create
+        idempotency_key: $input.idempotency_key
+        input:
+          repository: $input.issue_triage_packet.issue_profile.repository
+          comments:
+            - number: $input.issue_triage_packet.issue_profile.number
+              body: $input.issue_triage_packet.response_draft.body

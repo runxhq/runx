@@ -1,0 +1,19 @@
+name: github-blocks-nul-thread-body
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: threads
+    filters: { limit: 1 }
+    mutations:
+      - ref: issues/241/comments
+        op: comment
+        payload:
+          body: "before\0after"
+  scope: write
+expect:
+  status: failure
+metadata: { public_skill: github, source_case: nul-thread-body, source: skills-fixture }

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/runx/data/validation/v1.json",
+  "x-runx-packet-id": "runx.data.validation.v1",
+  "x-runx-generated-from": "schemas/data-validation.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "results": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "instance_path": {
+                  "type": "string"
+                },
+                "schema_path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "instance_path",
+                "schema_path"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "index",
+          "valid",
+          "errors",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema_digest": {
+      "type": "string"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "values_digest": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "valid",
+    "schema_digest",
+    "values_digest",
+    "results"
+  ],
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.data.validation.v1"
+}

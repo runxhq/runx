@@ -7,14 +7,14 @@ state, dedupe fingerprint, triage action, and source-thread locator.
 
 ## Source Command Normalization
 
-Normalize source commands at the adapter edge before calling `issue-intake`.
+Normalize source commands at the adapter edge before calling `code-intake`.
 The adapter-local normalizer parses GitHub, Slack, Sentry, file, API, and
 manual source references into a provider-neutral command shape:
 
 - canonical `source_locator` and, when available, `thread_locator`
 - target repo hint from concrete GitHub URLs
 - stable source dedupe key
-- `source_event` input for `issue-intake`
+- `source_event` input for `code-intake`
 - operational-policy admission request fields
 - chat-safe command response text for accepted, blocked, unsupported, or failed
   command paths
@@ -27,7 +27,7 @@ visible blocked response rather than pretending mutation was dispatched.
 
 ## Admission Policy
 
-Adapters must evaluate source policy before invoking `issue-intake`. A message
+Adapters must evaluate source policy before invoking `code-intake`. A message
 containing a word such as `BUG` is not enough to trigger mutation.
 
 The reusable policy packet is `runx.operational_policy.v1`
@@ -142,14 +142,14 @@ owner route id, owner count, dedupe strategy, outcome close mode, source-thread
 requirement, mutation permission, and human merge gate. It does not echo raw
 Slack, Sentry, GitHub, or local path locators.
 
-`issue-intake` chooses the next lane:
+`code-intake` chooses the next lane:
 
 - `reply-only`: answer or support guidance, no mutation
 - `manual-review`: human decision needed before planning or mutation
-- `work-plan`: bigger change, planning first
-- `issue-to-pr`: bounded fix, governed PR lane
+- `code-plan`: bigger change, planning first
+- `github-issue-to-pr`: bounded fix, governed PR lane
 
-`issue-to-pr` must preserve the same `harness_context` packet through PR packaging
+`github-issue-to-pr` must preserve the same `harness_context` packet through PR packaging
 and source-thread story updates. It must stop at the human merge gate.
 
 Pull-request outbox entries must include `metadata.dedupe` with the selected

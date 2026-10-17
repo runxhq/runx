@@ -2,412 +2,77 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/data/sql_analysis_plan/v1.json",
   "x-runx-packet-id": "runx.data.sql_analysis_plan.v1",
-  "x-runx-generated-from": "skills/sql-analyst/run.yaml#root.runners.plan.steps.1",
+  "x-runx-generated-from": "skills/sql-analysis/run.yaml#root.runners.plan.steps.3",
   "additionalProperties": false,
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "decision": {
-            "const": "ready"
-          }
-        },
-        "required": [
-          "decision"
-        ]
-      },
-      "then": {
-        "properties": {
-          "interpretation": {
-            "required": [
-              "summary",
-              "caveats"
-            ]
-          },
-          "query_plan": {
-            "required": [
-              "intent",
-              "dialect",
-              "tables",
-              "fields",
-              "joins",
-              "filters",
-              "limit"
-            ]
-          }
-        },
-        "required": [
-          "query_plan",
-          "interpretation"
-        ]
-      }
-    }
-  ],
   "properties": {
     "decision": {
       "enum": [
         "ready",
-        "needs_schema",
-        "unsafe_request"
-      ],
+        "no_suitable_query",
+        "invalid_parameters"
+      ]
+    },
+    "dialect": {
+      "maxLength": 64,
       "type": "string"
     },
-    "execution": {
-      "additionalProperties": false,
-      "properties": {
-        "executed": {
-          "const": false
-        },
-        "handoff": {
-          "additionalProperties": false,
-          "properties": {
-            "connector": {
-              "const": "store"
-            },
-            "inputs": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "operation": {
-              "enum": [
-                "projection.read",
-                "events.read",
-                "heads.list"
-              ],
-              "type": "string"
-            }
-          },
-          "type": "object"
-        },
-        "provider_receipt_ref": {
-          "const": ""
-        },
-        "status": {
-          "enum": [
-            "not_ready",
-            "planned_only",
-            "prepared_for_governed_read"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "status",
-        "executed",
-        "provider_receipt_ref",
-        "handoff"
-      ],
-      "type": "object"
+    "executed": {
+      "const": false
     },
-    "interpretation": {
-      "additionalProperties": false,
-      "properties": {
-        "caveats": {
-          "items": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "maxItems": 100,
-          "type": "array"
-        },
-        "summary": {
-          "maxLength": 10000,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "type": "object"
+    "max_rows": {
+      "maximum": 1000,
+      "minimum": 1,
+      "type": "integer"
     },
-    "query_plan": {
-      "additionalProperties": false,
-      "properties": {
-        "dialect": {
-          "enum": [
-            "postgres",
-            "sqlite",
-            "mysql"
-          ],
-          "type": "string"
-        },
-        "fields": {
-          "items": {
-            "pattern": "^[A-Za-z_][A-Za-z0-9_$]*\\.[A-Za-z_][A-Za-z0-9_$]*$",
-            "type": "string"
-          },
-          "maxItems": 500,
-          "minItems": 1,
-          "type": "array",
-          "uniqueItems": true
-        },
-        "filters": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "field": {
-                "maxLength": 513,
-                "minLength": 3,
-                "type": "string"
-              },
-              "operator": {
-                "enum": [
-                  "eq",
-                  "neq",
-                  "gt",
-                  "gte",
-                  "lt",
-                  "lte",
-                  "between",
-                  "in",
-                  "is_null",
-                  "is_not_null",
-                  "like"
-                ],
-                "type": "string"
-              },
-              "value_ref": {
-                "maxLength": 1000,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "field",
-              "operator"
-            ],
-            "type": "object"
-          },
-          "maxItems": 100,
-          "type": "array"
-        },
-        "group_by": {
-          "items": {
-            "maxLength": 513,
-            "minLength": 3,
-            "type": "string"
-          },
-          "maxItems": 100,
-          "type": "array",
-          "uniqueItems": true
-        },
-        "intent": {
-          "maxLength": 4000,
-          "minLength": 1,
-          "type": "string"
-        },
-        "joins": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "left": {
-                "maxLength": 513,
-                "minLength": 3,
-                "type": "string"
-              },
-              "right": {
-                "maxLength": 513,
-                "minLength": 3,
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "inner",
-                  "left"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "left",
-              "right",
-              "type"
-            ],
-            "type": "object"
-          },
-          "maxItems": 100,
-          "type": "array"
-        },
-        "limit": {
-          "maximum": 10000,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "order_by": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "direction": {
-                "enum": [
-                  "asc",
-                  "desc"
-                ],
-                "type": "string"
-              },
-              "field": {
-                "maxLength": 513,
-                "minLength": 3,
-                "type": "string"
-              }
-            },
-            "required": [
-              "field",
-              "direction"
-            ],
-            "type": "object"
-          },
-          "maxItems": 100,
-          "type": "array"
-        },
-        "tables": {
-          "items": {
-            "maxLength": 256,
-            "minLength": 1,
-            "type": "string"
-          },
-          "maxItems": 100,
-          "minItems": 1,
-          "type": "array",
-          "uniqueItems": true
-        }
-      },
-      "type": "object"
-    },
-    "residual_risks": {
+    "missing_context": {
       "items": {
-        "maxLength": 2000,
-        "minLength": 1,
+        "maxLength": 1000,
         "type": "string"
       },
-      "maxItems": 100,
+      "maxItems": 16,
       "type": "array"
     },
-    "schema_binding": {
-      "additionalProperties": false,
-      "properties": {
-        "allowed_tables": {
-          "items": {
-            "maxLength": 256,
-            "minLength": 1,
-            "type": "string"
-          },
-          "maxItems": 100,
-          "type": "array",
-          "uniqueItems": true
-        },
-        "dialect": {
-          "enum": [
-            "postgres",
-            "sqlite",
-            "mysql",
-            ""
-          ],
-          "type": "string"
-        },
-        "max_rows": {
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "source_evidence": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "observed_at": {
-                "format": "date-time",
-                "type": "string"
-              },
-              "provenance": {
-                "const": "caller_supplied_source_digest"
-              },
-              "source_digest": {
-                "pattern": "^sha256:[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "source_ref": {
-                "maxLength": 2048,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "source_ref",
-              "source_digest",
-              "observed_at",
-              "provenance"
-            ],
-            "type": "object"
-          },
-          "maxItems": 2,
-          "type": "array"
-        }
-      },
-      "required": [
-        "dialect",
-        "allowed_tables",
-        "max_rows",
-        "source_evidence"
-      ],
+    "parameters": {
+      "additionalProperties": true,
       "type": "object"
+    },
+    "query_id": {
+      "maxLength": 192,
+      "type": "string"
+    },
+    "question": {
+      "maxLength": 8000,
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 4000,
+      "type": "string"
+    },
+    "result_description": {
+      "maxLength": 4000,
+      "type": "string"
+    },
+    "source_ref": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$",
+      "type": "string"
     },
     "validation": {
-      "additionalProperties": false,
-      "properties": {
-        "findings": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "code": {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              "message": {
-                "maxLength": 4000,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "code",
-              "message"
-            ],
-            "type": "object"
-          },
-          "maxItems": 250,
-          "type": "array"
-        },
-        "status": {
-          "enum": [
-            "pass",
-            "fail"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "status",
-        "findings"
-      ],
+      "additionalProperties": true,
       "type": "object"
-    },
-    "validation_checks": {
-      "items": {
-        "maxLength": 2000,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 100,
-      "type": "array"
     }
   },
   "required": [
     "decision",
-    "query_plan",
-    "validation_checks",
-    "interpretation",
-    "residual_risks",
-    "schema_binding",
-    "execution",
+    "question",
+    "source_ref",
+    "dialect",
+    "query_id",
+    "parameters",
+    "max_rows",
+    "reason",
+    "missing_context",
+    "result_description",
+    "executed",
     "validation"
   ],
   "type": "object"

@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const defaultSkill = "issue-intake";
+const defaultSkill = "code-intake";
 const snapshotPath = path.join(
   repoRoot,
   "fixtures",

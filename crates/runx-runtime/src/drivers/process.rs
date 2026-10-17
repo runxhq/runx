@@ -19,6 +19,31 @@ use crate::credentials::CredentialDelivery;
 use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed};
 use crate::kernel::operation::{AdmittedCall, ToolRunner};
 
+/// The native harness's injected tool runner. A result matches the exact
+/// admitted tool and arguments; a missing fixture never starts a host process.
+pub(crate) struct StandIn<'a> {
+    pub calls: &'a [runx_parser::harness_fixture::HarnessProcessCallFixture],
+}
+
+impl ToolRunner for StandIn<'_> {
+    fn run(
+        &self,
+        tool: &str,
+        _manifest: &Path,
+        inputs: JsonObject,
+        _scopes: &[String],
+        _delivery: &CredentialDelivery,
+    ) -> Result<JsonValue, String> {
+        self.calls
+            .iter()
+            .find(|call| call.tool == tool && call.arguments == inputs)
+            .map(|call| call.result.clone())
+            .ok_or_else(|| {
+                format!("the harness declares no process result for {tool} with these arguments")
+            })
+    }
+}
+
 pub(crate) struct Process<'a> {
     pub tools: &'a dyn ToolRunner,
     pub tool: &'a str,

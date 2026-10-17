@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="444" viewBox="0 0 1120 444" role="img" aria-labelledby="title desc">
   <title id="title">Organic growth: discovery to activation and back</title>
-  <desc id="desc">Google Search Console supplies discovery evidence, Google Analytics supplies acquisition evidence, Product-analytics supplies funnel and retention evidence from the selected analytics provider, and web-fetch and research supply site and market evidence. The caller brings them to organic-growth. Its ranked actions can feed content-pipeline or work-plan and issue-to-pr. The owning workflow publishes or releases approved changes. A comparable later measurement informs the next analysis.</desc>
+  <desc id="desc">Google Search Console supplies discovery evidence, Google Analytics supplies acquisition evidence, Product-analytics supplies funnel and retention evidence from the selected analytics provider, and web-fetch and research supply site and market evidence. The caller brings them to organic-growth. Its ranked actions can feed content-package or code-plan and github-issue-to-pr. The owning workflow publishes or releases approved changes. A comparable later measurement informs the next analysis.</desc>
   <defs>
     <style>
       :root{color-scheme:light dark;--bg:#fcfbf9;--card:#fff;--line:#e4e0d9;--ink:#242522;--muted:#666963;--p:#7957be;--t:#087f79;--a:#b06c10;--b:#346ab6}
@@ -35,9 +35,9 @@
   <rect x="338" y="196" width="430" height="68" rx="12" fill="var(--card)" stroke="var(--t)" stroke-width="1.5"/>
   <text class="title" x="553" y="224" text-anchor="middle">organic-growth</text><text class="label" x="553" y="248" text-anchor="middle">Evidence → priorities → measurement plan</text>
   <rect class="card" x="100" y="312" width="270" height="68" rx="11"/>
-  <text class="title" x="118" y="341">content-pipeline</text><text class="label" x="118" y="366">Research → draft → package</text>
+  <text class="title" x="118" y="341">content-package</text><text class="label" x="118" y="366">Research → draft → package</text>
   <rect class="card" x="542" y="312" width="300" height="68" rx="11"/>
-  <text class="title" x="560" y="341">work-plan → issue-to-pr</text><text class="label" x="560" y="366">Code · templates · instrumentation</text>
+  <text class="title" x="560" y="341">code-plan → GitHub PR</text><text class="label" x="560" y="366">Code · templates · instrumentation</text>
   <path d="M902 336 L912 346 L902 356 L892 346 Z" fill="var(--bg)" stroke="var(--p)" stroke-width="1.7"/>
   <path d="M902 392 L912 402 L902 412 L892 402 Z" fill="var(--bg)" stroke="var(--t)" stroke-width="1.7"/>
   <rect class="card" x="960" y="293" width="136" height="87" rx="11"/>

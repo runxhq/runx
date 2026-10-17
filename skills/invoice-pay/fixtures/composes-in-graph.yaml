@@ -1,0 +1,5 @@
+name: invoice-pay-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: policy_denied

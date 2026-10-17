@@ -1,5 +1,5 @@
 skill: skill-build
-version: "0.9.16"
+version: "0.9.17"
 
 catalog:
   owner: runx
@@ -323,7 +323,7 @@ runners:
     examples:
       - objective: Make every public runner callable from inspection without source-diving.
         repo_root: .
-        target_dir: skills/github-sync
+        target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         harness_output: The agent could not construct the nested resources selector from inspection.
     result_from: [apply]

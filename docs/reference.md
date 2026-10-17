@@ -31,7 +31,7 @@ Publishing and hosted verification require a hosted issuer.
 Then inspect the emitted receipt. The full walkthrough is in
 [getting-started.md](getting-started.md), and the next step is
 [skill-to-graph.md](skill-to-graph.md).
-For governed code changes, see [issue-to-pr.md](issue-to-pr.md).
+For governed code changes, see [github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Payment Boundary Proof
 
@@ -95,7 +95,7 @@ runx list skills
 runx registry search weather --json
 runx skill acme/weather@1.0.0 --registry https://runx.example.test --json
 runx registry install acme/weather@1.0.0 --registry https://runx.example.test --json
-runx skill issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="Fix the failing build"
+runx skill github-issue-to-pr -i repository=acme/app -i issue_number=42 -i objective="Fix the failing build"
 runx resume <run-id> answers.json
 runx mcp --run <run-id>
 runx history
@@ -605,6 +605,9 @@ JavaScript modules use a different boundary. Their worker receives no ambient
 OS environment, credentials, workspace path, network API, process API, clock,
 or randomness; only the validated in-memory module closure, JSON input, exact
 declared non-secret environment, and fixed limits cross the worker protocol.
+Native integer inputs outside JavaScript's safe integer range are refused
+before module execution rather than silently rounded. Pass exact large IDs or
+amounts as strings. Floating-point inputs retain IEEE 754 semantics.
 
 ## Capability Packs
 
@@ -624,9 +627,9 @@ name=value` resolves that repository's local capability pack. A workflow is
 never a privileged engine command: there is no `runx docs ...` or
 `runx outreach ...` path inside the engine.
 
-`issue-to-pr` follows the same boundary. runx owns the generic source-thread to
+`github-issue-to-pr` follows the same boundary. runx owns the generic source-thread to
 scafld to PR machinery; service repos own Slack, Sentry, owner assignment, and
-publish policy. See [docs/issue-to-pr.md](issue-to-pr.md).
+publish policy. See [docs/github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Standalone Skill Packages
 
@@ -728,7 +731,7 @@ Executable skills split authored skill content from execution profiles. A
 package's `run.yaml` is its execution profile:
 
 ```text
-skills/issue-to-pr/
+skills/github-issue-to-pr/
   SKILL.md
   run.yaml
 ```
@@ -834,7 +837,7 @@ for the package belong in `SKILL.md`; external guides belong under `docs/`.
 See [skill-to-graph.md](skill-to-graph.md) for composing skills into a graph and
 [publishing.md](publishing.md) for publishing and trust tiers.
 
-Use `work-plan` for bounded change planning, `skill-build` for skill-package
+Use `code-plan` for bounded change planning, `skill-build` for skill-package
 design and improvement, and the named downstream execution lane for mutation.
 
 ## Tool Authoring
@@ -886,8 +889,8 @@ The runx-maintained catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
   `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
-  `policy-draft`, `receipt-audit`, `refund`, `ops-desk`, `message-send`, `pay`,
-  `settle-invoice`, `nws-weather-forecast`, `open-meteo-weather-forecast`
+  `policy-draft`, `receipt-audit`, `refund`, `operations-review`, `message-send`, `pay`,
+  `invoice-pay`, `nws-weather`, `open-meteo-weather`
 - context skills: `brand-voice`, `taste-profile`
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are
@@ -952,7 +955,7 @@ project's `skills/<owner>/<name>/<version>/` like any other added skill.
 Any runnable skill package can also be exposed locally as an MCP tool with:
 
 ```bash
-runx mcp ./skills/issue-triage
+runx mcp ./skills/github-issue-triage
 ```
 
 That MCP surface is a thin facade over the normal runx kernel path, so receipts,
@@ -1059,7 +1062,7 @@ fixture files and inline runner cases:
   request each decides: an operation step's id or an ask's gate at the root,
   and `<path>#<id>` in a child run, `<path>` being its place under the root,
   such as `send#post`;
-- `http_exchanges`, `mcp_calls` and `provider_responses`: what the run's
+- `http_exchanges`, `mcp_calls`, `process_calls` and `provider_responses`: what the run's
   requests reach, described below.
 
 An answer or a turn script keyed by an id answers that request in every run of
@@ -1125,7 +1128,15 @@ rendering, authentication, decoding, custody and readbacks; only transport
 response bytes come from the harness. `mcp_calls` stands in for a connector's
 MCP server the same way, matched on tool, arguments and session headers, and
 `setup.credentials` stores the one credential of a listed connector whose
-variable the case sets. `provider_responses` stands in for runx Connect: it
+variable the case sets. `process_calls` stands in for a local connector's
+process tool: each entry names its `tool`, exact `arguments` and `result`.
+At most 32 calls are admitted, with 64 KiB arguments and 2 MiB result per call;
+duplicate tool/argument tuples are refused. When these fixtures are present,
+an unmatched process call fails without starting the actual tool. Admission,
+credential binding and native result checks still run. This proves fixture
+replay, not actual driver behavior; run provider integration checks separately.
+The fixture does not relax the host's process policy or affect ordinary runs.
+`provider_responses` stands in for runx Connect: it
 holds the case's grant, renders a hosted operation's declared requests as
 Connect does, with its `invocation_id` as the paid invocation, and sends them
 to the case's `http_exchanges`. Without an `invocation_id`, a request that

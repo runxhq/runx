@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::ValidationError;
 pub use crate::harness_fixture::{
     HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
-    HarnessHttpResponseFixture, HarnessMcpCallFixture, OperatorJourneyClaim, OperatorJourneyMode,
-    ReceiptExpectation,
+    HarnessHttpResponseFixture, HarnessMcpCallFixture, HarnessProcessCallFixture,
+    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation,
 };
 
 use super::FIELDS;

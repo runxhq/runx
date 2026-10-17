@@ -44,7 +44,7 @@ packet is missing, stale, or outside the current objective.
 
 ## Executable procedure
 
-1. Supply a bounded `objective`, optional work-plan `decomposition`, and the
+1. Supply a bounded `objective`, optional code-plan `decomposition`, and the
    repo-relative `source_paths` selected by direct discovery or a parent chain.
 2. Native `runx.skill.inspect` indexes the local Runx catalog and
    `fs.read_bundle` reads and hashes at most sixteen requested files under the

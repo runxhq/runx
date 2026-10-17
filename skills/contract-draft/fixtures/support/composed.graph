@@ -1,0 +1,28 @@
+name: contract-draft-composed
+steps:
+  - id: contract-draft
+    skill: ../..
+    runner: draft
+    inputs:
+      template:
+        id: msa-basic-v1
+        version: "1.0"
+        title: Services Agreement
+        required_terms: [services, fee_usd]
+        clauses:
+          - id: parties
+            heading: Parties
+            baseline: "This Services Agreement is between {{provider.legal_name}} and {{customer.legal_name}}."
+          - id: fees
+            heading: Fees and Payment
+            baseline: "Customer will pay USD {{terms.fee_usd}} for {{terms.services}}."
+      parties:
+        provider: { legal_name: Acme Pty Ltd }
+        customer: { legal_name: Globex LLC }
+      terms:
+        services: monthly platform maintenance
+        fee_usd: 4000
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.contract-draft

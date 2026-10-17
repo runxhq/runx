@@ -1,0 +1,60 @@
+skill: nws-weather
+version: "0.1.8"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  provider: national-weather-service
+  execution: read
+  completion: provider_readback
+  approval: none
+  category: data
+connectors:
+  national-weather-service:
+    operations: [forecast.read, points.read]
+runners:
+  forecast:
+    default: true
+    inputs:
+      office:
+        type: string
+        required: true
+        description: NWS forecast office id, for example LWX.
+      grid_x:
+        type: string
+        required: true
+        description: NWS grid X coordinate.
+      grid_y:
+        type: string
+        required: true
+        description: NWS grid Y coordinate.
+    result_from: [forecast]
+    steps:
+      - id: forecast
+        operation: national-weather-service/forecast.read
+        input:
+          office: $input.office
+          grid_x: $input.grid_x
+          grid_y: $input.grid_y
+  locate:
+    inputs:
+      lat:
+        type: string
+        required: true
+        description: Latitude with no more than four decimal places.
+      lon:
+        type: string
+        required: true
+        description: Longitude with no more than four decimal places.
+    result_from: [points]
+    steps:
+      - id: points
+        operation: national-weather-service/points.read
+        input:
+          lat: $input.lat
+          lon: $input.lon
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases: []

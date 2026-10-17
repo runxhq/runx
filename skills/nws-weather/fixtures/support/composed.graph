@@ -1,0 +1,13 @@
+name: nws-weather-composed
+steps:
+  - id: nws-weather
+    skill: ../..
+    runner: forecast
+    inputs:
+      office: LWX
+      grid_x: "97"
+      grid_y: "71"
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.nws-weather

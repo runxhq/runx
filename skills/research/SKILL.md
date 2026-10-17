@@ -23,7 +23,7 @@ through Runx's native filesystem reader. Both paths converge on the same source
 and content-digest index. URLs, paths, model memory, operator context, and target
 names do not become evidence merely because they were supplied.
 
-The packet is a reusable primitive for `deep-research`, `content-pipeline`,
+The packet is a reusable primitive for `research-brief`, `content-package`,
 `ghostwrite`, product planning, and other decision workflows.
 It does not publish, notify, or mutate a provider. Those later operations keep
 their own authority, approval, and readback boundary.

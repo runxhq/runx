@@ -1,0 +1,19 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "sql.read",
+  "version": "0.1.0",
+  "description": "Read the selected SQL source's declared query catalog or execute one parameterized query through its installed SQLAlchemy dialect and driver.",
+  "source": {
+    "command": "python3",
+    "args": ["./read.py"],
+    "input_mode": "stdin",
+    "timeout_seconds": 30
+  },
+  "inputs": {
+    "action": {"type": "string", "required": true},
+    "source_ref": {"type": "string", "required": true},
+    "query_id": {"type": "string", "required": false},
+    "parameters": {"type": "object", "required": false},
+    "max_rows": {"type": "integer", "required": false}
+  }
+}

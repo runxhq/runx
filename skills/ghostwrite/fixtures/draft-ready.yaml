@@ -4,7 +4,7 @@ target: ..
 runner: draft
 operator_journeys:
   - mode: standalone
-    confusors: [content-pipeline, brand-voice]
+    confusors: [content-package, brand-voice]
     request: Ghostwrite an operator brief from this evidence pack and objective.
     expected_outcome: Return publication-ready draft copy whose claims and caveats remain bound to supplied evidence.
   - mode: composed

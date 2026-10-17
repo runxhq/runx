@@ -335,6 +335,72 @@ runners:
 }
 
 #[test]
+fn registry_package_identity_covers_files_not_only_manual_and_profile()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-package-identity");
+    fs::create_dir_all(root.join("references"))?;
+    fs::write(
+        root.join("SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+    )?;
+    fs::write(
+        root.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
+    )?;
+    let package = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let result = runx_command()?
+            .args([
+                "registry",
+                "package",
+                root.to_str().ok_or("non-utf8 root")?,
+                "--json",
+            ])
+            .output()?;
+        assert_eq!(
+            result.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        Ok(serde_json::from_slice(&result.stdout)?)
+    };
+    let first = package()?;
+    fs::write(
+        root.join("references/context.md"),
+        "A relevant operating constraint.\n",
+    )?;
+    let second = package()?;
+    assert_eq!(
+        first["registry"]["package"]["markdown"],
+        second["registry"]["package"]["markdown"]
+    );
+    assert_eq!(
+        first["registry"]["package"]["profile_document"],
+        second["registry"]["package"]["profile_document"]
+    );
+    assert_ne!(
+        first["registry"]["content_digest"],
+        second["registry"]["content_digest"]
+    );
+    let prepared: runx_runtime::registry::RegistryPublishPackageParts =
+        serde_json::from_value(second["registry"]["package"].clone())?;
+    assert_eq!(
+        second["registry"]["content_digest"],
+        json!(runx_runtime::registry::skill_content_digest(
+            &prepared.markdown,
+            prepared.profile_document.as_deref(),
+            &prepared.package_files
+        )?)
+    );
+    assert_eq!(
+        second["registry"]["content_digest"],
+        package()?["registry"]["content_digest"]
+    );
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
 fn registry_package_metadata_names_the_declared_connectors()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-package-connectors");

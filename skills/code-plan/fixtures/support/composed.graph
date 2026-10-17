@@ -1,0 +1,35 @@
+name: code-plan-composed
+steps:
+  - id: code-plan
+    skill: ../..
+    runner: code-plan-agent
+    inputs:
+      objective: Roll out abandoned cart recovery across api and app.
+      project_context: Example product workspace
+      repo_root: fixtures/workspace
+      change_set:
+        change_set_id: change_set_abandoned_cart_982
+        thread_locator: support://request/982
+        summary: Add abandoned cart recovery across api and app.
+        category: feature_request
+        severity: medium
+        recommended_lane: code-plan
+        commence_decision: approve
+        action_decision: proceed_to_plan
+        target_surfaces:
+          - surface: api
+            kind: repo
+            mutating: true
+            rationale: Backend event handling changes first.
+          - surface: app
+            kind: repo
+            mutating: true
+            rationale: The app consumes the frozen backend contract.
+        shared_invariants:
+          - Preserve current checkout event semantics.
+        success_criteria:
+          - Api and app agree on the abandoned-cart contract.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.code-plan

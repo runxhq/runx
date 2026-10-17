@@ -223,7 +223,7 @@ request, and presents the instance's credential at the transport boundary;
 skills never construct authorization headers. Bind an account once with
 `runx connector use <connector>` (the credential's variable when it is set,
 else the secret asked for or on stdin), `--session` or `--hosted`. See [Credentials](./credentials.md) for the connector
-contract, instances, and readiness. `skills/nws-weather-forecast` is the
+contract, instances, and readiness. `skills/nws-weather` is the
 canonical public connector read; credentialed provider skills use the same
 path.
 

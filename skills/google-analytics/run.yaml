@@ -1,5 +1,5 @@
 skill: google-analytics
-version: "0.1.9"
+version: "0.1.10"
 
 catalog:
   kind: graph

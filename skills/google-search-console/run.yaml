@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.14"
+version: "0.1.15"
 
 catalog:
   kind: graph

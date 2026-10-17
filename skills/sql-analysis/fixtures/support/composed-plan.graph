@@ -1,0 +1,29 @@
+name: sql-analysis-composed-plan
+steps:
+- id: plan
+  skill: ../..
+  runner: plan
+  inputs:
+    question: Which campaigns produced qualified trials since 2026-10-01?
+    source_ref: analytics:production
+    max_rows: 100
+    catalog:
+      source_ref: analytics:production
+      dialect: postgres
+      status: catalog
+      executed: false
+      max_rows: 50
+      queries:
+      - id: qualified_trials_by_campaign
+        description: Rank campaigns by qualified trials since a supplied date.
+        parameters_schema:
+          type: object
+          additionalProperties: false
+          required:
+          - since
+          properties:
+            since:
+              type: string
+              pattern: ^2026-10-[0-9]{2}$
+        result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+          causal attribution.

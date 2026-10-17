@@ -1,0 +1,11 @@
+name: github-missing-direction-fails-input-contract
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  resources: { kind: issues, filters: { limit: 10 } }
+  scope: read
+expect:
+  status: failure
+metadata: { public_skill: github, source_case: missing-direction, source: skills-fixture }

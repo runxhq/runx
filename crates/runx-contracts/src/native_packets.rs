@@ -282,3 +282,29 @@ pub enum ProcessStream {
 pub struct ProcessList {
     pub processes: Vec<RunxProcess>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.data.validation.v1")]
+pub struct DataValidation {
+    pub valid: bool,
+    pub schema_digest: String,
+    pub values_digest: String,
+    pub results: Vec<DataValueValidation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DataValueValidation {
+    pub index: usize,
+    pub valid: bool,
+    pub errors: Vec<DataValidationIssue>,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DataValidationIssue {
+    pub instance_path: String,
+    pub schema_path: String,
+}

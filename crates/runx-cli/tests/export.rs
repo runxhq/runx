@@ -272,7 +272,7 @@ fn codex_global_initializes_missing_codex_home() -> Result<(), Box<dyn std::erro
 fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
 -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-runner-inputs")?;
-    fixture.write_skill_with_runner_inputs("work-plan")?;
+    fixture.write_skill_with_runner_inputs("code-plan")?;
 
     run_export_command(
         &ExportPlan {
@@ -285,7 +285,7 @@ fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
         &fixture.env,
     )?;
 
-    let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
+    let shim = fixture.read_home_file(".codex/skills/code-plan/SKILL.md")?;
     assert!(shim.contains("-i 'objective=fixture'"));
     assert!(shim.contains("-i 'principal=fixture'"));
     assert!(!shim.contains("\"input_schema\""));
@@ -418,7 +418,7 @@ fn flag_value<'a>(contents: &'a str, flag: &str) -> Result<&'a str, Box<dyn std:
 fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-runx-maintained-ref")?;
     let runx_maintained_root =
-        fixture.write_runx_maintained_skill_with_runner_inputs("work-plan")?;
+        fixture.write_runx_maintained_skill_with_runner_inputs("code-plan")?;
     let mut env = fixture.env.clone();
     env.insert(
         "RUNX_SKILL_ROOTS".to_owned(),
@@ -428,7 +428,7 @@ fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std
     let report = run_export_command(
         &ExportPlan {
             target: Target::Codex,
-            refs: vec!["work-plan".to_owned()],
+            refs: vec!["code-plan".to_owned()],
             project: false,
             json: false,
         },
@@ -437,10 +437,10 @@ fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std
     )?;
 
     assert_eq!(report.exported.len(), 1);
-    assert_eq!(report.exported[0].skill, "work-plan");
-    let shim = fixture.read_home_file(".codex/skills/work-plan/SKILL.md")?;
+    assert_eq!(report.exported[0].skill, "code-plan");
+    let shim = fixture.read_home_file(".codex/skills/code-plan/SKILL.md")?;
     assert!(shim.contains("skill "));
-    assert!(shim.contains("/skills/work-plan"));
+    assert!(shim.contains("/skills/code-plan"));
     assert!(shim.contains("-i 'objective=fixture'"));
     Ok(())
 }
@@ -859,7 +859,7 @@ fn readiness_harness(runner: &str, inputs: &[&str]) -> String {
         .map(|input| format!("        \"{input}\": fixture\n"))
         .collect::<String>();
     format!(
-        "harness:\n  cases:\n    - name: export-operator-journeys\n      runner: {runner}\n      operator_journeys:\n        - mode: standalone\n          confusors: [research, issue-intake, extract]\n          request: Run the advertised default operation from a cold selection.\n          expected_outcome: Return the promised bounded result.\n        - mode: composed\n          request: Continue from a prior bounded result.\n          expected_outcome: Reuse supplied evidence without repeating completed work.\n          prior_evidence:\n            - A typed result supplied by the prior step.\n          must_not_repeat:\n            - Do not repeat prior discovery.\n      inputs:\n{inputs}      expect:\n        status: sealed\n"
+        "harness:\n  cases:\n    - name: export-operator-journeys\n      runner: {runner}\n      operator_journeys:\n        - mode: standalone\n          confusors: [research, code-intake, extract]\n          request: Run the advertised default operation from a cold selection.\n          expected_outcome: Return the promised bounded result.\n        - mode: composed\n          request: Continue from a prior bounded result.\n          expected_outcome: Reuse supplied evidence without repeating completed work.\n          prior_evidence:\n            - A typed result supplied by the prior step.\n          must_not_repeat:\n            - Do not repeat prior discovery.\n      inputs:\n{inputs}      expect:\n        status: sealed\n"
     )
 }
 

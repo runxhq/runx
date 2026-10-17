@@ -506,7 +506,7 @@ fn routes_canonical_skill_run_to_native_plan() {
     assert_eq!(
         plan(&[
             "skill",
-            "skills/issue-intake",
+            "skills/code-intake",
             "intake",
             "--receipt-dir",
             ".runx/receipts",
@@ -518,7 +518,7 @@ fn routes_canonical_skill_run_to_native_plan() {
         ]),
         RouterAction::RunSkill(Box::new(SkillPlan {
             action: SkillAction::Run,
-            skill_path: PathBuf::from("skills/issue-intake"),
+            skill_path: PathBuf::from("skills/code-intake"),
             runner: Some("intake".to_owned()),
             receipt_dir: Some(PathBuf::from(".runx/receipts")),
             run_id: None,

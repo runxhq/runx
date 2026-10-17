@@ -52,8 +52,11 @@ before the old maintained source is removed. Existing suspended runs retain
 their original bound closure.
 
 Repository CI tests the ten skills bundled into the CLI. Optional skill
-packages are checked at registry publication; their local product tests remain
-available through `pnpm test:product`.
+packages and their packet contracts are checked at registry publication; their
+local product tests remain available through `pnpm test:product`. The repository-wide
+packet generator remains a local catalog-maintenance command, not a core CI gate.
+Core public contracts are checked from Rust and bundled skill packages retain
+their native package, schema and harness proofs.
 
 The names above describe the maintained source. Registry availability and the
 CLI packaging cutover require separate verification; this list is not a claim
@@ -152,7 +155,7 @@ Name a skill so an agent instinctively reaches for the right one:
 - One distinct **verb per pipeline layer** so sibling skills never blur. The
   security trio is the model: `cve-audit` (detect, deterministic) ->
   `vuln-triage` (assess, agent); publishing the advisory is the operator's step.
-- Keep provider rails and integrations descriptive (`web-fetch`, `nws-weather-forecast`).
+- Keep provider rails and integrations descriptive (`web-fetch`, `nws-weather`).
 - Retrieval beats cleverness: the searchable term wins, and keywords the name
   drops go in the `description`.
 
@@ -193,15 +196,15 @@ evidence, not copied into the repo by default.
 
 | Category | Maintained packages |
 | --- | --- |
-| `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-build`, `work-plan` |
-| `code` | `github-pr-review`, `release`, `schema-guard` |
-| `content` | `brand-voice`, `content-pipeline`, `contract-drafter`, `ghostwrite`, `moltbook` |
-| `data` | `product-analytics`, `run-history`, `sql-analyst` |
-| `growth` | `cold-outreach`, `crm-cleanup`, `lead-enrichment`, `lead-qualify` |
-| `ops` | `github-sync`, `issue-intake`, `issue-triage`, `message-send`, `ops-desk`, `postmortem-maker`, `webhook-handoff` |
-| `payments` | `charge`, `dispute-respond`, `pay`, `purchase-approval`, `refund`, `settle-invoice` |
-| `research` | `deep-research`, `research`, `web-search` |
-| `security` | `cve-audit`, `sbom-maker`, `vuln-triage`, `data-subject-request`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
+| `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-build`, `code-plan` |
+| `code` | `github-pr-review`, `release`, `schema-check` |
+| `content` | `brand-voice`, `content-package`, `contract-draft`, `ghostwrite`, `moltbook` |
+| `data` | `product-analytics`, `run-history`, `sql-analysis` |
+| `growth` | `cold-outreach`, `crm-update-plan`, `lead-enrichment`, `lead-qualify` |
+| `ops` | `github`, `code-intake`, `github-issue-triage`, `message-send`, `operations-review`, `postmortem-draft`, `webhook-handoff` |
+| `payments` | `charge`, `dispute-respond`, `pay`, `purchase-policy-check`, `refund`, `invoice-pay` |
+| `research` | `research-brief`, `research`, `web-search` |
+| `security` | `cve-audit`, `sbom-generate`, `vuln-triage`, `privacy-request-review`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 
 Graph stages, harness fixtures, context-only packages, and provider bindings are
 not listed here unless they are meant to be run as catalog packages. Their

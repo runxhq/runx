@@ -1,5 +1,5 @@
 skill: receipt-audit
-version: "0.3.10"
+version: "0.3.11"
 catalog:
   owner: runx
   kind: graph

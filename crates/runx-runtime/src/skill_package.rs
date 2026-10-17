@@ -12,7 +12,7 @@ use runx_parser::{
 };
 
 use crate::RuntimeError;
-use crate::filesystem::{DirectoryEntry, find_files_named, read_dir_sorted};
+use crate::filesystem::{DirectoryEntry, read_dir_sorted};
 
 mod inspection;
 mod resolve;
@@ -317,11 +317,8 @@ pub(crate) fn discover_workspace_skill_package_dirs(
     root: &Path,
 ) -> Result<Vec<PathBuf>, RuntimeError> {
     let skills_root = root.join("skills");
-    let mut directories = find_files_named(&skills_root, "SKILL.md")?
-        .into_iter()
-        .filter(|path| !is_fixture_manual(&skills_root, path))
-        .filter_map(|path| path.parent().map(Path::to_path_buf))
-        .collect::<Vec<_>>();
+    let mut directories = Vec::new();
+    collect_skill_package_roots(&skills_root, &mut directories)?;
     if root.join("SKILL.md").is_file()
         && (!skills_root.is_dir() || root.join(runx_parser::PROFILE_FILE).is_file())
     {
@@ -332,12 +329,42 @@ pub(crate) fn discover_workspace_skill_package_dirs(
     Ok(directories)
 }
 
-fn is_fixture_manual(skills_root: &Path, manual_path: &Path) -> bool {
-    manual_path.strip_prefix(skills_root).is_ok_and(|relative| {
-        relative
-            .components()
-            .any(|component| component.as_os_str() == std::ffi::OsStr::new("fixtures"))
-    })
+fn collect_skill_package_roots(
+    directory: &Path,
+    packages: &mut Vec<PathBuf>,
+) -> Result<(), RuntimeError> {
+    let entries = read_dir_sorted(directory)?;
+    if entries
+        .iter()
+        .any(|entry| entry.is_file && entry.name == "SKILL.md")
+    {
+        packages.push(directory.to_path_buf());
+        if entries.iter().any(|entry| {
+            entry.is_file && entry.name == crate::registry::package_bundle::PACKAGE_BUNDLE_FILE
+        }) {
+            // A published bundle explicitly owns its nested packages. Source
+            // trees can instead contain separately authored graph-stage manuals
+            // that list/doctor must still discover with their own metadata.
+            crate::registry::package_bundle::package_bundle_root(directory).map_err(|message| {
+                RuntimeError::SkillFailed {
+                    skill_name: directory.display().to_string(),
+                    message,
+                }
+            })?;
+            return Ok(());
+        }
+    }
+    for entry in entries {
+        if entry.is_dir
+            && !matches!(
+                entry.name.as_str(),
+                ".git" | ".runx" | "node_modules" | "target" | "fixtures"
+            )
+        {
+            collect_skill_package_roots(&entry.path, packages)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn resolve_skill_package_directory(path: &Path) -> Result<PathBuf, RuntimeError> {
@@ -614,6 +641,40 @@ mod tests {
         let discovered = discover_workspace_skill_package_dirs(root).expect("skill discovery");
 
         assert_eq!(discovered, vec![public]);
+    }
+
+    #[test]
+    fn installed_package_dependencies_are_not_independent_catalog_entries() {
+        let temp = tempfile::tempdir().expect("temporary workspace");
+        let root = temp.path();
+        let parent = root.join("skills/runx/receipt-audit/sha-parent");
+        let nested = parent.join("dependencies/1");
+        let independent = root.join("skills/runx/receipt-query/sha-child");
+        fs::create_dir_all(&nested).expect("dependency directory");
+        fs::create_dir_all(&independent).expect("independent package");
+        for path in [&parent, &nested, &independent] {
+            fs::write(path.join("SKILL.md"), MANUAL).expect("package manual");
+        }
+        let descriptor = crate::registry::package_bundle::encode_package_bundle(
+            std::collections::BTreeSet::from([
+                crate::registry::package_bundle::PackageBundleDependency {
+                    from: ".".to_owned(),
+                    reference: "../receipt-query".to_owned(),
+                    path: "dependencies/1".to_owned(),
+                },
+            ]),
+            std::collections::BTreeSet::new(),
+        )
+        .expect("valid published bundle descriptor");
+        fs::write(
+            parent.join(crate::registry::package_bundle::PACKAGE_BUNDLE_FILE),
+            descriptor,
+        )
+        .expect("published bundle descriptor");
+        assert_eq!(
+            discover_workspace_skill_package_dirs(root).expect("discovery"),
+            vec![parent, independent]
+        );
     }
 
     #[test]

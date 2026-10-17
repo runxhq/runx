@@ -61,27 +61,6 @@ pub(crate) fn read_dir_sorted(directory: &Path) -> Result<Vec<DirectoryEntry>, R
     }
 }
 
-pub(crate) fn find_files_named(
-    directory: &Path,
-    file_name: &str,
-) -> Result<Vec<PathBuf>, RuntimeError> {
-    let mut files = Vec::new();
-    for entry in read_dir_sorted(directory)? {
-        if entry.is_dir {
-            if !matches!(
-                entry.name.as_str(),
-                ".git" | ".runx" | "node_modules" | "target"
-            ) {
-                files.extend(find_files_named(&entry.path, file_name)?);
-            }
-        } else if entry.is_file && entry.name == file_name {
-            files.push(entry.path);
-        }
-    }
-    files.sort();
-    Ok(files)
-}
-
 pub(crate) fn read_to_string(path: &Path) -> Result<String, RuntimeError> {
     fs::read_to_string(path)
         .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))

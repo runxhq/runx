@@ -4,7 +4,7 @@ target: ..
 runner: read-archive
 operator_journeys:
   - mode: standalone
-    confusors: [content-pipeline, message-send]
+    confusors: [content-package, message-send]
     request: Audit the posts in this local X archive and return bounded account evidence.
     expected_outcome: Normalize and digest the admitted archive once, then return a truthful read-only audit result.
   - mode: composed

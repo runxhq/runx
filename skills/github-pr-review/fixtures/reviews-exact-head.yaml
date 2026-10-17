@@ -57,7 +57,7 @@ expect:
 metadata: { public_skill: github-pr-review, source: skills-fixture }
 operator_journeys:
   - mode: standalone
-    confusors: [issue-triage, github-sync]
+    confusors: [github-issue-triage, github]
     request: Review this exact PR head for concrete code defects; keep changed-line evidence and check coverage visible.
     expected_outcome: Produce a bounded review draft without publishing, modifying code or claiming tests ran.
   - mode: composed

@@ -10,7 +10,7 @@ const hostedPaymentSkills = [
   "charge",
   "pay",
   "refund",
-  "settle-invoice",
+  "invoice-pay",
 ] as const;
 
 const localPaymentSimulators = ["mock-charge", "mock-pay", "mock-refund"] as const;
@@ -65,7 +65,7 @@ describe("payment ownership boundary", () => {
           if (step.expected_result !== undefined) readbacks += 1;
         }
       }
-      if (skill === "settle-invoice") {
+      if (skill === "invoice-pay") {
         // It checks the invoice, then pays it through `pay`.
         expect(source, `${skill} pays through pay`).toContain("skill: ../pay");
       } else {

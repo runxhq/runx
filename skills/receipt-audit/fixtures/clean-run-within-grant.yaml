@@ -19,7 +19,7 @@ inputs:
   receipt_id: rcpt_issue_triage_4471
   receipt_rows:
     - receipt_id: rcpt_issue_triage_4471
-      skill_ref: issue-triage
+      skill_ref: github-issue-triage
       status: closed
       created_at: "2026-07-16T00:00:00Z"
       verification_status: verified
@@ -27,7 +27,7 @@ inputs:
     - id: rcpt_issue_triage_4471
       receipt_ref: runx:receipt:rcpt_issue_triage_4471
       subject_kind: graph
-      subject_ref: issue-triage
+      subject_ref: github-issue-triage
       created_at: "2026-07-16T00:00:00Z"
       status: closed
       verification:
@@ -99,7 +99,7 @@ expect:
                 verification_status: verified
             receipt_details:
               - id: rcpt_issue_triage_4471
-                subject_ref: issue-triage
+                subject_ref: github-issue-triage
                 authority:
                   exercised_scopes:
                     - scope: repo:read

@@ -1,0 +1,70 @@
+name: sql-analysis-default-stops-for-unsupported-question
+kind: skill
+target: ..
+setup:
+  credentials:
+  - sql
+env:
+  RUNX_SQL_CONNECTION: fixture-only-source-binding
+operator_journeys:
+- mode: refusal
+  request: Stop if the declared source cannot support this question or its parameter values.
+  expected_outcome: Retain the rejected plan with executed false and perform no query operation. There
+    is no query fixture to answer an accidental call.
+inputs:
+  question: Which campaigns produced qualified trials since 2026-10-01?
+  source_ref: analytics:fixture
+  max_rows: 2
+caller:
+  answers:
+    choose:
+      choice:
+        decision: no_suitable_query
+        query_id: ''
+        parameters: {}
+        reason: No declared query explains churn.
+        missing_context:
+        - Churn evidence.
+  process_calls:
+  - tool: sql.read
+    arguments:
+      action: catalog
+      source_ref: analytics:fixture
+    result:
+      source_ref: analytics:fixture
+      dialect: sqlite
+      status: catalog
+      executed: false
+      max_rows: 2
+      queries:
+      - id: trials_by_campaign
+        description: Count qualified trials by campaign since a supplied date.
+        parameters_schema:
+          type: object
+          additionalProperties: false
+          required:
+          - since
+          properties:
+            since:
+              type: string
+              pattern: ^2026-10-[0-9]{2}$
+        result_description: Qualified-trial counts by associated campaign; this is not causal attribution.
+expect:
+  status: sealed
+  steps:
+  - catalog
+  - plan
+  - stopped
+  step_outputs:
+    stopped:
+      subset:
+        analysis_result:
+          data:
+            decision: no_suitable_query
+            executed: false
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: sql-analysis
+  source_case: default-stops-unsupported-question
+  source: skills-fixture

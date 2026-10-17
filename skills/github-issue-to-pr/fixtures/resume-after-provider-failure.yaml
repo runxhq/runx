@@ -1,0 +1,106 @@
+name: github-issue-to-pr-resume-after-provider-failure
+kind: skill
+target: ..
+runner: resume
+setup:
+  sessions: [github]
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+  RUNX_ISSUE_TO_PR_GIT_STATE: .runx/github-issue-to-pr-resume-ref
+inputs:
+  issue_evidence:
+    schema: runx.issue_to_pr.issue_evidence.v1
+    repository: runxhq/runx
+    number: "442"
+    title: Make issue-to-PR operator-first
+    state: open
+    body: Resume at publication without repeating completed host work.
+    url: https://github.com/runxhq/runx/issues/442
+    labels: [operator-experience]
+    assignees: []
+    source:
+      provider: github
+      transport: local_http
+      principal_ref: runx:principal:github:7
+      readback_ref: runx:github-readback:sha256:fixture
+  host_result:
+    schema: runx.issue_to_pr.host_result.v1
+    status: completed
+    repository: runxhq/runx
+    issue_number: "442"
+    repo_root: .
+    branch: fix/442-operator-first
+    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    files: [oss/skills/github-issue-to-pr/run.yaml]
+    tests:
+      - command: cargo test -p runx-cli --test integration issue_to_pr_journey
+        status: passed
+        evidence: receipt:test:github-issue-to-pr-resume
+    finalization:
+      receipt_path: fixtures/scafld-pass.json
+      contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    publication:
+      decision: ready
+      title: Make issue-to-PR operator-first
+      body: "Closes #442."
+      head: fix/442-operator-first
+      base: main
+      draft: false
+      idempotency_key: github-issue-to-pr-442-v1
+    errors: []
+caller:
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.github.com/repos/runxhq/runx/pulls
+        body:
+          json:
+            title: Make issue-to-PR operator-first
+            body: "Closes #442."
+            head: fix/442-operator-first
+            base: main
+            draft: false
+      response:
+        status: 201
+        headers: { content-type: application/json }
+        body: '{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}'
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/pulls?base=main&head=runxhq%3Afix%2F442-operator-first&per_page=2&state=open", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '[]'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/pulls/77", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"number": 77, "title": "Make issue-to-PR operator-first", "state": "open", "body": "Closes #442.", "html_url": "https://github.com/runxhq/runx/pull/77", "head": {"ref": "fix/442-operator-first", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "base": {"ref": "main"}, "draft": false}'
+expect:
+  status: sealed
+  receipt: { schema: runx.receipt.v1 }
+  steps: [admit-host-result, verify-publication, publish-pr, finalize-published]
+  output:
+    subset:
+      issue_to_pr_result:
+        data:
+          schema: runx.issue_to_pr.result.v1
+          status: completed
+          outcome: published
+          repository: runxhq/runx
+          issue_number: "442"
+          commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          finalization:
+            status: verified
+            target: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication:
+            status: published
+            pr_number: "77"
+            url: https://github.com/runxhq/runx/pull/77
+metadata:
+  public_skill: github-issue-to-pr
+  source_case: resume-after-provider-failure
+  source: operator-journey

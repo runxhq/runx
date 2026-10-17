@@ -1,0 +1,451 @@
+skill: operations-review
+version: "0.3.10"
+catalog:
+  kind: skill
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  approval: none
+  category: ops
+connectors:
+  store:
+    operations:
+    - projection.read
+runners:
+  operate:
+    inputs:
+      objective:
+        type: string
+        required: true
+        description: The bounded operator objective.
+      scope_ref:
+        type: string
+        required: true
+        description: Project, workspace, account, product, or bounded operating surface being operated.
+      dashboard_snapshot:
+        type: json
+        required: false
+        description: Current projected state for the operating scope.
+      receipt_summary:
+        type: json
+        required: false
+        description: Receipt and effect evidence available to the run.
+      provider_status:
+        type: json
+        required: false
+        description: Provider health, account, webhook, credential, or deploy state.
+      approval_context:
+        type: json
+        required: false
+        description: Existing approvals, denials, or policy gates.
+      operator_policy:
+        type: string
+        required: false
+        description: Tenant-specific guardrails and lane names.
+      project_profile:
+        type: string
+        required: false
+        description: Project topology, existing commands/workflows, and verification expectations. Context
+          only, not authority.
+      requested_action:
+        type: string
+        required: false
+        description: Optional action id or lane selected by the dashboard.
+    steps:
+    - id: operate
+      agent:
+        role: operator
+        task: operations-review
+      inputs:
+        objective: $input.objective
+        scope_ref: $input.scope_ref
+        dashboard_snapshot: $input.dashboard_snapshot
+        receipt_summary: $input.receipt_summary
+        provider_status: $input.provider_status
+        approval_context: $input.approval_context
+        operator_policy: $input.operator_policy
+        project_profile: $input.project_profile
+        requested_action: $input.requested_action
+      outputs:
+        ops_desk_packet:
+          type: object
+          schema:
+            required:
+            - decision
+            - scope_ref
+            - objective
+            - mode
+            - dashboard
+            - findings
+            - proposals
+            - ordered_next_steps
+            - refused_reasons
+            - needs_input
+            - success_checkpoint
+            additionalProperties: false
+            properties:
+              decision:
+                type: string
+                enum:
+                - ready
+                - needs_input
+                - refused
+                - awaiting_approval
+              scope_ref:
+                type: string
+                minLength: 1
+              objective:
+                type: string
+                minLength: 1
+              mode:
+                type: string
+              dashboard:
+                type: object
+                properties:
+                  health:
+                    type: string
+                  money:
+                    type: string
+                  communications:
+                    type: string
+                  providers:
+                    type: string
+                  receipts:
+                    type: string
+                  access:
+                    type: string
+                  release:
+                    type: string
+                  registry:
+                    type: string
+                  deploy:
+                    type: string
+                additionalProperties: false
+              findings:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - severity
+                  - area
+                  - summary
+                  - evidence_refs
+                  properties:
+                    severity:
+                      type: string
+                      enum:
+                      - info
+                      - warning
+                      - high
+                      - critical
+                    area:
+                      type: string
+                    summary:
+                      type: string
+                    evidence_refs:
+                      type: array
+                      items:
+                        type: string
+                  additionalProperties: false
+              proposals:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - action_id
+                  - lane
+                  - reason
+                  - inputs_summary
+                  - consequence
+                  - approval_required
+                  - blockers
+                  - verification
+                  - execution
+                  properties:
+                    action_id:
+                      type: string
+                      minLength: 1
+                    lane:
+                      type: string
+                      minLength: 1
+                    reason:
+                      type: string
+                      minLength: 1
+                    inputs_summary:
+                      type: object
+                      additionalProperties: true
+                    consequence:
+                      type: string
+                    approval_required:
+                      type: boolean
+                    approval_prompt:
+                      type:
+                      - string
+                      - 'null'
+                    blockers:
+                      type: array
+                      items:
+                        type: string
+                    verification:
+                      type: object
+                      required:
+                      - expected_receipt
+                      - readback
+                      properties:
+                        expected_receipt:
+                          type:
+                          - string
+                          - 'null'
+                        expected_effect:
+                          type:
+                          - string
+                          - 'null'
+                        readback:
+                          type: string
+                      additionalProperties: false
+                    execution:
+                      type: object
+                      required:
+                      - interface
+                      - lane_ref
+                      - verifier_ref
+                      properties:
+                        interface:
+                          type: string
+                        lane_ref:
+                          type: string
+                        profile_ref:
+                          type:
+                          - string
+                          - 'null'
+                        command_ref:
+                          type:
+                          - string
+                          - 'null'
+                        workflow_ref:
+                          type:
+                          - string
+                          - 'null'
+                        approval_gate:
+                          type:
+                          - string
+                          - 'null'
+                        verifier_ref:
+                          type: string
+                      additionalProperties: false
+                  additionalProperties: false
+              ordered_next_steps:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - step
+                  - lane
+                  - requires_confirmation
+                  properties:
+                    step:
+                      type: string
+                    lane:
+                      type: string
+                    requires_confirmation:
+                      type: boolean
+                  additionalProperties: false
+              refused_reasons:
+                type: array
+                items:
+                  type: string
+              needs_input:
+                type: array
+                items:
+                  type: string
+              success_checkpoint:
+                type: object
+                required:
+                - milestone
+                - description
+                properties:
+                  milestone:
+                    type: string
+                  description:
+                    type: string
+                additionalProperties: false
+      artifacts:
+        named_emits:
+          ops_desk_packet: ops_desk_packet
+        packets:
+          ops_desk_packet: runx.ops_desk.packet.v1
+    default: true
+  review-action:
+    inputs:
+      action_packet:
+        type: json
+        required: true
+        description: Proposed ops desk action or ops_desk_packet.proposals item.
+      receipt_summary:
+        type: json
+        required: false
+        description: Evidence expected to prove or reject the action.
+      approval_context:
+        type: json
+        required: false
+        description: Human gate state for the proposed action.
+      project_profile:
+        type: string
+        required: false
+        description: Project topology and expected execution surfaces.
+    steps:
+    - id: review-action
+      agent:
+        role: reviewer
+        task: operations-review-action-review
+      inputs:
+        action_packet: $input.action_packet
+        receipt_summary: $input.receipt_summary
+        approval_context: $input.approval_context
+        project_profile: $input.project_profile
+      outputs:
+        action_review:
+          type: object
+          schema:
+            required:
+            - decision
+            - consequence
+            - approval_required
+            - blockers
+            - execution_handoff
+            - verification
+            additionalProperties: false
+            properties:
+              decision:
+                type: string
+                enum:
+                - ready
+                - awaiting_approval
+                - needs_input
+                - refused
+              consequence:
+                type: string
+              approval_required:
+                type: boolean
+              blockers:
+                type: array
+                items:
+                  type: string
+              execution_handoff:
+                type: object
+                required:
+                - interface
+                - lane_ref
+                - verifier_ref
+                properties:
+                  interface:
+                    type: string
+                  lane_ref:
+                    type: string
+                  approval_gate:
+                    type:
+                    - string
+                    - 'null'
+                  verifier_ref:
+                    type: string
+                additionalProperties: false
+              verification:
+                type: object
+                required:
+                - expected_receipt
+                - readback
+                properties:
+                  expected_receipt:
+                    type:
+                    - string
+                    - 'null'
+                  expected_effect:
+                    type:
+                    - string
+                    - 'null'
+                  readback:
+                    type: string
+                additionalProperties: false
+      artifacts:
+        wrap_as: action_review_packet
+        packet: runx.ops_desk.action_review.v1
+  operate_from_projection:
+    inputs:
+      data_source_ref:
+        type: string
+        required: true
+        description: Logical data source that stores the operating projection.
+      resource:
+        type: string
+        required: true
+        description: Declared projection or event resource.
+      aggregate_id:
+        type: string
+        required: true
+        description: Operating scope partition to read before planning.
+      objective:
+        type: string
+        required: true
+        description: The bounded operator objective.
+      scope_ref:
+        type: string
+        required: true
+        description: Project, workspace, account, product, or bounded operating surface being operated.
+      receipt_summary:
+        type: json
+        required: false
+        description: Receipt and effect evidence available to the run.
+      provider_status:
+        type: json
+        required: false
+        description: Provider health, account, webhook, credential, or deploy state.
+      approval_context:
+        type: json
+        required: false
+        description: Existing approvals, denials, or policy gates.
+      operator_policy:
+        type: string
+        required: false
+        description: Tenant-specific guardrails and lane names.
+      project_profile:
+        type: string
+        required: false
+        description: Project topology, existing commands/workflows, and verification expectations. Context
+          only, not authority.
+      requested_action:
+        type: string
+        required: false
+        description: Optional action id or lane selected by the dashboard.
+    result_from:
+    - operate
+    steps:
+    - id: read-state
+      operation: store/projection.read
+      input:
+        data_source_ref: $input.data_source_ref
+        resource: $input.resource
+        aggregate_id: $input.aggregate_id
+    - id: operate
+      skill: .
+      runner: operate
+      inputs:
+        objective: $input.objective
+        scope_ref: $input.scope_ref
+        receipt_summary: $input.receipt_summary
+        provider_status: $input.provider_status
+        approval_context: $input.approval_context
+        operator_policy: $input.operator_policy
+        project_profile: $input.project_profile
+        requested_action: $input.requested_action
+        dashboard_snapshot: $steps.read-state.provider_operation.result.projection
+      artifacts:
+        named_emits:
+          ops_desk_packet: ops_desk_packet
+        packets:
+          ops_desk_packet: runx.ops_desk.packet.v1
+harness:
+  files:
+  - fixtures/support/composed.graph
+  cases: []

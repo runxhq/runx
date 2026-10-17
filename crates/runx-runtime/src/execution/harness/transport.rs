@@ -26,7 +26,11 @@ pub(super) fn effects_over(
     caller: &HarnessCaller,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
     let mut effects = effects.clone();
-    effects.replace_effect(OperationEffect::harness(transport, &caller.mcp_calls))?;
+    effects.replace_effect(OperationEffect::harness(
+        transport,
+        &caller.mcp_calls,
+        &caller.process_calls,
+    ))?;
     Ok(effects)
 }
 

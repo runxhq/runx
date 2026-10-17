@@ -12,7 +12,7 @@ const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url))
 const fixtureRoot = path.join(workspaceRoot, "fixtures", "runtime", "skills");
 const check = process.argv.includes("--check");
 const generatedAt = "2026-05-18T00:00:00Z";
-const skillNames = ["issue-intake"] as const;
+const skillNames = ["code-intake"] as const;
 
 interface ParsedRunnerManifest {
   readonly skill: string;

@@ -1,7 +1,0 @@
-name: data-subject-request-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [data-subject-request, digest]
-  receipt: { schema: runx.receipt.v1 }

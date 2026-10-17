@@ -1,0 +1,31 @@
+name: schema-check-allowed-removal-keeps-change-path
+kind: skill
+target: ..
+inputs:
+  current_schema:
+    type: object
+    properties:
+      id: {type: string}
+      old_field: {type: integer}
+    required: [id]
+    additionalProperties: true
+  proposed_schema:
+    type: object
+    properties:
+      id: {type: string}
+    required: [id]
+    additionalProperties: true
+  sample_payloads: [{id: example}]
+  compatibility_policy: {breaking_allowed: true}
+expect:
+  status: sealed
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: compatible
+            proposal:
+              changed_paths: ['$.old_field']
+              live_write_performed: false
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,38 @@
+name: privacy-request-review-composed
+steps:
+  - id: privacy-request-review
+    skill: ../..
+    runner: decide
+    inputs:
+      request_packet:
+        type: erasure
+        subject_id: subject:alice
+        scope:
+          request_id: dsr-001
+          data_classes: [profile, activity]
+          requested_scopes: [profile, activity]
+      requestor_proof:
+        identity_provider: idp:acme
+        verified_at: "2026-08-01T10:00:00Z"
+        assertion:
+          subject_id: subject:alice
+          assertion_ref: idp:acme:session:9911
+          assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      policy:
+        jurisdiction: GDPR
+        trusted_identity_providers: [idp:acme]
+        lawful_bases:
+          erasure: art17_right_to_erasure
+        scope_bounds:
+          data_classes: [profile, activity, billing]
+          erasure_allowed: [profile, activity]
+          export_allowed: [profile]
+      data_source_ref: tenant://privacy/sqlite-requests
+      resource: subject_requests
+      aggregate_id: subject:alice:dsr-001
+      expected_version: 0
+      idempotency_key: dsr-001:verdict:v1
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.privacy-request-review

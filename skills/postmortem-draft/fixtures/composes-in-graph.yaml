@@ -1,0 +1,31 @@
+name: postmortem-draft-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    draft:
+      postmortem_draft:
+        summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
+        timeline:
+          - entry: Deploy 2026.08.09.3 shipped a connection pool change.
+            fragment_id: frag-2
+            quote: "deploy 2026.08.09.3 rolled out a connection pool change"
+          - entry: Checkout 5xx rate crossed the alert threshold.
+            fragment_id: frag-1
+            quote: "checkout 5xx rate crossed 8 percent"
+          - entry: Rollback restored baseline.
+            fragment_id: frag-3
+            quote: "rollback of 2026.08.09.3 completed and 5xx rate returned to baseline"
+        root_cause:
+          status: known
+          statement: The connection pool change in 2026.08.09.3 exhausted checkout database connections.
+          fragment_id: frag-2
+          quote: "connection pool change to checkout-api"
+        unknowns: []
+        action_items:
+          - action: Add pool saturation alerting before the next pool change ships.
+            owner: platform-oncall
+expect:
+  status: sealed
+  steps: [postmortem-draft, digest]
+  receipt: { schema: runx.receipt.v1 }

@@ -1,0 +1,58 @@
+name: github-issue-triage-default-reads-and-drafts-response
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [code-intake, github]
+    request: Triage issue 241 in runxhq/runx and draft the next helpful maintainer response.
+    expected_outcome: Read the issue once through the configured GitHub path and return an evidence-bound response draft without mutating GitHub.
+inputs:
+  repository: runxhq/runx
+  issue_number: "241"
+  objective: Draft the next helpful maintainer response.
+setup:
+  sessions: [github]
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+caller:
+  http_exchanges:
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator-fixture"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/241", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"number": 241, "title": "Sourcey output path is unclear", "state": "open", "body": "The docs mention two different output directories.", "html_url": "https://github.com/runxhq/runx/issues/241", "labels": [], "assignees": []}'
+  answers:
+    draft:
+      issue_profile:
+        repository: runxhq/runx
+        number: "241"
+        title: Sourcey output path is unclear
+        state: open
+        summary: The documentation conflicts about the output directory.
+      response_strategy:
+        stance: acknowledge and clarify
+      response_draft:
+        channel: github_issue_comment
+        body: Thanks for flagging this. The canonical path is being verified before we update the conflicting documentation.
+      follow_up_actions:
+        - Verify the canonical path.
+        - Correct the conflicting documentation.
+expect:
+  status: sealed
+  steps: [read-issue, digest-snapshot, admit, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        issue_triage_packet:
+          data:
+            decision: draft_ready
+            delivery_status: not_sent
+            provider_status: readback
+            validation: { status: pass }
+  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+metadata: { public_skill: github-issue-triage, source_case: direct-default-success, source: skills-fixture }

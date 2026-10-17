@@ -26,7 +26,7 @@ expect:
 metadata: {public_skill: lead-enrichment, source: skills-fixture}
 operator_journeys:
 - mode: standalone
-  confusors: [lead-qualify, crm-cleanup]
+  confusors: [lead-qualify, crm-update-plan]
   request: Build factual lead context from the supplied observations; preserve ambiguous matches and missing fields.
   expected_outcome: Normalize factual evidence for the exact subject without judging fit or proposing outreach.
 - mode: composed

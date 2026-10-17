@@ -1,0 +1,19 @@
+name: github-blocks-null-mutation-fields
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: issues
+    filters: { limit: 1 }
+    mutations:
+      - ref: issues/241
+        op: update
+        payload:
+          title: null
+  scope: write
+expect:
+  status: failure
+metadata: { public_skill: github, source_case: null-mutation-field, source: skills-fixture }

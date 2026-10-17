@@ -23,17 +23,17 @@ Skills that run a standing mandate, route work, or operate a project workspace.
 
 | Directory | Purpose |
 |---|---|
-| `agency/` | Run a standing team with a mandate, advanced one governed case at a time. |
-| `ops-desk/` | Operate a project, workspace, or account from an agent or machine principal. |
+| `team-delegate/` | Prepare roster-bound assignments with source context, scope ceilings and acceptance checks. |
+| `operations-review/` | Review a supplied operating snapshot and propose actions through existing execution owners. |
 | `policy-draft/` | Turn a plain-English governance brief into one validated runx policy. |
 | `lead-qualify/` | Assess supplied ICP criteria against factual lead context; keep contact eligibility separate. |
 | `cold-outreach/` | Prepare relevant first-contact copy from evidence and scoped brand/taste context. |
 | `lead-enrichment/` | Normalize fresh matched professional facts, preserving missing and conflicting fields. |
 | `knowledge-router/` | Route a question or source event to the right knowledge source. |
-| `issue-intake/` | Turn a noisy inbound request into a bounded intake artifact. |
+| `code-intake/` | Turn a noisy inbound request into a bounded intake artifact. |
 | `github-pr-review/` | Review an exact PR head against bounded changed-line evidence without publication. |
-| `issue-triage/` | Discover, analyze, and draft high-signal issue-thread responses. |
-| `issue-to-pr/` | Implement and test an issue with normal host tools, finalize once, and optionally publish a governed PR. |
+| `github-issue-triage/` | Discover, analyze, and draft high-signal issue-thread responses. |
+| `github-issue-to-pr/` | Implement a scafld-governed issue with normal host tools and verified finalization, then optionally publish its exact PR. |
 
 ## Governance & Audit
 
@@ -52,9 +52,9 @@ Skills that enforce policy, audit receipts, or review skill quality.
 
 | Directory | Purpose |
 |---|---|
-| `content-pipeline/` | Research a topic, draft the content, and package the approved output. |
+| `content-package/` | Research a topic, draft the content, and package the approved output. |
 | `ghostwrite/` | Turn evidence and operator intent into publication-ready drafts. |
-| `deep-research/` | Produce an approved deep-research brief from bounded research. |
+| `research-brief/` | Produce a reader-facing research brief from bounded, cited evidence. |
 | `web-search/` | Discover bounded source candidates through an explicitly selected search provider. |
 | `product-analytics/` | Interpret comparable supplied funnel and retention measurements. |
 | `research/` | Produce bounded, source-backed research packets for product decisions. |
@@ -80,13 +80,13 @@ paths, not alternative operator choices.
 | `charge/` | Quote, then settle and read back, one buyer's x402 payment for a resource you sell, through Coinbase CDP. |
 | `pay/` | Pay one external payment requirement within exact parent authority, through a payment method the payer holds, and read the resource back. |
 | `refund/` | Refund all or part of one settled payment on its original rail, with readback. |
-| `settle-invoice/` | Check one invoice against the authority that may pay it, then pay it through `pay`. |
+| `invoice-pay/` | Check one invoice against the authority that may pay it, then pay it through `pay`. |
 
 ## Data & Infrastructure
 
 | Directory | Purpose |
 |---|---|
-| `github-sync/` | Read or execute a scoped pull or push of GitHub issues, threads, or PRs. |
+| `github/` | Read or execute a scoped pull or push of GitHub issues, threads, or PRs. |
 | `web-fetch/` | Fetch and extract one web source within an explicit allowlist. |
 
 ## Communications & Campaigns
@@ -94,14 +94,14 @@ paths, not alternative operator choices.
 | Directory | Purpose |
 |---|---|
 | `dispute-respond/` | Prepare a governed dispute response artifact from a linked case. |
-| `helpdesk/` | Classify a bounded support request and choose the safe next path. |
+| `support-triage/` | Classify a bounded support request and choose the safe next path. |
 
 ## Weather & External Data
 
 | Directory | Purpose |
 |---|---|
-| `nws-weather-forecast/` | Fetch National Weather Service forecast evidence through the NWS API. |
-| `open-meteo-weather-forecast/` | Resolve a place and fetch global forecast and air-quality evidence. |
+| `nws-weather/` | Fetch National Weather Service forecast evidence through the NWS API. |
+| `open-meteo-weather/` | Resolve a place and fetch global forecast and air-quality evidence. |
 
 ## Skill Development & Testing
 
@@ -115,14 +115,14 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `sql-analyst/` | Turn a bounded data question, schema summary, and sample rows into findings. |
+| `sql-analysis/` | Answer a bounded question through a declared parameterized SQL read, retaining actual database evidence and measurement caveats. |
 | `extract/` | Extract schema-validated JSON from messy HTML or text fixtures. |
 
 ## Planning & Work Management
 
 | Directory | Purpose |
 |---|---|
-| `work-plan/` | Decompose a build objective into governed runx execution steps. |
+| `code-plan/` | Decompose a build objective into governed runx execution steps. |
 
 ---
 

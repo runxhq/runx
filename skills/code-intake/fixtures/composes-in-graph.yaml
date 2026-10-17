@@ -1,0 +1,112 @@
+name: code-intake-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    intake:
+      intake_report:
+        category: docs
+        severity: low
+        summary: The docs are outdated and still point users at the removed skill name instead of the canonical skill name.
+        suggested_reply: We'll update the public docs to point at github-issue-to-pr as the canonical command.
+        recommended_lane: github-issue-to-pr
+        rationale: The report is a bounded one-repo documentation fix with low risk.
+        needs_human: false
+        commence_decision: approve
+        action_decision: proceed_to_build
+        review_target: none
+        operator_notes: []
+        thread_change_request:
+          task_id: docs_issue_to_pr_command
+          thread_title: README should point users to github-issue-to-pr
+          thread_body: The public docs should present github-issue-to-pr as the canonical command.
+          thread_locator: github://example/repo/issues/101
+          outbox_entry:
+            entry_id: github_issue_101
+            kind: message
+            locator: https://github.com/example/repo/issues/101
+            status: published
+            thread_locator: github://example/repo/issues/101
+          size: micro
+          risk: low
+      closure:
+        disposition: closed
+        reason_code: issue_intake_completed
+        summary: Bounded docs fix is ready for the github-issue-to-pr lane.
+      change_set:
+        change_set_id: change_set_docs_work_101
+        thread_locator: github://example/repo/issues/101
+        summary: Update the public docs to point at github-issue-to-pr as the canonical skill name.
+        category: docs
+        severity: low
+        recommended_lane: github-issue-to-pr
+        commence_decision: approve
+        action_decision: proceed_to_build
+        outbox_entry:
+          entry_id: github_issue_101
+          kind: message
+          locator: https://github.com/example/repo/issues/101
+          status: published
+          thread_locator: github://example/repo/issues/101
+        target_surfaces:
+          - surface: oss-docs
+            kind: docs
+            mutating: true
+            rationale: The bug is confined to the public runx documentation surface.
+        shared_invariants:
+          - Update only the canonical public wording for github-issue-to-pr.
+        success_criteria:
+          - Public docs point to github-issue-to-pr as the canonical command.
+          - The change remains bounded to one repo-scoped remediation lane.
+      signal:
+        schema: runx.signal.v1
+        signal_id: sig_docs_work_101
+        state: build_ready
+        source_events:
+          - provider: github
+            source_locator: github://example/repo/issues/101
+            thread_locator: github://example/repo/issues/101
+            title: README should point users to github-issue-to-pr
+            body_preview: The public docs should present github-issue-to-pr as the canonical command.
+        dedupe:
+          algorithm: sha256
+          source_locator: github://example/repo/issues/101
+          fingerprint: sha256:docs-issue-to-pr-command
+        triage:
+          category: docs
+          severity: low
+          confidence: 0.95
+          action: github-issue-to-pr
+          recommended_lane: github-issue-to-pr
+          needs_human: false
+          rationale: The report is a bounded one-repo documentation fix with low risk.
+        change_set:
+          change_set_id: change_set_docs_work_101
+        artifact:
+          schema: runx.artifact.v1
+          artifact_id: eb_docs_work_101
+          subject_locator: github://example/repo/issues/101
+          hydration:
+            status: complete
+            summary: GitHub issue body was the complete evidence for this docs fix.
+          sources:
+            - provider: github
+              kind: source_thread
+              locator: github://example/repo/issues/101
+              thread_locator: github://example/repo/issues/101
+              title: README should point users to github-issue-to-pr
+              body_preview: The public docs should present github-issue-to-pr as the canonical command.
+              hydration_status: complete
+          redaction:
+            status: not_required
+            summary: No provider secrets or direct identifiers were present.
+          summary: Bounded docs evidence is ready for triage.
+          created_at: 2026-05-15T00:00:00Z
+          updated_at: 2026-05-15T00:00:00Z
+        status_summary: Bounded docs fix is ready for github-issue-to-pr.
+        created_at: 2026-05-15T00:00:00Z
+        updated_at: 2026-05-15T00:00:00Z
+expect:
+  status: sealed
+  steps: [code-intake, digest]
+  receipt: { schema: runx.receipt.v1 }

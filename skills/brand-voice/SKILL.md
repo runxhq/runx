@@ -58,7 +58,7 @@ voice principles, vocabulary and cadence guidance, claim rules, source-reference
 bindings, the admitted-set digest, redactions, and stop conditions. Downstream consumers should bind the
 packet digest, not copy an untraceable summary into their own prompt.
 
-`ghostwrite`, `content-pipeline`, social planning, and other authoring skills may
+`ghostwrite`, `content-package`, social planning, and other authoring skills may
 consume this packet. That chain transfers context, not permission: publication
 still belongs to the relevant delivery skill and approval boundary.
 

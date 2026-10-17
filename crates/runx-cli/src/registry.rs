@@ -177,12 +177,19 @@ fn run_package(
     })
     .map_err(|error| internal_error(error.to_string()))?
     .into_parts();
+    let content_digest = runx_runtime::registry::skill_content_digest(
+        &package.markdown,
+        package.profile_document.as_deref(),
+        &package.package_files,
+    )
+    .map_err(|error| internal_error(error.to_string()))?;
     output::write_output(
         plan.json,
         &output::RegistryEnvelope {
             status: "success",
             registry: output::RegistryPayload::Package {
                 package: Box::new(package),
+                content_digest,
             },
         },
         || "\n  registry package ready\n\n".to_owned(),

@@ -1,15 +1,28 @@
 name: extract-composed
 steps:
-  - id: extract
-    skill: ../..
-    runner: extract
-    inputs:
-      input_path: "fixtures/rfc9110-http-semantics.html"
-      schema_path: "packets/extraction.schema.json"
-      source_url: "https://www.rfc-editor.org/rfc/rfc9110.html"
-      content_type: "text/html"
-      max_items: 18
-  - id: digest
-    tool: data.digest
-    inputs:
-      value: $steps.extract
+- id: document
+  skill: ../..
+  inputs:
+    content: Invoice INV-104. Total USD 125. Customer Northstar.
+    source_ref: document:invoice-104
+    objective: Extract invoice id, total and customer. Do not infer missing fields.
+    schema:
+      type: object
+      required:
+      - invoice_id
+      - total_usd
+      - customer
+      additionalProperties: false
+      properties:
+        invoice_id:
+          type: string
+          minLength: 3
+        total_usd:
+          type: number
+          minimum: 0
+        customer:
+          type: string
+- id: digest
+  tool: data.digest
+  inputs:
+    value: $steps.document

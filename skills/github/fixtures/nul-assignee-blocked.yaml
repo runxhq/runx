@@ -1,0 +1,19 @@
+name: github-blocks-nul-assignee
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: issues
+    filters: { limit: 1 }
+    mutations:
+      - ref: issues/241
+        op: update
+        payload:
+          assignees: ["user\0hidden"]
+  scope: write
+expect:
+  status: failure
+metadata: { public_skill: github, source_case: nul-assignee, source: skills-fixture }

@@ -816,14 +816,16 @@ operations:
         )?;
         let inspection =
             serde_json::to_value(inspect_skill_package(&root, Some("schedule"), None)?)?;
-        // Digests produced by the prior runtime, before continuation declarations.
+        // Package bytes stay fixed across runtime releases. A closure also binds
+        // the runtime release, so its exact digest legitimately changes on upgrade.
         assert_eq!(
             inspection["package_digest"],
             "sha256:6927bbd009d1cf409d67c9b3aac2e80a5b491f1adf807f093fb3d76bd553eab2"
         );
+        let structural_binding = inspection["execution_closure"].clone();
         assert_eq!(
-            inspection["execution_closure"]["closure_digest"],
-            "sha256:e685342753771e501da1d05b0e41fb13554ac788e8d32d094bf85fbcc4b11537"
+            structural_binding["runtime_release"],
+            crate::EXECUTION_RUNTIME_RELEASE
         );
         assert!(projected(&root, temp.path())?.is_empty());
         let authority = serde_json::from_value(serde_json::json!({}))?;
@@ -841,6 +843,8 @@ operations:
                 .to_string()
                 .contains("omits external job continuation declarations")
         );
+        let after = serde_json::to_value(inspect_skill_package(&root, Some("schedule"), None)?)?;
+        assert_eq!(after["execution_closure"], structural_binding);
         Ok(())
     }
 

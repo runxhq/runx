@@ -1,7 +1,0 @@
-name: list-hygiene-judge-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [list-hygiene-judge, digest]
-  receipt: { schema: runx.receipt.v1 }

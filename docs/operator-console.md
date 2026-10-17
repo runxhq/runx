@@ -11,7 +11,7 @@ or provider tool remains the execution interface.
 ## Shape
 
 ```text
-state projections -> ops-desk -> governed action lane -> receipt -> projection
+state projections -> operations-review -> governed action lane -> receipt -> projection
 ```
 
 The dashboard shows state. The agent explains and routes action. The runtime
@@ -37,7 +37,7 @@ do not duplicate its logic in the UI or in skill prose.
 
 ## Agent Contract
 
-Use `ops-desk` when an agent is asked to manage a project, workspace, product,
+Use `operations-review` when an agent is asked to manage a project, workspace, product,
 or account. It reads the same projection the UI shows and emits
 `runx.ops_desk.packet.v1`:
 
@@ -48,7 +48,7 @@ or account. It reads the same projection the UI shows and emits
 - receipt/effect/readback expectations.
 
 The packet is a plan/proposal surface. Consequential work still executes through
-the named lane and seals its own receipt. `ops-desk` may name the command,
+the named lane and seals its own receipt. `operations-review` may name the command,
 workflow, hosted endpoint, or skill runner to use, but it does not implement
 those operations itself.
 

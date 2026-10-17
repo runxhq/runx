@@ -1,7 +1,0 @@
-name: purchase-approval-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [purchase-approval, digest]
-  receipt: { schema: runx.receipt.v1 }

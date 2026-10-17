@@ -9,7 +9,7 @@ use runx_contracts::{
 };
 
 const FIXTURE_JSON: &str =
-    include_str!("../../../fixtures/external/example/issue-intake/api-source-thread.json");
+    include_str!("../../../fixtures/external/example/code-intake/api-source-thread.json");
 const POLICY_JSON: &str = include_str!("../../../fixtures/operational-policy/provider-like.json");
 
 #[derive(Debug, Deserialize)]

@@ -37,7 +37,7 @@ harness:
       runner: decide
       operator_journeys:
         - mode: standalone
-          confusors: [work-plan, issue-intake]
+          confusors: [code-plan, code-intake]
           request: Make one bounded demo decision from supplied evidence.
           expected_outcome: Return the advertised reviewable decision.
         - mode: composed

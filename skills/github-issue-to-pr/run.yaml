@@ -1,0 +1,421 @@
+skill: github-issue-to-pr
+version: "0.4.11"
+
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  approval: none
+  category: code
+
+harness:
+  files:
+    - fixtures/bin/gh
+    - fixtures/bin/git
+    - fixtures/bin/scafld
+    - fixtures/scafld-pass.json
+    - fixtures/support/composed.graph
+  cases: []
+
+input_definitions:
+  repository:
+    type: string
+    required: true
+    description: Exact GitHub repository as owner/name.
+    schema:
+      pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+  issue_number:
+    type: string
+    required: true
+    description: Positive GitHub issue number.
+    schema: { pattern: '^[1-9][0-9]*$' }
+  objective:
+    type: string
+    required: false
+    description: Bounded desired outcome; the issue remains the source evidence.
+  issue_evidence:
+    type: json
+    packet: runx.issue_to_pr.issue_evidence.v1
+    required: true
+    description: Prior typed issue evidence; supplying it skips provider discovery and read.
+  host_result:
+    type: json
+    packet: runx.issue_to_pr.host_result.v1
+    required: true
+    description: Tested host change, exact commit, and the workspace-scoped signed receipt produced by one scafld finalize call.
+
+connectors:
+  github:
+    operations: [issue.read, branch.push, pullrequests.list, pullrequest.open]
+  scafld:
+    operations: [receipt.verify]
+runners:
+  github-issue-to-pr:
+    default: true
+    inputs:
+      repository: { definition: repository }
+      issue_number: { definition: issue_number }
+      objective: { definition: objective }
+    result_from: [host]
+    steps:
+      - id: read-issue
+        operation: github/issue.read
+        input:
+          repository: $input.repository
+          number: $input.issue_number
+
+      - id: bind-issue-evidence
+        inputs:
+          requested_repository: $input.repository
+          requested_issue_number: $input.issue_number
+          provider_operation: $steps.read-issue.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: normalizeIssueEvidence }
+        outputs:
+          issue_evidence: object
+        artifacts:
+          named_emits: { issue_evidence: issue_evidence }
+          packets: { issue_evidence: runx.issue_to_pr.issue_evidence.v1 }
+
+      - id: host
+        skill: .
+        runner: host
+        inputs:
+          objective: $input.objective
+          issue_evidence: $steps.bind-issue-evidence.issue_evidence
+
+  from-evidence:
+    inputs:
+      issue_evidence: { definition: issue_evidence }
+      objective: { definition: objective }
+    result_from: [host]
+    steps:
+      - id: host
+        skill: .
+        runner: host
+        inputs:
+          objective: $input.objective
+          issue_evidence: $input.issue_evidence
+
+  host:
+    inputs:
+      issue_evidence: { definition: issue_evidence }
+      objective: { definition: objective }
+    result_from: [finalize-published, finalize-local, finalize-blocked]
+    steps:
+      - id: host-work
+        inputs:
+          objective: $input.objective
+          issue_evidence: $input.issue_evidence
+        agent: { role: builder, task: github-issue-to-pr-host-work }
+        outputs:
+          host_result: object
+        artifacts:
+          named_emits: { host_result: host_result }
+          packets: { host_result: runx.issue_to_pr.host_result.v1 }
+
+      - id: admit-host-result
+        inputs:
+          issue_evidence: $input.issue_evidence
+          host_result: $steps.host-work.host_result
+        tool: { module: github-issue-to-pr.mjs, export: admitHostResult }
+        outputs:
+          host_admission: object
+
+      - id: verify-publication
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        operation: scafld/receipt.verify
+        input:
+          receipt_path: $steps.host-work.host_result.finalization.receipt_path
+          target: $steps.host-work.host_result.commit
+          repo_root: $steps.host-work.host_result.repo_root
+
+      - id: publish-pr
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        skill: .
+        runner: pull-request
+        inputs:
+          host_result: $steps.host-work.host_result
+      - id: finalize-published
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        inputs:
+          host_result: $steps.host-work.host_result
+          receipt_verification: $steps.verify-publication.provider_operation
+          publication_result: $steps.publish-pr.publication
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+      - id: verify-local
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: finalized_local
+        operation: scafld/receipt.verify
+        input:
+          receipt_path: $steps.host-work.host_result.finalization.receipt_path
+          target: $steps.host-work.host_result.commit
+          repo_root: $steps.host-work.host_result.repo_root
+
+      - id: finalize-local
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: finalized_local
+        inputs:
+          host_admission:
+            path: finalized_local
+            errors: []
+          host_result: $steps.host-work.host_result
+          receipt_verification: $steps.verify-local.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+      - id: finalize-blocked
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: blocked
+        inputs:
+          host_result: $steps.host-work.host_result
+          host_admission: $steps.admit-host-result.host_admission
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+  resume:
+    inputs:
+      issue_evidence: { definition: issue_evidence }
+      host_result: { definition: host_result }
+    result_from: [finalize-published, finalize-local, finalize-blocked]
+    steps:
+      - id: admit-host-result
+        inputs:
+          host_result: $input.host_result
+          issue_evidence: $input.issue_evidence
+        tool: { module: github-issue-to-pr.mjs, export: admitHostResult }
+        outputs:
+          host_admission: object
+
+      - id: verify-publication
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        operation: scafld/receipt.verify
+        input:
+          receipt_path: $input.host_result.finalization.receipt_path
+          target: $input.host_result.commit
+          repo_root: $input.host_result.repo_root
+
+      - id: publish-pr
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        skill: .
+        runner: pull-request
+        inputs:
+          host_result: $input.host_result
+      - id: finalize-published
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: publish
+        inputs:
+          host_result: $input.host_result
+          receipt_verification: $steps.verify-publication.provider_operation
+          publication_result: $steps.publish-pr.publication
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+      - id: verify-local
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: finalized_local
+        operation: scafld/receipt.verify
+        input:
+          receipt_path: $input.host_result.finalization.receipt_path
+          target: $input.host_result.commit
+          repo_root: $input.host_result.repo_root
+
+      - id: finalize-local
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: finalized_local
+        inputs:
+          host_result: $input.host_result
+          host_admission:
+            path: finalized_local
+            errors: []
+          receipt_verification: $steps.verify-local.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+      - id: finalize-blocked
+        when:
+          value: $steps.admit-host-result.host_admission.path
+          equals: blocked
+        inputs:
+          host_result: $input.host_result
+          host_admission: $steps.admit-host-result.host_admission
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+  verify:
+    inputs:
+      host_result: { definition: host_result }
+    result_from: [verify-finalization]
+    steps:
+      - id: verify-finalization
+        operation: scafld/receipt.verify
+        input:
+          receipt_path: $input.host_result.finalization.receipt_path
+          target: $input.host_result.commit
+          repo_root: $input.host_result.repo_root
+
+  finalize-local:
+    inputs:
+      host_result: { definition: host_result }
+    result_from: [finalize]
+    steps:
+      - id: verify
+        skill: .
+        runner: verify
+        inputs:
+          host_result: $input.host_result
+
+      - id: finalize
+        inputs:
+          host_result: $input.host_result
+          host_admission:
+            path: finalized_local
+            errors: []
+          receipt_verification: $steps.verify.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+  publish:
+    inputs:
+      host_result: { definition: host_result }
+    result_from: [finalize]
+    steps:
+      - id: verify
+        skill: .
+        runner: verify
+        inputs:
+          host_result: $input.host_result
+
+      - id: publish-pr
+        skill: .
+        runner: pull-request
+        inputs:
+          host_result: $input.host_result
+      - id: finalize
+        inputs:
+          host_result: $input.host_result
+          receipt_verification: $steps.verify.provider_operation
+          publication_result: $steps.publish-pr.publication
+        tool: { module: github-issue-to-pr.mjs, export: finalizeIssueToPr }
+        outputs:
+          issue_to_pr_result: object
+        artifacts:
+          named_emits: { issue_to_pr_result: issue_to_pr_result }
+          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+
+  pull-request:
+    inputs:
+      host_result: { definition: host_result }
+    result_from: [settle-opened, settle-existing]
+    steps:
+      - id: push
+        operation: github/branch.push
+        idempotency_key: $input.host_result.publication.idempotency_key
+        input:
+          repository: $input.host_result.repository
+          branch: $input.host_result.publication.head
+          commit: $input.host_result.commit
+
+      - id: plan
+        inputs:
+          host_result: $input.host_result
+        tool: { module: github-issue-to-pr.mjs, export: planPullRequest }
+        outputs:
+          pull_request_plan: object
+
+      - id: find
+        operation: github/pullrequests.list
+        input: $steps.plan.pull_request_plan.find
+
+      - id: choose
+        inputs:
+          host_result: $input.host_result
+          found: $steps.find.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: choosePullRequest }
+        outputs:
+          pull_request_choice: object
+
+      - id: open
+        when:
+          value: $steps.choose.pull_request_choice.action
+          equals: open
+        operation: github/pullrequest.open
+        idempotency_key: $input.host_result.publication.idempotency_key
+        input: $steps.choose.pull_request_choice.open
+
+      - id: settle-opened
+        when:
+          value: $steps.choose.pull_request_choice.action
+          equals: open
+        inputs:
+          host_result: $input.host_result
+          pushed: $steps.push.provider_operation
+          choice: $steps.choose.pull_request_choice
+          opened: $steps.open.provider_operation
+        tool: { module: github-issue-to-pr.mjs, export: settlePullRequest }
+        outputs:
+          publication: object
+        artifacts:
+          named_emits: { publication: publication }
+
+      - id: settle-existing
+        when:
+          value: $steps.choose.pull_request_choice.action
+          not_equals: open
+        inputs:
+          host_result: $input.host_result
+          pushed: $steps.push.provider_operation
+          choice: $steps.choose.pull_request_choice
+        tool: { module: github-issue-to-pr.mjs, export: settlePullRequest }
+        outputs:
+          publication: object
+        artifacts:
+          named_emits: { publication: publication }

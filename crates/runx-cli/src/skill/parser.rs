@@ -585,7 +585,7 @@ mod tests {
 
     #[test]
     fn skill_without_inputs_executes_default_runner() -> Result<(), String> {
-        let args = ["skill", "skills/nws-weather-forecast"]
+        let args = ["skill", "skills/nws-weather"]
             .into_iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
@@ -594,7 +594,7 @@ mod tests {
         assert_eq!(plan.action, SkillAction::Run);
         assert_eq!(
             plan.skill_path,
-            std::path::PathBuf::from("skills/nws-weather-forecast")
+            std::path::PathBuf::from("skills/nws-weather")
         );
         assert_eq!(plan.runner, None);
         Ok(())
@@ -602,7 +602,7 @@ mod tests {
 
     #[test]
     fn positional_runner_without_inputs_executes_runner() -> Result<(), String> {
-        let args = ["skill", "skills/nws-weather-forecast", "normalize"]
+        let args = ["skill", "skills/nws-weather", "normalize"]
             .into_iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
@@ -615,21 +615,16 @@ mod tests {
 
     #[test]
     fn explicit_inspect_returns_skill_card() -> Result<(), String> {
-        let args = [
-            "skill",
-            "inspect",
-            "skills/nws-weather-forecast",
-            "normalize",
-        ]
-        .into_iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>();
+        let args = ["skill", "inspect", "skills/nws-weather", "normalize"]
+            .into_iter()
+            .map(std::ffi::OsString::from)
+            .collect::<Vec<_>>();
         let plan = super::parse_skill_plan(&args)?;
 
         assert_eq!(plan.action, SkillAction::Inspect);
         assert_eq!(
             plan.skill_path,
-            std::path::PathBuf::from("skills/nws-weather-forecast")
+            std::path::PathBuf::from("skills/nws-weather")
         );
         assert_eq!(plan.runner.as_deref(), Some("normalize"));
         Ok(())
@@ -639,7 +634,7 @@ mod tests {
     fn positional_runner_with_inputs_executes_runner() -> Result<(), String> {
         let args = [
             "skill",
-            "skills/nws-weather-forecast",
+            "skills/nws-weather",
             "normalize",
             "-i",
             "location=hello",
@@ -662,7 +657,7 @@ mod tests {
     fn bound_execution_requires_package_and_closure_digests() -> Result<(), String> {
         let package_only = [
             "skill",
-            "skills/nws-weather-forecast",
+            "skills/nws-weather",
             "--package-digest",
             "sha256:package",
         ]
@@ -677,7 +672,7 @@ mod tests {
 
         let closure_only = [
             "skill",
-            "skills/nws-weather-forecast",
+            "skills/nws-weather",
             "--execution-closure-digest",
             "sha256:closure",
         ]
@@ -697,7 +692,7 @@ mod tests {
     #[test]
     fn caller_context_is_a_host_binding_not_a_skill_input() -> Result<(), String> {
         let args = |context: &str| {
-            ["skill", "skills/ops-desk", "--context", context]
+            ["skill", "skills/operations-review", "--context", context]
                 .into_iter()
                 .map(std::ffi::OsString::from)
                 .collect::<Vec<_>>()
@@ -719,7 +714,7 @@ mod tests {
     fn execution_bindings_are_runtime_metadata_not_skill_inputs() -> Result<(), String> {
         let args = [
             "skill",
-            "skills/issue-to-pr",
+            "skills/github-issue-to-pr",
             "status",
             "--package-digest",
             "sha256:package",
@@ -748,7 +743,7 @@ mod tests {
     #[test]
     fn an_unknown_flag_is_refused_not_read_as_an_input() -> Result<(), String> {
         for flag in ["--runner", "--input-json", "--location", "--run"] {
-            let args = ["skill", "skills/nws-weather-forecast", flag, "value"]
+            let args = ["skill", "skills/nws-weather", flag, "value"]
                 .into_iter()
                 .map(std::ffi::OsString::from)
                 .collect::<Vec<_>>();

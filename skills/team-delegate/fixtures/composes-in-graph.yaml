@@ -1,0 +1,29 @@
+name: team-delegate-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    delegate#plan:
+      draft:
+        decision: propose
+        rationale: Research the documented change before drafting.
+        assignments:
+        - member: researcher
+          task: Identify the setup instructions affected by connection selection.
+          input_context:
+            question: Which instructions require updating?
+            source_material:
+            - source_ref: issue:docs-drift
+              text: The setup guide omits the new explicit connection selection.
+          source_refs:
+          - issue:docs-drift
+          needed_scope: []
+          acceptance:
+          - Name affected instructions and unresolved questions.
+          verification: Review the source references in the child receipt and returned analysis.
+        missing_context: []
+expect:
+  status: sealed
+  steps:
+  - delegate
+  - digest

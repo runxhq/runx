@@ -1,9 +1,0 @@
-{
-  "body": {
-    "task_id": "issue-to-pr-fixture",
-    "verdict": "pass",
-    "head_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "spec_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "open_blockers": []
-  }
-}

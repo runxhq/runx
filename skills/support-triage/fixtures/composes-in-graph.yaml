@@ -1,0 +1,27 @@
+name: support-triage-composes-in-graph
+kind: graph
+target: support/composed.graph
+caller:
+  answers:
+    triage#judge:
+      draft:
+        classification: how_to
+        severity: low
+        recommended_path: reply_draft
+        rationale: The customer asks for a documented next step.
+        evidence:
+        - source_ref: thread:domain-1
+          quote: I added the DNS records.
+        - source_ref: docs:domain-verification
+          quote: Open Settings > Domains and select Verify.
+        missing_context: []
+        operator_notes:
+        - No account state was read.
+        draft_email:
+          subject: 'Re: How do I verify my sending domain?'
+          body: Open Settings > Domains and select Verify.
+expect:
+  status: sealed
+  steps:
+  - triage
+  - digest

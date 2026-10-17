@@ -98,6 +98,17 @@ pub struct HarnessMcpCallFixture {
     pub result: JsonObject,
 }
 
+/// One exact connector process-tool call answered by the native harness.
+/// This fixture substitutes a result; it never starts the tool's host process.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessProcessCallFixture {
+    pub tool: String,
+    #[serde(default)]
+    pub arguments: JsonObject,
+    pub result: JsonValue,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessHttpExchangeFixture {
@@ -222,6 +233,10 @@ pub struct HarnessCaller {
     /// The MCP tool calls the run may make.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mcp_calls: Vec<HarnessMcpCallFixture>,
+    /// Exact local connector process-tool results. Unmatched calls fail closed;
+    /// they never fall through to a real process when these fixtures are set.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub process_calls: Vec<HarnessProcessCallFixture>,
     /// The hosted provider the run's operations reach.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_responses: Option<HarnessProviderResponsesFixture>,
@@ -434,6 +449,7 @@ fn validate_caller(caller: HarnessCaller) -> Result<HarnessCaller, HarnessFixtur
     Ok(HarnessCaller {
         http_exchanges: validate_http_exchanges(caller.http_exchanges, "caller.http_exchanges")?,
         mcp_calls: validate_mcp_calls(caller.mcp_calls, "caller.mcp_calls")?,
+        process_calls: validate_process_calls(caller.process_calls)?,
         provider_responses: caller
             .provider_responses
             .map(|fixture| {
@@ -552,6 +568,37 @@ fn validate_mcp_calls(
     }
     if calls.iter().any(|call| call.tool.trim().is_empty()) {
         return Err(invalid("every call names its tool".to_owned()));
+    }
+    Ok(calls)
+}
+
+fn validate_process_calls(
+    calls: Vec<HarnessProcessCallFixture>,
+) -> Result<Vec<HarnessProcessCallFixture>, HarnessFixtureError> {
+    let invalid = |message: &str| HarnessFixtureError::Invalid {
+        field: "caller.process_calls".to_owned(),
+        message: message.to_owned(),
+    };
+    if calls.len() > 32 {
+        return Err(invalid("must contain at most 32 calls"));
+    }
+    for (index, call) in calls.iter().enumerate() {
+        if call.tool.trim().is_empty() || call.tool.len() > 256 {
+            return Err(invalid("every call names a tool of at most 256 bytes"));
+        }
+        if serde_json::to_vec(&call.arguments).map_or(true, |bytes| bytes.len() > 65536)
+            || serde_json::to_vec(&call.result).map_or(true, |bytes| bytes.len() > 2 * 1024 * 1024)
+        {
+            return Err(invalid(
+                "call arguments exceed 64 KiB or its result exceeds 2 MiB",
+            ));
+        }
+        if calls[..index]
+            .iter()
+            .any(|prior| prior.tool == call.tool && prior.arguments == call.arguments)
+        {
+            return Err(invalid("duplicates an earlier tool and argument tuple"));
+        }
     }
     Ok(calls)
 }

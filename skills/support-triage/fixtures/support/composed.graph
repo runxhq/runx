@@ -1,0 +1,16 @@
+name: support-triage-composed
+steps:
+- id: triage
+  skill: ../..
+  inputs:
+    support_request:
+      source: thread:domain-1
+      subject: How do I verify my sending domain?
+      body: I added the DNS records. What should I check next?
+    product_evidence:
+    - source_ref: docs:domain-verification
+      text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
+- id: digest
+  tool: data.digest
+  inputs:
+    value: $steps.triage

@@ -1,0 +1,30 @@
+name: schema-check-composed
+steps:
+  - id: schema-check
+    skill: ../..
+    runner: check
+    inputs:
+      current_schema:
+        type: object
+        required: [id]
+        properties:
+          id: { type: string }
+          status: { type: string, enum: [open, closed] }
+      proposed_schema:
+        type: object
+        required: [id]
+        properties:
+          id: { type: string }
+          status: { type: string, enum: [open, closed] }
+          note: { type: string }
+      sample_payloads:
+        - { id: case-1, status: open }
+        - { id: case-2, status: closed, note: resolved by vendor }
+      compatibility_policy:
+        breaking_allowed: false
+        required_fields: [id]
+        versioning_rule: minor_on_additive
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.schema-check

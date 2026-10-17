@@ -1,0 +1,19 @@
+name: github-blocks-numeric-pull-base
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: prs
+    filters: { limit: 1 }
+    mutations:
+      - ref: pulls/241
+        op: update
+        payload:
+          base: 123
+  scope: write
+expect:
+  status: failure
+metadata: { public_skill: github, source_case: numeric-pull-base, source: skills-fixture }

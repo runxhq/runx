@@ -64,6 +64,8 @@ struct Placements {
     /// Injected beneath local implementations; the runtime's own transports
     /// otherwise.
     http: Option<Transport>,
+    /// Exact process-tool answers injected only by native harness execution.
+    process_calls: Option<Vec<runx_parser::harness_fixture::HarnessProcessCallFixture>>,
     #[cfg(feature = "mcp")]
     mcp: crate::drivers::mcp::Sessions,
     /// The principal each command session token was read as, by token
@@ -130,6 +132,7 @@ impl OperationEffect {
             placements: Arc::new(Placements {
                 hosted: HostedClient::with_transport(Arc::clone(&transport)),
                 http: Some(transport),
+                process_calls: None,
                 #[cfg(feature = "mcp")]
                 mcp: crate::drivers::mcp::Sessions::default(),
                 principals: std::sync::Mutex::default(),
@@ -141,12 +144,21 @@ impl OperationEffect {
     /// The harness's effect: its provider fixture answers hosted calls and
     /// stands in for declared operations no placement implements yet, and
     /// its MCP calls answer in place of every MCP server.
-    pub(crate) fn harness<T>(transport: T, mcp_calls: &[runx_parser::HarnessMcpCallFixture]) -> Self
+    pub(crate) fn harness<T>(
+        transport: T,
+        mcp_calls: &[runx_parser::HarnessMcpCallFixture],
+        process_calls: &[runx_parser::harness_fixture::HarnessProcessCallFixture],
+    ) -> Self
     where
         T: RuntimeHttpTransport + Send + Sync + 'static,
     {
         let mut effect = Self::with_http_transport(transport);
         effect.fixture_stand_in = true;
+        if !process_calls.is_empty()
+            && let Some(placements) = Arc::get_mut(&mut effect.placements)
+        {
+            placements.process_calls = Some(process_calls.to_vec());
+        }
         #[cfg(feature = "mcp")]
         if !mcp_calls.is_empty()
             && let Some(placements) = Arc::get_mut(&mut effect.placements)
@@ -1359,8 +1371,16 @@ fn dispatch(
                     "the connector's tool was not installed".to_owned(),
                 )
             })?;
+            let stand_in;
+            let tools: &dyn ToolRunner = match context.placements.process_calls.as_deref() {
+                Some(calls) => {
+                    stand_in = crate::drivers::process::StandIn { calls };
+                    &stand_in
+                }
+                None => local.tools,
+            };
             let driver = crate::drivers::process::Process {
-                tools: local.tools,
+                tools,
                 tool: spec.tool.as_str(),
                 manifest: tool,
                 call: &call,

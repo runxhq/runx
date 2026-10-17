@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 41,
+  "capability_count": 42,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -126,6 +126,19 @@
         "kind": "named",
         "output": "digest_result",
         "packet": "runx.data.digest.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "data.validate",
+      "owner": "runx-runtime/data",
+      "scopes": [],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "named",
+        "output": "validation",
+        "packet": "runx.data.validation.v1"
       },
       "execution_boundary": "native_capability"
     },

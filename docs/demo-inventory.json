@@ -7,14 +7,14 @@
       "command": "runx harness examples/hello-world"
     },
     {
-      "path": "skills/sql-analyst",
+      "path": "skills/sql-analysis",
       "proof": "An analytics question becomes a validated plan, one declared store read through the store operation, and an interpretation bound to what that read returned.",
-      "command": "runx harness skills/sql-analyst/fixtures/forward-store-read.yaml"
+      "command": "runx harness skills/sql-analysis/fixtures/default-reads-selected-query.yaml"
     },
     {
-      "path": "skills/nws-weather-forecast",
+      "path": "skills/nws-weather",
       "proof": "The official National Weather Service skill reads through its national-weather-service connector and seals stable provider metadata.",
-      "command": "runx harness skills/nws-weather-forecast/fixtures/nws-forecast-washington-monument.yaml"
+      "command": "runx harness skills/nws-weather/fixtures/nws-forecast-washington-monument.yaml"
     },
     {
       "path": "examples/loop-orchestration",

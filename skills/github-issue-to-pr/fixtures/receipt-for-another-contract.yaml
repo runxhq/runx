@@ -1,0 +1,66 @@
+name: github-issue-to-pr-receipt-for-another-contract
+kind: skill
+target: ..
+runner: resume
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+inputs:
+  issue_evidence:
+    schema: runx.issue_to_pr.issue_evidence.v1
+    repository: runxhq/runx
+    number: "442"
+    title: Make issue-to-PR operator-first
+    state: open
+    body: Reuse prior evidence instead of reading the provider again.
+    url: https://github.com/runxhq/runx/issues/442
+    labels: [operator-experience]
+    assignees: []
+    source:
+      provider: github
+      transport: local_http
+      principal_ref: runx:principal:github:7
+      readback_ref: runx:github-readback:sha256:fixture
+  host_result:
+    schema: runx.issue_to_pr.host_result.v1
+    status: completed
+    repository: runxhq/runx
+    issue_number: "442"
+    repo_root: .
+    branch: fix/442-operator-first
+    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    files: [oss/skills/github-issue-to-pr/run.yaml]
+    tests:
+      - command: cargo test -p runx-cli --test integration issue_to_pr_journey
+        status: passed
+        evidence: receipt:test:github-issue-to-pr-composed
+    finalization:
+      receipt_path: fixtures/scafld-pass.json
+      contract_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    publication:
+      decision: hold
+      title: ""
+      body: ""
+      head: ""
+      base: ""
+      draft: false
+      idempotency_key: ""
+    errors: []
+expect:
+  status: sealed
+  receipt: { schema: runx.receipt.v1 }
+  steps: [admit-host-result, verify-local, finalize-local]
+  output:
+    subset:
+      issue_to_pr_result:
+        data:
+          schema: runx.issue_to_pr.result.v1
+          status: blocked
+          outcome: blocked
+          finalization:
+            status: unverified
+            receipt_ref: ""
+          errors: [scafld finalization did not verify]
+metadata:
+  public_skill: github-issue-to-pr
+  source_case: receipt-for-another-contract
+  source: skills-fixture

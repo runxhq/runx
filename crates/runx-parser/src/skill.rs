@@ -21,8 +21,9 @@ pub use connectors::ConnectorRequirement;
 pub(crate) use connectors::{bind_operation_steps, validate_connector_requirements};
 pub use fixtures::{
     HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
-    HarnessHttpResponseFixture, HarnessMcpCallFixture, OperatorJourneyClaim, OperatorJourneyMode,
-    ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest,
+    HarnessHttpResponseFixture, HarnessMcpCallFixture, HarnessProcessCallFixture,
+    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation, RunnerHarnessCase,
+    RunnerHarnessManifest,
 };
 pub use governance::validate_skill_artifact_contract;
 pub use markdown::parse_skill_markdown;

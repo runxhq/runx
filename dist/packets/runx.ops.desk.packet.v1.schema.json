@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/ops_desk/packet/v1.json",
   "x-runx-packet-id": "runx.ops_desk.packet.v1",
-  "x-runx-generated-from": "skills/ops-desk/run.yaml#root.runners.operate.steps.0",
+  "x-runx-generated-from": "skills/operations-review/run.yaml#root.runners.operate.steps.0",
   "additionalProperties": false,
   "properties": {
     "dashboard": {

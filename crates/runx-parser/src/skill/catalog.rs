@@ -801,7 +801,7 @@ mod tests {
     #[test]
     fn catalog_report_does_not_guess_runtime_effects_from_names() -> Result<(), String> {
         let manifest = manifest(
-            r#"skill: github-sync
+            r#"skill: github
 catalog:
   kind: skill
   audience: public
@@ -823,7 +823,7 @@ runners:
           packets: { plan: runx.github_sync.plan.v1 }
 "#,
         )?;
-        let report = analyze_catalog_semantics("github-sync", &manifest);
+        let report = analyze_catalog_semantics("github", &manifest);
         assert_eq!(report.mode, "operator_readiness");
         assert_eq!(report.default_runner.as_deref(), Some("plan"));
         assert!(report.diagnostics.is_empty());
@@ -896,7 +896,7 @@ harness:
       runner: read
       operator_journeys:
         - mode: standalone
-          confusors: [github-sync, slack]
+          confusors: [github, slack]
           request: Read this exact provider resource through its configured account.
           expected_outcome: Return bounded provider readback for the exact target.
         - mode: composed

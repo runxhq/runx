@@ -585,3 +585,115 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     fs::remove_dir_all(&tools)?;
     Ok(())
 }
+
+#[test]
+fn harness_process_results_never_start_a_host_process_or_escape_into_live_runs()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-process-harness-stand-in");
+    let home = root.join("home");
+    write_notes_plugin(&root)?;
+    let marker = root.join("must-not-exist");
+    fs::write(
+        root.join("connectors/notes/tools/notes/read/read.mjs"),
+        format!(
+            "import {{ writeFileSync }} from 'node:fs';\nwriteFileSync({}, 'a process started');\nprocess.stdout.write('{{\"id\":\"n1\",\"token_bytes\":0}}');\n",
+            serde_json::to_string(&marker.display().to_string())?
+        ),
+    )?;
+    let fixture = root.join("skills/notes/fixtures/process.yaml");
+    fs::create_dir_all(fixture.parent().ok_or("fixture parent")?)?;
+    let document = r#"name: process-result
+kind: skill
+target: ..
+runner: read
+setup: {credentials: [notes]}
+env: {NOTES_TOKEN: fixture-only-token}
+inputs: {id: n1}
+caller:
+  process_calls:
+    - tool: notes.read
+      arguments: {id: n1}
+      result: {id: n1, token_bytes: 42}
+expect:
+  status: sealed
+  output:
+    subset:
+      provider_operation:
+        data:
+          result: {id: n1, token_bytes: 42}
+"#;
+    fs::write(&fixture, document)?;
+    let replay = command(&root, &home)?
+        .env(
+            "RUNX_HOSTED_WORKSPACE_POLICY_JSON",
+            r#"{"refuseHostProcesses":true}"#,
+        )
+        .arg("harness")
+        .arg(&fixture)
+        .arg("--json")
+        .output()?;
+    assert!(
+        replay.status.success(),
+        "{}",
+        String::from_utf8_lossy(&replay.stdout)
+    );
+    assert!(
+        !marker.exists(),
+        "fixture replay started the actual process"
+    );
+
+    // A different argument has no fixture; it cannot fall back to real execution.
+    fs::write(
+        &fixture,
+        document.replace("arguments: {id: n1}", "arguments: {id: another}"),
+    )?;
+    let unmatched = command(&root, &home)?
+        .env_remove("RUNX_HOSTED_WORKSPACE_POLICY_JSON")
+        .arg("harness")
+        .arg(&fixture)
+        .arg("--json")
+        .output()?;
+    assert!(!unmatched.status.success());
+    let mismatch = format!(
+        "{}{}",
+        String::from_utf8_lossy(&unmatched.stdout),
+        String::from_utf8_lossy(&unmatched.stderr)
+    );
+    assert!(
+        mismatch.contains("declares no process result"),
+        "{mismatch}"
+    );
+    assert!(!marker.exists());
+
+    let mut set = command(&root, &home)?;
+    set.args([
+        "connector",
+        "use",
+        "notes",
+        "--credential",
+        "token",
+        "--json",
+    ]);
+    assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
+    let live = command(&root, &home)?
+        .env(
+            "RUNX_HOSTED_WORKSPACE_POLICY_JSON",
+            r#"{"refuseHostProcesses":true}"#,
+        )
+        .arg("skill")
+        .arg(root.join("skills/notes"))
+        .args(["read", "--inputs", "inputs.json", "--json"])
+        .output()?;
+    assert!(!live.status.success());
+    let refusal = format!(
+        "{}{}",
+        String::from_utf8_lossy(&live.stdout),
+        String::from_utf8_lossy(&live.stderr)
+    );
+    assert!(
+        refusal.contains("starts no trusted host process"),
+        "{refusal}"
+    );
+    assert!(!marker.exists(), "a fixture escaped into an ordinary run");
+    Ok(())
+}

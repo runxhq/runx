@@ -1,0 +1,7 @@
+name: contact-consent-review-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [contact-consent-review, digest]
+  receipt: { schema: runx.receipt.v1 }

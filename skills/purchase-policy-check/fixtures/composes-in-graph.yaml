@@ -1,0 +1,7 @@
+name: purchase-policy-check-composes-in-graph
+kind: graph
+target: support/composed.graph
+expect:
+  status: sealed
+  steps: [purchase-policy-check, digest]
+  receipt: { schema: runx.receipt.v1 }

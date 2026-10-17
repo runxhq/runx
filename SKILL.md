@@ -224,7 +224,7 @@ runx registry search 'openapi weather forecast' --json
 Governed local run:
 
 ```bash
-runx skill ./skills/issue-triage --input repository=acme/app --input issue_number=7 --json
+runx skill ./skills/github-issue-triage --input repository=acme/app --input issue_number=7 --json
 runx history
 ```
 

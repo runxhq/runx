@@ -101,9 +101,9 @@ transition; the domain skill and its reducer own what it means.
 
 The public skills compose the store instead of embedding storage semantics:
 
-- `ops-desk.operate_from_projection` reads a projection before asking the
+- `operations-review.operate_from_projection` reads a projection before asking the
   operator agent to propose next actions.
-- `list-hygiene-judge` reads a contact's consent stream, appends the decided
+- `contact-consent-review` reads a contact's consent stream, appends the decided
   transition and reads the result back.
 
 Their fixtures run against the workspace store. The same graphs run against

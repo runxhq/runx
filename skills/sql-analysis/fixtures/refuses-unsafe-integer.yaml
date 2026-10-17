@@ -1,0 +1,37 @@
+name: sql-analysis-refuses-unsafe-integer-before-query
+kind: skill
+target: ..
+runner: plan
+inputs:
+  question: Read this exact account id.
+  source_ref: analytics:test
+  catalog:
+    source_ref: analytics:test
+    dialect: postgres
+    status: catalog
+    executed: false
+    max_rows: 1
+    queries:
+    - id: account
+      description: Read the exact account.
+      parameters_schema:
+        type: object
+        additionalProperties: false
+        required:
+        - id
+        properties:
+          id:
+            type: integer
+      result_description: One account record.
+caller:
+  answers:
+    choose:
+      choice:
+        decision: ready
+        query_id: account
+        parameters:
+          id: 9007199254740993
+        reason: The question names this account.
+        missing_context: []
+expect:
+  status: failure

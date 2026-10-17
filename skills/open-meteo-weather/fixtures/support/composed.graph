@@ -1,0 +1,12 @@
+name: open-meteo-weather-composed
+steps:
+- id: open-meteo-weather
+  skill: ../..
+  runner: air_quality
+  inputs:
+    latitude: '31.2222'
+    longitude: '121.4581'
+- id: digest
+  tool: data.digest
+  inputs:
+    value: $steps.open-meteo-weather

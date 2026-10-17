@@ -1,0 +1,21 @@
+name: purchase-policy-check-composed
+steps:
+  - id: purchase-policy-check
+    skill: ../..
+    runner: decide
+    inputs:
+      purchase_request:
+        vendor: sourcey
+        amount: 125
+        currency: USD
+        purpose: generate public llms.txt docs for a maintained OSS project
+      procurement_policy:
+        currency: USD
+        remaining_budget: 300
+        single_purchase_cap: 200
+        approved_vendors: [sourcey, runx]
+        approval_threshold: 200
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.purchase-policy-check

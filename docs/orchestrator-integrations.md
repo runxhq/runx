@@ -26,7 +26,7 @@ The local CLI is the reference implementation for self-hosted orchestrators and
 operator dogfood. It should feel direct, literal, and governed:
 
 ```bash
-runx skill nws-weather-forecast forecast \
+runx skill nws-weather forecast \
   -i office=LWX \
   -i grid_x=97 \
   -i grid_y=71

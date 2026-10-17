@@ -1,0 +1,129 @@
+name: sql-analysis-default-reads-the-selected-query
+kind: skill
+target: ..
+setup:
+  credentials:
+  - sql
+env:
+  RUNX_SQL_CONNECTION: fixture-only-source-binding
+operator_journeys:
+- mode: standalone
+  exercises_runner: analyst
+  confusors:
+  - research
+  - product-analytics
+  request: Which campaigns produced qualified trials since 2026-10-01?
+  expected_outcome: Read the selected source catalog, invoke the exact declared bound query and interpret
+    its native provider result. The fixture supplies provider results; real database execution is checked
+    separately.
+inputs:
+  question: Which campaigns produced qualified trials since 2026-10-01?
+  source_ref: analytics:fixture
+  max_rows: 2
+caller:
+  answers:
+    choose:
+      choice:
+        decision: ready
+        query_id: trials_by_campaign
+        parameters:
+          since: '2026-10-01'
+        reason: The declared read counts qualified trials in the requested period.
+        missing_context: []
+    interpret:
+      interpretation:
+        answer: Launch has two qualified trials and Docs has one in the returned rows.
+        observations:
+        - The query returned campaign-associated trial counts.
+        caveats:
+        - The row ceiling excludes at least one additional campaign.
+        - Association does not establish causal attribution.
+  process_calls:
+  - tool: sql.read
+    arguments:
+      action: catalog
+      source_ref: analytics:fixture
+    result:
+      source_ref: analytics:fixture
+      dialect: sqlite
+      status: catalog
+      executed: false
+      max_rows: 2
+      queries:
+      - id: trials_by_campaign
+        description: Count qualified trials by campaign since a supplied date.
+        parameters_schema:
+          type: object
+          additionalProperties: false
+          required:
+          - since
+          properties:
+            since:
+              type: string
+              pattern: ^2026-10-[0-9]{2}$
+        result_description: Qualified-trial counts by associated campaign; this is not causal attribution.
+  - tool: sql.read
+    arguments:
+      action: query
+      source_ref: analytics:fixture
+      query_id: trials_by_campaign
+      parameters:
+        since: '2026-10-01'
+      max_rows: 2
+    result:
+      source_ref: analytics:fixture
+      dialect: sqlite
+      status: executed
+      executed: true
+      query_id: trials_by_campaign
+      columns:
+      - campaign
+      - qualified_trials
+      rows:
+      - - launch
+        - 2
+      - - docs
+        - 1
+      returned_rows: 2
+      max_rows: 2
+      truncated: true
+      result_description: Qualified-trial counts by associated campaign; this is not causal attribution.
+      observed_at: '2026-10-17T00:00:00Z'
+      duration_ms: 1
+expect:
+  status: sealed
+  steps:
+  - catalog
+  - plan
+  - query
+  - interpret
+  - finish
+  step_outputs:
+    query:
+      subset:
+        provider_operation:
+          data:
+            result:
+              status: executed
+              query_id: trials_by_campaign
+              columns:
+              - campaign
+              - qualified_trials
+              rows:
+              - - launch
+                - 2
+              - - docs
+                - 1
+              truncated: true
+    finish:
+      subset:
+        analysis_result:
+          data:
+            decision: answered
+            executed: true
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: sql-analysis
+  source_case: default-provider-fixtures
+  source: skills-fixture

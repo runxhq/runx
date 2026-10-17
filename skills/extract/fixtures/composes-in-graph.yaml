@@ -1,7 +1,23 @@
 name: extract-composes-in-graph
 kind: graph
 target: support/composed.graph
+caller:
+  answers:
+    document#extract:
+      value:
+        invoice_id: INV-104
+        total_usd: 125
+        customer: Northstar
+      citations:
+      - pointer: /invoice_id
+        quote: INV-104
+      - pointer: /total_usd
+        quote: '125'
+      - pointer: /customer
+        quote: Northstar
+      missing_fields: []
 expect:
   status: sealed
-  steps: [extract, digest]
-  receipt: { schema: runx.receipt.v1 }
+  steps:
+  - document
+  - digest

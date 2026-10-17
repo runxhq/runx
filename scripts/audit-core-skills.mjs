@@ -821,7 +821,7 @@ function runSelfTests() {
         standaloneDefault: true,
         composedReuse: true,
         suppliedAgentAnswers: false,
-        coldSelectionConfusors: ["extract", "issue-intake", "research"],
+        coldSelectionConfusors: ["extract", "code-intake", "research"],
         standaloneCase: "standalone",
         composedCase: "composed",
       },

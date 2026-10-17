@@ -38,7 +38,7 @@ Search and product analytics can inform the next change to your site. Across
 those handoffs, Runx admits calls under explicit authority, delivers credentials
 at the tool boundary, supervises execution, and seals a verifiable record.
 
-![Northstar's team-workspaces launch connects ops-desk, audience evidence from lead-enrichment, release preparation, content-pipeline, message-send, and email or Slack delivery. Product-analytics tracks the path from workspace creation to the first teammate invited.](docs/assets/readme/business-ops.svg)
+![Northstar's team-workspaces launch connects operations-review, audience evidence from lead-enrichment, release preparation, content-package, message-send, and email or Slack delivery. Product-analytics tracks the path from workspace creation to the first teammate invited.](docs/assets/readme/business-ops.svg)
 
 **Your agent supplies the judgment. Runx owns the execution boundary.** Use the
 CLI, MCP, or a language client with the agent or orchestration framework you
@@ -147,7 +147,7 @@ Bring back the launch kit, blockers, and receipts. Ask before sending,
 publishing, or deploying.
 ```
 
-[`ops-desk`](skills/ops-desk/SKILL.md) reviews the release state and proposes
+[`operations-review`](skills/operations-review/SKILL.md) reviews the release state and proposes
 the next launch actions. [`lead-enrichment`](skills/lead-enrichment/SKILL.md)
 organizes supplied customer facts to inform the audience choice; the operator
 supplies the actual audience and contact policy.
@@ -155,7 +155,7 @@ supplies the actual audience and contact policy.
 [`release#prepare`](skills/release/SKILL.md) checks the project's release
 profile and produces the version-bound brief. The full `release` runner owns
 approval, publication, and verification through the project's commands.
-[`content-pipeline`](skills/content-pipeline/SKILL.md) combines release facts
+[`content-package`](skills/content-package/SKILL.md) combines release facts
 and product documentation with `research` and `ghostwrite` to prepare the setup
 guide and announcement, then packages them for publication.
 
@@ -207,7 +207,7 @@ Show the facts behind it and hold any recipient with unresolved eligibility.”*
 
 ### Organic growth: connect discovery to activation
 
-![Organic growth composition: google-search-console, google-analytics, product-analytics, and site research meet in organic-growth. Priorities feed content-pipeline or repository work through work-plan and issue-to-pr. Approved changes are measured again using comparable windows and definitions.](docs/assets/readme/organic-growth.svg)
+![Organic growth composition: google-search-console, google-analytics, product-analytics, and site research meet in organic-growth. Priorities feed content-package or repository work through code-plan and github-issue-to-pr. Approved changes are measured again using comparable windows and definitions.](docs/assets/readme/organic-growth.svg)
 
 Each source answers a different question. Search Console shows how people find
 you. GA4 shows acquisition and behavior under the property's measurement model.
@@ -231,10 +231,10 @@ example, a page getting more clicks while its visitors fail to activate may
 need a clearer promise, a better onboarding path, or an instrumentation fix.
 
 **What comes back:** observations, hypotheses, ranked actions, source bindings,
-and a measurement plan. Content work can continue through `content-pipeline`;
+and a measurement plan. Content work can continue through `content-package`;
 code and instrumentation work can go through
-[`work-plan`](skills/work-plan/SKILL.md) and
-[`issue-to-pr`](skills/issue-to-pr/SKILL.md) in the owning repository. The next
+[`code-plan`](skills/code-plan/SKILL.md) and
+[`github-issue-to-pr`](skills/github-issue-to-pr/SKILL.md) in the owning repository. The next
 analysis reuses comparable windows and definitions. Missing or stale reports
 remain measurement gaps.
 
@@ -244,7 +244,7 @@ From this checkout:
 
 ```bash
 # Research → draft → channel package → publication handoff
-runx harness skills/content-pipeline/fixtures/composes-in-graph.yaml
+runx harness skills/content-package/fixtures/composes-in-graph.yaml
 
 # A specific outreach draft with supplied evidence and writing context
 runx harness skills/cold-outreach/fixtures/prepares-approved-context-email.yaml
@@ -349,10 +349,10 @@ steps:
 ```
 
 The second skill consumes the first skill's typed output. The graph receipt
-links their receipts. The same mechanism lets `content-pipeline` pass a
+links their receipts. The same mechanism lets `content-package` pass a
 research packet into `ghostwrite`, then pass the validated draft into its
 packaging and handoff runners. Inspect its
-[actual graph](skills/content-pipeline/run.yaml) beside the
+[actual graph](skills/content-package/run.yaml) beside the
 [minimal example](examples/hello-graph/graph.yaml).
 
 Use an agent turn for work that needs judgment. Use a graph when phases,

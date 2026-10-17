@@ -9207,6 +9207,75 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.data.operation_result.v1"
   } as JsonSchema,
+  "data-validation.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/data/validation/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "results": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "errors": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "instance_path": {
+                    "type": "string"
+                  },
+                  "schema_path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instance_path",
+                  "schema_path"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "valid": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "index",
+            "valid",
+            "errors",
+            "truncated"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "schema_digest": {
+        "type": "string"
+      },
+      "valid": {
+        "type": "boolean"
+      },
+      "values_digest": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "valid",
+      "schema_digest",
+      "values_digest",
+      "results"
+    ],
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.data.validation.v1"
+  } as JsonSchema,
   "decision-observation.schema.json": {
     "$id": "https://schemas.runx.ai/runx/decision-observation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",

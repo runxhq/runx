@@ -1,0 +1,24 @@
+name: team-delegate-composed
+steps:
+- id: delegate
+  skill: ../..
+  inputs:
+    objective: Prepare a grounded documentation update.
+    roster:
+    - member: researcher
+      skill: runx/research
+      runner: analyze
+      scope_ceiling: []
+      capabilities: Review already collected sources and find contradictions.
+    - member: writer
+      skill: runx/ghostwrite
+      runner: draft
+      scope_ceiling: []
+      capabilities: Draft grounded copy from admitted evidence.
+    evidence:
+    - source_ref: issue:docs-drift
+      text: The setup guide omits the new explicit connection selection.
+- id: digest
+  tool: data.digest
+  inputs:
+    value: $steps.delegate

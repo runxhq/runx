@@ -130,11 +130,11 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await runxMaintainedSkillLock("runx/agency");
+      const lockEntry = await runxMaintainedSkillLock("runx/team-delegate");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/agency/SKILL.md"),
-        profile: path.resolve("skills/agency/run.yaml"),
+        subject: path.resolve("skills/team-delegate/SKILL.md"),
+        profile: path.resolve("skills/team-delegate/run.yaml"),
         owner: "acme",
         version: lockEntry.version,
         env,
@@ -142,14 +142,14 @@ describe("registry skill native fetch", () => {
 
       const result = runNativeSkill(env, [
         "inspect",
-        `acme/agency@${lockEntry.version}`,
+        `acme/team-delegate@${lockEntry.version}`,
         "--registry",
         registryDir,
         "--json",
       ]);
       const output = parseJsonOutput(result, 0);
       expect((output as { status?: string }).status).toBe("ok");
-      const skillPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/agency");
+      const skillPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/team-delegate");
       for (const stage of ["plan", "reduce"]) {
         expect(
           (await stat(
@@ -172,11 +172,11 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await runxMaintainedSkillLock("runx/github-sync");
+      const lockEntry = await runxMaintainedSkillLock("runx/github");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/github-sync/SKILL.md"),
-        profile: path.resolve("skills/github-sync/run.yaml"),
+        subject: path.resolve("skills/github/SKILL.md"),
+        profile: path.resolve("skills/github/run.yaml"),
         owner: "acme",
         version: lockEntry.version,
         env,
@@ -185,7 +185,7 @@ describe("registry skill native fetch", () => {
       // The cursor runner plans locally and persists through the store's own
       // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
-        `acme/github-sync@${lockEntry.version}`,
+        `acme/github@${lockEntry.version}`,
         "plan_and_append_cursor",
         "--registry",
         registryDir,

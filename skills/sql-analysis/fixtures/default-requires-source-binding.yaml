@@ -1,0 +1,15 @@
+name: sql-analysis-default-requires-source-binding
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    exercises_runner: analyst
+    confusors: [research, product-analytics]
+    request: Which campaigns produced qualified trials since 2026-10-01 in the selected production database?
+    expected_outcome: Refuse without the selected SQL source binding before inventing a catalog, rows or answer.
+inputs:
+  question: Which campaigns produced qualified trials since 2026-10-01?
+  source_ref: analytics:production
+expect:
+  status: policy_denied
+metadata: {public_skill: sql-analysis, source_case: default-binding-refusal, source: skills-fixture}

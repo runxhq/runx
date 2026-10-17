@@ -52,7 +52,7 @@ could understand the callback without explanation, and the joke fit the
 thread's suspicion about new data collection. The visible ranking does not
 prove the callback caused the votes. Early placement and audience matter too.
 
-Our USPS draft repeated the agency's statement and noted missing data retention
+Our USPS draft repeated the team-delegate's statement and noted missing data retention
 details. It was factual but entered a conversation where those concerns were
 already present. The court draft repeated a distinction readers were already
 discussing; the RSS draft gave a deadline while readers were reacting to lost

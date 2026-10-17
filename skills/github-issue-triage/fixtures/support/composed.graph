@@ -1,0 +1,22 @@
+name: github-issue-triage-composed
+steps:
+  - id: github-issue-triage
+    skill: ../..
+    runner: discover
+    inputs:
+      query: Find unanswered issues where a maintainer response would unblock progress.
+      issue_snapshots:
+        - repository: runxhq/runx
+          number: "241"
+          title: Sourcey output path is unclear
+          state: open
+          body: The docs name two different output directories.
+        - repository: runxhq/runx
+          number: "242"
+          title: Typo in example
+          state: open
+          body: One example contains a spelling mistake.
+  - id: digest
+    tool: data.digest
+    inputs:
+      value: $steps.github-issue-triage

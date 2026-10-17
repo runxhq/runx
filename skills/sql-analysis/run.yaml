@@ -1,0 +1,686 @@
+skill: sql-analysis
+version: 0.4.6
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: read
+  completion: provider_readback
+  approval: none
+  category: data
+connectors:
+  sql:
+    operations:
+    - catalog.read
+    - query.read
+runners:
+  analyst:
+    default: true
+    inputs:
+      question:
+        type: string
+        required: true
+        description: A bounded data question with the business context and explicit dates needed to choose
+          parameter values.
+        schema:
+          minLength: 1
+          maxLength: 8000
+      source_ref:
+        type: string
+        required: true
+        description: Exact logical source target bound to the selected local SQL connector instance.
+        schema:
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
+      max_rows:
+        type: integer
+        required: false
+        default: 100
+        schema:
+          minimum: 1
+          maximum: 1000
+    result_from:
+    - stopped
+    - finish
+    steps:
+    - id: catalog
+      operation: sql/catalog.read
+      input:
+        action: catalog
+        source_ref: $input.source_ref
+    - id: plan
+      skill: .
+      runner: plan
+      inputs:
+        question: $input.question
+        source_ref: $input.source_ref
+        max_rows: $input.max_rows
+        catalog: $steps.catalog.provider_operation.result
+    - id: stopped
+      when:
+        value: $steps.plan.sql_analysis_plan.decision
+        not_equals: ready
+      tool:
+        module: sql-analysis.mjs
+        export: stopped
+      inputs:
+        plan: $steps.plan.sql_analysis_plan
+      outputs:
+        analysis_result: object
+      artifacts:
+        named_emits:
+          analysis_result: analysis_result
+    - id: query
+      when:
+        value: $steps.plan.sql_analysis_plan.decision
+        equals: ready
+      operation: sql/query.read
+      input:
+        action: query
+        source_ref: $input.source_ref
+        query_id: $steps.plan.sql_analysis_plan.query_id
+        parameters: $steps.plan.sql_analysis_plan.parameters
+        max_rows: $steps.plan.sql_analysis_plan.max_rows
+    - id: interpret
+      when:
+        value: $steps.plan.sql_analysis_plan.decision
+        equals: ready
+      agent:
+        role: analyst
+        task: sql-interpret
+      inputs:
+        question: $input.question
+        plan: $steps.plan.sql_analysis_plan
+        provider_operation: $steps.query.provider_operation
+      outputs:
+        interpretation:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - answer
+            - observations
+            - caveats
+            properties:
+              answer:
+                type: string
+                minLength: 1
+                maxLength: 12000
+              observations:
+                type: array
+                maxItems: 32
+                items:
+                  type: string
+                  maxLength: 4000
+              caveats:
+                type: array
+                maxItems: 32
+                items:
+                  type: string
+                  maxLength: 4000
+    - id: finish
+      when:
+        value: $steps.plan.sql_analysis_plan.decision
+        equals: ready
+      tool:
+        module: sql-analysis.mjs
+        export: finish
+      inputs:
+        question: $input.question
+        plan: $steps.plan.sql_analysis_plan
+        provider_operation: $steps.query.provider_operation
+        interpretation: $steps.interpret.interpretation
+      outputs:
+        analysis_result: object
+      artifacts:
+        named_emits:
+          analysis_result: analysis_result
+  plan:
+    inputs:
+      question:
+        type: string
+        required: true
+        description: A bounded data question with the business context and explicit dates needed to choose
+          parameter values.
+        schema:
+          minLength: 1
+          maxLength: 8000
+      source_ref:
+        type: string
+        required: true
+        description: Exact logical source target bound to the selected local SQL connector instance.
+        schema:
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
+      max_rows:
+        type: integer
+        required: false
+        default: 100
+        schema:
+          minimum: 1
+          maximum: 1000
+      catalog:
+        type: object
+        required: true
+        description: Already supplied source query catalog. Its metadata is caller context, not proof
+          of database access.
+        schema:
+          additionalProperties: false
+          required:
+          - source_ref
+          - dialect
+          - status
+          - executed
+          - max_rows
+          - queries
+          properties:
+            source_ref:
+              type: string
+              pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
+            dialect:
+              type: string
+              minLength: 1
+              maxLength: 64
+            status:
+              const: catalog
+            executed:
+              const: false
+            max_rows:
+              type: integer
+              minimum: 1
+              maximum: 1000
+            queries:
+              type: array
+              maxItems: 64
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                - id
+                - description
+                - parameters_schema
+                - result_description
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
+                  description:
+                    type: string
+                    maxLength: 4000
+                  parameters_schema:
+                    type: object
+                    additionalProperties: true
+                  result_description:
+                    type: string
+                    maxLength: 4000
+              minItems: 1
+    result_from:
+    - finalize
+    steps:
+    - id: choose
+      agent:
+        role: analyst
+        task: sql-select-query
+      inputs:
+        question: $input.question
+        source_ref: $input.source_ref
+        catalog: $input.catalog
+        max_rows: $input.max_rows
+      outputs:
+        choice:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - query_id
+            - parameters
+            - reason
+            - missing_context
+            properties:
+              decision:
+                enum:
+                - ready
+                - no_suitable_query
+              query_id:
+                type: string
+                maxLength: 192
+              parameters:
+                type: object
+                additionalProperties: true
+                maxProperties: 64
+              reason:
+                type: string
+                minLength: 1
+                maxLength: 4000
+              missing_context:
+                type: array
+                maxItems: 16
+                items:
+                  type: string
+                  maxLength: 1000
+    - id: bind
+      tool:
+        module: sql-analysis.mjs
+        export: bindChoice
+      inputs:
+        question: $input.question
+        source_ref: $input.source_ref
+        catalog: $input.catalog
+        choice: $steps.choose.choice
+        max_rows: $input.max_rows
+      outputs:
+        candidate: object
+        parameters_schema: object
+        parameters: object
+    - id: validate
+      tool: data.validate
+      inputs:
+        schema: $steps.bind.parameters_schema
+        values:
+        - $steps.bind.parameters
+    - id: finalize
+      tool:
+        module: sql-analysis.mjs
+        export: finalizePlan
+      inputs:
+        candidate: $steps.bind.candidate
+        validation: $steps.validate.validation
+      outputs:
+        sql_analysis_plan:
+          type: object
+          schema:
+            additionalProperties: false
+            required:
+            - decision
+            - question
+            - source_ref
+            - dialect
+            - query_id
+            - parameters
+            - max_rows
+            - reason
+            - missing_context
+            - result_description
+            - executed
+            - validation
+            properties:
+              decision:
+                enum:
+                - ready
+                - no_suitable_query
+                - invalid_parameters
+              question:
+                type: string
+                maxLength: 8000
+              source_ref:
+                type: string
+                pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
+              dialect:
+                type: string
+                maxLength: 64
+              query_id:
+                type: string
+                maxLength: 192
+              parameters:
+                type: object
+                additionalProperties: true
+              max_rows:
+                type: integer
+                minimum: 1
+                maximum: 1000
+              reason:
+                type: string
+                maxLength: 4000
+              missing_context:
+                type: array
+                maxItems: 16
+                items:
+                  type: string
+                  maxLength: 1000
+              result_description:
+                type: string
+                maxLength: 4000
+              executed:
+                const: false
+              validation:
+                type: object
+                additionalProperties: true
+      artifacts:
+        named_emits:
+          sql_analysis_plan: sql_analysis_plan
+        packets:
+          sql_analysis_plan: runx.data.sql_analysis_plan.v1
+harness:
+  files:
+  - fixtures/support/composed-plan.graph
+  cases:
+  - name: plans-a-declared-parameterized-read
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: postgres
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: ready
+            query_id: qualified_trials_by_campaign
+            parameters:
+              since: '2026-10-01'
+            reason: The declared query ranks qualified trials for the requested period.
+            missing_context: []
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: ready
+                executed: false
+                query_id: qualified_trials_by_campaign
+                max_rows: 50
+                parameters:
+                  since: '2026-10-01'
+      receipt:
+        schema: runx.receipt.v1
+    operator_journeys:
+    - mode: standalone
+      request: Which campaigns produced qualified trials since 2026-10-01?
+      expected_outcome: Select the relevant declared read with exact bound parameters and no execution
+        claim.
+    - mode: composed
+      request: Plan against this already obtained query catalog.
+      expected_outcome: Reuse supplied source semantics and validate parameters without querying the database
+        again.
+      prior_evidence:
+      - The upstream source query catalog.
+      must_not_repeat:
+      - Do not reacquire the catalog or execute SQL.
+  - name: rejects-a-query-absent-from-the-source
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: postgres
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: ready
+            query_id: invented_query
+            parameters:
+              since: '2026-10-01'
+            reason: The declared query ranks qualified trials for the requested period.
+            missing_context: []
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: no_suitable_query
+                executed: false
+      receipt:
+        schema: runx.receipt.v1
+  - name: refuses-invalid-bound-values
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: postgres
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: ready
+            query_id: qualified_trials_by_campaign
+            parameters:
+              since: not-a-date
+            reason: The declared query ranks qualified trials for the requested period.
+            missing_context: []
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: invalid_parameters
+                executed: false
+      receipt:
+        schema: runx.receipt.v1
+  - name: refuses-undeclared-parameters
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: postgres
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: ready
+            query_id: qualified_trials_by_campaign
+            parameters:
+              since: '2026-10-01'
+              sql: DELETE FROM trials
+            reason: The declared query ranks qualified trials for the requested period.
+            missing_context: []
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: invalid_parameters
+                executed: false
+      receipt:
+        schema: runx.receipt.v1
+  - name: does-not-invent-required-context
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: postgres
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: no_suitable_query
+            query_id: ''
+            parameters: {}
+            reason: A trial-count query cannot establish why revenue fell.
+            missing_context:
+            - Revenue and pricing evidence.
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: no_suitable_query
+                executed: false
+      receipt:
+        schema: runx.receipt.v1
+  - name: accepts-a-configured-external-dialect
+    runner: plan
+    inputs:
+      question: Which campaigns produced qualified trials since 2026-10-01?
+      source_ref: analytics:production
+      max_rows: 100
+      catalog:
+        source_ref: analytics:production
+        dialect: snowflake
+        status: catalog
+        executed: false
+        max_rows: 50
+        queries:
+        - id: qualified_trials_by_campaign
+          description: Rank campaigns by qualified trials since a supplied date.
+          parameters_schema:
+            type: object
+            additionalProperties: false
+            required:
+            - since
+            properties:
+              since:
+                type: string
+                pattern: ^2026-10-[0-9]{2}$
+          result_description: Campaign and qualified-trial count; missing campaign is unattributed, not
+            causal attribution.
+    caller:
+      answers:
+        choose:
+          choice:
+            decision: ready
+            query_id: qualified_trials_by_campaign
+            parameters:
+              since: '2026-10-01'
+            reason: The declared query ranks qualified trials for the requested period.
+            missing_context: []
+    expect:
+      status: sealed
+      steps:
+      - choose
+      - bind
+      - validate
+      - finalize
+      step_outputs:
+        finalize:
+          subset:
+            sql_analysis_plan:
+              data:
+                decision: ready
+                executed: false
+      receipt:
+        schema: runx.receipt.v1

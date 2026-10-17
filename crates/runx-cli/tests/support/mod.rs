@@ -241,16 +241,16 @@ pub fn governed_harness_fixture(
 }
 
 pub fn write_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("issue-intake");
+    let skill_dir = root.join("code-intake");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: issue-intake\ndescription: issue-intake fixture.\n---\n# Issue Intake\n",
+        "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# Issue Intake\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: issue-intake
+skill: code-intake
 runners:
   intake:
     default: true
@@ -260,7 +260,7 @@ runners:
         required: false
     steps:
       - id: intake
-        agent: { role: builder, task: issue-intake }
+        agent: { role: builder, task: code-intake }
         inputs:
           thread_title: $input.thread_title
         outputs:

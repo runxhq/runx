@@ -111,6 +111,11 @@
       "content_digest": "sha256:82b455bcd4ba93bdf3a1a089b09d36e15714d403dcfe5de72a9e964a7222f559"
     },
     {
+      "ref": "sql",
+      "version": "sha-5bfa66f1a272",
+      "content_digest": "sha256:5bfa66f1a272eda00174718f0ccd88002e3c4e4d140750b2cc1dc7388ca8d14e"
+    },
+    {
       "ref": "store",
       "version": "sha-3ba3776b3e5d",
       "content_digest": "sha256:3ba3776b3e5ddd5f3407020caf1fb47512ba920e53c178a623fefa708d4ba43c"

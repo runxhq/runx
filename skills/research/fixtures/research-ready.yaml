@@ -4,7 +4,7 @@ target: ..
 runner: research
 operator_journeys:
   - mode: standalone
-    confusors: [deep-research, prior-art]
+    confusors: [research-brief, prior-art]
     request: Research this bounded question from the supplied governed source packets.
     expected_outcome: Return a citation-bound research packet from the default runner without rediscovering or reacquiring the sources.
 inputs:

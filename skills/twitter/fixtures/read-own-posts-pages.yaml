@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [moltbook, deep-research]
+    confusors: [moltbook, research-brief]
     request: Read my three most recent posts on X.
     expected_outcome: Read the authenticated account, page its posts until at least the requested count, and return every post of those whole pages with where the next read starts.
 inputs:

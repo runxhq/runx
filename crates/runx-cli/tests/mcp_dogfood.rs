@@ -310,7 +310,7 @@ runners:
                     2,
                     "tools/call",
                     json!({
-                        "name": if agent { "issue-intake" } else { "approval" },
+                        "name": if agent { "code-intake" } else { "approval" },
                         "arguments": { "thread_title": "Preserve this original input" },
                     }),
                 ),

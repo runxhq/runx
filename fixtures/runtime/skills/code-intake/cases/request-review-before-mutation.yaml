@@ -1,0 +1,98 @@
+name: "request-review-before-mutation"
+kind: "skill"
+target: "../../../../../skills/code-intake"
+runner: "intake"
+inputs:
+  outbox_entry:
+    entry_id: "github_issue_984"
+    kind: "message"
+    locator: "https://github.com/example/repo/issues/984"
+    status: "published"
+    thread_locator: "github://example/repo/issues/984"
+  product_context: "Workspace repo with multiple bounded mutation surfaces"
+  thread_body: "The report mentions API failures and docs drift, but it is not yet clear whether this is one bounded fix or cross-repo work."
+  thread_locator: "github://example/repo/issues/984"
+  thread_title: "Clarify the affected repo before we start"
+caller:
+  answers:
+    intake:
+      change_set:
+        action_decision: "request_review"
+        category: "other"
+        change_set_id: "change_set_support_984"
+        commence_decision: "approve"
+        outbox_entry:
+          entry_id: "github_issue_984"
+          kind: "message"
+          locator: "https://github.com/example/repo/issues/984"
+          status: "published"
+          thread_locator: "github://example/repo/issues/984"
+        recommended_lane: "manual-review"
+        severity: "medium"
+        shared_invariants:
+          - "Do not guess the target repo from incomplete issue text."
+        success_criteria:
+          - "The maintainer confirms the target surface before any planner or worker starts."
+        summary: "Clarify the affected repo before opening a governed worker or plan."
+        target_surfaces:
+          -
+            kind: "other"
+            mutating: false
+            rationale: "Repo ownership is still ambiguous, so the supervisor must stop at a public review comment first."
+            surface: "workspace"
+        thread_locator: "github://example/repo/issues/984"
+      closure:
+        disposition: "closed"
+        reason_code: "issue_intake_completed"
+        summary: "Ambiguous request needs review before mutation."
+      intake_report:
+        action_decision: "request_review"
+        category: "other"
+        commence_decision: "approve"
+        needs_human: false
+        operator_notes:
+          - "Do not open github-issue-to-pr until the target repo is explicit."
+        rationale: "The maintainer needs to confirm the target surface before runx opens a downstream lane."
+        recommended_lane: "manual-review"
+        review_comment: "Please confirm whether the failing path belongs to the API repo, the docs repo, or both. runx is holding mutation until the target surface is explicit."
+        review_target: "thread"
+        severity: "medium"
+        suggested_reply: "Please confirm which repo owns the failing path before we start governed mutation."
+        summary: "The report is directionally actionable but still too ambiguous to start a worker or planner safely."
+      signal:
+        change_set:
+          change_set_id: "change_set_support_984"
+        created_at: "2026-05-15T00:00:00Z"
+        dedupe:
+          algorithm: "sha256"
+          fingerprint: "sha256:ambiguous-api-docs-drift"
+          source_locator: "github://example/repo/issues/984"
+        schema: "runx.signal.v1"
+        signal_id: "sig_support_984"
+        source_events:
+          -
+            body_preview: "The report mentions API failures and docs drift, but target ownership is ambiguous."
+            provider: "github"
+            source_locator: "github://example/repo/issues/984"
+            thread_locator: "github://example/repo/issues/984"
+            title: "Clarify the affected repo before we start"
+        state: "blocked"
+        status_summary: "Mutation is blocked until the target surface is confirmed."
+        triage:
+          action: "manual-review"
+          category: "other"
+          confidence: 0.74
+          needs_human: false
+          rationale: "The maintainer needs to confirm the target surface before mutation starts."
+          recommended_lane: "manual-review"
+          severity: "medium"
+        updated_at: "2026-05-15T00:00:00Z"
+expect:
+  status: "sealed"
+  receipt:
+    schema: "runx.receipt.v1"
+    state: "sealed"
+    disposition: "closed"
+metadata:
+  product_skill: "code-intake"
+  source_case: "request-review-before-mutation"

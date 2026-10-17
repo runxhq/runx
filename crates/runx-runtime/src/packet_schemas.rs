@@ -666,7 +666,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let source = tempfile::tempdir()?;
         fs::write(source.path().join("pnpm-workspace.yaml"), "packages: []\n")?;
-        let package = source.path().join("skills/work-plan");
+        let package = source.path().join("skills/code-plan");
         let profile = package.join("graph/plan");
         let execution = tempfile::tempdir()?;
 

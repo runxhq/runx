@@ -1,4 +1,6 @@
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{
+    DataValidation, DataValidationIssue, DataValueValidation, JsonObject, JsonValue,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -36,6 +38,23 @@ struct CompareInput {
 }
 
 impl CapabilityInput for CompareInput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct ValidateInput {
+    schema: JsonValue,
+    values: Vec<JsonValue>,
+}
+
+impl CapabilityInput for ValidateInput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct ValidateOutput {
+    validation: DataValidation,
+}
+
+impl CapabilityOutput for ValidateOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -186,7 +205,97 @@ static HARNESS_CONTEXT: TypedNativeCapability<HarnessContextInput, HarnessContex
         capture_harness_context,
     );
 
-pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&DIGEST, &COMPARE, &HARNESS_CONTEXT];
+static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "data.validate",
+        owner: "runx-runtime/data",
+        summary: "Validate up to 128 JSON values against a self-contained JSON Schema 2020-12; formats are annotations, external retrieval is disabled.",
+        scopes: &[],
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Named {
+            output: "validation",
+            packet: "runx.data.validation.v1",
+        },
+        fields: &[
+            field(
+                "schema",
+                "Self-contained JSON Schema 2020-12, at most 256 KiB.",
+            ),
+            field(
+                "values",
+                "Up to 128 values, at most 2 MiB total; error output contains paths, not sample contents.",
+            ),
+        ],
+    },
+    validate_values,
+);
+
+pub(super) const CAPABILITIES: &[&dyn NativeCapability] =
+    &[&DIGEST, &COMPARE, &VALIDATE, &HARNESS_CONTEXT];
+
+fn validate_values(
+    invocation: &NativeInvocation<'_, ValidateInput>,
+) -> Result<ValidateOutput, RuntimeError> {
+    validate_batch(invocation.inputs).map(|validation| ValidateOutput { validation })
+}
+
+fn validate_batch(input: &ValidateInput) -> Result<DataValidation, RuntimeError> {
+    let schema_bytes = digest_bytes(&input.schema, "canonical_json")?;
+    let values = JsonValue::Array(input.values.clone());
+    let values_bytes = digest_bytes(&values, "canonical_json")?;
+    if input.values.len() > 128
+        || schema_bytes.len() > 256 * 1024
+        || values_bytes.len() > 2 * 1024 * 1024
+    {
+        return Err(invalid_input(
+            "data.validate",
+            "validation exceeds the schema, value-count or payload byte bound",
+        ));
+    }
+    let schema = serde_json::to_value(&input.schema)
+        .map_err(|source| RuntimeError::json("serializing validation schema", source))?;
+    let validator = jsonschema::draft202012::options()
+        .offline()
+        .should_validate_formats(false)
+        .build(&schema)
+        .map_err(|error| {
+            invalid_input(
+                "data.validate",
+                format!(
+                    "invalid or unresolved JSON Schema at {}",
+                    error.schema_path()
+                ),
+            )
+        })?;
+    let mut results = Vec::with_capacity(input.values.len());
+    for (index, value) in input.values.iter().enumerate() {
+        let value = serde_json::to_value(value)
+            .map_err(|source| RuntimeError::json("serializing validation value", source))?;
+        let mut errors = validator.iter_errors(&value);
+        let issues: Vec<_> = errors
+            .by_ref()
+            .take(32)
+            .map(|error| DataValidationIssue {
+                instance_path: error.instance_path().to_string(),
+                schema_path: error.schema_path().to_string(),
+            })
+            .collect();
+        let truncated = errors.next().is_some();
+        results.push(DataValueValidation {
+            index,
+            valid: issues.is_empty() && !truncated,
+            errors: issues,
+            truncated,
+        });
+    }
+    Ok(DataValidation {
+        valid: results.iter().all(|result| result.valid),
+        schema_digest: runx_contracts::sha256_prefixed(&schema_bytes),
+        values_digest: runx_contracts::sha256_prefixed(&values_bytes),
+        results,
+    })
+}
 
 fn digest_value(
     invocation: &NativeInvocation<'_, DigestInput>,
@@ -272,6 +381,48 @@ mod tests {
         assert_eq!(
             digest_bytes(&text, "utf8_text").expect("UTF-8 bytes"),
             b"hello"
+        );
+    }
+
+    #[test]
+    fn validate_enforces_nested_constraints_and_number_semantics() {
+        let input = serde_json::from_value(serde_json::json!({
+            "schema": {"type":"object", "required":["items"], "properties":{
+                "items":{"type":"array", "minItems":1, "items":{"$ref":"#/$defs/item"}}
+            }, "$defs":{"item":{"type":"object", "required":["name","amount"], "properties":{
+                "name":{"type":"string","minLength":10}, "amount":{"type":"number","minimum":1}
+            }, "additionalProperties":false}}},
+            "values":[{"items":[{"name":"long enough", "amount":2}]}, {"items":[{"name":"x","amount":0}]}, {"items":[]}]
+        })).expect("input");
+        let result = super::validate_batch(&input).expect("validation");
+        assert!(!result.valid);
+        assert!(result.results[0].valid);
+        assert_eq!(result.results[1].errors.len(), 2);
+        assert!(!result.results[2].valid);
+    }
+
+    #[test]
+    fn validate_refuses_remote_and_malformed_schemas() {
+        for schema in [
+            serde_json::json!({"$ref":"https://example.invalid/schema"}),
+            serde_json::json!({"type":42}),
+        ] {
+            let input = serde_json::from_value(serde_json::json!({"schema":schema, "values":[{}]}))
+                .expect("input");
+            assert!(super::validate_batch(&input).is_err());
+        }
+    }
+
+    #[test]
+    fn validate_bounds_errors_without_exposing_values() {
+        let input = serde_json::from_value(serde_json::json!({"schema":{"type":"array","items":{"const":false}}, "values":[vec!["private sample"; 40]]})).expect("input");
+        let result = super::validate_batch(&input).expect("validation");
+        assert_eq!(result.results[0].errors.len(), 32);
+        assert!(result.results[0].truncated);
+        assert!(
+            !serde_json::to_string(&result)
+                .expect("output")
+                .contains("private sample")
         );
     }
 }

@@ -1,7 +1,0 @@
-name: helpdesk-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [helpdesk, digest]
-  receipt: { schema: runx.receipt.v1 }

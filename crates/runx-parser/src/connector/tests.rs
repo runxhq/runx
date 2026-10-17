@@ -1235,3 +1235,42 @@ fn a_purchase_credential_no_operation_takes_is_refused() {
         "filled by an operation that holds it with action take",
     );
 }
+
+#[test]
+fn local_process_credentials_have_no_false_network_audience() {
+    let process = r#"
+schema: runx.connector.v1
+id: local-db
+name: Local database
+description: Read a configured source through a trusted process.
+runtime_capability: false
+auth:
+  credentials:
+    connection:
+      kind: password
+      fields: [{name: connection}]
+      delivery: {env: DATABASE_CONNECTION}
+placements: {local: {auth: [credentials]}}
+operations:
+  query.read:
+    description: Read the bound source.
+    verb: read
+    scopes: [query.read]
+    credentials: [connection]
+    target: {template: source:local}
+    implementation: {process: {tool: database.read}}
+"#;
+    validate(process).expect("the trusted process is the credential recipient");
+    validate(&process.replace(
+        "kind: password", "audience: [api.example.com]\n      kind: password",
+    )).expect("an existing process descriptor can document recipients without claiming egress confinement");
+    let mixed = format!(
+        "{process}\n  remote.read:\n    description: Read a remote source.\n    verb: read\n    scopes: [remote.read]\n    credentials: [connection]\n    target: {{template: https://api.example.com/read}}\n    result_fields: [result]\n    implementation:\n      http:\n        allowed_hosts: [api.example.com]\n        auth: {{connection: {{type: bearer, field: connection}}}}\n        requests:\n          - {{method: GET, url: https://api.example.com/read}}\n"
+    );
+    assert_rejects(&mixed, "declare the hosts the credential may be sent to");
+    validate(&mixed.replace(
+        "kind: password",
+        "audience: [api.example.com]\n      kind: password",
+    ))
+    .expect("a mixed credential retains its actual runtime HTTP audience");
+}

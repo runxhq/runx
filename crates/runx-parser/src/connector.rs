@@ -150,12 +150,12 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
         errors.push("placements", "declare at least one placement");
     }
     for (name, declaration) in &auth.credentials {
-        match (store_only(manifest, name), declaration.audience.is_empty()) {
-            (true, false) => errors.push(
+        match (credential_recipient(manifest, name), declaration.audience.is_empty()) {
+            (CredentialRecipient::Store, false) => errors.push(
                 &format!("auth.credentials.{name}.audience"),
                 "a credential only a store uses goes to the store its instance pins; declare no audience",
             ),
-            (false, true) => errors.push(
+            (CredentialRecipient::Network, true) => errors.push(
                 &format!("auth.credentials.{name}.audience"),
                 "declare the hosts the credential may be sent to",
             ),
@@ -381,31 +381,48 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
     }
 }
 
-/// Whether only `store` implementations use `credential`: it is then sent
-/// to the store its instance pins and nowhere else.
-fn store_only(manifest: &ConnectorManifest, credential: &CredentialName) -> bool {
-    let auth = &manifest.auth;
-    let session = matches!(
-        &auth.session,
-        Some(SessionAuth::Command { credential: stands_in, .. }) if stands_in == credential
-    );
-    let hosted = manifest
+/// Which boundary presents a credential. A trusted process owns its further
+/// use, so a process-only declaration may document an audience but does not
+/// need one. Network uses still require it; store-only uses still prohibit it.
+enum CredentialRecipient {
+    Store,
+    Process,
+    Network,
+}
+
+fn credential_recipient(
+    manifest: &ConnectorManifest,
+    credential: &CredentialName,
+) -> CredentialRecipient {
+    if matches!(
+        &manifest.auth.session,
+        Some(SessionAuth::Command { credential: used, .. }) if used == credential
+    ) || manifest
         .placements
         .hosted
         .as_ref()
-        .is_some_and(|hosted| hosted.credential.as_ref() == Some(credential));
-    let mut users = manifest
+        .is_some_and(|hosted| hosted.credential.as_ref() == Some(credential))
+    {
+        return CredentialRecipient::Network;
+    }
+    let mut recipient = None;
+    for operation in manifest
         .operations
         .values()
         .filter(|operation| operation.credentials.contains(credential))
-        .peekable();
-    users.peek().is_some()
-        && !session
-        && !hosted
-        && users.all(|operation| {
-            operation.hosted.is_none()
-                && matches!(operation.implementation, Some(Implementation::Store(_)))
-        })
+    {
+        if operation.hosted.is_some() {
+            return CredentialRecipient::Network;
+        }
+        match operation.implementation.as_ref() {
+            Some(Implementation::Store(_)) => {
+                recipient.get_or_insert(CredentialRecipient::Store);
+            }
+            Some(Implementation::Process(_)) => recipient = Some(CredentialRecipient::Process),
+            _ => return CredentialRecipient::Network,
+        }
+    }
+    recipient.unwrap_or(CredentialRecipient::Network)
 }
 
 /// The instance parameters a connector declares are a JSON Schema for an

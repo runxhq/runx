@@ -1,0 +1,606 @@
+skill: schema-check
+version: "0.1.7"
+catalog:
+  kind: graph
+  audience: public
+  visibility: public
+  category: code
+  role: canonical
+  execution: read
+  completion: runtime_receipt
+  approval: none
+harness:
+  files:
+  - fixtures/support/composed.graph
+  cases:
+  - name: schema-check-additive-change-proposes
+    operator_journeys:
+    - mode: standalone
+      confusors:
+      - extract
+      - skill-review
+      request: Check whether this proposed contract change breaks existing callers before the schema is
+        published.
+      expected_outcome: Return a compatibility verdict with per-sample validation and a gated publish
+        proposal, with no live write.
+    - mode: composed
+      request: Continue from this already checked schema change and its compatibility verdict.
+      expected_outcome: Reuse the supplied verdict and digests without re-deriving the comparison.
+      prior_evidence:
+      - The current schema, proposed schema, samples, and policy supplied in the fixture.
+      must_not_repeat:
+      - Do not re-run the schema comparison already sealed in the verdict.
+    inputs:
+      current_schema:
+        type: object
+        required:
+        - id
+        properties:
+          id:
+            type: string
+          status:
+            type: string
+            enum:
+            - open
+            - closed
+      proposed_schema:
+        type: object
+        required:
+        - id
+        properties:
+          id:
+            type: string
+          status:
+            type: string
+            enum:
+            - open
+            - closed
+          note:
+            type: string
+      sample_payloads:
+      - id: case-1
+        status: open
+      - id: case-2
+        status: closed
+        note: resolved by vendor
+      compatibility_policy:
+        breaking_allowed: false
+        required_fields:
+        - id
+        versioning_rule: minor_on_additive
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                schema: runx.schema_check.v1
+                decision: compatible
+                policy_result: allowed
+                breaking_changes: []
+                proposal:
+                  status: proposed
+                  live_write_performed: false
+                  changed_paths:
+                  - $.note
+                validation:
+                  status: pass
+                  findings: []
+      receipt:
+        schema: runx.receipt.v1
+  - name: schema-check-breaking-change-refuses
+    inputs:
+      current_schema:
+        type: object
+        required:
+        - id
+        properties:
+          id:
+            type: string
+          amount:
+            type: number
+      proposed_schema:
+        type: object
+        required:
+        - id
+        - amount
+        properties:
+          id:
+            type: string
+          amount:
+            type: string
+      sample_payloads:
+      - id: case-1
+        amount: 12.5
+      compatibility_policy:
+        breaking_allowed: false
+        required_fields:
+        - id
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+                policy_result: blocked_by_policy
+                proposal: null
+      receipt:
+        schema: runx.receipt.v1
+  - name: schema-check-invalid-samples-refuse
+    inputs:
+      current_schema:
+        type: object
+        properties:
+          id:
+            type: string
+      proposed_schema:
+        type: object
+        properties:
+          id:
+            type: string
+      sample_payloads: []
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+                policy_result: invalid_input
+                proposal: null
+                validation:
+                  status: fail
+      receipt:
+        schema: runx.receipt.v1
+  - name: schema-check-needs-proposed-schema
+    inputs:
+      current_schema:
+        type: object
+        properties:
+          id:
+            type: string
+      sample_payloads:
+      - id: case-1
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: failure
+  - name: refuses-minlength-regression
+    inputs:
+      current_schema:
+        type: string
+      proposed_schema:
+        type: string
+        minLength: 10
+      sample_payloads:
+      - x
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+      receipt:
+        schema: runx.receipt.v1
+  - name: refuses-unproved-array-compatibility
+    inputs:
+      current_schema:
+        type: array
+        items:
+          type: number
+      proposed_schema:
+        type: array
+        items:
+          type: number
+          minimum: 0
+      sample_payloads:
+      - - 1
+        - 2
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+      receipt:
+        schema: runx.receipt.v1
+  - name: accepts-integers-as-jsonschema-numbers
+    inputs:
+      current_schema:
+        type: number
+      proposed_schema:
+        type: number
+      sample_payloads:
+      - 2
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: compatible
+      receipt:
+        schema: runx.receipt.v1
+  - name: refuses-new-root-enum
+    inputs:
+      current_schema:
+        type: string
+      proposed_schema:
+        type: string
+        enum:
+        - only
+      sample_payloads:
+      - only
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+      receipt:
+        schema: runx.receipt.v1
+  - name: refuses-new-undeclared-required-field
+    inputs:
+      current_schema:
+        type: object
+      proposed_schema:
+        type: object
+        required:
+        - new
+      sample_payloads:
+      - new: true
+      compatibility_policy:
+        breaking_allowed: false
+    expect:
+      status: sealed
+      steps:
+      - digest-current
+      - digest-proposed
+      - digest-samples
+      - validate-current
+      - validate-proposed
+      - check
+      step_outputs:
+        check:
+          subset:
+            schema_check:
+              data:
+                decision: refused
+      receipt:
+        schema: runx.receipt.v1
+runners:
+  check:
+    default: true
+    inputs:
+      current_schema:
+        type: json
+        required: true
+        description: Current JSON Schema object contract callers depend on today.
+      proposed_schema:
+        type: json
+        required: true
+        description: Proposed JSON Schema object contract to check before publication.
+      sample_payloads:
+        type: json
+        required: true
+        description: Non-empty array of real payloads validated against the proposed contract.
+      compatibility_policy:
+        type: object
+        required: true
+        description: Compatibility policy for this contract; breaking changes are refused unless explicitly
+          allowed.
+        schema:
+          additionalProperties: false
+          properties:
+            breaking_allowed:
+              type: boolean
+              description: Whether breaking changes may pass; defaults to refusal.
+            required_fields:
+              type: array
+              maxItems: 100
+              items:
+                type: string
+                minLength: 1
+                maxLength: 500
+              description: Field paths that must exist in the proposed contract.
+            versioning_rule:
+              type: string
+              maxLength: 200
+              description: Versioning rule recorded with the verdict.
+    examples:
+    - current_schema:
+        type: object
+        required:
+        - id
+        properties:
+          id:
+            type: string
+      proposed_schema:
+        type: object
+        required:
+        - id
+        properties:
+          id:
+            type: string
+          note:
+            type: string
+      sample_payloads:
+      - id: case-1
+      compatibility_policy:
+        breaking_allowed: false
+        required_fields:
+        - id
+    result_from:
+    - check
+    steps:
+    - id: digest-current
+      tool: data.digest
+      inputs:
+        value: $input.current_schema
+    - id: digest-proposed
+      tool: data.digest
+      inputs:
+        value: $input.proposed_schema
+    - id: digest-samples
+      tool: data.digest
+      inputs:
+        value: $input.sample_payloads
+    - id: validate-current
+      tool: data.validate
+      inputs:
+        schema: $input.current_schema
+        values: $input.sample_payloads
+    - id: validate-proposed
+      tool: data.validate
+      inputs:
+        schema: $input.proposed_schema
+        values: $input.sample_payloads
+    - id: check
+      label: compare contracts, validate samples, and gate the proposal
+      inputs:
+        current_schema: $input.current_schema
+        proposed_schema: $input.proposed_schema
+        sample_payloads: $input.sample_payloads
+        compatibility_policy: $input.compatibility_policy
+        current_digest: $steps.digest-current.digest_result.digest
+        proposed_digest: $steps.digest-proposed.digest_result.digest
+        samples_digest: $steps.digest-samples.digest_result.digest
+        current_validation: $steps.validate-current.validation
+        proposed_validation: $steps.validate-proposed.validation
+      tool:
+        module: schema-check.mjs
+        export: checkSchemaChange
+      outputs:
+        schema_check:
+          type: object
+          schema:
+            required:
+            - schema
+            - decision
+            - policy_result
+            - breaking_changes
+            - validation_results
+            - migration_notes
+            - proposal
+            - validation
+            additionalProperties: false
+            properties:
+              schema:
+                const: runx.schema_check.v1
+              decision:
+                type: string
+                enum:
+                - compatible
+                - refused
+              policy_result:
+                type: string
+                enum:
+                - allowed
+                - blocked_by_policy
+                - invalid_input
+              breaking_changes:
+                type: array
+                maxItems: 500
+                items:
+                  type: object
+                  required:
+                  - path
+                  - old_contract
+                  - new_contract
+                  - policy_rule
+                  additionalProperties: false
+                  properties:
+                    path:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    old_contract:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    new_contract:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    policy_rule:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+              validation_results:
+                type: array
+                maxItems: 1000
+                items:
+                  type: object
+                  required:
+                  - sample_index
+                  - valid
+                  - errors
+                  additionalProperties: false
+                  properties:
+                    sample_index:
+                      type: integer
+                      minimum: 0
+                    valid:
+                      type: boolean
+                    errors:
+                      type: array
+                      maxItems: 500
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+              migration_notes:
+                type: array
+                maxItems: 1000
+                items:
+                  type: object
+                  required:
+                  - path
+                  - kind
+                  - note
+                  additionalProperties: false
+                  properties:
+                    path:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    kind:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    note:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+              proposal:
+                type:
+                - object
+                - 'null'
+                properties:
+                  status:
+                    const: proposed
+                  gate:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  live_write_performed:
+                    const: false
+                  current_schema_digest:
+                    type: string
+                    pattern: ^sha256:[0-9a-f]{64}$
+                  proposed_schema_digest:
+                    type: string
+                    pattern: ^sha256:[0-9a-f]{64}$
+                  samples_digest:
+                    type: string
+                    pattern: ^sha256:[0-9a-f]{64}$
+                  changed_paths:
+                    type: array
+                    maxItems: 500
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+              validation:
+                type: object
+                required:
+                - status
+                - findings
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - pass
+                    - fail
+                  findings:
+                    type: array
+                    maxItems: 50
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      additionalProperties: false
+                      properties:
+                        code:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        message:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+      artifacts:
+        named_emits:
+          schema_check: schema_check

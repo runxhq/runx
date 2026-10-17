@@ -227,9 +227,10 @@ pub struct CredentialDeclaration {
     /// purchase credential has none: it never leaves runx Connect.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery: Option<CredentialDelivery>,
-    /// Hosts the credential may be sent to. A credential only a `store`
-    /// implementation uses has none: it goes only to the store its instance
-    /// pins.
+    /// Hosts the runtime may present the credential to. A local store-only
+    /// credential has none. For process-only use this is optional: delivery is
+    /// to the bound executor, which owns further presentation. This field does
+    /// not claim to confine a trusted process's network access.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audience: Vec<NonEmptyString>,
 }

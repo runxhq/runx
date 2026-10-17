@@ -5,6 +5,49 @@ fn modules(source: &str) -> BTreeMap<String, String> {
 }
 
 #[test]
+fn rejects_integer_precision_loss_before_any_javascript_runs() {
+    for value in [
+        serde_json::json!({"id": 9_007_199_254_740_993_u64}),
+        serde_json::json!({"nested": [i64::MIN, i64::MAX]}),
+        serde_json::json!({"maximum": u64::MAX}),
+    ] {
+        let error = evaluate(
+            "main.mjs",
+            "default",
+            &modules("export default () => { throw new Error('module executed'); };"),
+            value,
+            BTreeMap::new(),
+            InvocationLimits::default(),
+        )
+        .err();
+        assert!(
+            matches!(error, Some(error)
+            if error.code == WorkerFailureCode::InvalidRequest
+                && error.message.contains("safe range")
+                && !error.message.contains("module executed")),
+            "an exact integer must be refused before JavaScript executes"
+        );
+    }
+}
+
+#[test]
+fn preserves_safe_integer_edges_and_exact_large_integer_strings() -> Result<(), EngineError> {
+    let output = evaluate(
+        "main.mjs",
+        "default",
+        &modules("export default (value) => value;"),
+        serde_json::json!({"maximum": 9_007_199_254_740_991_i64, "minimum": -9_007_199_254_740_991_i64, "id": "9007199254740993", "large_float": 1.0e18}),
+        BTreeMap::new(),
+        InvocationLimits::default(),
+    )?;
+    assert_eq!(output["maximum"].as_f64(), Some(9_007_199_254_740_991_f64));
+    assert_eq!(output["minimum"].as_f64(), Some(-9_007_199_254_740_991_f64));
+    assert_eq!(output["id"], "9007199254740993");
+    assert_eq!(output["large_float"].as_f64(), Some(1.0e18));
+    Ok(())
+}
+
+#[test]
 fn evaluates_default_export_with_fixed_time() -> Result<(), EngineError> {
     let output = evaluate(
         "main.mjs",

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc">
   <title id="title">Business operations: launch team workspaces</title>
-  <desc id="desc">Northstar is launching team workspaces. Ops-desk coordinates the work. Lead-enrichment supplies customer facts for the audience. Release preparation leads to an approved, verified release. Release and product documentation inform content-pipeline, which prepares the setup guide and announcement through research and ghostwrite. Message-send planning hands the announcement to Nitrosend or another email provider. Message-send also coordinates the launch through Slack. Product-analytics compares the workspace-to-first-invitation baseline with later adoption. Moving signals pause at approval boundaries.</desc>
+  <desc id="desc">Northstar is launching team workspaces. Operations-review identifies the next actions from the launch snapshot; the operator coordinates execution. Lead-enrichment supplies customer facts for the audience. Release preparation leads to an approved, verified release. Release and product documentation inform content-package, which prepares the setup guide and announcement through research and ghostwrite. Message-send planning hands the announcement to Nitrosend or another email provider. Message-send also coordinates the launch through Slack. Product-analytics compares the workspace-to-first-invitation baseline with later adoption. Moving signals pause at approval boundaries.</desc>
   <defs>
     <style>
       :root{color-scheme:light dark;--bg:#fcfbf9;--card:#fff;--line:#e4e0d9;--ink:#242522;--muted:#666963;--faint:#93988d;--p:#7957be;--t:#087f79;--a:#b06c10;--o:#c95f2b;--b:#346ab6}
@@ -50,7 +50,7 @@
   <text class="small" x="45" y="196">Northstar · Product launch</text>
   <rect class="card" x="28" y="240" width="214" height="90" rx="12"/>
   <rect x="28" y="254" width="3" height="62" rx="1.5" fill="var(--o)"/>
-  <text class="title" x="47" y="270">ops-desk</text>
+  <text class="title" x="47" y="270">operations-review</text>
   <text class="label" x="47" y="295">Read state. Rank actions.</text>
   <text class="small" x="47" y="316">Proposals · blockers · proof</text>
   <rect class="card" x="28" y="385" width="214" height="74" rx="12"/>
@@ -72,7 +72,7 @@
   <rect class="card" x="335" y="219" width="330" height="96" rx="12"/>
   <rect x="335" y="233" width="3" height="68" rx="1.5" fill="var(--t)"/>
   <text class="eyebrow" x="353" y="241">DOCS &amp; ANNOUNCEMENT</text>
-  <text class="title" x="353" y="267">content-pipeline</text>
+  <text class="title" x="353" y="267">content-package</text>
   <text class="code" x="353" y="289">research → ghostwrite</text>
   <text class="small" x="353" y="306">Setup guide + launch announcement</text>
   <rect class="card" x="724" y="219" width="188" height="96" rx="12"/>

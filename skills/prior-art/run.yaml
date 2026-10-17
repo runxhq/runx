@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.11"
+version: "0.2.12"
 catalog:
   kind: graph
   audience: builder
@@ -156,7 +156,7 @@ runners:
       decomposition:
         type: json
         required: false
-        description: Structured decomposition output from work-plan.
+        description: Structured decomposition output from code-plan.
       graph_purpose:
         type: string
         required: false

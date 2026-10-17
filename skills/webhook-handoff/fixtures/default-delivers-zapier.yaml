@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [message-send, content-pipeline]
+    confusors: [message-send, content-package]
     request: Hand this governed Runx payload to the configured Zapier Catch Hook.
     expected_outcome: Prepare, approve, and deliver one idempotent hook request with the receiver response captured.
   - mode: composed

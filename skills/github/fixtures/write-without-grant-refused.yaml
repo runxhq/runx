@@ -1,0 +1,25 @@
+name: github-refuses-push-with-read-scope
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: issues
+    filters: {limit: 1}
+    mutations:
+      - ref: issues/241
+        op: update
+        payload: {labels: [triage]}
+  scope: read
+expect:
+  status: sealed
+  output:
+    subset:
+      sync_plan:
+        data:
+          decision: refused
+          provider_status: not_called
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: github, source_case: push-read-scope-refusal, source: skills-fixture}

@@ -1,0 +1,475 @@
+skill: contact-consent-review
+version: "0.1.8"
+
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  category: growth
+  role: canonical
+  execution: execute
+  completion: runtime_receipt
+  approval: none
+
+input_definitions:
+  data_source_ref:
+    type: string
+    required: true
+    description: Logical consent-ledger source selected by the operator.
+    schema: { minLength: 1, maxLength: 500 }
+  resource:
+    type: string
+    required: true
+    description: Declared contact-consent event resource.
+    schema: { minLength: 1, maxLength: 200 }
+  aggregate_id:
+    type: string
+    required: true
+    description: Stable contact key in the consent ledger.
+    schema: { minLength: 1, maxLength: 500 }
+  expected_version:
+    type: integer
+    required: true
+    description: Consent-ledger version observed with the supplied evidence.
+    schema: { minimum: 0 }
+  idempotency_key:
+    type: string
+    required: true
+    description: Stable retry identity for this exact intended consent transition.
+    schema: { minLength: 8, maxLength: 256, pattern: '^[A-Za-z0-9._:-]+$' }
+  engagement_evidence:
+    type: object
+    required: true
+    description: Bounded current engagement and bounce observation.
+    schema:
+      additionalProperties: false
+      required: [hard_bounces, recency_days]
+      properties:
+        hard_bounces: { type: integer, minimum: 0, maximum: 1000000000 }
+        recency_days: { type: integer, minimum: 0, maximum: 36500 }
+  hygiene_policy:
+    type: object
+    required: true
+    description: Exact hard-bounce action and engagement-decay threshold.
+    schema:
+      additionalProperties: false
+      required: [hard_bounce_action, decay_threshold_days]
+      properties:
+        hard_bounce_action: { type: string, enum: [suppress, human_review] }
+        decay_threshold_days: { type: integer, minimum: 1, maximum: 3650 }
+  consent_evidence:
+    type: object
+    required: true
+    description: Current bounded consent observation aligned to the ledger version.
+    schema:
+      additionalProperties: false
+      required: [state, active_unsubscribe_marker, evidence_status, evidence_version]
+      properties:
+        state: { type: string, enum: [subscribed, re_permission, suppress, unsubscribed] }
+        active_unsubscribe_marker: { type: boolean }
+        evidence_status: { type: string, enum: [read, missing, unreadable, stale, ambiguous] }
+        evidence_version: { type: integer, minimum: 0 }
+
+harness:
+  files: [fixtures/support/composed.graph]
+  cases:
+    - name: list-hygiene-re-permissions-decayed-contact
+      runner: judge
+      operator_journeys:
+        - mode: standalone
+          confusors: [message-send, crm-update-plan]
+          request: Decide whether this contact needs re-permission or suppression before a campaign.
+          expected_outcome: Record only a justified consent-ledger transition, verify the exact event, and leave delivery unattempted.
+        - mode: composed
+          request: Continue from the supplied contact engagement and consent evidence without collecting it again.
+          expected_outcome: Reuse the supplied evidence, record any justified transition once, and leave delivery to message-send.
+          prior_evidence:
+            - Current bounded engagement, bounce, and consent evidence supplied by the upstream contact review.
+          must_not_repeat:
+            - Do not collect engagement evidence again.
+            - Do not send a message.
+      inputs:
+        data_source_ref: local://contact-consent-review/decay
+        resource: contact_consent_events
+        aggregate_id: contact:decay
+        expected_version: 0
+        idempotency_key: contact:decay:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 121 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, append-transition, readback, finalize-written]
+        step_outputs:
+          finalize-written:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: re_permission }
+                  recorded_transition: { recorded: true, state: re_permission, write_status: committed, after_version: 1 }
+                  downstream_send: { skill: message-send, status: not_run }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-suppresses-hard-bounce
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/hard-bounce
+        resource: contact_consent_events
+        aggregate_id: contact:hard-bounce
+        expected_version: 0
+        idempotency_key: contact:hard-bounce:consent:v1
+        engagement_evidence: { hard_bounces: 1, recency_days: 12 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, append-transition, readback, finalize-written]
+        step_outputs:
+          finalize-written:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: suppress }
+                  recorded_transition: { recorded: true, state: suppress, write_status: committed, after_version: 1 }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-verifies-clean-recent-contact
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/current
+        resource: contact_consent_events
+        aggregate_id: contact:current
+        expected_version: 0
+        idempotency_key: contact:current:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 12 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, readback, finalize-unchanged]
+        step_outputs:
+          finalize-unchanged:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: verify }
+                  recorded_transition: { recorded: false, state: null, write_status: not_attempted, after_version: 0 }
+                  escalation: null
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-preserves-existing-suppression
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/suppressed
+        resource: contact_consent_events
+        aggregate_id: contact:suppressed
+        expected_version: 0
+        idempotency_key: contact:suppressed:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 365 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: suppress, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, readback, finalize-unchanged]
+        step_outputs:
+          finalize-unchanged:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: suppress }
+                  recorded_transition: { recorded: false, state: null, write_status: not_attempted, after_version: 0 }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-stops-stale-evidence
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/stale
+        resource: contact_consent_events
+        aggregate_id: contact:stale
+        expected_version: 0
+        idempotency_key: contact:stale:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 180 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: stale, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, readback, finalize-unchanged]
+        step_outputs:
+          finalize-unchanged:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: human_review }
+                  recorded_transition: { recorded: false, write_status: not_attempted, after_version: 0 }
+                  escalation: { lane: "human:list-hygiene-reviewer", status: required_before_any_write }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-stops-unsubscribe-marker
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/unsubscribed
+        resource: contact_consent_events
+        aggregate_id: contact:unsubscribed
+        expected_version: 0
+        idempotency_key: contact:unsubscribed:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 180 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: unsubscribed, active_unsubscribe_marker: true, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: sealed
+        steps: [read-contact, decide, readback, finalize-unchanged]
+        step_outputs:
+          finalize-unchanged:
+            subset:
+              list_hygiene_result:
+                data:
+                  decision: { state: human_review }
+                  recorded_transition: { recorded: false, write_status: not_attempted }
+        receipt: { schema: runx.receipt.v1 }
+
+    - name: list-hygiene-rejects-negative-metrics
+      runner: judge
+      inputs:
+        data_source_ref: local://contact-consent-review/invalid
+        resource: contact_consent_events
+        aggregate_id: contact:invalid
+        expected_version: 0
+        idempotency_key: contact:invalid:consent:v1
+        engagement_evidence: { hard_bounces: -1, recency_days: 10 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+      expect:
+        status: failure
+
+connectors:
+  store:
+    operations: [events.append, projection.read]
+runners:
+  judge:
+    default: true
+    inputs:
+      data_source_ref: { definition: data_source_ref }
+      resource: { definition: resource }
+      aggregate_id: { definition: aggregate_id }
+      expected_version: { definition: expected_version }
+      idempotency_key: { definition: idempotency_key }
+      engagement_evidence: { definition: engagement_evidence }
+      hygiene_policy: { definition: hygiene_policy }
+      consent_evidence: { definition: consent_evidence }
+    examples:
+      - data_source_ref: local://contact-consent-review/example
+        resource: contact_consent_events
+        aggregate_id: contact:example
+        expected_version: 0
+        idempotency_key: contact:example:consent:v1
+        engagement_evidence: { hard_bounces: 0, recency_days: 12 }
+        hygiene_policy: { hard_bounce_action: suppress, decay_threshold_days: 90 }
+        consent_evidence: { state: subscribed, active_unsubscribe_marker: false, evidence_status: read, evidence_version: 0 }
+    result_from: [finalize-written, finalize-unchanged]
+    steps:
+      - id: read-contact
+        operation: store/projection.read
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+
+      - id: decide
+        inputs:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          expected_version: $input.expected_version
+          idempotency_key: $input.idempotency_key
+          engagement_evidence: $input.engagement_evidence
+          hygiene_policy: $input.hygiene_policy
+          consent_evidence: $input.consent_evidence
+          contact_readback: $steps.read-contact.provider_operation.result
+        tool: { module: contact-consent-review.mjs, export: decideListHygiene }
+        outputs:
+          decision_plan:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [aggregate_id, data_source_ref, resource, expected_version, idempotency_key, observed_state, projection_version, projection_digest, decision, reason_code, append_allowed, event]
+              properties:
+                aggregate_id: { type: string }
+                data_source_ref: { type: string }
+                resource: { type: string }
+                expected_version: { type: integer, minimum: 0 }
+                idempotency_key: { type: string }
+                observed_state: { type: string, enum: [subscribed, re_permission, suppress, unsubscribed] }
+                projection_version: { type: integer, minimum: 0 }
+                projection_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                decision:
+                  type: object
+                  additionalProperties: false
+                  required: [state, reason]
+                  properties:
+                    state: { type: string, enum: [verify, re_permission, suppress, human_review] }
+                    reason: { type: string, minLength: 1, maxLength: 1000 }
+                reason_code: { type: string, minLength: 1, maxLength: 100 }
+                append_allowed: { type: boolean }
+                event:
+                  type: [object, "null"]
+                  additionalProperties: false
+                  required: [type, aggregate_id, from_state, new_state, reason, evidence, evidence_version]
+                  properties:
+                    type: { const: list_hygiene.consent_transitioned }
+                    aggregate_id: { type: string }
+                    from_state: { type: string, enum: [subscribed, re_permission, suppress, unsubscribed] }
+                    new_state: { type: string, enum: [re_permission, suppress] }
+                    reason: { type: string, minLength: 1, maxLength: 1000 }
+                    evidence:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        hard_bounces: { type: integer, minimum: 0 }
+                        hard_bounce_action: { type: string, enum: [suppress, human_review] }
+                        recency_days: { type: integer, minimum: 0 }
+                        decay_threshold_days: { type: integer, minimum: 1 }
+                    evidence_version: { type: integer, minimum: 0 }
+        artifacts:
+          named_emits:
+            decision_plan: decision_plan
+
+      - id: append-transition
+        when:
+          value: $steps.decide.decision_plan.append_allowed
+          equals: true
+        operation: store/events.append
+        idempotency_key: $input.idempotency_key
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+          expected_version: $input.expected_version
+          event: $steps.decide.decision_plan.event
+
+      - id: readback
+        operation: store/projection.read
+        input:
+          data_source_ref: $input.data_source_ref
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+
+      - id: finalize-written
+        when:
+          value: $steps.decide.decision_plan.append_allowed
+          equals: true
+        inputs:
+          decision_plan: $steps.decide.decision_plan
+          write_result: $steps.append-transition.provider_operation.result
+          recorded_readback: $steps.readback.provider_operation.result
+        tool: { module: contact-consent-review.mjs, export: finalizeListHygiene }
+        outputs:
+          list_hygiene_result:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, observed_state, recorded_transition, escalation, downstream_send]
+              properties:
+                decision:
+                  type: object
+                  additionalProperties: false
+                  required: [state, reason]
+                  properties:
+                    state: { type: string, enum: [verify, re_permission, suppress, human_review] }
+                    reason: { type: string, minLength: 1, maxLength: 1000 }
+                observed_state: { type: string, enum: [subscribed, re_permission, suppress, unsubscribed] }
+                recorded_transition:
+                  type: object
+                  additionalProperties: false
+                  required: [recorded, state, aggregate_id, data_source_ref, resource, idempotency_key, write_status, before_version, after_version, event_ref, event_digest, projection_digest]
+                  properties:
+                    recorded: { type: boolean }
+                    state: { type: [string, "null"], enum: [re_permission, suppress, null] }
+                    aggregate_id: { type: string }
+                    data_source_ref: { type: string }
+                    resource: { type: string }
+                    idempotency_key: { type: [string, "null"] }
+                    write_status: { type: string, enum: [committed, idempotent_replay, not_attempted] }
+                    before_version: { type: integer, minimum: 0 }
+                    after_version: { type: integer, minimum: 0 }
+                    event_ref: { type: [string, "null"] }
+                    event_digest: { type: [string, "null"] }
+                    projection_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                escalation:
+                  type: [object, "null"]
+                  additionalProperties: false
+                  required: [lane, reason_code, status]
+                  properties:
+                    lane: { const: "human:list-hygiene-reviewer" }
+                    reason_code: { type: string, minLength: 1, maxLength: 100 }
+                    status: { const: required_before_any_write }
+                downstream_send:
+                  type: object
+                  additionalProperties: false
+                  required: [skill, status, requirement]
+                  properties:
+                    skill: { const: message-send }
+                    status: { const: not_run }
+                    requirement: { type: string, minLength: 1, maxLength: 500 }
+        artifacts:
+          named_emits:
+            list_hygiene_result: list_hygiene_result
+
+      - id: finalize-unchanged
+        when:
+          value: $steps.decide.decision_plan.append_allowed
+          equals: false
+        inputs:
+          decision_plan: $steps.decide.decision_plan
+          recorded_readback: $steps.readback.provider_operation.result
+        tool: { module: contact-consent-review.mjs, export: finalizeListHygiene }
+        outputs:
+          list_hygiene_result:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, observed_state, recorded_transition, escalation, downstream_send]
+              properties:
+                decision:
+                  type: object
+                  additionalProperties: false
+                  required: [state, reason]
+                  properties:
+                    state: { type: string, enum: [verify, re_permission, suppress, human_review] }
+                    reason: { type: string, minLength: 1, maxLength: 1000 }
+                observed_state: { type: string, enum: [subscribed, re_permission, suppress, unsubscribed] }
+                recorded_transition:
+                  type: object
+                  additionalProperties: false
+                  required: [recorded, state, aggregate_id, data_source_ref, resource, idempotency_key, write_status, before_version, after_version, event_ref, event_digest, projection_digest]
+                  properties:
+                    recorded: { type: boolean }
+                    state: { type: [string, "null"], enum: [re_permission, suppress, null] }
+                    aggregate_id: { type: string }
+                    data_source_ref: { type: string }
+                    resource: { type: string }
+                    idempotency_key: { type: [string, "null"] }
+                    write_status: { type: string, enum: [committed, idempotent_replay, not_attempted] }
+                    before_version: { type: integer, minimum: 0 }
+                    after_version: { type: integer, minimum: 0 }
+                    event_ref: { type: [string, "null"] }
+                    event_digest: { type: [string, "null"] }
+                    projection_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+                escalation:
+                  type: [object, "null"]
+                  additionalProperties: false
+                  required: [lane, reason_code, status]
+                  properties:
+                    lane: { const: "human:list-hygiene-reviewer" }
+                    reason_code: { type: string, minLength: 1, maxLength: 100 }
+                    status: { const: required_before_any_write }
+                downstream_send:
+                  type: object
+                  additionalProperties: false
+                  required: [skill, status, requirement]
+                  properties:
+                    skill: { const: message-send }
+                    status: { const: not_run }
+                    requirement: { type: string, minLength: 1, maxLength: 500 }
+        artifacts:
+          named_emits:
+            list_hygiene_result: list_hygiene_result

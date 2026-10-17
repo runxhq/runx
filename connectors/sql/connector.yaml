@@ -1,0 +1,54 @@
+schema: runx.connector.v1
+id: sql
+name: SQL
+description: Execute operator-declared parameterized reads through an installed SQLAlchemy database dialect and driver. Connection settings and query definitions stay with the selected local instance.
+category: analytics
+runtime_capability: false
+auth:
+  credentials:
+    connection:
+      kind: password
+      fields:
+        - {name: connection, label: SQL source configuration (JSON)}
+      delivery: {env: RUNX_SQL_CONNECTION}
+placements:
+  local:
+    auth: [credentials]
+operations:
+  catalog.read:
+    description: Read this source's declared query descriptions, parameter schemas and row ceiling without opening the database or exposing connection settings or SQL.
+    verb: read
+    scopes: [database.catalog.read]
+    credentials: [connection]
+    target:
+      template: {$argument: /source_ref}
+    input_schema:
+      type: object
+      required: [action, source_ref]
+      additionalProperties: false
+      properties:
+        action: {const: catalog}
+        source_ref: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
+    result_fields: [source_ref, dialect, status, executed, max_rows, queries]
+    implementation:
+      process: {tool: sql.read}
+  query.read:
+    description: Execute one declared query with schema-validated bound parameters and return bounded rows. Database read-only permissions and timeouts must be configured by the operator.
+    verb: read
+    scopes: [database.query.read]
+    credentials: [connection]
+    target:
+      template: {$argument: /source_ref}
+    input_schema:
+      type: object
+      required: [action, source_ref, query_id, parameters, max_rows]
+      additionalProperties: false
+      properties:
+        action: {const: query}
+        source_ref: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
+        query_id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
+        parameters: {type: object, maxProperties: 64}
+        max_rows: {type: integer, minimum: 1, maximum: 1000}
+    result_fields: [source_ref, dialect, status, executed, query_id, columns, rows, returned_rows, max_rows, truncated, result_description, observed_at, duration_ms]
+    implementation:
+      process: {tool: sql.read}

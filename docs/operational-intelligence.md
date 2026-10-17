@@ -20,7 +20,7 @@ UI verbs map onto existing runx actions instead of creating fixed domain lanes:
 
 - `check` is read-only triage and does not grant mutation permission.
 - `reply` prepares draft context or a `reply-only` proposal; it does not send.
-- `create issue` maps to the tracking-item lane through `issue-intake`.
+- `create issue` maps to the tracking-item lane through `code-intake`.
 - `build fix without prior check` maps directly to `issue-to-PR` when source
   context, policy, and authority are sufficient.
 - `manual-review` stops with a human review packet.

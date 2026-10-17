@@ -34,7 +34,7 @@ the governance is real rather than narrated.
 ```bash
 runx export claude                          # current workspace's public skills -> ~/.claude/skills
 runx export claude --project                # -> ./.claude/skills (checked into a repo)
-runx export claude nws-weather-forecast pay   # only the named skills
+runx export claude nws-weather pay   # only the named skills
 runx export codex                           # ~/.codex/skills plus managed rules
 pnpm codex-export:check                     # verify the active managed Codex surface
 ```

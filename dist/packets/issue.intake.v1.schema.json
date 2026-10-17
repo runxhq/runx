@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.runx.ai/runx/issue/intake/v1.json",
   "x-runx-packet-id": "runx.issue.intake.v1",
-  "x-runx-generated-from": "skills/issue-intake/run.yaml#root.runners.intake.steps.0",
+  "x-runx-generated-from": "skills/code-intake/run.yaml#root.runners.intake.steps.0",
   "type": "object",
   "required": [
     "change_set",
@@ -82,8 +82,8 @@
         },
         "recommended_lane": {
           "enum": [
-            "issue-to-pr",
-            "work-plan",
+            "github-issue-to-pr",
+            "code-plan",
             "reply-only",
             "manual-review"
           ],
@@ -220,8 +220,8 @@
         },
         "recommended_lane": {
           "enum": [
-            "issue-to-pr",
-            "work-plan",
+            "github-issue-to-pr",
+            "code-plan",
             "reply-only",
             "manual-review"
           ],

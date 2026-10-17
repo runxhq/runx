@@ -1,0 +1,24 @@
+name: github-blocks-mixed-push
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: batch
+    mutations:
+      - {ref: issues/241, op: update, payload: {labels: [triage]}}
+      - {ref: issues/241/comments, op: comment, payload: {body: Triaged.}}
+  scope: write
+expect:
+  status: sealed
+  output:
+    subset:
+      sync_plan:
+        data:
+          decision: blocked
+          provider_operation: ""
+          provider_input: null
+          blockers: ["a push applies one operation; send issue, pull request and comment changes as separate pushes"]
+metadata: {public_skill: github, source_case: mixed-push, source: skills-fixture}

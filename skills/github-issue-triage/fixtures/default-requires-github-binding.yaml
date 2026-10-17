@@ -1,0 +1,15 @@
+name: github-issue-triage-default-requires-github-binding
+kind: skill
+target: ..
+operator_journeys:
+  - mode: refusal
+    confusors: [code-intake, github]
+    request: Triage issue 241 in runxhq/runx without a local or hosted GitHub binding.
+    expected_outcome: Refuse immediately with one grant message before claiming issue evidence.
+inputs:
+  repository: runxhq/runx
+  issue_number: "241"
+  objective: Draft the next helpful maintainer response.
+expect:
+  status: policy_denied
+metadata: { public_skill: github-issue-triage, source_case: direct-default-preflight, source: skills-fixture }

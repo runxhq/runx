@@ -1,9 +1,0 @@
-name: issue-to-pr-composes-in-graph
-kind: graph
-target: support/composed.graph
-env:
-  PATH: fixtures/bin:/usr/bin:/bin
-expect:
-  status: sealed
-  steps: [issue-to-pr, digest]
-  receipt: { schema: runx.receipt.v1 }

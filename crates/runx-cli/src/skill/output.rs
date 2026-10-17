@@ -1009,7 +1009,7 @@ mod tests {
             ("status".to_owned(), JsonValue::String("sealed".to_owned())),
             (
                 "skill_name".to_owned(),
-                JsonValue::String("nws-weather-forecast".to_owned()),
+                JsonValue::String("nws-weather".to_owned()),
             ),
             (
                 "run_id".to_owned(),

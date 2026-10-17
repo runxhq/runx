@@ -358,3 +358,18 @@ fn rejects_unknown_caller_fields() {
     .expect_err("an unknown caller field must fail");
     assert!(matches!(error, HarnessFixtureError::Invalid { field, .. } if field == "caller"));
 }
+
+#[test]
+fn process_calls_are_bounded_and_exact_not_an_order_dependent_fallback()
+-> Result<(), HarnessFixtureError> {
+    let prefix = "name: process\nkind: skill\ntarget: ../skill\ncaller:\n  process_calls:\n";
+    let call = "    - tool: source.read\n      arguments: {id: one}\n      result: {value: 7}\n";
+    let fixture = parse_harness_fixture(&format!("{prefix}{call}"))?;
+    assert_eq!(fixture.caller.process_calls.len(), 1);
+    assert!(parse_harness_fixture(&format!("{prefix}{call}{call}")).is_err());
+    assert!(parse_harness_fixture(&format!("{prefix}{}", call.repeat(33))).is_err());
+    assert!(
+        parse_harness_fixture(&format!("{prefix}{}", call.replace("source.read", "''"))).is_err()
+    );
+    Ok(())
+}

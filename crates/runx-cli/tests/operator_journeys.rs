@@ -107,7 +107,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
         .find_map(|line| line.strip_prefix("run_id: "))
         .ok_or("pending run omitted run_id")?
         .to_owned();
-    assert!(run_id.starts_with("run_issue-intake_"), "{run_id}");
+    assert!(run_id.starts_with("run_code-intake_"), "{run_id}");
     assert!(pause_text.contains(&format!("runx resume {run_id} -")));
 
     assert!(run_is_paused(&run_read(&root, &run_id)?));

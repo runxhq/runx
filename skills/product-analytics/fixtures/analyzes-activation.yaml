@@ -81,7 +81,7 @@ operator_journeys:
   expected_outcome: Return the exact bounded domain result and preserve holds without outward effects.
   confusors:
   - organic-growth
-  - sql-analyst
+  - sql-analysis
 - mode: composed
   request: Analyze these supplied product counts and propose the next measurement.
   expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.

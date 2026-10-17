@@ -38,4 +38,4 @@ needs the transaction confirmed on chain and a 2xx answer from the resource. It
 never waits on the resource's own product state.
 
 Use `charge` to take a payment as the seller, `refund` to reverse one, and
-`settle-invoice` when an invoice needs validating before it is paid.
+`invoice-pay` when an invoice needs validating before it is paid.

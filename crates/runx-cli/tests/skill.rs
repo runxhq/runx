@@ -163,7 +163,7 @@ fn native_skill_resolves_bare_local_skill_and_documented_input_flags()
         .current_dir(&root)
         .args([
             "skill",
-            "issue-intake",
+            "code-intake",
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
             "--input",
@@ -504,12 +504,12 @@ runners:
 fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-exported-shim");
     let source_dir = crate::support::write_agent_task_skill(&root.join("source with spaces"))?;
-    let shim_dir = root.join("claude").join("issue-intake");
+    let shim_dir = root.join("claude").join("code-intake");
     fs::create_dir_all(&shim_dir)?;
     fs::write(
         shim_dir.join("SKILL.md"),
         format!(
-            "---\nname: issue-intake\ndescription: issue-intake fixture.\n---\n# issue-intake\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
+            "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# code-intake\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
             source_dir.display()
         ),
     )?;

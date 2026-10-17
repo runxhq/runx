@@ -3,7 +3,7 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: refusal
-    confusors: [deep-research, research]
+    confusors: [research-brief, research]
     request: Scan Moltbook without a Moltbook API key configured.
     expected_outcome: Refuse before reading the feed and claim no feed evidence.
 inputs:

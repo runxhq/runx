@@ -10,13 +10,36 @@ pub(super) fn validate_input(
 ) -> Result<(), EngineError> {
     let bytes = serde_json::to_vec(inputs)
         .map_err(|error| EngineError::new(WorkerFailureCode::InvalidRequest, error.to_string()))?;
-    if bytes.len() <= maximum {
-        return Ok(());
+    if bytes.len() > maximum {
+        return Err(EngineError::limit(format!(
+            "JavaScript input is {} bytes; limit is {maximum} bytes",
+            bytes.len()
+        )));
     }
-    Err(EngineError::limit(format!(
-        "JavaScript input is {} bytes; limit is {maximum} bytes",
-        bytes.len()
-    )))
+    if contains_unsafe_integer(inputs) {
+        return Err(EngineError::new(
+            WorkerFailureCode::InvalidRequest,
+            "JavaScript input contains an integer outside its safe range; use strings for exact large integers",
+        ));
+    }
+    Ok(())
+}
+
+fn contains_unsafe_integer(value: &serde_json::Value) -> bool {
+    const MAX_SAFE_INTEGER: i64 = (1_i64 << 53) - 1;
+    match value {
+        serde_json::Value::Number(number) => {
+            number
+                .as_i64()
+                .is_some_and(|value| !(-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&value))
+                || number
+                    .as_u64()
+                    .is_some_and(|value| value > MAX_SAFE_INTEGER as u64)
+        }
+        serde_json::Value::Array(values) => values.iter().any(contains_unsafe_integer),
+        serde_json::Value::Object(values) => values.values().any(contains_unsafe_integer),
+        _ => false,
+    }
 }
 
 pub(super) fn validate_bundle(

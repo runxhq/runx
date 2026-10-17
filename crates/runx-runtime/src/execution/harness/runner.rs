@@ -1072,20 +1072,20 @@ mod tests {
             ("RUNX_CWD".to_owned(), "../..".to_owned()),
         ]);
 
-        resolve_fixture_path(&mut env, Path::new("/workspace/skills/github-sync"))?;
+        resolve_fixture_path(&mut env, Path::new("/workspace/skills/github"))?;
 
         let paths = std::env::split_paths(env.get("PATH").ok_or("PATH was not retained")?)
             .collect::<Vec<_>>();
         assert_eq!(
             paths,
             vec![
-                Path::new("/workspace/skills/github-sync/fixtures/bin").to_path_buf(),
+                Path::new("/workspace/skills/github/fixtures/bin").to_path_buf(),
                 Path::new("/usr/bin").to_path_buf(),
             ]
         );
         assert_eq!(
             env.get("RUNX_CWD"),
-            Some(&"/workspace/skills/github-sync/../..".to_owned())
+            Some(&"/workspace/skills/github/../..".to_owned())
         );
         Ok(())
     }

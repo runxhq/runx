@@ -1,0 +1,56 @@
+name: github-issue-triage-drafts-from-one-snapshot
+kind: skill
+target: ..
+runner: respond
+operator_journeys:
+  - mode: standalone
+    confusors: [code-intake, github]
+    request: Triage runxhq/runx issue 241 and draft the next helpful maintainer response.
+    expected_outcome: Return a high-signal evidence-bound issue profile and response draft without mutating GitHub.
+  - mode: composed
+    request: Draft the maintainer response from this existing issue snapshot.
+    expected_outcome: Reuse the supplied snapshot and source reference without fetching or reclassifying the issue.
+    prior_evidence:
+      - The typed issue snapshot and source reference supplied in the fixture.
+    must_not_repeat:
+      - Do not fetch the GitHub issue again.
+      - Do not repeat issue discovery or target resolution.
+inputs:
+  issue_snapshot:
+    repository: runxhq/runx
+    number: "241"
+    title: Sourcey output path is unclear
+    state: open
+    body: The docs mention two different output directories.
+    source_ref: github:runxhq/runx/issues/241
+  objective: Draft the next helpful maintainer response.
+caller:
+  answers:
+    draft:
+      issue_profile:
+        repository: runxhq/runx
+        number: "241"
+        title: Sourcey output path is unclear
+        state: open
+        summary: The documentation conflicts about the output directory.
+      response_strategy:
+        stance: acknowledge and clarify
+      response_draft:
+        channel: github_issue_comment
+        body: Thanks for flagging this. The canonical path is being verified before we update the conflicting documentation.
+      follow_up_actions:
+        - Verify the canonical path.
+        - Correct the conflicting documentation.
+expect:
+  status: sealed
+  steps: [digest-snapshot, admit, draft, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        issue_triage_packet:
+          data:
+            decision: draft_ready
+            delivery_status: not_sent
+            provider_status: supplied_snapshot
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: github-issue-triage, source_case: snapshot-response, source: skills-fixture }
