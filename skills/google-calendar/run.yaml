@@ -1,9 +1,10 @@
 skill: google-calendar
-version: "0.1.6"
+version: "0.1.7"
 catalog:
   kind: graph
   audience: public
   visibility: public
+  category: ops
   role: canonical
   provider: google/calendar
   execution: read

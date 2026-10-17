@@ -1,9 +1,10 @@
 skill: prior-art
-version: "0.2.9"
+version: "0.2.10"
 catalog:
   kind: graph
   audience: builder
   visibility: public
+  category: authoring
   role: context
   execution: read
   completion: runtime_receipt

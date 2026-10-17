@@ -1,6 +1,6 @@
 skill: reddit
-version: "0.1.4"
-catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: read, completion: runtime_receipt, approval: conditional }
+version: "0.1.5"
+catalog: { kind: graph, audience: operator, visibility: public, category: growth, role: canonical, execution: read, completion: runtime_receipt, approval: conditional }
 connectors:
   store:
     operations: [events.append, events.read, heads.list]

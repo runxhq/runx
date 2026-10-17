@@ -1,10 +1,11 @@
 skill: schema-guard
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
   kind: graph
   audience: public
   visibility: public
+  category: code
   role: canonical
   execution: read
   completion: runtime_receipt
