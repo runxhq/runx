@@ -45,6 +45,9 @@ pub(crate) struct CapabilityRequest<'a> {
     pub hosted: &'a super::operation::hosted::HostedClient,
     pub env: &'a std::collections::BTreeMap<String, String>,
     pub cwd: &'a std::path::Path,
+    /// Public operations have no account holder; bind their capability to
+    /// the declared caller. Held authority keeps its own principal.
+    pub actor_ref: Option<&'a Reference>,
 }
 
 pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, String> {
@@ -159,13 +162,19 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 .collect(),
             Vec::new(),
         )),
-        InstanceAuthority::Public => Ok(capability(
-            instance,
-            request.connector,
-            None,
-            reachable_scopes(request.connector, public_may),
-            Vec::new(),
-        )),
+        InstanceAuthority::Public => {
+            let mut capability = capability(
+                instance,
+                request.connector,
+                None,
+                reachable_scopes(request.connector, public_may),
+                Vec::new(),
+            );
+            if let Some(actor_ref) = request.actor_ref {
+                capability.term.principal_ref = actor_ref.clone();
+            }
+            Ok(capability)
+        }
         // What a purchase holds serves the operations on its resource, and
         // only that resource; runx Connect refuses a target it holds nothing
         // for before anything is sent.
@@ -425,10 +434,18 @@ operations:
             hosted: &HostedClient::default(),
             env: &env,
             cwd: root.path(),
+            actor_ref: Some(&runx_contracts::Reference::runx(
+                ReferenceType::Principal,
+                "another-actor",
+            )),
         })
         .expect("evidence");
         assert_eq!(capability.scopes, vec!["user.read".to_owned()]);
         assert_eq!(capability.grant_id, None);
+        assert_eq!(
+            capability.term.principal_ref,
+            super::principal_reference(&narrowed)
+        );
         assert_eq!(
             capability.source,
             format!("instance {}", narrowed.instance_id)

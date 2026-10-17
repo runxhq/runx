@@ -327,6 +327,9 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         hosted: evaluation.context.hosted,
         env: evaluation.context.env,
         cwd: evaluation.context.cwd,
+        actor_ref: evaluation
+            .run_authority
+            .and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => capability,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Capability, detail)),
@@ -874,6 +877,7 @@ fn readiness(
         hosted,
         env,
         cwd,
+        actor_ref: authority.and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => {
             // Render only what inspection knows. Dynamic values from a later

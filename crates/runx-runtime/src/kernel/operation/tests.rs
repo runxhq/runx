@@ -1887,6 +1887,48 @@ fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
 }
 
 #[test]
+fn public_storage_acts_as_the_runs_declared_actor() {
+    let mut fixture = Fixture::new(&[]);
+    fixture.env.insert(
+        crate::execution::runner::RUNX_RUN_ID_ENV.to_owned(),
+        "run-actor".to_owned(),
+    );
+    let actor = Reference::with_uri(ReferenceType::Principal, PRINCIPAL_REF);
+    let mut authority = limited(u64::MAX);
+    authority.max_cost_micro = None;
+    authority.actor_ref = Some(actor.clone());
+    let (admission, outcome, _) = fixture
+        .run_under(
+            "allocate",
+            &allocation(serde_json::json!({"answer": 42})),
+            None,
+            Some(&authority),
+        )
+        .expect("public storage admits the declared actor");
+    let context = admission.context::<OperationAdmission>().unwrap();
+    assert_eq!(context.admitted.capability.term.principal_ref, actor);
+    assert_eq!(
+        context
+            .admitted
+            .admission
+            .execution_term
+            .as_ref()
+            .unwrap()
+            .principal_ref,
+        actor
+    );
+    assert_eq!(
+        packet(&outcome)["result"].as_object().unwrap()["principal_ref"],
+        JsonValue::String(PRINCIPAL_REF.to_owned())
+    );
+    assert_eq!(
+        sent(&fixture).len(),
+        2,
+        "allocation has independent readback"
+    );
+}
+
+#[test]
 fn an_artifact_held_for_another_principal_is_an_unknown_outcome() {
     let mut fixture = Fixture::new(&[]);
     fixture.env.insert(
