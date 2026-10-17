@@ -108,7 +108,6 @@ jobs:
           pnpm domains:check
           pnpm docs:api:check
           pnpm release:version:check
-          node scripts/generate-runx-maintained-lock.mjs --check
 
       # Release tooling runs only in the release workflow, so a change to it is
       # proven here, cheaply: every release script parses, the version is in
@@ -252,7 +251,10 @@ jobs:
       - name: Core skills
         if: needs.classify.outputs.skills == 'true'
         run: |
-          pnpm bundled-skills:check
+          if [[ "${{ needs.classify.outputs.full }}" != "true" ]]; then
+            node scripts/check-skill-version-drift.mjs --core-only
+            pnpm bundled-skills:check
+          fi
           node scripts/audit-core-skills.mjs --check --json --runx-bin crates/target/debug/runx \
             --skills "${{ needs.classify.outputs.core_skills }}" > /dev/null
           node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build \

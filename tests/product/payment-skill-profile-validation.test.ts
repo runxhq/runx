@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { validateRunnerManifestYaml } from "../scripts/lib/native-parser.mjs";
+import { validateRunnerManifestYaml } from "../../scripts/lib/native-parser.mjs";
 
 const hostedPaymentSkills = [
   "charge",

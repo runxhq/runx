@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use runx_contracts::{Receipt, ReceiptIssuerType};
 use runx_runtime::{
-    Ed25519ReceiptSigner, HarnessOptions, KernelStore, LocalReceiptStore,
+    Ed25519ReceiptSigner, KernelStore, LocalReceiptStore,
     RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
     RUNX_RECEIPT_SIGN_KID_ENV, RunLog, RuntimeOptions, RuntimeReceiptSignatureConfig,
     RuntimeReceiptSignaturePolicy, RuntimeReceiptSigningError,
@@ -27,7 +27,6 @@ pub(crate) fn fixture_policy()
     fixture_signature().map(RuntimeReceiptSignatureConfig::signature_policy)
 }
 
-pub(crate) const TEST_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 pub(crate) const TEST_SIGNING_KID: &str = "runx-runtime-prod-fixture-key";
 pub(crate) const TEST_SIGNING_SEED_BASE64: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 pub(crate) const TEST_SIGNING_ISSUER_TYPE: &str = "hosted";
@@ -140,12 +139,6 @@ pub(crate) fn fixture_runtime_options(
         RuntimeReceiptSignatureConfig::fixture()?,
         run,
     ))
-}
-
-pub(crate) fn harness_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
-    let mut options = HarnessOptions::new(std::env::vars().collect())?;
-    options.clock = runx_runtime::RunClock::Fixed(TEST_CREATED_AT.to_owned());
-    Ok(options)
 }
 
 pub(crate) fn read_test_signed_receipt(

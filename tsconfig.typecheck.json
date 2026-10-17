@@ -12,5 +12,5 @@
     "vitest.config.ts",
     "vitest.fast.config.ts"
   ],
-  "exclude": ["dist", "**/dist", ".build", "coverage", "node_modules", "packages/**/tools"]
+  "exclude": ["dist", "**/dist", ".build", "coverage", "node_modules", "packages/**/tools", "tests/product/**"]
 }

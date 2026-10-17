@@ -5,9 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { evaluateParserRequestResults } from "./lib/native-parser.mjs";
+import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const currentProfiles = new Map();
+const selectedSkills = process.argv.includes("--core-only") ? new Set(bundledCoreSkills()) : null;
 
 if (process.argv.includes("--self-test")) {
   runSelfTests();
@@ -33,6 +35,7 @@ function checkCurrentCatalog() {
   const documents = [];
   for (const entry of readdirSync(skillsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
+    if (selectedSkills && !selectedSkills.has(entry.name)) continue;
     const profilePath = path.join(skillsRoot, entry.name, "run.yaml");
     if (!existsSync(profilePath)) continue;
     const source = readFileSync(profilePath, "utf8");
@@ -67,6 +70,7 @@ function checkVersionDrift(base) {
     const skill = parts[1];
     const relative = parts.slice(2).join("/");
     if (!skill || !relative) continue;
+    if (selectedSkills && !selectedSkills.has(skill)) continue;
     const paths = candidatePaths.get(skill) ?? [];
     paths.push(changedPath);
     candidatePaths.set(skill, paths);

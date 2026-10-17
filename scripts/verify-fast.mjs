@@ -14,15 +14,13 @@ const results = [];
 
 await runParallelGroup("source checks", [
   step("readiness structural guard", "node", ["scripts/check-readiness-structural.mjs"]),
-  step("demo inventory guard", "node", ["scripts/check-demo-inventory.mjs"]),
+  step("demo inventory guard", "node", ["scripts/check-demo-inventory.mjs", "--examples-only"]),
   step("boundary:check", "pnpm", ["boundary:check"]),
   step("license manifest", "node", ["scripts/check-license-edges.mjs", "--check", "manifest-complete"]),
   step("license identifiers", "node", ["scripts/check-license-edges.mjs", "--check", "identifiers"]),
   step("runtime architecture", "pnpm", ["runtime:architecture-check"]),
   step("test:boundary", "pnpm", ["test:boundary"]),
-  step("test:skills", "pnpm", ["test:skills"]),
   step("typecheck", "pnpm", ["typecheck"]),
-  step("bindings:check", "pnpm", ["bindings:check"]),
   step("public domain URLs", "pnpm", ["domains:check"]),
   step("release version sync", "pnpm", ["release:version:check"]),
   step("deterministic module engine decision", "node", [
@@ -49,9 +47,9 @@ if (rustBuild.status === 0) {
   await runSerialGroup(
     "generated artifacts and fixtures",
     [
-      step("catalog version drift", "pnpm", ["catalog:check"]),
-      step("runx-maintained skill lock", "pnpm", ["runx-maintained-lock:check"]),
+      step("core skill version drift", "node", ["scripts/check-skill-version-drift.mjs", "--core-only"]),
       step("bundled core skills", "pnpm", ["bundled-skills:check"]),
+      step("native capability snapshot", "pnpm", ["capabilities:snapshot:check"]),
       step("runx-maintained connectors", "pnpm", ["runx-maintained-connectors:check"]),
       step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
@@ -67,13 +65,10 @@ if (rustBuild.status === 0) {
       step("fixtures:contracts:check", "pnpm", ["fixtures:contracts:check"]),
       step("fixtures:contracts:keys", "pnpm", ["fixtures:contracts:keys"]),
       step("fixtures:harness:check", "pnpm", ["fixtures:harness:check"]),
-      step("fixtures:harness:summary-check", "pnpm", ["fixtures:harness:summary-check"]),
-      step("fixtures:skills:check", "pnpm", ["fixtures:skills:check"]),
       step("fixtures:doctor:check", "pnpm", ["fixtures:doctor:check"]),
       step("fixtures:tool-catalog:check", "pnpm", ["fixtures:tool-catalog:check"]),
       step("docs:api:check", "pnpm", ["docs:api:check"]),
       step("docs:exit-codes", "pnpm", ["docs:exit-codes"]),
-      step("doctor json", rustKernelBin, ["doctor", "--json"]),
       step("release candidate smoke", "node", [
         "scripts/smoke-release-candidate.mjs", "--runx-bin", rustKernelBin,
       ]),

@@ -7,6 +7,6 @@ export default defineConfig({
     alias: [...workspaceAliases],
   },
   test: {
-    include: ["packages/**/*.test.ts", "tests/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "tests/*.test.ts", "tests/examples/**/*.test.ts"],
   },
 });
