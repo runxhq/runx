@@ -198,7 +198,7 @@ pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 /// Published Runx binaries are immutable for one CLI version. Binding this
 /// value prevents a queued or resumed run from silently crossing a runtime
 /// upgrade while retaining the same closure digest.
-pub const EXECUTION_RUNTIME_RELEASE: &str = "0.10.2";
+pub const EXECUTION_RUNTIME_RELEASE: &str = "0.10.1";
 
 pub use services::{persist_json_artifact, read_json_artifact};
 

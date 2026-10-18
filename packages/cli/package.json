@@ -1,6 +1,6 @@
 {
   "name": "@runxhq/cli",
-  "version": "0.10.2",
+  "version": "0.10.1",
   "description": "Runx CLI - native governed runtime for agent skills, tools, graphs, and packets.",
   "private": false,
   "license": "Apache-2.0",
