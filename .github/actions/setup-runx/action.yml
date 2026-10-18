@@ -1,0 +1,94 @@
+name: Set up runx
+description: >-
+  Build the runx CLI and its JavaScript worker from runx main and put both on
+  PATH. Main is the one runx version, so a repository that runs runx in CI uses
+  this action at main and pins no runx version of its own.
+
+inputs:
+  ref:
+    description: The runx branch or full commit to build.
+    default: main
+
+outputs:
+  commit:
+    description: The runx commit the binaries were built from.
+    value: ${{ steps.source.outputs.commit }}
+  version:
+    description: The exact `runx --version` output.
+    value: ${{ steps.verify.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch the runx source
+      id: source
+      shell: bash
+      env:
+        RUNX_REF: ${{ inputs.ref }}
+      run: |
+        dir="$RUNNER_TEMP/runx-source"
+        rm -rf "$dir"
+        git init -q "$dir"
+        git -C "$dir" fetch -q --depth 1 https://github.com/runxhq/runx.git "$RUNX_REF"
+        git -C "$dir" checkout -q --detach FETCH_HEAD
+        echo "dir=$dir" >> "$GITHUB_OUTPUT"
+        echo "commit=$(git -C "$dir" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "bin=$RUNNER_TEMP/runx-bin" >> "$GITHUB_OUTPUT"
+
+    # A commit's binaries are built once per repository and runner platform.
+    - name: Restore the binaries built from this commit
+      id: binaries
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.source.outputs.bin }}
+        key: runx-bin-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.commit }}
+
+    # rust-toolchain.toml in the source names the toolchain rustup installs.
+    - name: Set up the pinned Rust toolchain
+      if: steps.binaries.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ steps.source.outputs.dir }}
+      run: rustup show
+
+    # Dependencies carry over between commits; only runx's own crates rebuild.
+    - name: Cache the Rust dependencies
+      if: steps.binaries.outputs.cache-hit != 'true'
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ${{ steps.source.outputs.dir }}/crates -> target
+        shared-key: setup-runx
+
+    # The release profile is the shipped binary, and the worker's interpreter is
+    # too slow to run skills unoptimized.
+    - name: Build the CLI and the JavaScript worker
+      if: steps.binaries.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ steps.source.outputs.dir }}
+      env:
+        RUNX_BIN: ${{ steps.source.outputs.bin }}
+      run: |
+        cargo build --release --locked --manifest-path crates/Cargo.toml -p runx-cli -p runx-js-worker
+        exe=""
+        if [ "$RUNNER_OS" = "Windows" ]; then exe=".exe"; fi
+        mkdir -p "$RUNX_BIN"
+        cp "crates/target/release/runx$exe" "crates/target/release/runx-js-worker$exe" "$RUNX_BIN/"
+
+    - name: Save the binaries built from this commit
+      if: steps.binaries.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ steps.source.outputs.bin }}
+        key: runx-bin-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.commit }}
+
+    # The worker sits beside the CLI, where runx finds it.
+    - name: Put runx on PATH
+      id: verify
+      shell: bash
+      env:
+        RUNX_BIN: ${{ steps.source.outputs.bin }}
+        RUNX_COMMIT: ${{ steps.source.outputs.commit }}
+      run: |
+        echo "$RUNX_BIN" >> "$GITHUB_PATH"
+        version="$("$RUNX_BIN/runx" --version)"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "$version from runxhq/runx@$RUNX_COMMIT"
