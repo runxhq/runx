@@ -76,12 +76,13 @@ expectIncludes("aur package identity", aur, "pkgname=runx\n");
 expectIncludes("aur version", aur, `pkgver=${manifest.version}\n`);
 expectIncludes("aur source checksum", aur, `sha256sums=('${manifest.source.sha256}')`);
 expectIncludes("aur builds both executables", aur, "-p runx-cli -p runx-js-worker");
-expectIncludes("aur builds without debug info", aur, "options=('!debug')");
+expectIncludes("aur builds without debug info or C LTO", aur, "options=('!debug' '!lto')");
 const aurSrcinfo = readFileSync(path.join(options.channels, "aur", ".SRCINFO"), "utf8");
 expectIncludes("aur source info version", aurSrcinfo, `\tpkgver = ${manifest.version}`);
 expectIncludes("aur source info homepage", aurSrcinfo, `\turl = ${manifest.homepage}`);
 expectIncludes("aur source info archive", aurSrcinfo, `\tsource = runx-${manifest.version}.tar.gz::${manifest.source.url}`);
 expectIncludes("aur source info checksum", aurSrcinfo, `\tsha256sums = ${manifest.source.sha256}`);
+expectIncludes("aur source info options", aurSrcinfo, "\toptions = !debug\n\toptions = !lto\n");
 
 const homebrew = readFileSync(path.join(options.channels, "homebrew", "runx.rb"), "utf8");
 expectIncludes("homebrew nested archive install", homebrew, 'bin.install Dir["*/runx"].first => "runx"');
