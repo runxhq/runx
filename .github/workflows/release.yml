@@ -121,9 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
-          for tarball in "$RUNNER_TEMP"/typescript-packages/*.tgz; do
-            bash scripts/publish-npm-tarball.sh --check "$tarball"
-          done
+          bash scripts/publish-npm-tarball.sh --check "$RUNNER_TEMP"/typescript-packages/*.tgz
       - name: Resolve release platform matrix
         id: platforms
         shell: bash
@@ -413,20 +411,24 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+        # A package goes live only after the packages it resolves: the CLI
+        # selector after the platform packages, the client after contracts.
         run: |
           set -euo pipefail
-          publish() {
+          pack() {
             packed=$(cd "$1" && npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP")
-            filename=$(node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename) process.exit(1); process.stdout.write(p.filename)' "$packed")
-            bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/$filename"
+            node -e 'const p=JSON.parse(process.argv[1])[0]; if (!p?.filename) process.exit(1); process.stdout.write(p.filename)' "$packed"
           }
+          first=("$RUNNER_TEMP"/typescript-packages/runxhq-contracts-*.tgz)
           for dir in .runx/rust-cli-artifacts/*/; do
-            if [ "$dir" != '.runx/rust-cli-artifacts/selector/' ]; then publish "$dir"; fi
+            if [ "$dir" != '.runx/rust-cli-artifacts/selector/' ]; then
+              filename=$(pack "$dir")
+              first+=("$RUNNER_TEMP/$filename")
+            fi
           done
-          publish .runx/rust-cli-artifacts/selector/
-          for tarball in "$RUNNER_TEMP"/typescript-packages/*.tgz; do
-            bash scripts/publish-npm-tarball.sh "$tarball"
-          done
+          bash scripts/publish-npm-tarball.sh "${first[@]}"
+          selector=$(pack .runx/rust-cli-artifacts/selector/)
+          bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/$selector" "$RUNNER_TEMP"/typescript-packages/runxhq-client-*.tgz
 
   package-managers:
     needs: [prepare, github-release]
