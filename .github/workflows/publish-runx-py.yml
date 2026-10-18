@@ -31,7 +31,7 @@ jobs:
       - name: Validate tag matches pyproject version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#runx-py-v}"
-          PYPROJECT_VERSION=$(python3 -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_bytes())['project']['version'])")
+          PYPROJECT_VERSION=$(python3 -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
           if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
             echo "::error::Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)"
             exit 1
