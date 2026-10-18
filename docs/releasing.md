@@ -24,11 +24,13 @@ channels:
 - npm: `@runxhq/cli@X.Y.Z` (+ `@runxhq/cli-<platform>@X.Y.Z`)
 - Docker (GHCR): `ghcr.io/runxhq/runx:X.Y.Z`, anonymously pullable
 - Homebrew and Scoop: `X.Y.Z`
+- AUR: `runx`, which builds GitHub's archive of the tag from source. AUR's
+  `runx-bin` is an unrelated project's runx, and a prebuilt package must end in
+  `-bin`, so the bare name is the source build.
 
-Winget is an asynchronous submission recorded separately after its pull request
-exists. AUR is not an active Runx-owned channel while `runx-bin` belongs to
-another maintainer; the generated manifest is only a handoff artifact. Neither
-channel can silently weaken or block verification of the synchronous release
+Winget and Chocolatey are asynchronous: winget is recorded after its pull
+request exists, and Chocolatey's moderation reviews each pushed version.
+Neither can silently weaken or block verification of the synchronous release
 set.
 
 The crates.io package is not a CLI release channel. `runx-cli` depends on the
@@ -105,14 +107,18 @@ channel that downloads its archives):
    `contracts-v<version>` or `client-v<version>` tag publishes that package
    the same way without a CLI release (**Publish TypeScript packages**).
 6. **package-managers** — build the channel input from the published checksums
-   (`build-channel-input.mjs`), verify the archive and contained CLI and worker
-   digests and sizes, render Homebrew / Scoop / winget / AUR manifests
-   (`gen-channel-manifests.ts`), verify them against the actual release archive
-   contents (`check-channel-manifests.mjs`), and attach them to the Release.
-7. **publish-{homebrew,scoop}** — update the required package-manager channels.
+   and the tag's source archive (`build-channel-input.mjs`), verify the archive
+   and contained CLI and worker digests and sizes, render Homebrew / Scoop /
+   winget / AUR / Chocolatey manifests (`gen-channel-manifests.ts`), verify them
+   against the actual release archive contents (`check-channel-manifests.mjs`),
+   and attach them to the Release.
+7. **publish-{homebrew,scoop,aur}** — update the required package-manager
+   channels; AUR refuses a version it already holds with a different package.
    **publish-winget** submits the validated `channels/winget/` manifest set
    asynchronously; it must not use a generator that guesses archive nesting.
-   The AUR manifest remains a handoff artifact until Runx owns `runx-bin`.
+   **publish-chocolatey** packs and installs the exact package on Windows,
+   checks the CLI and its worker, then pushes it for moderation. The prepare job
+   refuses a tag before any build when the AUR or Chocolatey key is missing.
 8. **publish-docker** — multi-arch GHCR image (pulls the exact musl archives
    selected by the verified channel input, checks their SHA-256, and installs
    `runx` beside `runx-js-worker`; no Rust toolchain in the image build).

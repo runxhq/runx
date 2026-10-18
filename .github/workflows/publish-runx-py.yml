@@ -48,7 +48,7 @@ jobs:
 
       - name: Build distribution
         run: |
-          rm -rf dist build *.egg-info
+          rm -rf dist build ./*.egg-info
           python3 -m build
 
       - name: Verify distribution metadata
@@ -93,8 +93,10 @@ jobs:
           name: runx-py-dist
           path: dist
 
+      # The repository's latest release stays the CLI's.
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          make_latest: false
           files: dist/*

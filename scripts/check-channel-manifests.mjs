@@ -72,15 +72,32 @@ expectIncludes(
 );
 
 const aur = readFileSync(path.join(options.channels, "aur", "PKGBUILD"), "utf8");
-expectIncludes("aur x86_64 package path", aur, `runx-\${pkgver}-\${target}/runx`);
-expectIncludes("aur x86_64 target branch", aur, `x86_64) target="${TARGETS.linuxX64}" ;;`);
-expectIncludes("aur aarch64 target branch", aur, `aarch64) target="${TARGETS.linuxArm64}" ;;`);
+expectIncludes("aur package identity", aur, "pkgname=runx\n");
+expectIncludes("aur version", aur, `pkgver=${manifest.version}\n`);
+expectIncludes("aur source checksum", aur, `sha256sums=('${manifest.source.sha256}')`);
+expectIncludes("aur builds both executables", aur, "-p runx-cli -p runx-js-worker");
+const aurSrcinfo = readFileSync(path.join(options.channels, "aur", ".SRCINFO"), "utf8");
+expectIncludes("aur source info version", aurSrcinfo, `\tpkgver = ${manifest.version}`);
+expectIncludes("aur source info homepage", aurSrcinfo, `\turl = ${manifest.homepage}`);
+expectIncludes("aur source info archive", aurSrcinfo, `\tsource = runx-${manifest.version}.tar.gz::${manifest.source.url}`);
+expectIncludes("aur source info checksum", aurSrcinfo, `\tsha256sums = ${manifest.source.sha256}`);
 
 const homebrew = readFileSync(path.join(options.channels, "homebrew", "runx.rb"), "utf8");
 expectIncludes("homebrew nested archive install", homebrew, 'bin.install Dir["*/runx"].first => "runx"');
 expectIncludes("homebrew worker install", homebrew, 'bin.install Dir["*/runx-js-worker"].first => "runx-js-worker"');
 expectIncludes("winget worker file", wingetInstaller, `  - RelativeFilePath: ${winStem}\\runx-js-worker.exe`);
-expectIncludes("aur worker install", aur, 'install -Dm755 "runx-${pkgver}-${target}/runx-js-worker" "$pkgdir/usr/bin/runx-js-worker"');
+expectIncludes("aur worker install", aur, 'install -Dm755 target/release/runx-js-worker "$pkgdir/usr/bin/runx-js-worker"');
+
+const chocolatey = readFileSync(path.join(options.channels, "chocolatey", "runx.nuspec"), "utf8");
+expectIncludes("chocolatey version", chocolatey, `<version>${manifest.version}</version>`);
+expectIncludes("chocolatey homepage", chocolatey, `<projectUrl>${manifest.homepage}</projectUrl>`);
+const chocolateyInstall = readFileSync(path.join(options.channels, "chocolatey", "tools", "chocolateyinstall.ps1"), "utf8");
+expectIncludes("chocolatey archive", chocolateyInstall, `/${manifest.tag}/${manifest.artifacts[TARGETS.winX64].file}'`);
+expectIncludes("chocolatey archive checksum", chocolateyInstall, `-Checksum '${manifest.artifacts[TARGETS.winX64].sha256}'`);
+expectIncludes("chocolatey archive root", chocolateyInstall, `Join-Path $toolsDir '${winStem}'`);
+expectIncludes("chocolatey worker", chocolateyInstall, "runx-js-worker.exe");
+const chocolateyUninstall = readFileSync(path.join(options.channels, "chocolatey", "tools", "chocolateyuninstall.ps1"), "utf8");
+expectIncludes("chocolatey shim cleanup", chocolateyUninstall, "Uninstall-BinFile -Name 'runx'");
 
 if (failures.length > 0) {
   console.error(JSON.stringify({ status: "failed", failures }, null, 2));

@@ -43,6 +43,21 @@ for (const platform of platforms) {
   };
 }
 
+// A source package (AUR's runx) builds GitHub's archive of the tag, whose one
+// root directory is <repository>-<tag>.
+const sourceRoot = `${options.repo.split("/")[1]}-${options.tag}`;
+const sourceEntries = execFileSync("tar", ["-tzf", options.sourceArchive], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  .split("\n")
+  .filter(Boolean);
+if (!sourceEntries.every((entry) => entry.startsWith(`${sourceRoot}/`)) || !sourceEntries.includes(`${sourceRoot}/crates/Cargo.lock`)) {
+  throw new Error(`${options.sourceArchive} is not the ${options.tag} source archive under ${sourceRoot}/`);
+}
+const source = {
+  url: `https://github.com/${options.repo}/archive/refs/tags/${options.tag}.tar.gz`,
+  sha256: createHash("sha256").update(readFileSync(options.sourceArchive)).digest("hex"),
+  root: sourceRoot,
+};
+
 const manifest = {
   version: options.version,
   repo: options.repo,
@@ -51,6 +66,7 @@ const manifest = {
   homepage: "https://github.com/runxhq/runx",
   description: "Native governed runtime for agent skills, tools, graphs, and packets.",
   artifacts,
+  source,
 };
 
 writeFileSync(options.out, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -70,7 +86,7 @@ function archivedExecutable(archivePath, member) {
 }
 
 function parseArgs(argv) {
-  const opts = { version: "", repo: "", tag: "", commit: "", archives: "", out: "" };
+  const opts = { version: "", repo: "", tag: "", commit: "", archives: "", sourceArchive: "", out: "" };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--version") { opts.version = argv[++i] ?? ""; continue; }
@@ -78,11 +94,12 @@ function parseArgs(argv) {
     if (arg === "--tag") { opts.tag = argv[++i] ?? ""; continue; }
     if (arg === "--commit") { opts.commit = argv[++i] ?? ""; continue; }
     if (arg === "--archives") { opts.archives = argv[++i] ?? ""; continue; }
+    if (arg === "--source-archive") { opts.sourceArchive = argv[++i] ?? ""; continue; }
     if (arg === "--out") { opts.out = argv[++i] ?? ""; continue; }
     throw new Error(`unknown argument: ${arg}`);
   }
   for (const [k, v] of Object.entries(opts)) {
-    if (!v) throw new Error(`--${k} is required`);
+    if (!v) throw new Error(`--${k.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)} is required`);
   }
   return opts;
 }

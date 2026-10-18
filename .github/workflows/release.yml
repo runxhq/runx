@@ -9,11 +9,12 @@ name: release
 # release workflow.
 #
 # The GitHub Release is the hub: it serves the raw per-target archives that
-# Homebrew, Scoop, winget, optional AUR handoff, Docker, and direct downloads
-# all consume by URL + sha256. npm packages and native archives carry the same
-# committed version. GitHub Release, npm, GHCR, Homebrew, and Scoop are the
-# independently verified release set. Winget remains an asynchronous submission;
-# AUR is not published unless Runx controls the package.
+# Homebrew, Scoop, winget, Chocolatey, Docker, and direct downloads all consume
+# by URL + sha256; AUR's runx builds the tag's source archive, by sha256. npm
+# packages and native archives carry the same committed version. GitHub
+# Release, npm, GHCR, Homebrew, Scoop, AUR and Chocolatey publish from this
+# workflow. Winget remains an asynchronous submission, and Chocolatey's
+# moderation reviews each version after it is pushed.
 #
 # Pushing a cli-v* tag runs a real release. workflow_dispatch runs a dry-run
 # (build + render, no publish).
@@ -95,6 +96,22 @@ jobs:
           NODE
       - name: Verify complete release notes
         run: node scripts/check-runx-cli-release-notes.mjs --version "${{ steps.resolve.outputs.version }}"
+      # Every channel publishes or none starts: a missing key fails here, before
+      # any build, not after the GitHub Release and npm have shipped.
+      - name: Require package publication credentials
+        if: steps.resolve.outputs.publish == 'true'
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          missing=0
+          for name in AUR_SSH_PRIVATE_KEY CHOCOLATEY_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required before building a release"
+              missing=1
+            fi
+          done
+          exit "$missing"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Refuse a package version npm holds with other bytes
@@ -434,6 +451,20 @@ jobs:
           pattern: archive-*
           merge-multiple: true
           path: dist/archives
+      # AUR's runx builds GitHub's archive of the tag. A dry run has no tag, so
+      # it renders against an archive of the checkout under the same root.
+      - name: Fetch the tag's source archive
+        env:
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RUNX_PUBLISH: ${{ needs.prepare.outputs.publish }}
+        run: |
+          set -euo pipefail
+          tag="cli-v$RUNX_RELEASE_VERSION"
+          if [ "$RUNX_PUBLISH" = "true" ]; then
+            curl -fsSL --retry 3 -o dist/source.tar.gz "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/$tag.tar.gz"
+          else
+            git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-$tag/" -o dist/source.tar.gz HEAD
+          fi
       - name: Build channel manifest input
         run: |
           node scripts/build-channel-input.mjs \
@@ -442,6 +473,7 @@ jobs:
             --tag "cli-v${{ needs.prepare.outputs.version }}" \
             --commit "$(git rev-parse HEAD)" \
             --archives dist/archives \
+            --source-archive dist/source.tar.gz \
             --out dist/channel-input.json
       - name: Render channel manifests
         run: pnpm exec tsx scripts/gen-channel-manifests.ts --input dist/channel-input.json --out-dir dist/channels
@@ -547,6 +579,94 @@ jobs:
             --manifest channels/winget \
             --version "${{ needs.prepare.outputs.version }}" \
             --identifier runxhq.runx
+
+  publish-aur:
+    needs: [prepare, package-managers]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download rendered manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: channel-manifests
+          path: channels
+      - name: Configure AUR SSH
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org 2>/dev/null > ~/.ssh/known_hosts
+          # AUR's published Ed25519 host key.
+          test "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" = 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
+      # A version AUR already holds must hold exactly this package.
+      - name: Publish the runx package
+        env:
+          GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o BatchMode=yes
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone ssh://aur@aur.archlinux.org/runx.git aur-repo
+          existing_version=""
+          if [ -f aur-repo/.SRCINFO ]; then
+            existing_version=$(sed -n 's/^[[:space:]]*pkgver = //p' aur-repo/.SRCINFO | head -n 1)
+          fi
+          cp channels/aur/PKGBUILD channels/aur/.SRCINFO aur-repo/
+          git -C aur-repo add PKGBUILD .SRCINFO
+          if [ "$existing_version" = "$RUNX_RELEASE_VERSION" ]; then
+            if ! git -C aur-repo diff --cached --quiet; then
+              echo '::error::AUR already holds this version with a different package'
+              exit 1
+            fi
+          elif ! git -C aur-repo diff --cached --quiet; then
+            git -C aur-repo config user.name 'github-actions[bot]'
+            git -C aur-repo config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C aur-repo commit -m "runx $RUNX_RELEASE_VERSION"
+            git -C aur-repo push origin HEAD:master
+          fi
+          test "$(git -C aur-repo rev-parse HEAD)" = "$(git -C aur-repo ls-remote origin refs/heads/master | cut -f1)"
+
+  publish-chocolatey:
+    needs: [prepare, package-managers]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Download rendered manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: channel-manifests
+          path: channels
+      # The package installs on this runner before it is pushed, with the
+      # worker beside the CLI.
+      - name: Pack and install the exact package
+        working-directory: channels/chocolatey
+        shell: pwsh
+        env:
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco pack runx.nuspec --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey pack failed' }
+          $package = "runx.$env:RUNX_RELEASE_VERSION.nupkg"
+          if (-not (Test-Path $package)) { throw "Missing package $package" }
+          choco install runx --source . --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey install failed' }
+          $version = & "$env:ChocolateyInstall\bin\runx.exe" --version
+          if ($version -ne "runx-cli $env:RUNX_RELEASE_VERSION") { throw "Installed runx reports $version" }
+          $worker = Get-ChildItem "$env:ChocolateyInstall\lib\runx\tools" -Recurse -Filter runx-js-worker.exe | Select-Object -First 1
+          if (-not $worker) { throw 'The installed package has no JavaScript worker' }
+      - name: Push the package
+        working-directory: channels/chocolatey
+        shell: pwsh
+        env:
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+          RUNX_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco push "runx.$env:RUNX_RELEASE_VERSION.nupkg" --source https://push.chocolatey.org/ --key "$env:CHOCOLATEY_API_KEY" --limit-output
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey push failed' }
 
   publish-docker:
     needs: [prepare, package-managers]
