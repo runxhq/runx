@@ -10,6 +10,8 @@ const HOMEBREW_FORMULA_URL =
   "https://raw.githubusercontent.com/runxhq/homebrew-tap/main/Formula/runx.rb";
 const SCOOP_MANIFEST_URL =
   "https://raw.githubusercontent.com/runxhq/scoop-bucket/main/bucket/runx.json";
+const AUR_INFO_URL = "https://aur.archlinux.org/rpc/v5/info?arg[]=runx";
+const AUR_PACKAGE_URL = "https://aur.archlinux.org/packages/runx";
 
 const ossRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const cliManifest = JSON.parse(readFileSync(path.join(ossRoot, "packages/cli/package.json"), "utf8"));
@@ -26,6 +28,7 @@ export const RUNX_CLI_REQUIRED_RELEASE_CHECKS = Object.freeze([
   "ghcr",
   "homebrew",
   "scoop",
+  "aur",
 ]);
 
 export const RUNX_CLI_REQUIRED_RELEASE_CHANNELS = Object.freeze([
@@ -34,6 +37,7 @@ export const RUNX_CLI_REQUIRED_RELEASE_CHANNELS = Object.freeze([
   "ghcr",
   "homebrew",
   "scoop",
+  "aur",
 ]);
 
 export const RUNX_CLI_RELEASE_NOTE_SECTIONS = Object.freeze([
@@ -156,7 +160,7 @@ export async function observeRunxCliRelease(options) {
     accept: "application/vnd.github+json",
     ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
   };
-  const [release, gitTag, workflow, npm, ghcr, homebrew, scoop] = await Promise.all([
+  const [release, gitTag, workflow, npm, ghcr, homebrew, scoop, aur] = await Promise.all([
     observeGitHubRelease({ version, tag, fetchImpl, githubHeaders }),
     observeGitTag({ tag, expectedCommit, fetchImpl, githubHeaders }),
     observeReleaseWorkflow({ tag, expectedCommit, fetchImpl, githubHeaders }),
@@ -164,6 +168,7 @@ export async function observeRunxCliRelease(options) {
     observeGhcr({ version, tag: ghcrTag, expectedDigest: ghcrDigest, fetchImpl }),
     observeHomebrew({ version, tag, fetchImpl }),
     observeScoop({ version, tag, fetchImpl }),
+    observeAur({ version, fetchImpl }),
   ]);
   if (
     gitTag.check.status === "passed"
@@ -176,7 +181,7 @@ export async function observeRunxCliRelease(options) {
       `${tag} workflow ran at ${workflow.commitRef}, but the tag resolves to ${gitTag.commitRef}`,
     );
   }
-  const observations = [release, gitTag, workflow, npm, ghcr, homebrew, scoop];
+  const observations = [release, gitTag, workflow, npm, ghcr, homebrew, scoop, aur];
   const checks = observations.map(({ check }) => check);
 
   return {
@@ -198,6 +203,7 @@ export async function observeRunxCliRelease(options) {
       "https://github.com/orgs/runxhq/packages/container/package/runx",
       HOMEBREW_FORMULA_URL,
       SCOOP_MANIFEST_URL,
+      AUR_PACKAGE_URL,
     ].filter(Boolean),
   };
 }
@@ -574,6 +580,29 @@ async function observeScoop({ version, tag, fetchImpl }) {
     };
   } catch (error) {
     return failedObservation("scoop", errorMessage(error));
+  }
+}
+
+// AUR's runx builds the tag from source, so its version is the release's,
+// with the package release number after it.
+async function observeAur({ version, fetchImpl }) {
+  try {
+    const response = await fetchImpl(AUR_INFO_URL);
+    const body = response.ok ? await response.json() : {};
+    const found = Array.isArray(body.results) ? body.results.find((result) => result?.Name === "runx") : undefined;
+    const packageVersion = stringField(found?.Version);
+    const valid = response.ok && packageVersion.replace(/-\d+$/u, "") === version;
+    return {
+      check: check(
+        "aur",
+        valid,
+        valid
+          ? `AUR runx selects ${version}`
+          : `AUR runx version=${packageVersion || "<unset>"} HTTP ${response.status}`,
+      ),
+    };
+  } catch (error) {
+    return failedObservation("aur", errorMessage(error));
   }
 }
 
