@@ -6,7 +6,9 @@ use std::path::Path;
 use std::process::Stdio;
 use std::thread;
 
-use crate::support::{plugin_with_fixture_connectors, temp_root, unsigned_runx_command_at};
+use crate::support::{
+    fixture_path, plugin_with_fixture_connectors, temp_root, unsigned_runx_command_at,
+};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -28,10 +30,7 @@ fn runx(
     stdin: Option<&str>,
 ) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
     let mut child = unsigned_runx_command_at(root)
-        .env(
-            "PATH",
-            format!("{}:/usr/bin:/bin", root.join("bin").display()),
-        )
+        .env("PATH", fixture_path(Some(&root.join("bin"))))
         .args(args)
         .arg("--json")
         .stdin(Stdio::piped())
@@ -170,10 +169,7 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
 
         // Read by a person, the refusal still fails the command.
         let plain = unsigned_runx_command_at(&root)
-            .env(
-                "PATH",
-                format!("{}:/usr/bin:/bin", root.join("bin").display()),
-            )
+            .env("PATH", fixture_path(Some(&root.join("bin"))))
             .args(["connector", "use", "fixture/forge", "--session"])
             .output()?;
         assert_eq!(plain.status.code(), Some(1));
@@ -240,7 +236,7 @@ fn a_credential_variable_the_env_file_disagrees_on_is_refused() -> TestResult {
     let result = (|| -> TestResult {
         let bind = |value: &str| {
             unsigned_runx_command_at(&root)
-                .env("PATH", "/usr/bin:/bin")
+                .env("PATH", fixture_path(None))
                 .env("FORGE_TOKEN", value)
                 .args(["connector", "use", "fixture/forge", "--credential", "token"])
                 .stdin(Stdio::null())
@@ -651,7 +647,7 @@ fn recording_aws(bin: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::E
     fs::write(
         &aws_cli,
         format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf\",\"SecretString\":\"{{\\\"REFS_API_KEY\\\":\\\"refs-from-aws\\\"}}\"}}\nJSON\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\ncat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf\",\"SecretString\":\"{{\\\"REFS_API_KEY\\\":\\\"refs-from-aws\\\"}}\"}}\nJSON\n",
             log.display()
         ),
     )?;
@@ -669,7 +665,7 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
     // The manager lives outside the workspace: one inside it is never run.
     let tools = temp_root("runx-connector-reference-tools");
     let log = recording_aws(&tools.join("bin"))?;
-    let path = format!("{}:/usr/bin:/bin", tools.join("bin").display());
+    let path = fixture_path(Some(&tools.join("bin")));
     let result = (|| -> TestResult {
         let (ok, used) = runx_with_path(
             &root,

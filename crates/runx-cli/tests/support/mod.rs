@@ -109,6 +109,36 @@ pub fn unsigned_runx_command_with_inherited_cwd() -> Command {
     command
 }
 
+/// The first `program` on the inherited `PATH`.
+pub fn find_program(program: &str) -> Option<PathBuf> {
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|directory| directory.join(program))
+        .find(|candidate| candidate.is_file())
+}
+
+/// `fixtures`, then the directories holding the POSIX tools fixture scripts
+/// run, found on the inherited `PATH`: `/usr/bin` and `/bin` on most hosts, a
+/// Nix store path in the Nix build sandbox. A command given this `PATH`
+/// reaches its fixture programs and those tools, and nothing else the host
+/// has installed.
+pub fn fixture_path(fixtures: Option<&Path>) -> String {
+    let mut directories = Vec::<PathBuf>::new();
+    directories.extend(fixtures.map(Path::to_path_buf));
+    for tool in ["sh", "cat", "touch"] {
+        if let Some(directory) =
+            find_program(tool).and_then(|program| program.parent().map(Path::to_path_buf))
+            && !directories.contains(&directory)
+        {
+            directories.push(directory);
+        }
+    }
+    directories
+        .iter()
+        .map(|directory| directory.display().to_string())
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
 pub fn unsigned_runx_command_at(root: &Path) -> Command {
     let mut command = unsigned_runx_command_with_inherited_cwd();
     command

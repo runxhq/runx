@@ -517,11 +517,11 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     fs::write(
         &aws_cli,
         format!(
-            "#!/bin/sh\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf\",\"SecretString\":\"{{\\\"ANTHROPIC_API_KEY\\\":\\\"{SECRET}\\\"}}\"}}\nJSON\n"
+            "#!/bin/sh\ncat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf\",\"SecretString\":\"{{\\\"ANTHROPIC_API_KEY\\\":\\\"{SECRET}\\\"}}\"}}\nJSON\n"
         ),
     )?;
     fs::set_permissions(&aws_cli, fs::Permissions::from_mode(0o755))?;
-    let path = format!("{}:/usr/bin:/bin", bin.display());
+    let path = crate::support::fixture_path(Some(&bin));
 
     // A key stored first leaves the home when a reference replaces it.
     let mut stored_first = command(&root, &home)?;

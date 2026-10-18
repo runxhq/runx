@@ -1059,11 +1059,8 @@ runners:
     )?;
 
     // `wc` blocks on the worker protocol pipe without producing a response.
-    // Use an exact absolute binary path on both Linux and macOS.
-    let wc = [Path::new("/usr/bin/wc"), Path::new("/bin/wc")]
-        .into_iter()
-        .find(|candidate| candidate.is_file())
-        .ok_or("wc executable is unavailable")?;
+    // The worker path is its exact location on the inherited PATH.
+    let wc = crate::support::find_program("wc").ok_or("wc executable is unavailable")?;
 
     let mut child = runx_command()
         .current_dir(&root)
