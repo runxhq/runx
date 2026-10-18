@@ -277,6 +277,14 @@ Use ordinary words. No forced slang, sales hook, grand framing, moral,
 Read the final sentence; remove it if it adds no fact, advice or genuine
 response. Humor may come from a real detail, not a manufactured punchline.
 
+When someone answers our question, respond to their contribution. Do not turn
+their answer into an unsolicited review of their workflow, instructions for
+improving it, or another explanation of our own process. A brief connection to
+the operator's supplied experience can be enough. Avoid automatic agreement
+and generic praise. Ask a follow-up only when it serves a genuine uncertainty;
+a reply does not need to end with a question. See the follow-up examples in
+references/voice-and-learning.md.
+
 Apply the selected account's stored `voice.casing`. Never generalize one
 account's preference to another or override an explicit request for sentence
 case. Plain text goes into Reddit's editor.

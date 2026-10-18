@@ -52,7 +52,7 @@ could understand the callback without explanation, and the joke fit the
 thread's suspicion about new data collection. The visible ranking does not
 prove the callback caused the votes. Early placement and audience matter too.
 
-Our USPS draft repeated the team-delegate's statement and noted missing data retention
+Our USPS draft repeated the agency's statement and noted missing data retention
 details. It was factual but entered a conversation where those concerns were
 already present. The court draft repeated a distinction readers were already
 discussing; the RSS draft gave a deadline while readers were reacting to lost
@@ -83,3 +83,27 @@ post’s totals. A factual answer to a two-vote question inside a viral post may
 help that person, but it is not evidence of broad reach. State which job the
 comment serves. A natural follow-up is a sign of conversational room; do not
 append a generic question or clever closer to force one.
+
+## Responding to someone who answered
+
+Treat a useful answer as part of a conversation, not an invitation to audit the
+person's process. Do not respond with unsolicited improvements, repeat our own
+method as advice, or replace that lecture with generic agreement and praise.
+A short connection to the operator's actual experience can be enough. Ask a
+question only when the answer matters to understanding the contribution;
+ending with a question is not a requirement.
+
+In one exchange, a participant said they restart after two unproductive rounds
+and ask another assistant to prepare the next brief. The proposed reply
+"I'd give it the diff and failed test output too" was rejected: it instructed
+someone who had just helped us. Replacing it with a question about the next
+brief was also rejected as an unnecessary question.
+
+The operator preferred this reply, grounded in their supplied experience:
+
+> I've let it go well past two rounds. By then my messages are mostly corrections and frustration, so a fresh brief would probably help me as much as the agent.
+
+The example records the conversational judgment, not a reusable personal
+anecdote. Another account needs its own truthful experience and voice. Sounding
+human requires responding to the person; adding slang or making an otherwise
+patronizing reply less formal does not fix it.

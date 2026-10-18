@@ -361,9 +361,9 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-76934e9520d8",
-    "digest": "63e859c1b12b0f7dee8a33248f117b8bbeacc274fd76b2413863754dce165303",
-    "content_digest": "sha256:76934e9520d8453cbfc268cfe3e487b6754e639a5d98ba10752a6de37d4bc3ca",
+    "version": "sha-18a63e0f99fc",
+    "digest": "755140d453d8319989520fa34a4e753aaf20d4ecf8858c5ba98b7ac84e15183c",
+    "content_digest": "sha256:18a63e0f99fc3c922a4dd10a9adc39ac360cfcda253f634ce629e125a572ebe7",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
