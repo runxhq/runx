@@ -96,7 +96,7 @@ fn process_tool_receives_allowlisted_workspace_env_without_wrapper()
 fn a_skill_cannot_take_a_connector_credential_as_its_environment()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-credential-environment");
-    crate::support::plugin_with_source_connectors(&temp, &["exa"])?;
+    crate::support::plugin_with_fixture_connectors(&temp, &["fixture/search"])?;
     let skill_dir = temp.join("skills").join("key-probe");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -112,7 +112,7 @@ runners:
     default: true
     steps:
       - id: probe
-        tool: { command: sh, args: ["-c", 'printf ''{"key":"%s"}'' "$EXA_API_KEY"'], environment: { required: [EXA_API_KEY] } }
+        tool: { command: sh, args: ["-c", 'printf ''{"key":"%s"}'' "$SEARCH_API_KEY"'], environment: { required: [SEARCH_API_KEY] } }
         outputs:
           key: string
 "#,
@@ -120,7 +120,7 @@ runners:
 
     let output = native_command()?
         .current_dir(&temp)
-        .env("EXA_API_KEY", SECRET)
+        .env("SEARCH_API_KEY", SECRET)
         .arg("skill")
         .arg(&skill_dir)
         .arg("--json")
@@ -130,7 +130,7 @@ runners:
     let stderr = String::from_utf8(output.stderr)?;
     assert!(!output.status.success(), "{stdout}");
     assert!(
-        stdout.contains("EXA_API_KEY hold a connector credential"),
+        stdout.contains("SEARCH_API_KEY hold a connector credential"),
         "{stdout}\n{stderr}"
     );
     assert!(!stdout.contains(SECRET) && !stderr.contains(SECRET));
@@ -345,12 +345,12 @@ fn inline_graph_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn st
 #[test]
 fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-local-credential-empty");
-    crate::support::plugin_with_source_connectors(&temp, &["github"])?;
+    crate::support::plugin_with_fixture_connectors(&temp, &["fixture/forge"])?;
     let mut command = native_command()?;
     command.current_dir(&temp).args([
         "connector",
         "use",
-        "github",
+        "fixture/forge",
         "--credential",
         "token",
         "--json",
@@ -363,7 +363,7 @@ fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
     );
     let message = json_failure_message(&output.stdout)?;
     assert!(
-        message.contains("no github token was given on stdin (or set GITHUB_TOKEN)"),
+        message.contains("no fixture/forge token was given on stdin (or set FORGE_TOKEN)"),
         "expected an error about the empty secret value, got: {message}"
     );
 
@@ -374,18 +374,21 @@ fn cli_rejects_empty_secret_value() -> Result<(), Box<dyn std::error::Error>> {
 fn a_credential_in_its_variable_is_bound_without_being_copied()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = crate::support::temp_root("runx-cli-local-credential-environment");
-    crate::support::plugin_with_source_connectors(&temp, &["exa"])?;
+    crate::support::plugin_with_fixture_connectors(&temp, &["fixture/search"])?;
     let output = native_command()?
         .current_dir(&temp)
-        .env("EXA_API_KEY", SECRET)
-        .args(["connector", "use", "exa", "--json"])
+        .env("SEARCH_API_KEY", SECRET)
+        .args(["connector", "use", "fixture/search", "--json"])
         .stdin(Stdio::null())
         .output()?;
     let stdout = String::from_utf8(output.stdout)?;
     assert!(output.status.success(), "{stdout}");
     let selected = serde_json::from_str::<Value>(&stdout)?;
     assert_eq!(selected["selected"]["authority"]["kind"], "environment");
-    assert_eq!(selected["selected"]["authority"]["variable"], "EXA_API_KEY");
+    assert_eq!(
+        selected["selected"]["authority"]["variable"],
+        "SEARCH_API_KEY"
+    );
 
     let listed = native_command()?
         .current_dir(&temp)
@@ -393,7 +396,7 @@ fn a_credential_in_its_variable_is_bound_without_being_copied()
         .output()?;
     let listed = String::from_utf8(listed.stdout)?;
     assert!(
-        listed.contains("local environment from EXA_API_KEY"),
+        listed.contains("local environment from SEARCH_API_KEY"),
         "{listed}"
     );
     assert!(!stdout.contains(SECRET) && !listed.contains(SECRET));
@@ -406,7 +409,7 @@ fn cli_rejects_secret_env_value_on_argv() -> Result<(), Box<dyn std::error::Erro
     fs::create_dir_all(&temp)?;
     let output = native_command()?
         .current_dir(&temp)
-        .args(["connector", "use", "github", "--credential", "token"])
+        .args(["connector", "use", "fixture/forge", "--credential", "token"])
         .arg(SECRET)
         .arg("--json")
         .output()?;

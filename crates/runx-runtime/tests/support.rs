@@ -167,9 +167,10 @@ pub(crate) fn read_test_first_step_receipt(
     read_test_signed_receipt(receipt_dir, id)
 }
 
-/// Makes `root` a runx plugin holding copies of the runx source connectors
-/// `ids`: how a project reaches published connectors without a registry.
-pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) -> std::io::Result<()> {
+/// Makes `root` a plugin holding copies of the kernel fixture connectors
+/// `ids`, such as `fixture/chat`: how a project reaches connectors without a
+/// registry. No test reaches a vendor connector.
+pub(crate) fn plugin_with_fixture_connectors(root: &Path, ids: &[&str]) -> std::io::Result<()> {
     fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
         fs::create_dir_all(to)?;
         for entry in fs::read_dir(from)? {
@@ -183,8 +184,8 @@ pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) -> std::i
         }
         Ok(())
     }
-    fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    let source =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel/connectors");
     for id in ids {
         copy(&source.join(id), &root.join("connectors").join(id))?;
     }

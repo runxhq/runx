@@ -5,9 +5,9 @@ use std::path::Path;
 use super::*;
 
 fn slack_binding() -> ConnectorBinding {
-    crate::kernel::connectors::source_scope()
-        .connector("slack")
-        .expect("slack is official")
+    crate::kernel::connectors::fixture_scope()
+        .connector("fixture/chat")
+        .expect("fixture/chat is official")
         .binding()
 }
 use crate::HostedApiEnvironment;
@@ -122,14 +122,14 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
             200,
             serde_json::json!({
                 "status": "success",
-                "provider": "slack",
+                "provider": "fixture/chat",
                 "operation": "thread.reply",
-                "target": "slack://T/C/2",
+                "target": "chat://T/C/2",
                 "access": "mutate",
                 "operation_id": "provider-op-1",
                 "idempotency_key": "runx:test-operation",
                 "readback_ref": "runx:provider-readback:provider-op-1",
-                "result": {"message_locator": "slack://T/C/2"}
+                "result": {"message_locator": "chat://T/C/2"}
             })
             .to_string(),
         ),
@@ -147,7 +147,7 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
             grant_id: "grant_slack_1".to_owned(),
             operation: "thread.reply".to_owned(),
             operation_digest: format!("sha256:{}", "a".repeat(64)),
-            target: "slack://T/C/2".to_owned(),
+            target: "chat://T/C/2".to_owned(),
             scopes: vec!["thread.reply".to_owned()],
             input: JsonObject::from([(
                 "idempotency_key".to_owned(),
@@ -158,7 +158,7 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
     )
     .expect("provider operation");
 
-    assert_eq!(response.provider, "slack");
+    assert_eq!(response.provider, "fixture/chat");
     assert_eq!(transport.requests.borrow().len(), 2);
     assert_eq!(
         *transport.repeatable.borrow(),
@@ -200,7 +200,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
                 "status": "success",
                 "grants": [{
                     "grant_id": "grant_slack_1",
-                    "provider": "slack",
+                    "provider": "fixture/chat",
                     "connector_binding": slack_binding(),
                     "scopes": [
                         "channel.post",
@@ -233,7 +233,7 @@ fn provider_grant_listing_returns_only_bounded_authority_metadata() {
             HostedProviderGrant {
                 connector_binding: Some(slack_binding()),
                 grant_id: "grant_slack_1".to_owned(),
-                provider: "slack".to_owned(),
+                provider: "fixture/chat".to_owned(),
                 scopes: vec![
                     "channel.post".to_owned(),
                     "https://provider.example/auth/custom.scope?mode=read,write".to_owned(),
@@ -269,7 +269,7 @@ fn provider_operation_rejects_mismatched_access_before_trusting_result() {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.reply".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),
-        target: "slack://T/C/2".to_owned(),
+        target: "chat://T/C/2".to_owned(),
         scopes: vec!["thread.reply".to_owned()],
         input: JsonObject::new(),
         access: OperationAccess::Read,
@@ -277,12 +277,12 @@ fn provider_operation_rejects_mismatched_access_before_trusting_result() {
     let error = decode_readback(
         response_object(serde_json::json!({
             "status": "success",
-            "provider": "slack",
+            "provider": "fixture/chat",
             "operation": "thread.reply",
-            "target": "slack://T/C/2",
+            "target": "chat://T/C/2",
             "access": "mutate",
             "readback_ref": "runx:provider-readback:1",
-            "result": {"message_locator": "slack://T/C/2"}
+            "result": {"message_locator": "chat://T/C/2"}
         })),
         request.access,
     )
@@ -297,16 +297,16 @@ fn provider_operation_requires_explicit_success_status() {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),
-        target: "slack://T/C/2".to_owned(),
+        target: "chat://T/C/2".to_owned(),
         scopes: vec!["thread.read".to_owned()],
         input: JsonObject::new(),
         access: OperationAccess::Read,
     };
     let error = decode_readback(
         response_object(serde_json::json!({
-            "provider": "slack",
+            "provider": "fixture/chat",
             "operation": "thread.read",
-            "target": "slack://T/C/2",
+            "target": "chat://T/C/2",
             "access": "read",
             "result": {"messages": []}
         })),
@@ -324,7 +324,7 @@ fn provider_operation_requires_readback_evidence() {
         grant_id: "grant_slack_1".to_owned(),
         operation: "thread.read".to_owned(),
         operation_digest: format!("sha256:{}", "a".repeat(64)),
-        target: "slack://T/C/2".to_owned(),
+        target: "chat://T/C/2".to_owned(),
         scopes: vec!["thread.read".to_owned()],
         input: JsonObject::new(),
         access: OperationAccess::Read,
@@ -332,9 +332,9 @@ fn provider_operation_requires_readback_evidence() {
     let error = decode_readback(
         response_object(serde_json::json!({
             "status": "success",
-            "provider": "slack",
+            "provider": "fixture/chat",
             "operation": "thread.read",
-            "target": "slack://T/C/2",
+            "target": "chat://T/C/2",
             "access": "read",
             "result": {"messages": []}
         })),

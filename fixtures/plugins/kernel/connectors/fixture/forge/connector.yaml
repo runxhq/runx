@@ -1,0 +1,180 @@
+schema: runx.connector.v1
+id: fixture/forge
+name: Fixture Forge
+description: Read and update issues in repositories of a forge fixture, and push branches to them.
+runtime_capability: false
+auth:
+  delegated: {principal: {url: "https://api.forge.fixture.invalid/user", id: id, login: login}}
+  credentials:
+    token:
+      kind: api_key
+      fields:
+        - name: token
+          label: Forge token
+      delivery:
+        env: FORGE_TOKEN
+      audience: [api.forge.fixture.invalid, forge.fixture.invalid]
+  session:
+    kind: command
+    command: [forge, auth, token]
+    credential: token
+    principal: {url: "https://api.forge.fixture.invalid/user", id: id, login: login}
+references:
+  - {kind: thread, locator: "forge://[^/]+/[^/]+/issues/[1-9][0-9]*"}
+  - {kind: change_request, locator: "forge://[^/]+/[^/]+/pulls/[1-9][0-9]*"}
+  - {kind: comment, locator: "forge://[^/]+/[^/]+/issues/comments/[1-9][0-9]*"}
+  - {kind: repository, locator: "forge://[^/]+/[^/]+"}
+placements:
+  hosted:
+    auth: delegated
+  local:
+    auth: [session, credentials]
+operations:
+  branch.push:
+    description: Push an exact local commit to a branch of the repository, never forcing it.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: inherent
+    input_schema:
+      type: object
+      required: [repository, branch, commit]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        branch: {type: string, pattern: "^[A-Za-z0-9._/-]{1,200}$"}
+        commit: {type: string, pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$"}
+    result_fields: [branch, commit]
+    implementation:
+      process:
+        tool: git.push
+        readback:
+          matches:
+            - {expected: {source: argument, path: commit}, observed: commit}
+            - {expected: {source: argument, path: branch}, observed: branch}
+
+  issue.read:
+    description: Read one issue or pull request as an issue.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, number]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+    result_fields: [issue]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.forge.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: issue
+            method: GET
+            url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
+            headers: {accept: application/json}
+
+  issues.read:
+    description: Read issues by number.
+    verb: read
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    input_schema:
+      type: object
+      required: [repository, numbers]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
+    result_fields: [issues]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.forge.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: issue
+            each: {"$argument": "/numbers"}
+            method: GET
+            url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
+            headers: {accept: application/json}
+
+  issues.update:
+    description: Update issues, each with its own patch of title, body, state, labels, assignees or milestone.
+    verb: write
+    scopes: [repo.write]
+    credentials: [token]
+    target:
+      template: {"$argument": "/repository"}
+    guarantees:
+      provider_idempotency: inherent
+    input_schema:
+      type: object
+      required: [repository, updates]
+      additionalProperties: false
+      properties:
+        repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
+        updates:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [number, patch]
+            additionalProperties: false
+            properties:
+              number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
+              patch:
+                type: object
+                minProperties: 1
+                additionalProperties: false
+                properties:
+                  title: {type: string, minLength: 1, maxLength: 256}
+                  body: {type: [string, "null"], maxLength: 65536}
+                  state: {enum: [open, closed]}
+                  state_reason: {enum: [completed, not_planned, reopened]}
+                  labels: {type: array, maxItems: 100, items: {type: string}}
+                  assignees: {type: array, maxItems: 10, items: {type: string}}
+                  milestone: {type: [integer, "null"]}
+    result_fields: [updates]
+    effect:
+      kind: thread
+      each: {"$result": "/updates"}
+      locator: {"$concat": ["forge://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.forge.fixture.invalid]
+        auth: {token: {type: bearer}}
+        requests:
+          - id: update
+            each: {"$argument": "/updates"}
+            method: PATCH
+            url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
+            headers: {accept: application/json}
+            body: {"$item": "/patch"}
+        readbacks:
+          - request:
+              id: issue
+              method: GET
+              url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
+              headers: {accept: application/json}
+            matches:
+              - {expected: {source: acknowledgement, path: number}, observed: number}
+              - {expected: {source: item, path: patch.title}, observed: title}
+              - {expected: {source: item, path: patch.body}, observed: body}
+              - {expected: {source: item, path: patch.state}, observed: state}
+              - {expected: {source: item, path: patch.state_reason}, observed: state_reason}
+              - {expected: {source: item, path: patch.labels}, observed: labels.*.name}
+              - {expected: {source: item, path: patch.assignees}, observed: assignees.*.login}
+              - {expected: {source: item, path: patch.milestone}, observed: milestone.number}

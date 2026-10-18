@@ -1,0 +1,57 @@
+schema: runx.connector.v1
+id: fixture/hooks
+name: Fixture Hooks
+description: Deliver a governed handoff to a workflow webhook fixture.
+runtime_capability: false
+auth:
+  credentials:
+    webhook:
+      kind: webhook_url
+      fields:
+        - {name: url, label: workflow webhook URL}
+      delivery: {env: HOOKS_WEBHOOK_URL}
+      audience: ["*.hooks.fixture.invalid"]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  handoff.deliver:
+    description: Deliver one handoff to an workflow webhook; the workflow's answer is the acknowledgement and the fixture offers no readback.
+    verb: write
+    scopes: [orchestrator.hooks.workflow.invoke]
+    credentials: [webhook]
+    target:
+      template: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/"]}
+    approval: required
+    guarantees:
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [webhook_host, delivery]
+      additionalProperties: false
+      properties:
+        webhook_host: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}\.hooks\.fixture\.invalid$'}
+        delivery:
+          type: object
+          required: [event_id, handoff_scope, handoff_audience, idempotency_key, payload]
+          properties:
+            event_id: {type: string, pattern: '^[A-Za-z0-9._:-]{3,200}$'}
+            handoff_scope: {const: orchestrator.hooks.workflow.invoke}
+            handoff_audience: {type: string, pattern: '^hooks:'}
+            idempotency_key: {type: string}
+            payload: {}
+    result_fields: [acknowledgement]
+    implementation:
+      http:
+        allowed_hosts: ["*.hooks.fixture.invalid"]
+        auth:
+          webhook: {type: url, field: url}
+        requests:
+          - method: POST
+            url: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/"]}
+            headers:
+              accept: application/json
+              x-runx-event-id: {"$argument": "/delivery/event_id"}
+              x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
+              x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
+            body: {"$argument": "/delivery"}

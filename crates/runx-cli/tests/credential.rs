@@ -10,13 +10,13 @@ fn connector_use_lists_and_revokes_a_credential_without_exposing_material()
     let root = crate::support::temp_root("runx-credential-command");
     let home = root.join("home");
     fs::create_dir_all(root.join(".runx"))?;
-    crate::support::plugin_with_source_connectors(&root, &["exa", "github"])?;
+    crate::support::plugin_with_fixture_connectors(&root, &["fixture/search", "fixture/forge"])?;
 
     let mut set = command(&root, &home)?;
     set.args([
         "connector",
         "use",
-        "exa",
+        "fixture/search",
         "--credential",
         "api_key",
         "--profile",
@@ -513,14 +513,14 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     let bin = tools.join("bin");
     fs::create_dir_all(&root)?;
     fs::create_dir_all(&bin)?;
-    let aws = bin.join("aws");
+    let aws_cli = bin.join("aws");
     fs::write(
-        &aws,
+        &aws_cli,
         format!(
             "#!/bin/sh\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf\",\"SecretString\":\"{{\\\"ANTHROPIC_API_KEY\\\":\\\"{SECRET}\\\"}}\"}}\nJSON\n"
         ),
     )?;
-    fs::set_permissions(&aws, fs::Permissions::from_mode(0o755))?;
+    fs::set_permissions(&aws_cli, fs::Permissions::from_mode(0o755))?;
     let path = format!("{}:/usr/bin:/bin", bin.display());
 
     // A key stored first leaves the home when a reference replaces it.

@@ -16,10 +16,10 @@ fn instances() -> (tempfile::TempDir, Instances) {
     (root, Instances::new(store))
 }
 
-fn slack() -> std::sync::Arc<LoadedConnector> {
-    crate::kernel::connectors::source_scope()
-        .connector("slack")
-        .expect("slack")
+fn chat() -> std::sync::Arc<LoadedConnector> {
+    crate::kernel::connectors::fixture_scope()
+        .connector("fixture/chat")
+        .expect("fixture/chat")
 }
 
 fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
@@ -45,16 +45,16 @@ fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
 #[test]
 fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
     let (_root, instances) = instances();
-    let slack = slack();
+    let chat = chat();
     assert!(matches!(
-        instances.resolve(&slack),
+        instances.resolve(&chat),
         Err(InstanceError::NotSelected { .. })
     ));
 
     instances
-        .confirm(hosted("slack-acme", &slack), true)
+        .confirm(hosted("slack-acme", &chat), true)
         .expect("confirm");
-    let resolved = instances.resolve(&slack).expect("resolves");
+    let resolved = instances.resolve(&chat).expect("resolves");
     assert_eq!(resolved.instance_id.as_str(), "slack-acme");
     assert!(
         instances
@@ -65,11 +65,11 @@ fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
     );
 
     instances
-        .confirm(hosted("slack-other", &slack), false)
+        .confirm(hosted("slack-other", &chat), false)
         .expect("confirm");
     assert_eq!(
         instances
-            .resolve(&slack)
+            .resolve(&chat)
             .expect("still selected")
             .instance_id
             .as_str(),
@@ -78,7 +78,7 @@ fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
 
     instances.revoke("slack-acme").expect("revoke");
     assert!(matches!(
-        instances.resolve(&slack),
+        instances.resolve(&chat),
         Err(InstanceError::Revoked { .. })
     ));
     assert_eq!(instances.list().expect("list").len(), 2);
@@ -87,15 +87,15 @@ fn a_selected_instance_resolves_and_a_revoked_one_refuses() {
 #[test]
 fn an_instance_id_cannot_move_to_another_connector() {
     let (_root, instances) = instances();
-    let slack = slack();
+    let chat = chat();
     instances
-        .confirm(hosted("shared-id", &slack), false)
+        .confirm(hosted("shared-id", &chat), false)
         .expect("confirm");
-    let github = crate::kernel::connectors::source_scope()
-        .connector("github")
+    let forge = crate::kernel::connectors::fixture_scope()
+        .connector("fixture/forge")
         .unwrap();
-    let mut moved = hosted("shared-id", &github);
-    moved.connector = github.name.clone();
+    let mut moved = hosted("shared-id", &forge);
+    moved.connector = forge.name.clone();
     assert!(matches!(
         instances.confirm(moved, false),
         Err(InstanceError::WrongConnector { .. })
@@ -105,8 +105,8 @@ fn an_instance_id_cannot_move_to_another_connector() {
 #[test]
 fn a_public_connector_needs_no_setup() {
     let (_root, instances) = instances();
-    let public = crate::kernel::connectors::source_scope()
-        .connector("open-meteo")
+    let public = crate::kernel::connectors::fixture_scope()
+        .connector("fixture/weather")
         .unwrap();
     let resolved = instances.resolve(&public).expect("public");
     assert_eq!(resolved.authority, InstanceAuthority::Public);

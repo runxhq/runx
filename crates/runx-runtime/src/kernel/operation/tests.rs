@@ -26,15 +26,15 @@ const PRINCIPAL_REF: &str = "runx:principal:operator-1";
 const SKILL: &str = r#"
 skill: operation-test
 connectors:
-  slack:
+  fixture/chat:
     operations: [channel.post, channel.post.read]
-  aws:
-    operations: [aws.transcribe.start]
-  osv:
+  fixture/compute:
+    operations: [jobs.start]
+  fixture/advisories:
     operations: [vulnerabilities.read]
-  github:
+  fixture/forge:
     operations: [issues.update, issues.read]
-  n8n:
+  fixture/hooks:
     operations: [handoff.deliver]
   artifact:
     operations: [artifact.allocate]
@@ -43,19 +43,19 @@ runners:
     result_from: [post]
     steps:
       - id: post
-        operation: slack/channel.post
+        operation: fixture/chat/channel.post
       - id: read
-        operation: slack/channel.post.read
-      - id: transcribe
-        operation: aws/aws.transcribe.start
+        operation: fixture/chat/channel.post.read
+      - id: job
+        operation: fixture/compute/jobs.start
       - id: advisories
-        operation: osv/vulnerabilities.read
+        operation: fixture/advisories/vulnerabilities.read
       - id: update
-        operation: github/issues.update
+        operation: fixture/forge/issues.update
       - id: issues
-        operation: github/issues.read
+        operation: fixture/forge/issues.read
       - id: deliver
-        operation: n8n/handoff.deliver
+        operation: fixture/hooks/handoff.deliver
       - id: allocate
         operation: artifact/artifact.allocate
 "#;
@@ -213,7 +213,7 @@ impl crate::http::RuntimeHttpTransport for Provider {
             ));
         }
         if request.url == format!("{BASE_URL}/v1/provider-requests") {
-            // The issue as GitHub answers both the write and its readback.
+            // The issue as the forge answers both the write and its readback.
             let sent: serde_json::Value =
                 serde_json::from_str(request.body.as_deref().unwrap()).unwrap();
             let number = sent["input"]["updates"][0]["number"].as_u64().unwrap_or(7);
@@ -221,7 +221,10 @@ impl crate::http::RuntimeHttpTransport for Provider {
             let answer = serde_json::json!({"status": 200, "body": issue.to_string()});
             return Ok(RuntimeHttpResponse::new(200, answer.to_string()));
         }
-        if let Some(id) = request.url.strip_prefix("https://api.osv.dev/v1/vulns/") {
+        if let Some(id) = request
+            .url
+            .strip_prefix("https://advisories.fixture.invalid/v1/vulns/")
+        {
             if *self.answer.lock().unwrap() == Answer::Reject {
                 return Ok(RuntimeHttpResponse::new(
                     404,
@@ -233,8 +236,11 @@ impl crate::http::RuntimeHttpTransport for Provider {
                 serde_json::json!({"id": id, "summary": "advisory"}).to_string(),
             ));
         }
-        if request.url.starts_with("https://acme.app.n8n.cloud/") {
-            // An n8n webhook acknowledges with whatever the workflow answers.
+        if request
+            .url
+            .starts_with("https://acme.hooks.fixture.invalid/")
+        {
+            // A workflow webhook acknowledges with whatever the workflow answers.
             return Ok(RuntimeHttpResponse::new(
                 200,
                 r#"{"message":"Workflow was started"}"#,
@@ -265,12 +271,12 @@ impl crate::http::RuntimeHttpTransport for Provider {
                     .unwrap_or_default()
                     .to_owned();
                 let provider = match (answer, named.as_str()) {
-                    (Answer::WrongProvider, _) => "github",
-                    (_, "aws") => "aws",
-                    _ => "slack",
+                    (Answer::WrongProvider, _) => "fixture/forge",
+                    (_, "jobs") => "fixture/compute",
+                    _ => "fixture/chat",
                 };
                 let result = match provider {
-                    "aws" => serde_json::json!({
+                    "fixture/compute" => serde_json::json!({
                         "job_ref": "job-1",
                         "status": "queued",
                         "output_available": false,
@@ -281,7 +287,7 @@ impl crate::http::RuntimeHttpTransport for Provider {
                         serde_json::json!({"message_locator": "https://example.com/m/1", "text": "hi"})
                     }
                     _ => {
-                        serde_json::json!({"message_locator": "slack://T123/C456/1.0", "text": "hi"})
+                        serde_json::json!({"message_locator": "chat://T123/C456/1.0", "text": "hi"})
                     }
                 };
                 let response = serde_json::json!({
@@ -347,14 +353,20 @@ struct Fixture {
 
 impl Fixture {
     fn new(scopes: &[&str]) -> Self {
-        Self::for_connector("slack", scopes)
+        Self::for_connector("fixture/chat", scopes)
     }
 
     fn for_connector(connector: &str, scopes: &[&str]) -> Self {
         let root = tempfile::tempdir().unwrap();
-        crate::kernel::connectors::plugin_with_source_connectors(
+        crate::kernel::connectors::plugin_with_fixture_connectors(
             root.path(),
-            &["slack", "aws", "osv", "github", "n8n"],
+            &[
+                "fixture/chat",
+                "fixture/compute",
+                "fixture/advisories",
+                "fixture/forge",
+                "fixture/hooks",
+            ],
         );
         let manifest = runx_parser::validate_runner_manifest(
             runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
@@ -394,7 +406,7 @@ impl Fixture {
             provider,
             effect,
         };
-        fixture.confirm_grant("grant_slack", connector, &scopes);
+        fixture.confirm_grant("grant_chat", connector, &scopes);
         fixture
     }
 
@@ -407,7 +419,7 @@ impl Fixture {
 
     /// List a grant runx Connect holds without confirming it yet.
     fn list_grant(&self, grant_id: &str, connector: &str, scopes: &[String]) {
-        let connector = crate::kernel::connectors::source_scope()
+        let connector = crate::kernel::connectors::fixture_scope()
             .connector(connector)
             .unwrap();
         self.provider.grant(grant_id, &connector, scopes);
@@ -419,7 +431,7 @@ impl Fixture {
     }
 
     fn try_select_grant(&self, grant_id: &str, connector: &str) -> Result<(), String> {
-        let connector = crate::kernel::connectors::source_scope()
+        let connector = crate::kernel::connectors::fixture_scope()
             .connector(connector)
             .unwrap();
         let instances = Instances::new(
@@ -443,7 +455,7 @@ impl Fixture {
     /// Store `value` as `connector`'s `credential` and select it, as
     /// `runx connector use --credential` would.
     fn set_credential(&self, connector: &str, credential: &str, value: &str) {
-        let connector = crate::kernel::connectors::source_scope()
+        let connector = crate::kernel::connectors::fixture_scope()
             .connector(connector)
             .unwrap();
         let instances = Instances::new(
@@ -561,7 +573,7 @@ impl Fixture {
 
 fn post(text: &str) -> JsonObject {
     serde_json::from_value(serde_json::json!({
-        "input": {"channel_locator": "slack://T123/C456", "text": text},
+        "input": {"channel_locator": "chat://T123/C456", "text": text},
         "idempotency_key": "post-1",
     }))
     .unwrap()
@@ -599,7 +611,7 @@ fn an_approved_post_binds_its_intent_term_and_readback() {
     );
     assert!(
         packet["idempotency_key"].as_str().unwrap().contains('-'),
-        "slack keys are UUIDs"
+        "chat keys are UUIDs"
     );
     assert_eq!(
         packet["operation_digest"].as_str(),
@@ -658,7 +670,7 @@ fn an_agent_cannot_stand_in_for_a_person() {
 fn a_read_never_asks_and_never_takes_an_approval() {
     let fixture = Fixture::new(&["channel.post.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"conversation_locator": "slack://T123/C456"},
+        "input": {"conversation_locator": "chat://T123/C456"},
     }))
     .unwrap();
     let (_, outcome) = fixture.run("read", &inputs, None).expect("reads");
@@ -678,7 +690,7 @@ fn a_read_never_asks_and_never_takes_an_approval() {
 fn acting_for_another_principal_requires_a_bounded_delegation() {
     let mut fixture = Fixture::new(&["channel.post", "channel.post.read"]);
     let read: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"conversation_locator": "slack://T123/C456"}
+        "input": {"conversation_locator": "chat://T123/C456"}
     }))
     .unwrap();
     let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
@@ -699,16 +711,16 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         principal_ref: actor_ref,
         resource_ref: Reference::runx(
             ReferenceType::ConnectorInstance,
-            crate::kernel::instances::instance_id(&["hosted", "slack", "grant_slack"])
+            crate::kernel::instances::instance_id(&["hosted", "fixture/chat", "grant_chat"])
                 .unwrap()
                 .as_str(),
         ),
         resource_family: AuthorityResourceFamily::Connector,
         verbs: vec![AuthorityVerb::Read],
         bounds: AuthorityBounds {
-            operations: vec!["slack/channel.post.read".into()],
+            operations: vec!["fixture/chat/channel.post.read".into()],
             scopes: vec!["channel.post.read".into()],
-            targets: vec!["slack://T123/C456".into()],
+            targets: vec!["chat://T123/C456".into()],
             uses: None,
         },
         expires_at: None,
@@ -791,34 +803,37 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
 #[test]
 fn a_grant_bound_to_another_revision_or_none_is_never_confirmed() {
     let fixture = Fixture::new(&["channel.post"]);
-    let slack = crate::kernel::connectors::source_scope()
-        .connector("slack")
+    let chat = crate::kernel::connectors::fixture_scope()
+        .connector("fixture/chat")
         .unwrap();
-    let mut binding = slack.binding();
+    let mut binding = chat.binding();
     binding.connector_digest =
         runx_contracts::connector::Digest::new(format!("sha256:{}", "0".repeat(64))).unwrap();
     fixture.provider.grants.lock().unwrap().extend([
         serde_json::json!({
-            "grant_id": "grant_slack_other",
-            "provider": "slack",
+            "grant_id": "grant_chat_other",
+            "provider": "fixture/chat",
             "connector_binding": binding,
             "status": "active",
             "scopes": ["channel.post"],
         }),
         serde_json::json!({
-            "grant_id": "grant_slack_unbound",
-            "provider": "slack",
+            "grant_id": "grant_chat_unbound",
+            "provider": "fixture/chat",
             "status": "active",
             "scopes": ["channel.post"],
         }),
     ]);
 
     let other = fixture
-        .try_select_grant("grant_slack_other", "slack")
+        .try_select_grant("grant_chat_other", "fixture/chat")
         .unwrap_err();
-    assert!(other.contains("does not bind connector slack"), "{other}");
+    assert!(
+        other.contains("does not bind connector fixture/chat"),
+        "{other}"
+    );
     let unbound = fixture
-        .try_select_grant("grant_slack_unbound", "slack")
+        .try_select_grant("grant_chat_unbound", "fixture/chat")
         .unwrap_err();
     assert!(unbound.contains("names no connector"), "{unbound}");
 }
@@ -844,14 +859,14 @@ fn a_grant_that_lacks_the_scope_refuses_before_anything_is_sent() {
         .admit("post", &post("hi"))
         .expect_err("refused")
         .to_string();
-    assert!(error.contains("grant_slack does not cover"), "{error}");
+    assert!(error.contains("grant_chat does not cover"), "{error}");
 }
 
 #[test]
 fn a_target_outside_the_declared_pattern_is_refused_before_anything_is_sent() {
     let fixture = Fixture::new(&["channel.post"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"channel_locator": "slack://T123/C456/extra", "text": "hi"},
+        "input": {"channel_locator": "chat://T123/C456/extra", "text": "hi"},
         "idempotency_key": "post-1",
     }))
     .unwrap();
@@ -868,7 +883,7 @@ fn input_outside_the_operation_schema_is_refused_before_anything_is_sent() {
     let fixture = Fixture::new(&["channel.post"]);
     let ids = |count: usize| {
         let ids = (0..count)
-            .map(|index| format!("OSV-{index}"))
+            .map(|index| format!("ADV-{index}"))
             .collect::<Vec<_>>();
         serde_json::from_value::<JsonObject>(serde_json::json!({"input": {"ids": ids}})).unwrap()
     };
@@ -884,20 +899,23 @@ fn input_outside_the_operation_schema_is_refused_before_anything_is_sent() {
         "{error}"
     );
     assert!(
-        !error.contains("OSV-50"),
+        !error.contains("ADV-50"),
         "the refusal names the path, never the value: {error}"
     );
     assert_eq!(fixture.provider.calls(), 0);
 }
 
-/// Price OSV's advisory read in the fixture's plugin, as a provider that
+/// Price the advisory read in the fixture's plugin, as a provider that
 /// bills per request declares it.
 fn price_advisories(fixture: &Fixture, usd_micro: u64) {
     price_advisories_per(fixture, usd_micro, "request");
 }
 
 fn price_advisories_per(fixture: &Fixture, usd_micro: u64, per: &str) {
-    let path = fixture.root.path().join("connectors/osv/connector.yaml");
+    let path = fixture
+        .root
+        .path()
+        .join("connectors/fixture/advisories/connector.yaml");
     let yaml = std::fs::read_to_string(&path).unwrap().replace(
         "    result_fields: [advisories]\n",
         &format!(
@@ -932,7 +950,7 @@ fn a_priced_call_spends_from_the_runs_limit_and_one_over_it_sends_nothing() {
     price_advisories(&fixture, 5_000);
     let authority = limited(8_000);
     let (admission, outcome, _) = fixture
-        .run_under("advisories", &advisories("OSV-1"), None, Some(&authority))
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
         .unwrap();
     let context = admission.context::<OperationAdmission>().unwrap();
     assert!(
@@ -960,7 +978,7 @@ fn a_priced_call_spends_from_the_runs_limit_and_one_over_it_sends_nothing() {
 
     // 3,000 is left: another 5,000 call is refused before anything is sent.
     let refused = fixture
-        .admit_as("advisories", &advisories("OSV-2"), Some(&authority))
+        .admit_as("advisories", &advisories("ADV-2"), Some(&authority))
         .expect_err("over the limit");
     assert!(
         matches!(refused, RuntimeEffectError::CostLimitExceeded { .. }),
@@ -981,13 +999,13 @@ fn a_call_billed_on_success_gives_its_spend_back_when_refused() {
     fixture.provider.answer(Answer::Reject);
     assert!(
         fixture
-            .run_under("advisories", &advisories("OSV-1"), None, Some(&authority))
+            .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
             .is_err()
     );
     // Nothing was billable, so the whole limit is left for the next call.
     fixture.provider.answer(Answer::Succeed);
     fixture
-        .run_under("advisories", &advisories("OSV-2"), None, Some(&authority))
+        .run_under("advisories", &advisories("ADV-2"), None, Some(&authority))
         .expect("the refused call spent nothing");
 }
 
@@ -996,7 +1014,7 @@ fn a_run_without_a_limit_spends_as_it_always_has() {
     let fixture = Fixture::new(&["channel.post"]);
     price_advisories(&fixture, 5_000);
     let (admission, outcome, _) = fixture
-        .run_under("advisories", &advisories("OSV-1"), None, None)
+        .run_under("advisories", &advisories("ADV-1"), None, None)
         .unwrap();
     let context = admission.context::<OperationAdmission>().unwrap();
     assert!(
@@ -1090,21 +1108,21 @@ fn the_approval_carries_what_executes_bound_by_its_digest() {
 
 #[test]
 fn a_provider_effect_key_survives_a_fresh_native_run_and_kernel_store() {
-    let mut first = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    let mut first = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     first.run_id = "external-stage-attempt-1";
-    let mut second = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    let mut second = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     second.run_id = "external-stage-attempt-2";
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "s3://media/interview.mp3"},
+        "input": {"target": "objects://media/interview.mp3"},
         "idempotency_key": "one-durable-provider-effect",
     }))
     .unwrap();
     first.provider.answer(Answer::TimeOut);
     first
-        .run("transcribe", &start, None)
+        .run("job", &start, None)
         .expect_err("uncertain provider outcome");
     second
-        .run("transcribe", &start, None)
+        .run("job", &start, None)
         .expect("the new native attempt resends under provider deduplication");
     let original = first.provider.calls.lock().unwrap();
     let retried = second.provider.calls.lock().unwrap();
@@ -1116,19 +1134,17 @@ fn a_provider_effect_key_survives_a_fresh_native_run_and_kernel_store() {
 
 #[test]
 fn an_enforced_operation_resends_after_an_unknown_outcome() {
-    let fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "s3://media/interview.mp3"},
-        "idempotency_key": "transcribe-1",
+        "input": {"target": "objects://media/interview.mp3"},
+        "idempotency_key": "job-1",
     }))
     .unwrap();
     fixture.provider.answer(Answer::TimeOut);
-    fixture
-        .run("transcribe", &start, None)
-        .expect_err("unknown");
+    fixture.run("job", &start, None).expect_err("unknown");
     fixture.provider.answer(Answer::Succeed);
     fixture
-        .run("transcribe", &start, None)
+        .run("job", &start, None)
         .expect("the provider deduplicates by key");
     let calls = fixture.provider.calls.lock().unwrap();
     assert_eq!(calls.len(), 2);
@@ -1145,43 +1161,41 @@ fn an_enforced_operation_resends_after_an_unknown_outcome() {
 /// holds it, even where resending would be safe, and nothing is sent.
 #[test]
 fn an_unknown_write_is_held_when_its_instance_was_rebound() {
-    let mut fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    let mut fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "s3://media/interview.mp3"},
-        "idempotency_key": "transcribe-1",
+        "input": {"target": "objects://media/interview.mp3"},
+        "idempotency_key": "job-1",
     }))
     .unwrap();
     fixture.provider.answer(Answer::TimeOut);
-    fixture
-        .run("transcribe", &start, None)
-        .expect_err("unknown");
+    fixture.run("job", &start, None).expect_err("unknown");
     // The same grant is confirmed again, now held by another account, and
     // the run resumes in a new process.
     *fixture.provider.principal.lock().unwrap() = "operator-2".to_owned();
-    fixture.select_grant("grant_slack", "aws");
+    fixture.select_grant("grant_chat", "fixture/compute");
     fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
     fixture.provider.answer(Answer::Succeed);
-    let error = fixture.run("transcribe", &start, None).expect_err("held");
+    let error = fixture.run("job", &start, None).expect_err("held");
     assert!(error.contains("reconcile it before resuming"), "{error}");
     assert_eq!(fixture.provider.calls(), 1, "nothing was sent again");
 }
 
 #[test]
 fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
-    let fixture = Fixture::for_connector("aws", &["aws.transcribe.execute"]);
+    let fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "s3://media/interview.mp3"},
-        "idempotency_key": "transcribe-1",
+        "input": {"target": "objects://media/interview.mp3"},
+        "idempotency_key": "job-1",
     }))
     .unwrap();
     fixture.provider.answer(Answer::TimeOut);
-    fixture.run("transcribe", &call, None).expect_err("unknown");
+    fixture.run("job", &call, None).expect_err("unknown");
     fixture.provider.answer(Answer::Reject);
     let error = fixture
-        .run("transcribe", &call, None)
+        .run("job", &call, None)
         .expect_err("the earlier outcome stays unknown");
     assert!(error.contains("prior attempt may have executed"), "{error}");
-    let admission = fixture.admit("transcribe", &call).unwrap();
+    let admission = fixture.admit("job", &call).unwrap();
     assert!(
         admission
             .context::<OperationAdmission>()
@@ -1194,7 +1208,7 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
 
 #[test]
 fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back() {
-    let fixture = Fixture::for_connector("github", &["repo.write"]);
+    let fixture = Fixture::for_connector("fixture/forge", &["repo.write"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
         "idempotency_key": "update-1",
@@ -1237,7 +1251,7 @@ fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back(
 
 #[test]
 fn a_hosted_declared_read_sends_one_request_per_item() {
-    let fixture = Fixture::for_connector("github", &["repo.read"]);
+    let fixture = Fixture::for_connector("fixture/forge", &["repo.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {"repository": "acme/app", "numbers": [7, 8]},
     }))
@@ -1264,17 +1278,17 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
     // call reaches only that URL.
     let fixture = Fixture::new(&["channel.post"]);
     fixture.set_credential(
-        "n8n",
+        "fixture/hooks",
         "webhook",
-        "https://acme.app.n8n.cloud/webhook/runx-effect",
+        "https://acme.hooks.fixture.invalid/webhook/runx-effect",
     );
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {
-            "webhook_host": "acme.app.n8n.cloud",
+            "webhook_host": "acme.hooks.fixture.invalid",
             "delivery": {
                 "event_id": "evt-1",
-                "handoff_scope": "orchestrator.n8n.workflow.invoke",
-                "handoff_audience": "n8n:workflow:runx-effect",
+                "handoff_scope": "orchestrator.hooks.workflow.invoke",
+                "handoff_audience": "hooks:workflow:runx-effect",
                 "idempotency_key": "evt-1",
                 "payload": {"hello": "workflow"},
             },
@@ -1326,11 +1340,11 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
     // Another write the provider answers alike is still another operation.
     let other: JsonObject = serde_json::from_value(serde_json::json!({
         "input": {
-            "webhook_host": "acme.app.n8n.cloud",
+            "webhook_host": "acme.hooks.fixture.invalid",
             "delivery": {
                 "event_id": "evt-2",
-                "handoff_scope": "orchestrator.n8n.workflow.invoke",
-                "handoff_audience": "n8n:workflow:runx-effect",
+                "handoff_scope": "orchestrator.hooks.workflow.invoke",
+                "handoff_audience": "hooks:workflow:runx-effect",
                 "idempotency_key": "evt-2",
                 "payload": {"hello": "workflow"},
             },
@@ -1658,7 +1672,7 @@ fn a_call_carries_the_effect_its_operation_declares_and_admissions_authority() {
     );
     let effect = &outcome.effects[0];
     assert_eq!(effect.reference_type, ReferenceType::Thread);
-    assert_eq!(effect.uri.as_str(), "slack://T123/C456/1.0");
+    assert_eq!(effect.uri.as_str(), "chat://T123/C456/1.0");
     let authority = fixture.effect.authority(&admission).expect("authority");
     assert_eq!(
         authority.actor_ref.as_ref().map(|actor| actor.uri.as_str()),
@@ -1683,7 +1697,10 @@ fn an_effect_the_connector_does_not_declare_holds_the_call() {
     let error = fixture
         .run("post", &post("hi"), Some(ResolutionResponseActor::Human))
         .expect_err("held");
-    assert!(error.contains("is not a thread slack declares"), "{error}");
+    assert!(
+        error.contains("is not a thread fixture/chat declares"),
+        "{error}"
+    );
     assert!(
         error.contains("unknown"),
         "an unconfirmed effect holds: {error}"

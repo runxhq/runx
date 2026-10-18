@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::{ConnectorSetup, UseOptions, UseOutcome, UseRequest};
 use crate::http::{HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse};
-use crate::kernel::connectors::{LoadedConnector, source_scope};
+use crate::kernel::connectors::{LoadedConnector, fixture_scope};
 use crate::kernel::instances::Instances;
 use crate::kernel::store::KernelStore;
 use crate::services::WorkspaceEnv;
@@ -180,16 +180,16 @@ fn grant_of(outcome: UseOutcome) -> Result<String, String> {
 
 #[test]
 fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
-    let slack = source_scope().connector("slack").unwrap();
+    let chat = fixture_scope().connector("fixture/chat").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[pending()]);
-    let created = connect.issue("grant_slack_1", &slack);
+    let created = connect.issue("grant_chat_1", &chat);
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
 
     let outcome = project
         .setup(&connect)
         .use_connector(
-            &slack,
+            &chat,
             UseRequest::Hosted {
                 target: None,
                 from: None,
@@ -198,10 +198,10 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
         )
         .unwrap();
 
-    assert_eq!(grant_of(outcome).unwrap(), "grant_slack_1");
+    assert_eq!(grant_of(outcome).unwrap(), "grant_chat_1");
     // A new grant asks for every scope the connector's operations declare.
     let started = connect.sent("/v1/connect/sessions");
-    let mut declared = slack
+    let mut declared = chat
         .manifest
         .operations
         .values()
@@ -216,7 +216,7 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
     declared.dedup();
     assert_eq!(
         started[0]["connector_binding"],
-        serde_json::to_value(slack.binding()).unwrap(),
+        serde_json::to_value(chat.binding()).unwrap(),
         "Connect is asked for the exact connector the kernel loaded"
     );
     assert!(started[0].get("provider").is_none());
@@ -226,14 +226,14 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
 
 #[test]
 fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), String> {
-    let slack = source_scope().connector("slack").unwrap();
+    let chat = fixture_scope().connector("fixture/chat").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[]);
     let project = Project::new();
 
     let outcome = project
         .setup(&connect)
         .use_connector(
-            &slack,
+            &chat,
             UseRequest::Hosted {
                 target: Some("C0123"),
                 from: None,
@@ -254,32 +254,32 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
         authorization_url.as_deref(),
         Some("https://connect.runx.invalid/authorize/sess_1")
     );
-    assert_eq!(finish, "runx connector use slack sess_1");
+    assert_eq!(finish, "runx connector use fixture/chat sess_1");
     // The target goes as one locator; Connect reads it per provider.
     let started = connect.sent("/v1/connect/sessions");
     assert_eq!(started[0]["target_locator"], "C0123");
     assert!(started[0].get("target_repo").is_none());
 
     // Once authorized, the printed command binds the grant the session made.
-    let created = connect.issue("grant_slack_1", &slack);
+    let created = connect.issue("grant_chat_1", &chat);
     connect.statuses.lock().unwrap().push_back(created);
     let finished = project
         .setup(&connect)
         .use_connector(
-            &slack,
+            &chat,
             UseRequest::Existing("sess_1"),
             &options(Duration::ZERO),
         )
         .unwrap();
-    assert_eq!(grant_of(finished)?, "grant_slack_1");
+    assert_eq!(grant_of(finished)?, "grant_chat_1");
     Ok(())
 }
 
 #[test]
 fn a_new_grant_shows_its_link_once_before_it_waits() {
-    let slack = source_scope().connector("slack").unwrap();
+    let chat = fixture_scope().connector("fixture/chat").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[pending(), pending()]);
-    let created = connect.issue("grant_slack_1", &slack);
+    let created = connect.issue("grant_chat_1", &chat);
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
     let shown = std::cell::RefCell::new(Vec::new());
@@ -295,7 +295,7 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
         .setup(&connect)
         .showing_links(&show)
         .use_connector(
-            &slack,
+            &chat,
             UseRequest::Hosted {
                 target: None,
                 from: None,
@@ -304,30 +304,30 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
         )
         .unwrap();
 
-    assert_eq!(grant_of(outcome).unwrap(), "grant_slack_1");
+    assert_eq!(grant_of(outcome).unwrap(), "grant_chat_1");
     assert_eq!(
         *shown.borrow(),
-        vec!["slack https://connect.runx.invalid/authorize/sess_1".to_owned()]
+        vec!["fixture/chat https://connect.runx.invalid/authorize/sess_1".to_owned()]
     );
 }
 
 #[test]
 fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
     let project = Project::with(&[
-        ("AWS_CREDENTIALS", "{}"),
-        ("RUNX_ENV_FILE_DIFFERS", "AWS_CREDENTIALS"),
+        ("COMPUTE_CREDENTIALS", "{}"),
+        ("RUNX_ENV_FILE_DIFFERS", "COMPUTE_CREDENTIALS"),
     ]);
 
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
         .use_connector(
-            &aws,
+            &compute,
             UseRequest::Hosted {
                 target: None,
                 from: None,
@@ -338,7 +338,8 @@ fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect()
         .unwrap();
 
     assert!(
-        refused.starts_with("AWS_CREDENTIALS is set in the environment and in the workspace .env"),
+        refused
+            .starts_with("COMPUTE_CREDENTIALS is set in the environment and in the workspace .env"),
         "{refused}"
     );
     assert!(connect.sent("/v1/connect/sessions").is_empty());
@@ -346,23 +347,23 @@ fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect()
 
 #[test]
 fn a_plain_use_refuses_a_variable_the_env_file_disagrees_on_even_when_blank() {
-    let exa = source_scope().connector("exa").unwrap();
+    let search = fixture_scope().connector("fixture/search").unwrap();
     let connect = Connect::new(Value::Null, &[]);
     // A blank export over a `.env` value is still two values.
     let project = Project::with(&[
-        ("EXA_API_KEY", ""),
-        ("RUNX_ENV_FILE_DIFFERS", "EXA_API_KEY"),
+        ("SEARCH_API_KEY", ""),
+        ("RUNX_ENV_FILE_DIFFERS", "SEARCH_API_KEY"),
     ]);
 
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
-        .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))
+        .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))
         .err()
         .unwrap();
 
     assert!(
-        refused.starts_with("EXA_API_KEY is set in the environment and in the workspace .env"),
+        refused.starts_with("SEARCH_API_KEY is set in the environment and in the workspace .env"),
         "{refused}"
     );
     assert!(project.instances.list().unwrap().is_empty());
@@ -370,7 +371,7 @@ fn a_plain_use_refuses_a_variable_the_env_file_disagrees_on_even_when_blank() {
 
 #[test]
 fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(Value::Null, &[]);
     let project = Project::new();
     crate::hosted_api::store_authenticated_hosted_environment(
@@ -386,7 +387,7 @@ fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
-        .use_connector(&aws, UseRequest::Default, &options(Duration::ZERO))
+        .use_connector(&compute, UseRequest::Default, &options(Duration::ZERO))
         .err()
         .unwrap();
 
@@ -397,12 +398,12 @@ fn two_runx_tokens_that_differ_are_refused_not_read_as_signed_out() {
 
 #[test]
 fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
-    let created = connect.issue("grant_aws_1", &aws);
+    let created = connect.issue("grant_compute_1", &compute);
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
     let secret = json!({
@@ -416,7 +417,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
     let asked = |wanted: &str| {
         assert_eq!(
             wanted,
-            "aws access_key, a JSON object of region, account_id, access_key_id, secret_access_key, session_token"
+            "fixture/compute access_key, a JSON object of region, account_id, access_key_id, secret_access_key, session_token"
         );
         Ok(secret.clone())
     };
@@ -424,7 +425,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
         .setup(&connect)
         .reading_secrets(&asked)
         .use_connector(
-            &aws,
+            &compute,
             UseRequest::Hosted {
                 target: None,
                 from: None,
@@ -433,7 +434,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
         )
         .unwrap();
 
-    assert_eq!(grant_of(outcome).unwrap(), "grant_aws_1");
+    assert_eq!(grant_of(outcome).unwrap(), "grant_compute_1");
     let submitted = connect.sent("/v1/connect/sessions/sess_1/credentials");
     assert_eq!(submitted[0]["credentials"]["region"], "us-east-1");
     assert_eq!(
@@ -444,12 +445,12 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
 
 #[test]
 fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
-    let created = connect.issue("grant_aws_1", &aws);
+    let created = connect.issue("grant_compute_1", &compute);
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
     let secret = json!({
@@ -463,13 +464,13 @@ fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() 
     let outcome = project
         .setup(&connect)
         .reading_secrets(&|_: &str| Ok(secret.clone()))
-        .use_connector(&aws, UseRequest::Default, &options(Duration::ZERO))
+        .use_connector(&compute, UseRequest::Default, &options(Duration::ZERO))
         .unwrap();
 
-    assert_eq!(grant_of(outcome).unwrap(), "grant_aws_1");
+    assert_eq!(grant_of(outcome).unwrap(), "grant_compute_1");
     assert_eq!(
         connect.sent("/v1/connect/sessions")[0]["connector_binding"],
-        serde_json::to_value(aws.binding()).unwrap()
+        serde_json::to_value(compute.binding()).unwrap()
     );
     assert_eq!(
         connect.sent("/v1/connect/sessions/sess_1/credentials")[0]["credentials"]["access_key_id"],
@@ -479,7 +480,7 @@ fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() 
 
 #[test]
 fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         awaiting_authorization(),
         &[json!({"status": "credential_required", "session_id": "sess_1"})],
@@ -489,7 +490,7 @@ fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
     let refused = project
         .setup(&connect)
         .use_connector(
-            &aws,
+            &compute,
             UseRequest::Existing("sess_1"),
             &options(Duration::ZERO),
         )
@@ -498,7 +499,7 @@ fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
 
     assert!(
         refused.contains(
-            "run `runx connector use aws --hosted` (reads AWS_CREDENTIALS, else asks for it)"
+            "run `runx connector use fixture/compute --hosted` (reads COMPUTE_CREDENTIALS, else asks for it)"
         ),
         "{refused}"
     );
@@ -511,7 +512,7 @@ fn a_connect_session_waiting_for_a_credential_names_the_form_that_sends_one() {
 
 #[test]
 fn a_failed_connect_session_is_refused_with_its_reason() {
-    let slack = source_scope().connector("slack").unwrap();
+    let chat = fixture_scope().connector("fixture/chat").unwrap();
     let connect = Connect::new(
         awaiting_authorization(),
         &[json!({"status": "failed", "session_id": "sess_1", "error": "access denied"})],
@@ -521,7 +522,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
     let refused = project
         .setup(&connect)
         .use_connector(
-            &slack,
+            &chat,
             UseRequest::Hosted {
                 target: None,
                 from: None,
@@ -531,7 +532,10 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
         .err()
         .unwrap();
 
-    assert_eq!(refused, "runx Connect could not grant slack: access denied");
+    assert_eq!(
+        refused,
+        "runx Connect could not grant fixture/chat: access denied"
+    );
     assert!(project.instances.list().unwrap().is_empty());
 }
 
@@ -548,22 +552,22 @@ fn never_asked(wanted: &str) -> Result<String, String> {
 
 #[test]
 fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), String> {
-    let exa = source_scope().connector("exa").unwrap();
-    let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
+    let search = fixture_scope().connector("fixture/search").unwrap();
+    let project = Project::with(&[("SEARCH_API_KEY", "search-fixture-key")]);
     let connect = Connect::new(Value::Null, &[]);
 
     let instance = selected(
         project
             .setup(&connect)
             .reading_secrets(&never_asked)
-            .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))?,
+            .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))?,
     )?;
 
     assert_eq!(
         instance.authority,
         InstanceAuthority::Environment {
             credential: CredentialName::new("api_key").unwrap(),
-            variable: runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap(),
+            variable: runx_contracts::connector::EnvName::new("SEARCH_API_KEY").unwrap(),
             scopes: vec!["search.read".into()],
         }
     );
@@ -571,7 +575,7 @@ fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), S
     assert!(
         !serde_json::to_string(&instance)
             .unwrap()
-            .contains("exa-fixture-key")
+            .contains("search-fixture-key")
     );
     assert!(
         crate::credential_profiles::list_local_credential_profiles(&project.workspace)
@@ -584,19 +588,19 @@ fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), S
 #[test]
 fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() -> Result<(), String>
 {
-    let exa = source_scope().connector("exa").unwrap();
+    let search = fixture_scope().connector("fixture/search").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
     let asked = |wanted: &str| {
-        assert_eq!(wanted, "exa api_key");
-        Ok("exa-typed-key".to_owned())
+        assert_eq!(wanted, "fixture/search api_key");
+        Ok("search-typed-key".to_owned())
     };
 
     let instance = selected(
         project
             .setup(&connect)
             .reading_secrets(&asked)
-            .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))?,
+            .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))?,
     )?;
 
     let InstanceAuthority::Credential { profile, .. } = &instance.authority else {
@@ -605,21 +609,21 @@ fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() ->
             instance.authority
         ));
     };
-    assert_eq!(profile.as_str(), "exa");
+    assert_eq!(profile.as_str(), "fixture/search");
     Ok(())
 }
 
 #[test]
 fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> Result<(), String> {
-    let apollo = source_scope().connector("apollo").unwrap();
+    let refs = fixture_scope().connector("fixture/refs").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
     let instance = selected(
         project
             .setup(&connect)
-            .reading_secrets(&|_: &str| Ok("apollo-typed-key".to_owned()))
-            .use_connector(&apollo, UseRequest::Default, &options(Duration::ZERO))?,
+            .reading_secrets(&|_: &str| Ok("refs-typed-key".to_owned()))
+            .use_connector(&refs, UseRequest::Default, &options(Duration::ZERO))?,
     )?;
 
     assert!(
@@ -633,41 +637,41 @@ fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> 
 
 #[test]
 fn a_credential_that_cannot_be_asked_for_names_its_variable() {
-    let exa = source_scope().connector("exa").unwrap();
+    let search = fixture_scope().connector("fixture/search").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
     let refused = project
         .setup(&connect)
-        .use_connector(&exa, UseRequest::Default, &options(Duration::ZERO))
+        .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))
         .err()
         .unwrap();
 
-    assert!(refused.contains("set EXA_API_KEY"), "{refused}");
+    assert!(refused.contains("set SEARCH_API_KEY"), "{refused}");
 }
 
 #[test]
 fn a_connector_with_several_credentials_names_each_and_its_variable() {
-    let twitter = source_scope().connector("twitter").unwrap();
+    let social = fixture_scope().connector("fixture/social").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
 
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
-        .use_connector(&twitter, UseRequest::Default, &options(Duration::ZERO))
+        .use_connector(&social, UseRequest::Default, &options(Duration::ZERO))
         .err()
         .unwrap();
 
     assert!(
         refused.contains(
-            "`runx connector use twitter --credential app` (reads TWITTER_BEARER_TOKEN, else asks for it)"
+            "`runx connector use fixture/social --credential app` (reads SOCIAL_BEARER_TOKEN, else asks for it)"
         ),
         "{refused}"
     );
     assert!(
         refused.contains(
-            "`runx connector use twitter --credential user` (reads TWITTER_USER_AUTH, else asks for it)"
+            "`runx connector use fixture/social --credential user` (reads SOCIAL_USER_AUTH, else asks for it)"
         ),
         "{refused}"
     );
@@ -675,15 +679,15 @@ fn a_connector_with_several_credentials_names_each_and_its_variable() {
 
 #[test]
 fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
-    let exa = source_scope().connector("exa").unwrap();
-    let project = Project::with(&[("EXA_API_KEY", "exa-fixture-key")]);
+    let search = fixture_scope().connector("fixture/search").unwrap();
+    let project = Project::with(&[("SEARCH_API_KEY", "search-fixture-key")]);
     let connect = Connect::new(Value::Null, &[]);
 
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
         .use_connector(
-            &exa,
+            &search,
             UseRequest::Credential {
                 credential: &CredentialName::new("api_key").unwrap(),
                 profile: Some("work"),
@@ -694,23 +698,23 @@ fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
         .unwrap();
 
     assert!(
-        refused.contains("is read from EXA_API_KEY, which is set"),
+        refused.contains("is read from SEARCH_API_KEY, which is set"),
         "{refused}"
     );
 }
 
 #[test]
 fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
-    let created = connect.issue("grant_aws_1", &aws);
+    let created = connect.issue("grant_compute_1", &compute);
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
     let held = tempfile::tempdir().unwrap();
-    let secret = held.path().join("aws.json");
+    let secret = held.path().join("compute.json");
     std::fs::write(
         &secret,
         json!({
@@ -730,7 +734,7 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
         .setup(&connect)
         .reading_secrets(&|_: &str| Err("asked for what the reference holds".to_owned()))
         .use_connector(
-            &aws,
+            &compute,
             UseRequest::Hosted {
                 target: None,
                 from: Some(&reference),
@@ -739,7 +743,7 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
         )
         .unwrap();
 
-    assert_eq!(grant_of(outcome).unwrap(), "grant_aws_1");
+    assert_eq!(grant_of(outcome).unwrap(), "grant_compute_1");
     let sent = &connect.sent("/v1/connect/sessions/sess_1/credentials")[0]["credentials"];
     assert_eq!(sent["access_key_id"], "AKIAFROMVAULT");
     assert_eq!(sent["secret_access_key"], "secret-from-vault");
@@ -747,16 +751,15 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
 
 #[test]
 fn a_reference_cannot_seed_a_delegated_sign_in() {
-    let github = source_scope().connector("github").unwrap();
+    let forge = fixture_scope().connector("fixture/forge").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[]);
     let project = Project::new();
-    let reference =
-        runx_contracts::connector::SecretReference::new("aws-sm://team/github").unwrap();
+    let reference = runx_contracts::connector::SecretReference::new("aws-sm://team/forge").unwrap();
 
     let refused = project
         .setup(&connect)
         .use_connector(
-            &github,
+            &forge,
             UseRequest::Hosted {
                 target: None,
                 from: Some(&reference),
@@ -775,20 +778,20 @@ fn a_reference_cannot_seed_a_delegated_sign_in() {
 
 #[test]
 fn a_reference_that_cannot_be_read_sends_nothing_to_connect() {
-    let aws = source_scope().connector("aws").unwrap();
+    let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
     let project = Project::new();
     let reference =
-        runx_contracts::connector::SecretReference::new("file:///nonexistent/runx/aws.json")
+        runx_contracts::connector::SecretReference::new("file:///nonexistent/runx/compute.json")
             .unwrap();
 
     let refused = project
         .setup(&connect)
         .use_connector(
-            &aws,
+            &compute,
             UseRequest::Hosted {
                 target: None,
                 from: Some(&reference),

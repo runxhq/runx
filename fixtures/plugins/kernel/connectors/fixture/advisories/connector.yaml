@@ -1,0 +1,35 @@
+schema: runx.connector.v1
+id: fixture/advisories
+name: Fixture Advisories
+description: Read advisory records from an advisory fixture by id.
+runtime_capability: false
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  vulnerabilities.read:
+    description: Read complete advisory records by id.
+    verb: read
+    scopes: [vulnerabilities.read]
+    target:
+      template: "https://advisories.fixture.invalid/v1/vulns"
+    input_schema:
+      type: object
+      required: [ids]
+      additionalProperties: false
+      properties:
+        ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$"}
+    result_fields: [advisories]
+    implementation:
+      http:
+        allowed_hosts: [advisories.fixture.invalid]
+        requests:
+          - each: {"$argument": "/ids"}
+            method: GET
+            url: {"$concat": ["https://advisories.fixture.invalid/v1/vulns/", {"$item": ""}]}

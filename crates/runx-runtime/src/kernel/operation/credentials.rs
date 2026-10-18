@@ -401,8 +401,8 @@ mod tests {
     #[test]
     fn a_reference_this_home_bound_is_read_on_every_call_and_a_planted_one_never() {
         use runx_contracts::schema::NonEmptyString;
-        let connector = crate::kernel::connectors::source_scope()
-            .connector("exa")
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/search")
             .unwrap();
         let held = tempfile::tempdir().unwrap();
         let secret = held.path().join("exa.key");
@@ -491,14 +491,14 @@ mod tests {
 
     #[test]
     fn an_environment_credential_is_read_from_its_variable_on_every_call() {
-        let connector = crate::kernel::connectors::source_scope()
-            .connector("exa")
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/search")
             .unwrap();
         let credential = CredentialName::new("api_key").unwrap();
-        let variable = runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap();
+        let variable = runx_contracts::connector::EnvName::new("SEARCH_API_KEY").unwrap();
         let read = |value: Option<&str>| {
             let env = value
-                .map(|value| BTreeMap::from([("EXA_API_KEY".to_owned(), value.to_owned())]))
+                .map(|value| BTreeMap::from([("SEARCH_API_KEY".to_owned(), value.to_owned())]))
                 .unwrap_or_default();
             super::from_environment(&env, &connector, &credential, &variable)
         };
@@ -513,23 +513,23 @@ mod tests {
         );
         let refused = read(None).unwrap_err();
         assert!(
-            refused.contains("reads its api_key credential from EXA_API_KEY, which is not set"),
+            refused.contains("reads its api_key credential from SEARCH_API_KEY, which is not set"),
             "{refused}"
         );
     }
 
     #[test]
     fn a_variable_the_shell_and_the_env_file_disagree_on_is_refused() {
-        let connector = crate::kernel::connectors::source_scope()
-            .connector("exa")
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/search")
             .unwrap();
         let credential = CredentialName::new("api_key").unwrap();
-        let variable = runx_contracts::connector::EnvName::new("EXA_API_KEY").unwrap();
+        let variable = runx_contracts::connector::EnvName::new("SEARCH_API_KEY").unwrap();
         let env = BTreeMap::from([
-            ("EXA_API_KEY".to_owned(), "from-shell".to_owned()),
+            ("SEARCH_API_KEY".to_owned(), "from-shell".to_owned()),
             (
                 "RUNX_ENV_FILE_DIFFERS".to_owned(),
-                "OTHER,EXA_API_KEY".to_owned(),
+                "OTHER,SEARCH_API_KEY".to_owned(),
             ),
         ]);
 
@@ -539,7 +539,7 @@ mod tests {
 
         assert_eq!(
             refused,
-            "EXA_API_KEY is set in the environment and in the workspace .env with different values; unset one so exa reads one api_key"
+            "SEARCH_API_KEY is set in the environment and in the workspace .env with different values; unset one so fixture/search reads one api_key"
         );
     }
 
@@ -548,8 +548,8 @@ mod tests {
     #[test]
     fn a_profile_replaced_elsewhere_no_longer_serves_the_first_binding() {
         let root = tempfile::tempdir().unwrap();
-        let connector = crate::kernel::connectors::source_scope()
-            .connector("moltbook")
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/forum")
             .unwrap();
         let credential = CredentialName::new("api_key").unwrap();
         let bind = |workspace: &str, secret: &str| {
@@ -572,7 +572,7 @@ mod tests {
                     .unwrap(),
                 ),
                 &connector,
-                "moltbook",
+                "fixture/forum",
                 &credential,
                 secret,
                 &[],
@@ -589,7 +589,7 @@ mod tests {
         };
         let (first, first_ref) = bind("a", "first-account-key");
         let binding = ProfileBinding {
-            profile: "moltbook",
+            profile: "fixture/forum",
             credential: &credential,
             material_ref: first_ref.as_str(),
         };

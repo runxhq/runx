@@ -1085,20 +1085,26 @@ pub(crate) fn read_bounded(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|error| error.to_string())
 }
 
-/// The runx source tree's scope, where every runx-maintained connector is in
-/// reach as a plugin connector.
+/// The kernel tests' own plugin, whose `fixture/*` connectors carry each
+/// connector shape the tests exercise. No test reaches a vendor connector.
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-pub(crate) fn source_scope() -> ConnectorScope {
-    ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
-        .expect("the runx source scope")
+fn fixture_plugin() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel")
 }
 
-/// Makes `root` a plugin holding copies of the runx source connectors `ids`:
-/// how a project reaches published connectors without a registry.
+/// The kernel test plugin's scope, where every fixture connector is in reach
+/// as a plugin connector.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
-pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) {
+pub(crate) fn fixture_scope() -> ConnectorScope {
+    ConnectorScope::at(&fixture_plugin()).expect("the kernel fixture plugin's scope")
+}
+
+/// Makes `root` a plugin holding copies of the fixture connectors `ids`, such
+/// as `fixture/chat`: how a project reaches connectors without a registry.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn plugin_with_fixture_connectors(root: &Path, ids: &[&str]) {
     fn copy(from: &Path, to: &Path) {
         std::fs::create_dir_all(to).expect("connector directory");
         for entry in std::fs::read_dir(from).expect("source connector") {
@@ -1111,7 +1117,7 @@ pub(crate) fn plugin_with_source_connectors(root: &Path, ids: &[&str]) {
             }
         }
     }
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    let source = fixture_plugin().join("connectors");
     for id in ids {
         copy(&source.join(id), &root.join("connectors").join(id));
     }

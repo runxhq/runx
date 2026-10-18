@@ -1250,8 +1250,8 @@ mod tests {
             std::sync::Arc::new(ConnectSession),
         )
         .session(&connect_env, std::path::Path::new("/"))?;
-        let binding = crate::kernel::connectors::source_scope()
-            .connector("slack")
+        let binding = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/chat")
             .map_err(|error| error.to_string())?
             .binding();
         for case in corpus["cases"].as_array().ok_or("cases")? {

@@ -15,4 +15,4 @@ mod parser_rejections;
 mod parser_skill_package;
 mod parser_step_kinds;
 mod parser_turn_limits;
-mod runx_maintained_connectors;
+mod plugin_connectors;

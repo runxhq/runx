@@ -523,14 +523,16 @@ pub fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
-/// Makes `root` a runx plugin holding copies of the runx source connectors
-/// `ids`: how a project reaches published connectors without a registry.
-pub fn plugin_with_source_connectors(
+/// Makes `root` a plugin holding copies of the kernel fixture connectors
+/// `ids`, such as `fixture/forge`: how a project reaches connectors without a
+/// registry. No test reaches a vendor connector.
+pub fn plugin_with_fixture_connectors(
     root: &std::path::Path,
     ids: &[&str],
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
-    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/plugins/kernel/connectors");
     for id in ids {
         copy_dir(&source.join(id), &root.join("connectors").join(id))?;
     }

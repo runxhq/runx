@@ -237,12 +237,13 @@ fn a_signer_scoped_to_another_publisher_is_refused() -> Result<(), Box<dyn std::
 }
 
 #[test]
-fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn std::error::Error>>
+{
     let temp = tempdir()?;
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/plugins/kernel/connectors/fixture/forge");
     let mut files = prepare_registry_connector_package(&source)?.files;
-    // A later github: its manifest, so its digest, differs from the source's.
+    // A later forge: its manifest, so its digest, differs from the source's.
     let manifest = files
         .iter_mut()
         .find(|file| file.path == "connector.yaml")
@@ -251,10 +252,15 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
         .content
         .replacen("description: ", "description: Newer. ", 1);
     let published = RegistryConnectorVersion {
-        name: runx_contracts::connector::ConnectorName::new("github").ok_or("ref")?,
+        name: runx_contracts::connector::ConnectorName::new("fixture/forge").ok_or("ref")?,
         version: "9.0.0".to_owned(),
         trust_tier: TrustTier::Verified,
-        signed_manifest: sign(RegistrySubjectKind::Connector, "github", "9.0.0", &files)?,
+        signed_manifest: sign(
+            RegistrySubjectKind::Connector,
+            "fixture/forge",
+            "9.0.0",
+            &files,
+        )?,
         files,
     };
     let options = InstallRegistryConnectorOptions {
@@ -271,9 +277,10 @@ fn a_newer_runx_maintained_connector_version_installs_beside_its_source()
     let installed = install_registry_connector(&published, &options)?;
 
     assert_eq!(installed.status, InstallStatus::Installed);
-    let current =
-        runx_runtime::ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))?
-            .connector("github")?;
+    let current = runx_runtime::ConnectorScope::at(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel"),
+    )?
+    .connector("fixture/forge")?;
     assert_ne!(installed.manifest_digest, current.manifest_digest);
     Ok(())
 }

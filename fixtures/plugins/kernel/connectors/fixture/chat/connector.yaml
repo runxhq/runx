@@ -1,0 +1,58 @@
+schema: runx.connector.v1
+id: fixture/chat
+name: Fixture Chat
+description: Post, read and reply in channels of a hosted chat fixture.
+runtime_capability: false
+auth:
+  delegated: {principal: {url: "https://chat.fixture.invalid/api/auth.test", id: user_id, login: user}}
+placements:
+  hosted:
+    auth: delegated
+references:
+  - {kind: thread, locator: "chat://[^/]+/[^/]+/[0-9]+\\.[0-9]+"}
+operations:
+  channel.post:
+    description: Post a message to a channel.
+    verb: write
+    scopes: [channel.post]
+    target:
+      template: {"$argument": "/channel_locator"}
+      pattern: "chat://[^/]+/[^/]+"
+    approval: required
+    idempotency_key_format: uuid
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    effect:
+      kind: thread
+      locator: {"$result": "/message_locator"}
+    hosted:
+      provider_scopes: ["chat:write"]
+
+  channel.post.read:
+    description: Read back one message posted to a channel.
+    verb: read
+    scopes: [channel.post.read]
+    target:
+      template: {"$argument": "/conversation_locator"}
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest]
+    hosted:
+      provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
+
+  thread.read:
+    description: Read one page of messages in a thread.
+    verb: read
+    scopes: [thread.read]
+    target:
+      template: {"$argument": "/thread_locator"}
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
+    hosted:
+      provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
+
+  thread.reply:
+    description: Reply in a thread.
+    verb: write
+    scopes: [thread.reply]
+    target:
+      template: {"$argument": "/thread_locator"}
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    hosted:
+      provider_scopes: ["chat:write"]

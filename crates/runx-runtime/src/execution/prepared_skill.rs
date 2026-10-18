@@ -1294,13 +1294,13 @@ mod tests {
     #[test]
     fn prepared_governance_consumes_typed_graph_step_contract() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
-        crate::kernel::connectors::plugin_with_source_connectors(temp.path(), &["github"]);
+        crate::kernel::connectors::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"]);
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),
             r#"skill: prepared
 connectors:
-  github:
+  fixture/forge:
     operations: [branch.push]
 runners:
   main:
@@ -1313,7 +1313,7 @@ runners:
           value: $input.ready
           equals: true
       - id: push
-        operation: github/branch.push
+        operation: fixture/forge/branch.push
         idempotency_key: release-publish-1
         input: {repository: acme/app, branch: main, commit: "0123456789abcdef0123456789abcdef01234567"}
       - id: publish

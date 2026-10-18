@@ -1,0 +1,36 @@
+schema: runx.connector.v1
+id: fixture/refs
+name: Fixture Refs
+description: Inspect the selected API key of a contacts fixture.
+runtime_capability: false
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: refs API key, prefixes: [rfx_]}
+      delivery: {env: REFS_API_KEY}
+      audience: [refs.fixture.invalid]
+placements:
+  local:
+    auth: [credentials]
+  hosted: {auth: credential, credential: api_key}
+operations:
+  auth.inspect:
+    description: Inspect API health and whether the exact selected key authenticates; this does not prove account identity, enrichment permissions or credits.
+    verb: read
+    scopes: [auth.read]
+    credentials: [api_key]
+    target: {template: 'https://refs.fixture.invalid/api/v1/auth/health'}
+    input_schema: {type: object, additionalProperties: false}
+    result_fields: [auth]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [refs.fixture.invalid]
+        auth: {api_key: {type: header, name: x-api-key, field: api_key}}
+        requests:
+          - id: health
+            method: GET
+            url: https://refs.fixture.invalid/api/v1/auth/health
+            headers: {accept: application/json}

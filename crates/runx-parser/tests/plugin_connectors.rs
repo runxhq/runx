@@ -1,6 +1,7 @@
-//! Every runx-maintained connector manifest parses and validates, and its
-//! name is its directory: `connectors/<name>/` for a leaf,
-//! `connectors/<namespace>/<surface>/` under a parent.
+//! Every connector manifest of a plugin parses and validates, and its name is
+//! its directory: `connectors/<name>/` for a leaf,
+//! `connectors/<namespace>/<surface>/` under a parent. The plugin is the
+//! kernel tests' fixture plugin, so no vendor connector is read.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,7 @@ use std::path::{Path, PathBuf};
 use runx_parser::{parse_connector_manifest, validate_connector_manifest};
 
 fn connectors_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel/connectors")
 }
 
 fn directories(path: &Path) -> Result<Vec<(String, PathBuf)>, String> {
@@ -29,11 +30,8 @@ fn directories(path: &Path) -> Result<Vec<(String, PathBuf)>, String> {
 }
 
 #[test]
-fn runx_maintained_connectors_validate() -> Result<(), String> {
+fn plugin_connectors_validate_and_are_named_by_their_directory() -> Result<(), String> {
     let root = connectors_root();
-    if !root.is_dir() {
-        return Ok(());
-    }
     let mut failures = Vec::new();
     let mut connectors = Vec::new();
     for entry in fs::read_dir(&root).map_err(|error| error.to_string())? {

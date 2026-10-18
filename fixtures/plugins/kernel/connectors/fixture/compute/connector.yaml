@@ -1,0 +1,33 @@
+schema: runx.connector.v1
+id: fixture/compute
+name: Fixture Compute
+description: Start jobs in one account of a compute fixture.
+runtime_capability: false
+auth:
+  credentials:
+    access_key:
+      kind: aws_credentials_v1
+      fields:
+        - {name: region, label: region, secret: false}
+        - {name: account_id, label: account ID, secret: false}
+        - {name: access_key_id, label: access key ID}
+        - {name: secret_access_key, label: secret access key}
+        - {name: session_token, label: session token, required: false}
+      delivery:
+        env: COMPUTE_CREDENTIALS
+      audience: ["*.compute.fixture.invalid"]
+placements:
+  hosted:
+    auth: credential
+    credential: access_key
+operations:
+  jobs.start:
+    description: Start one job on one stored object.
+    verb: write
+    scopes: [jobs.execute]
+    target:
+      template: {"$argument": "/target"}
+    guarantees:
+      provider_idempotency: enforced
+    result_fields: [job_ref, status, output_available, failure_reason, recovered]
+    hosted: {}

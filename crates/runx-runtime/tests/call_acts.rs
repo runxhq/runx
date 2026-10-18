@@ -14,7 +14,7 @@ use runx_runtime::{HarnessReplayError, HarnessReplayOutput, run_harness_fixture}
 const SKILL: &str = r#"
 skill: call-acts
 connectors:
-  slack:
+  fixture/chat:
     operations: [channel.post]
 runners:
   stated:
@@ -27,9 +27,9 @@ runners:
       form: {type: string, required: false}
     steps:
       - id: post
-        operation: slack/channel.post
+        operation: fixture/chat/channel.post
         idempotency_key: post-1
-        approval: {reason: Approve this exact post., type: slack_message}
+        approval: {reason: Approve this exact post., type: chat_message}
         input: {channel_locator: $input.channel_locator, text: $input.text}
         act:
           form: $input.form
@@ -44,9 +44,9 @@ runners:
       text: {type: string, required: true}
     steps:
       - id: post
-        operation: slack/channel.post
+        operation: fixture/chat/channel.post
         idempotency_key: post-1
-        approval: {reason: Approve this exact post., type: slack_message}
+        approval: {reason: Approve this exact post., type: chat_message}
         input: {channel_locator: $input.channel_locator, text: $input.text}
         act: $act
   turn:
@@ -55,7 +55,7 @@ runners:
 "#;
 
 const PREVIOUS: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const EFFECT: &str = "slack://T123/C456/1750000000.000001";
+const EFFECT: &str = "chat://T123/C456/1750000000.000001";
 
 struct Case<'a> {
     name: &'a str,
@@ -66,7 +66,8 @@ struct Case<'a> {
 }
 
 fn run(root: &Path, case: &Case<'_>) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    crate::support::plugin_with_source_connectors(root, &["slack", "github"]).unwrap();
+    crate::support::plugin_with_fixture_connectors(root, &["fixture/chat", "fixture/forge"])
+        .unwrap();
     let skill = root.join("call-acts");
     std::fs::create_dir_all(skill.join("fixtures")).unwrap();
     std::fs::write(
@@ -84,7 +85,7 @@ kind: skill
 target: ..
 runner: {runner}
 inputs:
-  channel_locator: slack://T123/C456
+  channel_locator: chat://T123/C456
   text: Deploy finished.
 {inputs}
 caller:
@@ -95,15 +96,15 @@ caller:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
-      provider: slack
+      provider: fixture/chat
       scopes: [channel.post]
     operations:
       - operation: channel.post
-        target: slack://T123/C456
+        target: chat://T123/C456
         access: mutate
         result:
           message_locator: {EFFECT}
-          conversation_locator: slack://T123/C456
+          conversation_locator: chat://T123/C456
 expect:
   status: {status}
 "#,
@@ -140,7 +141,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
             name: "stated",
             runner: "stated",
             inputs: &format!(
-                "  thread: github://acme/app/issues/7\n  form: reply\n  previous: \"{PREVIOUS}\""
+                "  thread: forge://acme/app/issues/7\n  form: reply\n  previous: \"{PREVIOUS}\""
             ),
             act: "  act:\n    purpose: Tell the channel the deploy finished\n    reason: The release went out cleanly.",
             status: "sealed",
@@ -177,14 +178,15 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     // The act names the connector operation it ran, exactly as admission
     // bound it, inside the signed body.
     let operation = act.operation.as_ref().expect("the admitted operation");
-    let slack =
-        runx_runtime::ConnectorScope::at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
-            .unwrap()
-            .connector("slack")
-            .unwrap();
-    assert_eq!(operation.connector, slack.name);
-    assert_eq!(operation.manifest_digest, slack.manifest_digest);
-    assert_eq!(operation.connector_digest, slack.connector_digest);
+    let chat = runx_runtime::ConnectorScope::at(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel"),
+    )
+    .unwrap()
+    .connector("fixture/chat")
+    .unwrap();
+    assert_eq!(operation.connector, chat.name);
+    assert_eq!(operation.manifest_digest, chat.manifest_digest);
+    assert_eq!(operation.connector_digest, chat.connector_digest);
     assert_eq!(operation.operation.as_str(), "channel.post");
     let mut altered = receipt.clone();
     if let Some(sealed) = altered.acts[0].operation.as_mut() {
@@ -197,7 +199,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     );
     // The target is classified by the connectors' declared references.
     let target = act.target_refs.first().expect("the act's target");
-    assert_eq!(target.uri.as_str(), "github://acme/app/issues/7");
+    assert_eq!(target.uri.as_str(), "forge://acme/app/issues/7");
     assert_eq!(target.reference_type, ReferenceType::Thread);
     // The effect is the one the operation declares, of its declared kind.
     let effect = act
@@ -206,7 +208,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         .find(|reference| reference.uri.as_str() == EFFECT)
         .expect("the declared effect");
     assert_eq!(effect.reference_type, ReferenceType::Thread);
-    assert_eq!(effect.provider.as_deref(), Some("slack"));
+    assert_eq!(effect.provider.as_deref(), Some("fixture/chat"));
     // The decision is the act's, and the receipt it follows is the act's own
     // statement, never the receipt's committed lineage.
     assert_eq!(receipt.decisions[0].choice, DecisionChoice::Close);
@@ -284,13 +286,13 @@ fn an_act_outside_its_shape_refuses_the_call_before_admission() {
     for (name, inputs, act, refused) in [
         (
             "revision",
-            "  thread: github://acme/app/issues/7\n  form: revision",
+            "  thread: forge://acme/app/issues/7\n  form: revision",
             "  act:\n    purpose: Revise the channel",
             "revision",
         ),
         (
             "no-purpose",
-            "  thread: github://acme/app/issues/7",
+            "  thread: forge://acme/app/issues/7",
             "",
             "purpose",
         ),
@@ -317,7 +319,8 @@ fn an_act_outside_its_shape_refuses_the_call_before_admission() {
 #[test]
 fn a_turns_operation_call_seals_the_act_it_carries() {
     let root = tempfile::tempdir().unwrap();
-    crate::support::plugin_with_source_connectors(root.path(), &["slack", "github"]).unwrap();
+    crate::support::plugin_with_fixture_connectors(root.path(), &["fixture/chat", "fixture/forge"])
+        .unwrap();
     let skill = root.path().join("call-acts");
     std::fs::create_dir_all(skill.join("fixtures")).unwrap();
     std::fs::write(
@@ -338,9 +341,9 @@ caller:
   turns:
     turn:
       calls:
-        - tool: slack__channel_post
+        - tool: fixture_chat__channel_post
           input:
-            input: {{channel_locator: slack://T123/C456, text: Deploy finished.}}
+            input: {{channel_locator: chat://T123/C456, text: Deploy finished.}}
             idempotency_key: post-1
             act: {{form: reply, purpose: Tell the channel, reason: In the agent's own words.}}
           expect:
@@ -353,15 +356,15 @@ caller:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
-      provider: slack
+      provider: fixture/chat
       scopes: [channel.post]
     operations:
       - operation: channel.post
-        target: slack://T123/C456
+        target: chat://T123/C456
         access: mutate
         result:
           message_locator: {EFFECT}
-          conversation_locator: slack://T123/C456
+          conversation_locator: chat://T123/C456
 expect:
   status: sealed
 "#
@@ -399,7 +402,7 @@ expect:
 /// A parent whose skill step hands its child run a post, decided by
 /// `approvals`.
 fn delegate(root: &Path, approvals: &str) -> Result<HarnessReplayOutput, HarnessReplayError> {
-    crate::support::plugin_with_source_connectors(root, &["slack"]).unwrap();
+    crate::support::plugin_with_fixture_connectors(root, &["fixture/chat"]).unwrap();
     let parent = root.join("delegating");
     let child = parent.join("child");
     std::fs::create_dir_all(parent.join("fixtures")).unwrap();
@@ -413,7 +416,7 @@ fn delegate(root: &Path, approvals: &str) -> Result<HarnessReplayOutput, Harness
         child.join("run.yaml"),
         r#"skill: posting
 connectors:
-  slack:
+  fixture/chat:
     operations: [channel.post]
 runners:
   post:
@@ -422,10 +425,10 @@ runners:
       text: {type: string, required: true}
     steps:
       - id: post
-        operation: slack/channel.post
+        operation: fixture/chat/channel.post
         idempotency_key: post-1
-        approval: {reason: Approve this exact post., type: slack_message}
-        input: {channel_locator: slack://T123/C456, text: $input.text}
+        approval: {reason: Approve this exact post., type: chat_message}
+        input: {channel_locator: chat://T123/C456, text: $input.text}
         act: $act
 "#,
     )
@@ -465,15 +468,15 @@ caller:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
-      provider: slack
+      provider: fixture/chat
       scopes: [channel.post]
     operations:
       - operation: channel.post
-        target: slack://T123/C456
+        target: chat://T123/C456
         access: mutate
         result:
           message_locator: {EFFECT}
-          conversation_locator: slack://T123/C456
+          conversation_locator: chat://T123/C456
 expect:
   status: sealed
 "#

@@ -1,0 +1,57 @@
+schema: runx.connector.v1
+id: fixture/automation
+name: Fixture Automation
+description: Deliver a governed handoff to an automation hook fixture.
+runtime_capability: false
+auth:
+  credentials:
+    catch_hook:
+      kind: webhook_url
+      fields:
+        - {name: url, label: automation hook URL}
+      delivery: {env: AUTOMATION_HOOK_URL}
+      audience: [automation.fixture.invalid]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  handoff.deliver:
+    description: Deliver one handoff to a automation hook; the automation fixture acknowledges it and offers no readback.
+    verb: write
+    scopes: [orchestrator.automation.workflow.invoke]
+    credentials: [catch_hook]
+    target:
+      template: https://automation.fixture.invalid/hooks/catch/
+    approval: required
+    guarantees:
+      readback: unavailable
+    input_schema:
+      type: object
+      required: [delivery]
+      additionalProperties: false
+      properties:
+        delivery:
+          type: object
+          required: [event_id, handoff_scope, handoff_audience, idempotency_key, payload]
+          properties:
+            event_id: {type: string, pattern: '^[A-Za-z0-9._:-]{3,200}$'}
+            handoff_scope: {const: orchestrator.automation.workflow.invoke}
+            handoff_audience: {type: string, pattern: '^automation:'}
+            idempotency_key: {type: string}
+            payload: {}
+    result_fields: [acknowledgement]
+    implementation:
+      http:
+        allowed_hosts: [automation.fixture.invalid]
+        auth:
+          catch_hook: {type: url, field: url}
+        requests:
+          - method: POST
+            url: https://automation.fixture.invalid/hooks/catch/
+            headers:
+              accept: application/json
+              x-runx-event-id: {"$argument": "/delivery/event_id"}
+              x-runx-handoff-audience: {"$argument": "/delivery/handoff_audience"}
+              x-runx-handoff-scope: {"$argument": "/delivery/handoff_scope"}
+            body: {"$argument": "/delivery"}
+        operation_id_path: request_id

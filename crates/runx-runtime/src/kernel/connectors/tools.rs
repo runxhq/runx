@@ -231,23 +231,23 @@ mod tests {
         Ok(())
     }
 
-    /// A runx-maintained connector's tools are read from its directory: in
-    /// the runx source tree, github's git.push from connectors/github/tools.
+    /// A plugin connector's tools are read from its directory: in the kernel
+    /// fixture plugin, fixture/forge's git.push from its tools directory.
     #[test]
     fn a_source_connector_reads_its_tools_from_its_directory() -> Result<(), String> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let github = super::super::ConnectorScope::at(&root)
-            .and_then(|scope| scope.connector("github"))
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel");
+        let forge = super::super::ConnectorScope::at(&root)
+            .and_then(|scope| scope.connector("fixture/forge"))
             .map_err(|error| error.to_string())?;
-        let push = github
+        let push = forge
             .tools
             .get("git.push")
-            .ok_or("github ships git.push")?;
+            .ok_or("fixture/forge ships git.push")?;
         assert_eq!(
             push.directory
                 .canonicalize()
                 .map_err(|error| error.to_string())?,
-            root.join("connectors/github/tools/git/push")
+            root.join("connectors/fixture/forge/tools/git/push")
                 .canonicalize()
                 .map_err(|error| error.to_string())?
         );

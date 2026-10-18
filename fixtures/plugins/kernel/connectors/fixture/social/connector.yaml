@@ -1,0 +1,50 @@
+schema: runx.connector.v1
+id: fixture/social
+name: Fixture Social
+description: Read accounts and posts on a social fixture.
+runtime_capability: false
+auth:
+  credentials:
+    user:
+      kind: oauth1_user
+      fields:
+        - name: consumer_key
+        - name: consumer_secret
+        - name: access_token
+        - name: access_secret
+      delivery:
+        env: SOCIAL_USER_AUTH
+      audience: [social.fixture.invalid]
+    app:
+      kind: bearer_token
+      fields:
+        - name: token
+      delivery:
+        env: SOCIAL_BEARER_TOKEN
+      audience: [social.fixture.invalid]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  account.snapshot:
+    description: Read the authenticated account's profile and public metrics.
+    verb: read
+    scopes: ["social:read"]
+    credentials: [user]
+    target:
+      template: "https://social.fixture.invalid"
+    input_schema:
+      type: object
+      additionalProperties: false
+    result_fields: [account]
+    implementation:
+      http:
+        allowed_hosts: [social.fixture.invalid]
+        auth: {user: {type: oauth1}}
+        requests:
+          - method: GET
+            url: "https://social.fixture.invalid/2/users/me"
+            query:
+              user.fields: "created_at,description,public_metrics"
+        result_paths:
+          account: acknowledgement.data

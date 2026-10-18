@@ -990,12 +990,12 @@ operations:
     }
 
     #[test]
-    fn a_runx_maintained_connector_source_tree_packages_as_the_connector_it_resolves_to()
+    fn a_connector_source_tree_packages_as_the_connector_it_resolves_to()
     -> Result<(), Box<dyn std::error::Error>> {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/github");
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/plugins/kernel/connectors/fixture/forge");
         let connector = super::prepare_registry_connector_package(&directory)?;
-        let resolved = crate::kernel::connectors::source_scope().connector("github")?;
+        let resolved = crate::kernel::connectors::fixture_scope().connector("fixture/forge")?;
         assert_eq!(connector.manifest_digest, resolved.manifest_digest);
         assert_eq!(connector.connector_digest, resolved.connector_digest);
         // The tools shipped are the bytes in the source tree.

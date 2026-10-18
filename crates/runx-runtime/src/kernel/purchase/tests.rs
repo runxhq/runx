@@ -241,7 +241,7 @@ impl Host for Buyer {
     }
 }
 
-/// A project whose account holds one `wallet/evm` grant.
+/// A project whose account holds one `fixture/wallet` grant.
 struct Project {
     root: tempfile::TempDir,
     env: BTreeMap<String, String>,
@@ -252,7 +252,7 @@ struct Project {
 impl Project {
     fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
-        crate::kernel::connectors::plugin_with_source_connectors(root.path(), &["wallet/evm"]);
+        crate::kernel::connectors::plugin_with_fixture_connectors(root.path(), &["fixture/wallet"]);
         let env = BTreeMap::from([
             (
                 crate::HOSTED_API_BASE_URL_ENV.to_owned(),
@@ -272,11 +272,11 @@ impl Project {
             KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, root.path())).unwrap();
         let connector = crate::kernel::connectors::ConnectorScope::at(root.path())
             .unwrap()
-            .connector("wallet/evm")
+            .connector("fixture/wallet")
             .unwrap();
         let instance = pinned(
             &connector,
-            instance_id(&["hosted", "wallet/evm", "grant_wallet"]).unwrap(),
+            instance_id(&["hosted", "fixture/wallet", "grant_wallet"]).unwrap(),
             Placement::Hosted,
             "runx:principal:buyer-1".to_owned(),
             None,
@@ -392,7 +392,7 @@ fn a_purchase_waits_on_its_buyer_with_the_quote_and_each_method_that_pays_it() {
         panic!("the method is the hosted payment grant");
     };
     assert_eq!(instance_id.as_str(), project.wallet);
-    assert_eq!(connector.as_str(), "wallet/evm");
+    assert_eq!(connector.as_str(), "fixture/wallet");
     assert_eq!(total_minor.get(), 5);
     assert_eq!(purchase.methods[0].choice(), project.wallet);
     assert!(

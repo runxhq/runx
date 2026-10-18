@@ -1,0 +1,34 @@
+schema: runx.connector.v1
+id: fixture/wallet
+name: Fixture Wallet
+description: Pay challenges for HTTPS resources from a wallet fixture and read the payments back.
+runtime_capability: false
+auth:
+  credentials:
+    wallet:
+      kind: evm_private_key_v1
+      fields:
+        - {name: address, label: EVM wallet address, secret: false}
+        - {name: private_key, label: EVM wallet private key}
+      delivery:
+        env: FIXTURE_WALLET
+      audience: [wallet.fixture.invalid]
+placements:
+  hosted:
+    auth: credential
+    credential: wallet
+pays:
+  x402:
+    networks: ["eip155:8453"]
+operations:
+  payment.x402:
+    description: Pay the x402 challenge of one HTTPS resource and return the paid result.
+    verb: write
+    scopes: [payment.x402]
+    target:
+      template: {"$argument": "/payment_signal/resource/url"}
+    guarantees:
+      provider_idempotency: enforced
+    amount: required
+    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number]
+    hosted: {}

@@ -257,18 +257,18 @@ fn adding_a_skill_adds_the_connectors_it_carries() -> Result<(), Box<dyn std::er
     let skill_dir = source.join("carrier");
     let registry_dir = root.join("registry");
     let workspace = root.join("workspace");
-    crate::support::plugin_with_source_connectors(&source, &["github"])?;
+    crate::support::plugin_with_fixture_connectors(&source, &["fixture/forge"])?;
     fs::create_dir_all(&skill_dir)?;
     fs::create_dir_all(&workspace)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: carrier\ndescription: Carries the github connector.\n---\n# Carrier\n",
+        "---\nname: carrier\ndescription: Carries the fixture/forge connector.\n---\n# Carrier\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"skill: carrier
 connectors:
-  github:
+  fixture/forge:
     operations: [issue.read]
 harness:
   cases:
@@ -317,7 +317,7 @@ runners:
         .output()?;
     assert_success_contains(&add, &["\"status\": \"installed\""])?;
 
-    let versions = fs::read_dir(workspace.join("connectors/github"))?
+    let versions = fs::read_dir(workspace.join("connectors/fixture/forge"))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .collect::<Vec<_>>();
@@ -327,9 +327,9 @@ runners:
     // The workspace is in no plugin; the carried copy is reached by its ref.
     let inspect = runx_command()?
         .current_dir(&workspace)
-        .args(["connector", "inspect", "github", "--json"])
+        .args(["connector", "inspect", "fixture/forge", "--json"])
         .output()?;
-    assert_success_contains(&inspect, &["\"connector\": \"github\""])?;
+    assert_success_contains(&inspect, &["\"connector\": \"fixture/forge\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
 }
@@ -404,7 +404,10 @@ fn registry_package_identity_covers_files_not_only_manual_and_profile()
 fn registry_package_metadata_names_the_declared_connectors()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-package-connectors");
-    crate::support::plugin_with_source_connectors(&root, &["github", "n8n", "zapier"])?;
+    crate::support::plugin_with_fixture_connectors(
+        &root,
+        &["fixture/forge", "fixture/hooks", "fixture/automation"],
+    )?;
     let skill_dir = root.join("connected");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -415,12 +418,12 @@ fn registry_package_metadata_names_the_declared_connectors()
         skill_dir.join("run.yaml"),
         r#"skill: connected
 connectors:
-  github:
+  fixture/forge:
     operations: [issues.read, issue.read]
   webhook:
     operations: [handoff.deliver]
     connector_from: $input.provider
-    allowed_connectors: [zapier, n8n]
+    allowed_connectors: [fixture/automation, fixture/hooks]
 runners:
   default:
     default: true
@@ -479,9 +482,9 @@ runners:
     assert_eq!(
         named,
         [
-            json!({"ref": "github", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
-            json!({"ref": "n8n", "runtime_capability": false, "operations": ["handoff.deliver"]}),
-            json!({"ref": "zapier", "runtime_capability": false, "operations": ["handoff.deliver"]}),
+            json!({"ref": "fixture/automation", "runtime_capability": false, "operations": ["handoff.deliver"]}),
+            json!({"ref": "fixture/forge", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"ref": "fixture/hooks", "runtime_capability": false, "operations": ["handoff.deliver"]}),
         ]
     );
     for connector in connectors {

@@ -227,16 +227,17 @@ mod tests {
         assert!(reject_secret_material("tools/readme.txt", "PRIVATE KEY", &none).is_ok());
     }
 
-    /// In the runx source tree every runx-maintained connector is in reach,
-    /// so posthog's declared key prefix is refused.
+    /// Every connector in reach declares its key prefixes, so the kernel
+    /// fixture plugin's fixture/refs prefix is refused.
     #[test]
     fn secret_material_rejection_detects_the_reachable_connectors_key_prefixes()
     -> Result<(), crate::RuntimeError> {
-        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel");
         let prefixes = declared_secret_prefixes(&source, &BTreeMap::new())?;
-        let key = ["phx", "fixture"].join("_");
+        let key = ["rfx", "fixture"].join("_");
         assert!(reject_secret_material("tools/provider.mjs", &key, &prefixes).is_err());
-        assert!(reject_secret_material("tools/provider.mjs", "phx-fixture", &prefixes).is_ok());
+        assert!(reject_secret_material("tools/provider.mjs", "rfx-fixture", &prefixes).is_ok());
         Ok(())
     }
 }

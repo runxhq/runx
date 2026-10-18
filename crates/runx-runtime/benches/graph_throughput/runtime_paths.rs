@@ -126,11 +126,12 @@ struct RuntimePathFixtures {
     provider_transport: ProviderBenchmarkTransport,
 }
 
-/// Makes `root` a runx plugin holding a copy of the runx source slack
+/// Makes `root` a plugin holding a copy of the kernel fixture plugin's chat
 /// connector, as a project that installs it would reach it.
-fn plugin_with_source_slack(root: &Path) -> Result<(), Box<dyn Error>> {
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../connectors/slack");
-    let target = root.join("connectors/slack");
+fn plugin_with_fixture_chat(root: &Path) -> Result<(), Box<dyn Error>> {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/plugins/kernel/connectors/fixture/chat");
+    let target = root.join("connectors/fixture/chat");
     fs::create_dir_all(&target)?;
     for entry in fs::read_dir(&source)? {
         let entry = entry?;
@@ -138,7 +139,6 @@ fn plugin_with_source_slack(root: &Path) -> Result<(), Box<dyn Error>> {
             fs::copy(entry.path(), target.join(entry.file_name()))?;
         }
     }
-    fs::write(root.join("plugin.json"), r#"{"namespace":"runx"}"#)?;
     Ok(())
 }
 
@@ -146,7 +146,7 @@ impl RuntimePathFixtures {
     fn new() -> Result<Self, Box<dyn Error>> {
         let directory = TempDir::new()?;
         write_modules(directory.path())?;
-        plugin_with_source_slack(directory.path())?;
+        plugin_with_fixture_chat(directory.path())?;
         let store = KernelStore::open(&directory.path().join(".runx"))?;
         let evaluation = |name: &str| {
             RunLog::evaluation(
@@ -177,8 +177,8 @@ impl RuntimePathFixtures {
         );
         let module_adapter = JavaScriptAdapter::new_session();
 
-        let slack = ConnectorScope::at(directory.path())?.connector("slack")?;
-        let provider_transport = ProviderBenchmarkTransport::for_grant(&slack)?;
+        let chat = ConnectorScope::at(directory.path())?.connector("fixture/chat")?;
+        let provider_transport = ProviderBenchmarkTransport::for_grant(&chat)?;
         let effects = RuntimeEffectRegistry::with_effect(OperationEffect::with_http_transport(
             provider_transport.clone(),
         ))?;
@@ -208,7 +208,7 @@ impl RuntimePathFixtures {
                 &provider_options.env,
                 directory.path(),
             ))?),
-            &slack,
+            &chat,
             Arc::new(provider_transport.clone()),
             BENCHMARK_GRANT,
             &provider_options.env,
@@ -484,7 +484,7 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
             .clone();
         let response = serde_json::json!({
             "status": "success",
-            "provider": "slack",
+            "provider": "fixture/chat",
             "operation": operation,
             "target": target,
             "access": access,
@@ -618,19 +618,19 @@ steps:
 const PROVIDER_EFFECT_SKILL: &str = r#"
 skill: runtime-provider-effect-transition
 connectors:
-  slack:
+  fixture/chat:
     operations: [thread.reply]
 runners:
   run:
     result_from: [provider-effect]
     steps:
       - id: provider-effect
-        operation: slack/thread.reply
+        operation: fixture/chat/thread.reply
         idempotency_key: benchmark-request
         expected_result:
           state: delivered
         result_fields: [state]
         input:
-          thread_locator: slack://T1/C1/1.0
+          thread_locator: chat://T1/C1/1.0
           text: provider-effect-transition
 "#;

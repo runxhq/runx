@@ -1,0 +1,37 @@
+schema: runx.connector.v1
+id: fixture/weather
+name: Fixture Weather
+description: Read forecast data from a public weather fixture.
+runtime_capability: false
+auth:
+  none: {}
+placements:
+  local:
+    auth: [none]
+operations:
+  geocode.search:
+    description: Search for up to five places matching a name.
+    verb: read
+    scopes: [weather.read]
+    target:
+      template: "https://geocoding-weather.fixture.invalid/v1/search"
+    input_schema:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+    result_fields: [locate]
+    implementation:
+      http:
+        allowed_hosts: [geocoding-weather.fixture.invalid]
+        requests:
+          - method: GET
+            url: "https://geocoding-weather.fixture.invalid/v1/search"
+            query:
+              name: {"$argument": "/name"}
+              count: "5"
+              language: en
+              format: json
+            headers:
+              accept: application/json

@@ -6,19 +6,19 @@ use std::path::Path;
 use std::process::Stdio;
 use std::thread;
 
-use crate::support::{plugin_with_source_connectors, temp_root, unsigned_runx_command_at};
+use crate::support::{plugin_with_fixture_connectors, temp_root, unsigned_runx_command_at};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-/// A `gh` that is signed out.
-fn signed_out_gh(bin: &Path) -> TestResult {
+/// A `forge` CLI that is signed out.
+fn signed_out_forge(bin: &Path) -> TestResult {
     fs::create_dir_all(bin)?;
-    let gh = bin.join("gh");
+    let forge_cli = bin.join("forge");
     fs::write(
-        &gh,
-        "#!/bin/sh\necho 'You are not logged into any GitHub hosts.' >&2\nexit 1\n",
+        &forge_cli,
+        "#!/bin/sh\necho 'You are not signed in to the forge.' >&2\nexit 1\n",
     )?;
-    fs::set_permissions(&gh, fs::Permissions::from_mode(0o755))?;
+    fs::set_permissions(&forge_cli, fs::Permissions::from_mode(0o755))?;
     Ok(())
 }
 
@@ -58,7 +58,7 @@ fn connector(
     runx(root, &[&["connector"], args].concat(), None)
 }
 
-/// Store a GitHub token as the `operator` profile, and return the instance
+/// Store a forge token as the `operator` profile, and return the instance
 /// it confirms.
 fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
     fs::create_dir_all(root.join(".runx"))?;
@@ -67,13 +67,13 @@ fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
         &[
             "connector",
             "use",
-            "github",
+            "fixture/forge",
             "--credential",
             "token",
             "--profile",
             "operator",
         ],
-        Some("ghp_connector_test_token"),
+        Some("forge_connector_test_token"),
     )?;
     assert!(ok, "{set}");
     let instance = set["selected"]["instance_id"]
@@ -86,10 +86,10 @@ fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
 #[test]
 fn an_instance_selects_only_for_its_own_connector() -> TestResult {
     let root = temp_root("runx-connector-select");
-    plugin_with_source_connectors(&root, &["github", "slack"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge", "fixture/chat"])?;
     let result = (|| -> TestResult {
         let instance = stored_token(&root)?;
-        let (ok, used) = connector(&root, &["use", "github", &instance])?;
+        let (ok, used) = connector(&root, &["use", "fixture/forge", &instance])?;
         assert!(ok, "{used}");
         assert_eq!(used["selected"]["instance_id"], instance.as_str());
 
@@ -98,24 +98,24 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
         assert_eq!(listed["instances"][0]["selected"], true);
 
         // A refused selection records nothing.
-        let (ok, refused) = connector(&root, &["use", "slack", &instance])?;
+        let (ok, refused) = connector(&root, &["use", "fixture/chat", &instance])?;
         assert!(!ok);
         assert!(
             refused["error"]["message"]
                 .as_str()
-                .is_some_and(|message| message.contains("belongs to connector github")),
+                .is_some_and(|message| message.contains("belongs to connector fixture/forge")),
             "{refused}"
         );
         let (_, listed) = connector(&root, &["list"])?;
-        let slack = listed["connectors"]
+        let chat = listed["connectors"]
             .as_array()
             .and_then(|connectors| {
                 connectors
                     .iter()
-                    .find(|connector| connector["connector_binding"]["connector"] == "slack")
+                    .find(|connector| connector["connector_binding"]["connector"] == "fixture/chat")
             })
-            .ok_or("slack is listed")?;
-        assert_eq!(slack["selected_instance"], serde_json::Value::Null);
+            .ok_or("fixture/chat is listed")?;
+        assert_eq!(chat["selected_instance"], serde_json::Value::Null);
         Ok(())
     })();
     fs::remove_dir_all(&root)?;
@@ -125,9 +125,9 @@ fn an_instance_selects_only_for_its_own_connector() -> TestResult {
 #[test]
 fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
     let root = temp_root("runx-connector-inspect");
-    plugin_with_source_connectors(&root, &["github"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
     let result = (|| -> TestResult {
-        let (ok, before) = connector(&root, &["inspect", "github"])?;
+        let (ok, before) = connector(&root, &["inspect", "fixture/forge"])?;
         assert!(ok, "{before}");
         assert!(before["readiness"].as_array().is_some_and(|operations| {
             !operations.is_empty()
@@ -136,9 +136,9 @@ fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
                     .all(|operation| operation["ready"] == false)
         }));
         let instance = stored_token(&root)?;
-        let (ok, _) = connector(&root, &["use", "github", &instance])?;
+        let (ok, _) = connector(&root, &["use", "fixture/forge", &instance])?;
         assert!(ok);
-        let (_, after) = connector(&root, &["inspect", "github"])?;
+        let (_, after) = connector(&root, &["inspect", "fixture/forge"])?;
         assert_eq!(after["instances"][0]["instance_id"], instance.as_str());
         assert!(after["readiness"].as_array().is_some_and(|operations| {
             operations
@@ -154,10 +154,10 @@ fn inspect_projects_readiness_from_the_selected_instance() -> TestResult {
 #[test]
 fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult {
     let root = temp_root("runx-connector-session");
-    plugin_with_source_connectors(&root, &["github"])?;
-    signed_out_gh(&root.join("bin"))?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
+    signed_out_forge(&root.join("bin"))?;
     let result = (|| -> TestResult {
-        let (ok, refused) = connector(&root, &["use", "github", "--session"])?;
+        let (ok, refused) = connector(&root, &["use", "fixture/forge", "--session"])?;
         assert!(!ok);
         assert!(
             refused["error"]["message"]
@@ -174,7 +174,7 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
                 "PATH",
                 format!("{}:/usr/bin:/bin", root.join("bin").display()),
             )
-            .args(["connector", "use", "github", "--session"])
+            .args(["connector", "use", "fixture/forge", "--session"])
             .output()?;
         assert_eq!(plain.status.code(), Some(1));
         assert!(String::from_utf8_lossy(&plain.stderr).contains("sign in"));
@@ -189,40 +189,39 @@ fn a_session_that_prints_no_token_is_refused_and_records_nothing() -> TestResult
 #[test]
 fn a_session_command_runs_only_once_the_operator_names_it() -> TestResult {
     let root = temp_root("runx-connector-session-chosen");
-    plugin_with_source_connectors(&root, &["github"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
     let bin = root.join("bin");
     fs::create_dir_all(&bin)?;
-    let ran = root.join("gh-ran");
-    let gh = bin.join("gh");
+    let ran = root.join("forge-ran");
+    let forge_cli = bin.join("forge");
     fs::write(
-        &gh,
+        &forge_cli,
         format!(
-            "#!/bin/sh\ntouch '{}'\necho 'You are not logged into any GitHub hosts.' >&2\nexit 1\n",
+            "#!/bin/sh\ntouch '{}'\necho 'You are not signed in to the forge.' >&2\nexit 1\n",
             ran.display()
         ),
     )?;
-    fs::set_permissions(&gh, fs::Permissions::from_mode(0o755))?;
+    fs::set_permissions(&forge_cli, fs::Permissions::from_mode(0o755))?;
     let result = (|| -> TestResult {
-        let (ok, refused) = connector(&root, &["use", "github"])?;
+        let (ok, refused) = connector(&root, &["use", "fixture/forge"])?;
         assert!(!ok);
         let message = refused["error"]["message"].as_str().unwrap_or_default();
         assert!(
-            message.contains(
-                "`runx connector use github --session` (runs `gh auth token --hostname github.com`)"
-            ),
+            message
+                .contains("`runx connector use fixture/forge --session` (runs `forge auth token`)"),
             "{refused}"
         );
         assert!(
             message.contains(
-                "`runx connector use github --credential token` (reads GITHUB_TOKEN, else asks for it)"
+                "`runx connector use fixture/forge --credential token` (reads FORGE_TOKEN, else asks for it)"
             ),
             "{refused}"
         );
         connector(&root, &["list"])?;
-        connector(&root, &["inspect", "github"])?;
+        connector(&root, &["inspect", "fixture/forge"])?;
         assert!(!ran.exists(), "setup ran the session command unasked");
 
-        let (ok, _) = connector(&root, &["use", "github", "--session"])?;
+        let (ok, _) = connector(&root, &["use", "fixture/forge", "--session"])?;
         assert!(!ok);
         assert!(ran.exists(), "--session runs the command it names");
         Ok(())
@@ -236,24 +235,24 @@ fn a_session_command_runs_only_once_the_operator_names_it() -> TestResult {
 #[test]
 fn a_credential_variable_the_env_file_disagrees_on_is_refused() -> TestResult {
     let root = temp_root("runx-connector-env-file-differs");
-    plugin_with_source_connectors(&root, &["github"])?;
-    fs::write(root.join(".env"), "GITHUB_TOKEN=ghp_from_the_file\n")?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
+    fs::write(root.join(".env"), "FORGE_TOKEN=forge_from_the_file\n")?;
     let result = (|| -> TestResult {
         let bind = |value: &str| {
             unsigned_runx_command_at(&root)
                 .env("PATH", "/usr/bin:/bin")
-                .env("GITHUB_TOKEN", value)
-                .args(["connector", "use", "github", "--credential", "token"])
+                .env("FORGE_TOKEN", value)
+                .args(["connector", "use", "fixture/forge", "--credential", "token"])
                 .stdin(Stdio::null())
                 .output()
         };
-        for value in ["ghp_from_the_environment", ""] {
+        for value in ["forge_from_the_environment", ""] {
             let refused = bind(value)?;
             assert_eq!(refused.status.code(), Some(1));
             let stderr = String::from_utf8_lossy(&refused.stderr);
             assert!(
                 stderr.contains(
-                    "GITHUB_TOKEN is set in the environment and in the workspace .env with different values"
+                    "FORGE_TOKEN is set in the environment and in the workspace .env with different values"
                 ),
                 "{stderr}"
             );
@@ -261,13 +260,13 @@ fn a_credential_variable_the_env_file_disagrees_on_is_refused() -> TestResult {
         let (_, listed) = connector(&root, &["list"])?;
         assert_eq!(listed["instances"], serde_json::json!([]));
 
-        let bound = bind("ghp_from_the_file")?;
+        let bound = bind("forge_from_the_file")?;
         assert!(
             bound.status.success(),
             "{}",
             String::from_utf8_lossy(&bound.stderr)
         );
-        assert!(String::from_utf8_lossy(&bound.stdout).contains("from GITHUB_TOKEN"));
+        assert!(String::from_utf8_lossy(&bound.stdout).contains("from FORGE_TOKEN"));
         Ok(())
     })();
     fs::remove_dir_all(&root)?;
@@ -277,11 +276,11 @@ fn a_credential_variable_the_env_file_disagrees_on_is_refused() -> TestResult {
 #[test]
 fn hosted_takes_no_credential_name() -> TestResult {
     let root = temp_root("runx-connector-hosted-credential");
-    plugin_with_source_connectors(&root, &["github"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
     let result = (|| -> TestResult {
         let (ok, refused) = connector(
             &root,
-            &["use", "github", "--hosted", "--credential", "token"],
+            &["use", "fixture/forge", "--hosted", "--credential", "token"],
         )?;
         assert!(!ok);
         assert_eq!(
@@ -299,28 +298,28 @@ fn hosted_takes_no_credential_name() -> TestResult {
 #[test]
 fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
     let root = temp_root("runx-connector-profile-held");
-    plugin_with_source_connectors(&root, &["github", "linear"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge", "fixture/tracker"])?;
     let result = (|| -> TestResult {
-        let (ok, github) = runx(
+        let (ok, forge) = runx(
             &root,
             &[
                 "connector",
                 "use",
-                "github",
+                "fixture/forge",
                 "--credential",
                 "token",
                 "--profile",
                 "shared",
             ],
-            Some("ghp_connector_test_token"),
+            Some("forge_connector_test_token"),
         )?;
-        assert!(ok, "{github}");
+        assert!(ok, "{forge}");
         let (ok, refused) = runx(
             &root,
             &[
                 "connector",
                 "use",
-                "linear",
+                "fixture/tracker",
                 "--credential",
                 "api_key",
                 "--profile",
@@ -330,12 +329,13 @@ fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
         )?;
         assert!(!ok, "{refused}");
         assert!(
-            refused["error"]["message"].as_str().is_some_and(
-                |message| message.contains("credential profile shared holds github's token")
-            ),
+            refused["error"]["message"]
+                .as_str()
+                .is_some_and(|message| message
+                    .contains("credential profile shared holds fixture/forge's token")),
             "{refused}"
         );
-        let (_, inspected) = connector(&root, &["inspect", "github"])?;
+        let (_, inspected) = connector(&root, &["inspect", "fixture/forge"])?;
         assert!(
             inspected["readiness"]
                 .as_array()
@@ -353,10 +353,10 @@ fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
 #[test]
 fn inspect_without_an_instance_says_how_to_set_one_up_once() -> TestResult {
     let root = temp_root("runx-connector-inspect-setup");
-    plugin_with_source_connectors(&root, &["github"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
     let result = (|| -> TestResult {
         let output = unsigned_runx_command_at(&root)
-            .args(["connector", "inspect", "github"])
+            .args(["connector", "inspect", "fixture/forge"])
             .output()?;
         assert!(output.status.success());
         let text = String::from_utf8(output.stdout)?;
@@ -642,20 +642,20 @@ fn runx_with_path(
     ))
 }
 
-/// An `aws` that records each call's arguments, one per line, and prints a
-/// Secrets Manager secret holding `APOLLO_API_KEY`.
+/// An `aws` CLI that records each call's arguments, one per line, and prints
+/// a Secrets Manager secret holding `REFS_API_KEY`.
 fn recording_aws(bin: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     fs::create_dir_all(bin)?;
     let log = bin.join("aws.argv");
-    let aws = bin.join("aws");
+    let aws_cli = bin.join("aws");
     fs::write(
-        &aws,
+        &aws_cli,
         format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf\",\"SecretString\":\"{{\\\"APOLLO_API_KEY\\\":\\\"apollo-from-aws\\\"}}\"}}\nJSON\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\n/bin/cat <<'JSON'\n{{\"ARN\":\"arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf\",\"SecretString\":\"{{\\\"REFS_API_KEY\\\":\\\"refs-from-aws\\\"}}\"}}\nJSON\n",
             log.display()
         ),
     )?;
-    fs::set_permissions(&aws, fs::Permissions::from_mode(0o755))?;
+    fs::set_permissions(&aws_cli, fs::Permissions::from_mode(0o755))?;
     Ok(log)
 }
 
@@ -665,7 +665,7 @@ fn recording_aws(bin: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::E
 #[test]
 fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> TestResult {
     let root = temp_root("runx-connector-reference");
-    plugin_with_source_connectors(&root, &["apollo"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/refs"])?;
     // The manager lives outside the workspace: one inside it is never run.
     let tools = temp_root("runx-connector-reference-tools");
     let log = recording_aws(&tools.join("bin"))?;
@@ -677,9 +677,9 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
             &[
                 "connector",
                 "use",
-                "apollo",
+                "fixture/refs",
                 "--from",
-                "aws-sm://team/keys#APOLLO_API_KEY",
+                "aws-sm://team/keys#REFS_API_KEY",
             ],
         )?;
         assert!(ok, "{used}");
@@ -710,12 +710,12 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
             serde_json::json!({
                 "kind": "reference",
                 "credential": "api_key",
-                "reference": "aws-sm://team/keys#APOLLO_API_KEY",
+                "reference": "aws-sm://team/keys#REFS_API_KEY",
                 "pinned": "arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf",
                 "scopes": ["auth.read"],
             })
         );
-        runx_with_path(&root, &path, &["connector", "inspect", "apollo"])?;
+        runx_with_path(&root, &path, &["connector", "inspect", "fixture/refs"])?;
         assert_eq!(
             fs::read_to_string(&log)?.lines().count(),
             6,
@@ -724,7 +724,7 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
         assert!(
             !fs::read_to_string(root.join(".runx/kernel.sqlite"))
                 .unwrap_or_default()
-                .contains("apollo-from-aws"),
+                .contains("refs-from-aws"),
             "the value was stored"
         );
         Ok(())
@@ -739,10 +739,12 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
 #[test]
 fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
     let root = temp_root("runx-connector-reference-refused");
-    plugin_with_source_connectors(&root, &["apollo"])?;
+    plugin_with_fixture_connectors(&root, &["fixture/refs"])?;
     let result = (|| -> TestResult {
-        let (ok, refused) =
-            connector(&root, &["use", "apollo", "--from", "sk-live-pasted-secret"])?;
+        let (ok, refused) = connector(
+            &root,
+            &["use", "fixture/refs", "--from", "sk-live-pasted-secret"],
+        )?;
         assert!(!ok);
         let message = refused["error"]["message"].as_str().unwrap_or_default();
         assert!(
@@ -758,7 +760,7 @@ fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
             &root,
             &[
                 "use",
-                "apollo",
+                "fixture/refs",
                 "--from",
                 "aws-sm://team/keys",
                 "--credential",
@@ -785,19 +787,16 @@ fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
 #[test]
 fn a_variable_holding_a_reference_is_refused_not_sent() -> TestResult {
     let root = temp_root("runx-connector-env-reference");
-    plugin_with_source_connectors(&root, &["apollo"])?;
-    fs::write(
-        root.join(".env"),
-        "APOLLO_API_KEY=op://dev/apollo/credential\n",
-    )?;
+    plugin_with_fixture_connectors(&root, &["fixture/refs"])?;
+    fs::write(root.join(".env"), "REFS_API_KEY=op://dev/refs/credential\n")?;
     let result = (|| -> TestResult {
-        let (ok, refused) = connector(&root, &["use", "apollo", "--credential", "api_key"])?;
+        let (ok, refused) = connector(&root, &["use", "fixture/refs", "--credential", "api_key"])?;
         assert!(!ok);
         assert!(
             refused["error"]["message"]
                 .as_str()
                 .is_some_and(|message| message
-                    .contains("APOLLO_API_KEY holds a reference to a secret, not the secret")),
+                    .contains("REFS_API_KEY holds a reference to a secret, not the secret")),
             "{refused}"
         );
         Ok(())

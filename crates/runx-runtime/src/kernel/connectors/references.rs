@@ -39,36 +39,37 @@ mod tests {
     #[test]
     fn locators_are_classified_by_what_the_reachable_connectors_declare()
     -> Result<(), super::super::ConnectorRegistryError> {
-        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel");
         let scope = super::super::ConnectorScope::at(&source)?;
-        let github = scope.connector("github")?;
-        let slack = scope.connector("slack")?;
+        let forge = scope.connector("fixture/forge")?;
+        let chat = scope.connector("fixture/chat")?;
         let reachable = scope.connectors()?;
 
         assert_eq!(
-            bound_reference_kind(&github.manifest, &[], "github://acme/app/issues/7"),
+            bound_reference_kind(&forge.manifest, &[], "forge://acme/app/issues/7"),
             ReferenceType::Thread
         );
         assert_eq!(
-            bound_reference_kind(&github.manifest, &[], "github://acme/app/pulls/7"),
+            bound_reference_kind(&forge.manifest, &[], "forge://acme/app/pulls/7"),
             ReferenceType::ChangeRequest
         );
         assert_eq!(
-            bound_reference_kind(&slack.manifest, &[], "slack://T123/C456/1750000000.000001"),
+            bound_reference_kind(&chat.manifest, &[], "chat://T123/C456/1750000000.000001"),
             ReferenceType::Thread
         );
         // Another provider's resource: unknown unless the run can reach the
         // connector that declares it.
         assert_eq!(
-            bound_reference_kind(&slack.manifest, &[], "github://acme/app/issues/7"),
+            bound_reference_kind(&chat.manifest, &[], "forge://acme/app/issues/7"),
             ReferenceType::ExternalUrl
         );
         assert_eq!(
-            bound_reference_kind(&slack.manifest, &reachable, "github://acme/app/issues/7"),
+            bound_reference_kind(&chat.manifest, &reachable, "forge://acme/app/issues/7"),
             ReferenceType::Thread
         );
         assert_eq!(
-            bound_reference_kind(&slack.manifest, &reachable, "https://example.com/report"),
+            bound_reference_kind(&chat.manifest, &reachable, "https://example.com/report"),
             ReferenceType::ExternalUrl
         );
         Ok(())
