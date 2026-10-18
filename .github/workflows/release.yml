@@ -491,6 +491,9 @@ jobs:
         with:
           name: channel-manifests
           path: dist/channels
+          # AUR's .SRCINFO is a dotfile, which upload-artifact drops by default.
+          include-hidden-files: true
+          if-no-files-found: error
       - name: Upload verified artifact index
         uses: actions/upload-artifact@v7
         with:
