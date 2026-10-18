@@ -50,6 +50,7 @@ describe("Runx CLI release evidence", () => {
       "ghcr",
       "homebrew",
       "scoop",
+      "aur",
     ]);
     expect(evidence.checks.every((check: { status: string }) => check.status === "passed"))
       .toBe(true);
@@ -137,7 +138,7 @@ describe("Runx CLI release evidence", () => {
     }
   });
 
-  it("refuses workflow, npm-latest, and anonymous-container drift", async () => {
+  it("refuses workflow, npm-latest, anonymous-container, and AUR drift", async () => {
     const evidence = await observeRunxCliRelease({
       version,
       expectedCommit: commit,
@@ -145,12 +146,13 @@ describe("Runx CLI release evidence", () => {
         workflowConclusion: "failure",
         npmLatest: "9.4.0",
         ghcrTokenStatus: 401,
+        aurVersion: "9.4.0-1",
       }),
       githubToken: "",
     });
 
     expect(evidence.ready).toBe(false);
-    expect(failedIds(evidence)).toEqual(["release_workflow", "npm", "ghcr"]);
+    expect(failedIds(evidence)).toEqual(["release_workflow", "npm", "ghcr", "aur"]);
   });
 
   it("binds a repaired image tag to its exact public digest", async () => {
@@ -248,10 +250,11 @@ function failedIds(evidence: {
 }
 
 function releaseFetch(options: {
-    workflowConclusion?: string;
-    workflowCommit?: string;
-    npmLatest?: string;
+  workflowConclusion?: string;
+  workflowCommit?: string;
+  npmLatest?: string;
   ghcrTokenStatus?: number;
+  aurVersion?: string;
 } = {}): typeof fetch {
   return (async (input: URL | RequestInfo) => {
     const url = String(input);
@@ -301,6 +304,12 @@ function releaseFetch(options: {
       return new Response(
         `version "${version}"\nurl "https://github.com/runxhq/runx/releases/download/${tag}/runx-${version}-aarch64-apple-darwin.tar.gz"\n`,
       );
+    }
+    if (url.startsWith("https://aur.archlinux.org/rpc/v5/info")) {
+      return jsonResponse({
+        resultcount: 1,
+        results: [{ Name: "runx", Version: options.aurVersion ?? `${version}-2` }],
+      });
     }
     if (url.includes("scoop-bucket")) {
       return jsonResponse({
