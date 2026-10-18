@@ -44,7 +44,7 @@ confluence is the product. The file is not.
 
 ## The ambitious statement
 
-runx is infrastructure for accountable team-delegate.
+runx is infrastructure for accountable agency.
 
 The bet is that the unit of the agent economy is not the prompt and not the
 model. It is the governed act with a third-party-verifiable trace. The
@@ -69,7 +69,7 @@ runx, and both feel principled.
    ceremony.
 
 The bar is met not when everything is a receipt, but when the things that
-**must** be verifiable to make team-delegate trustable have no gap, while everything
+**must** be verifiable to make agency trustable have no gap, while everything
 else stays cheap and boring.
 
 A worked example of the distinction: a stale README is hygiene. It is untidy
@@ -114,7 +114,7 @@ to exist. The discipline is permanent, not a phase.
 
 ## One sentence
 
-runx is the substrate of accountable team-delegate; the receipt is where authority,
+runx is the substrate of accountable agency; the receipt is where authority,
 action, evidence, and learning become one verifiable thing; and the only
 enlightenment worth chasing is closing the gaps where that verifiability is
 merely performed instead of structural, while refusing, hard, to govern anything

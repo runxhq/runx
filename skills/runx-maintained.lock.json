@@ -393,9 +393,9 @@
   },
   {
     "skill_id": "runx/research-brief",
-    "version": "sha-a5126617600f",
+    "version": "sha-9e89e61b6606",
     "digest": "c6f54ebfe9de109dff513909c2c91fbcc6263ba27c1439c3f9cae3dd8e3c5af4",
-    "content_digest": "sha256:a5126617600f08eeac27eb677b662cc7f0e3f2a67f9b37757cb1d9b97fb22d29",
+    "content_digest": "sha256:9e89e61b6606eb25fbc87cada85f253740be79876872b7897ee32a86f87e064f",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },

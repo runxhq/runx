@@ -4,7 +4,7 @@ Should Northstar build a client portal? Validate whether shared workspaces solve
 
 ## Direction to test
 
-Build on shared workspaces and guest roles. Walk through a real client handoff with team-delegate operators.
+Build on shared workspaces and guest roles. Walk through a real client handoff with agency operators.
 
 ## Still uncertain
 
