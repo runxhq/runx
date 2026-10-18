@@ -6,7 +6,7 @@
     "profile": "skills/code-intake/run.yaml"
   },
   "skill_name": "code-intake",
-  "manifest_hash": "sha256:bded0ec5875ad9dc88a477c9d8ddbe4f785bc10fd7a9643b5b6ebe8081d601f0",
+  "manifest_hash": "sha256:eb6b542795af426a9eee376fd01591601facbb514fb4de0fa3dbb863686f7924",
   "harness_schema": "runx.receipt.v1",
   "case_names": [
     "bounded-docs-fix",
