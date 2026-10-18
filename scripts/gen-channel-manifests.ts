@@ -233,6 +233,9 @@ license=('Apache-2.0')
 depends=('gcc-libs' 'glibc')
 makedepends=('cargo')
 conflicts=('runx-bin')
+# The release profile strips symbols, so a debug package would be empty, and
+# full debug info makes the whole-program link exceed 7 GB.
+options=('!debug')
 source=("$pkgname-$pkgver.tar.gz::${AUR_SOURCE_URL}")
 sha256sums=('${m.source.sha256}')
 
@@ -273,6 +276,7 @@ function renderAurSrcinfo(m: Manifest): string {
 \tdepends = gcc-libs
 \tdepends = glibc
 \tconflicts = runx-bin
+\toptions = !debug
 \tsource = runx-${m.version}.tar.gz::${m.source.url}
 \tsha256sums = ${m.source.sha256}
 

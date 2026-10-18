@@ -76,6 +76,7 @@ expectIncludes("aur package identity", aur, "pkgname=runx\n");
 expectIncludes("aur version", aur, `pkgver=${manifest.version}\n`);
 expectIncludes("aur source checksum", aur, `sha256sums=('${manifest.source.sha256}')`);
 expectIncludes("aur builds both executables", aur, "-p runx-cli -p runx-js-worker");
+expectIncludes("aur builds without debug info", aur, "options=('!debug')");
 const aurSrcinfo = readFileSync(path.join(options.channels, "aur", ".SRCINFO"), "utf8");
 expectIncludes("aur source info version", aurSrcinfo, `\tpkgver = ${manifest.version}`);
 expectIncludes("aur source info homepage", aurSrcinfo, `\turl = ${manifest.homepage}`);
