@@ -189,7 +189,8 @@ impl ToolCalls {
         let graph = validate_graph(parse_graph_yaml(&serde_json::to_string(
             &serde_json::json!({
                 "name": "artifact-io",
-                "steps": [{"id": "call", "tool": tool, "inputs": inputs}],
+                // Each artifact tool reads the files it admits or pages.
+                "steps": [{"id": "call", "tool": tool, "scopes": ["fs.read"], "inputs": inputs}],
             }),
         )?)?)?;
         let mut run = self
