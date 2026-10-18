@@ -64,12 +64,28 @@ export {
   type UnsignedRegistryManifest,
 } from "./registry-signed-manifest.js";
 export {
+  RegistryCategoryError,
+  UNCATEGORIZED,
+  declaredRegistryCategory,
+  registryCategories,
+  registryCategory,
   registryTaxonomy,
   type RegistryTaxonomy,
   type RegistryTaxonomyCategory,
   type RegistryTaxonomyMark,
   type RegistryTaxonomySubject,
 } from "./registry-taxonomy.js";
+export {
+  CATALOG_PRESENTATION_PATH,
+  CATALOG_PRESENTATION_SCHEMA,
+  RegistryPresentationError,
+  assertPublicSkillCatalog,
+  composedSkillId,
+  readCatalogPresentation,
+  type PublicSkillCatalogMaterial,
+  type RegistryCatalogPresentation,
+  type RegistryRelationshipKind,
+} from "./catalog-presentation.js";
 
 
 export {

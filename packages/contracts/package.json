@@ -1,6 +1,6 @@
 {
   "name": "@runxhq/contracts",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Runx machine-facing JSON contracts: doctor, dev, list, receipt, fixture, tool manifest, packet index.",
   "private": false,
   "license": "Apache-2.0",
@@ -32,6 +32,7 @@
     }
   },
   "dependencies": {
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
   }
 }

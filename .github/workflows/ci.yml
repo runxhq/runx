@@ -257,6 +257,7 @@ jobs:
           fi
           node scripts/audit-core-skills.mjs --check --json --runx-bin crates/target/debug/runx \
             --skills "${{ needs.classify.outputs.core_skills }}" > /dev/null
+          pnpm exec tsx scripts/check-skill-catalog.ts --runx-bin crates/target/debug/runx
           node scripts/harness-sweep.mjs --runx-bin crates/target/debug/runx --no-build \
             --skills "${{ needs.classify.outputs.core_skills }}"
 
