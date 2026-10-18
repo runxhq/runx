@@ -1162,6 +1162,241 @@ fn sign_envelope(
     Ok(serde_json::to_value(manifest)?)
 }
 
+/// Makes `root` the hosted-records plugin: one hosted connector,
+/// `fixture/records`, and the `records` skill that reads it.
+fn hosted_records(
+    root: &std::path::Path,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    crate::support::copy_dir(
+        &crate::support::repo_root()?.join("fixtures/journeys/hosted-records"),
+        root,
+    )?;
+    Ok(root.join("skills/records"))
+}
+
+/// The one provider answer every case below reads through, the `caller` of
+/// a case at `indent`: the fixture grant, and an empty `records.list`.
+fn records_provider(indent: usize) -> String {
+    [
+        "provider_responses:",
+        "  principal_id: operator-fixture",
+        "  grant:",
+        "    grant_id: records-fixture",
+        "    provider: fixture/records",
+        "    scopes: [records.read]",
+        "  operations:",
+        "    - operation: records.list",
+        "      target: \"fixture-records://records\"",
+        "      access: read",
+        "      result:",
+        "        records: []",
+    ]
+    .iter()
+    .map(|line| format!("{}{line}\n", " ".repeat(indent)))
+    .collect()
+}
+
+fn publish(
+    skill_dir: &std::path::Path,
+    registry_dir: &std::path::Path,
+    publisher: Option<(&str, &str)>,
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    let mut command = runx_command()?;
+    command
+        .current_dir(skill_dir.parent().ok_or("skill has no parent")?)
+        .env("RUNX_REGISTRY_DIR", registry_dir)
+        .args([
+            "registry",
+            "publish",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+        ]);
+    if let Some((publisher, version)) = publisher {
+        command.args(["--publisher", publisher, "--version", version]);
+    }
+    Ok(command.arg("--json").output()?)
+}
+
+/// A publish runs the harness on the package as the registry holds it: a
+/// bundle that is its own plugin, its cases reaching the connectors it
+/// carries.
+#[test]
+fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-publish-plugin-harness");
+    let skill_dir = hosted_records(&root)?;
+    let published = publish(&skill_dir, &root.join("registry"), None)?;
+    assert_success_contains(&published, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A case runs its whole closure, so its provider grant reaches a connector
+/// the package's composed skill carries, not only its own.
+#[test]
+fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-publish-composed-grant");
+    hosted_records(&root)?;
+    // A skill that binds no connector itself: its case reaches the records
+    // grant only through the skill it composes.
+    let skill_dir = root.join("skills/records-digest");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: records-digest\ndescription: Digest the records a composed skill lists.\n---\n# Records digest\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        format!(
+            "skill: records-digest\nharness:\n  cases:\n    - name: digest-reaches-the-composed-records-grant\n      caller:\n{provider}      expect:\n        status: sealed\n        steps: [records, digest]\nrunners:\n  digest:\n    default: true\n    steps:\n      - id: records\n        skill: ../records\n        runner: list\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $steps.records\n",
+            provider = records_provider(8),
+        ),
+    )?;
+    let published = publish(&skill_dir, &root.join("registry"), None)?;
+    assert_success_contains(&published, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// Publishes the records skill as acme's at each version, each carrying its
+/// own revision of the fixture/records connector.
+fn publish_records_revisions(
+    root: &std::path::Path,
+    versions: &[&str],
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = hosted_records(&root.join("source"))?;
+    let manifest = root.join("source/connectors/fixture/records/connector.yaml");
+    let registry_dir = root.join("registry");
+    let original = fs::read_to_string(&manifest)?;
+    for version in versions {
+        fs::write(
+            &manifest,
+            original.replacen(
+                "description: A hosted fixture connector",
+                &format!("description: Revision {version} of a hosted fixture connector"),
+                1,
+            ),
+        )?;
+        let published = publish(&skill_dir, &registry_dir, Some(("acme", version)))?;
+        assert_success_contains(&published, &["\"action\": \"publish\""])?;
+    }
+    Ok(registry_dir)
+}
+
+/// A package in no plugin whose one case lists records through each named
+/// version of acme's records skill, granting fixture/records.
+fn records_consumer(
+    root: &std::path::Path,
+    versions: &[&str],
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let consumer = root.join("consumer/ledger");
+    fs::create_dir_all(consumer.join("fixtures"))?;
+    fs::write(
+        consumer.join("SKILL.md"),
+        "---\nname: ledger\ndescription: Lists records through a published records skill.\n---\n# Ledger\n",
+    )?;
+    let steps = versions
+        .iter()
+        .enumerate()
+        .map(|(index, version)| {
+            format!(
+                "      - id: records-{index}\n        skill: registry:acme/records@{version}\n        runner: list\n"
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        consumer.join("run.yaml"),
+        format!(
+            "skill: ledger\nrunners:\n  default:\n    default: true\n    result_from: [records-0]\n    steps:\n{steps}"
+        ),
+    )?;
+    fs::write(
+        consumer.join("fixtures/reads-through-registry-child.yaml"),
+        format!(
+            "name: ledger-reads-through-registry-child\nkind: skill\ntarget: ..\nrunner: default\ncaller:\n{}expect:\n  status: sealed\n",
+            records_provider(2)
+        ),
+    )?;
+    Ok(consumer)
+}
+
+/// A case's provider grant reaches a connector only a registry child carries:
+/// the case's package names the child, the child's bundle carries the
+/// connector, and the case's run binds it from there.
+#[test]
+fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-child-grant");
+    let registry_dir = publish_records_revisions(&root, &["1.0.0"])?;
+    let consumer = records_consumer(&root, &["1.0.0"])?;
+    let published = publish(&consumer, &registry_dir, Some(("consumer", "1.0.0")))?;
+    assert_success_contains(&published, &["\"action\": \"publish\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A closure binds one revision of a name (S15): a package whose registry
+/// children carry two manifests of the same connector is refused at
+/// publication, never settled by whichever child was found first.
+#[test]
+fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-child-grant-ambiguous");
+    let registry_dir = publish_records_revisions(&root, &["1.0.0", "2.0.0"])?;
+    let consumer = records_consumer(&root, &["1.0.0", "2.0.0"])?;
+    let published = publish(&consumer, &registry_dir, Some(("consumer", "1.0.0")))?;
+    assert_ne!(published.status.code(), Some(0));
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&published.stdout),
+        String::from_utf8_lossy(&published.stderr)
+    );
+    assert!(
+        output.contains("the closure reaches two revisions of connector fixture/records"),
+        "{output}"
+    );
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A graph case runs its composed skill's operations under the provider
+/// grant its caller answers for, bound from the graph file's directory.
+#[test]
+fn a_graph_case_binds_the_grant_its_composed_skill_calls() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("harness-graph-binding");
+    let skill_dir = hosted_records(&root)?;
+    let support = skill_dir.join("fixtures/support");
+    fs::create_dir_all(&support)?;
+    fs::write(
+        support.join("live.graph"),
+        "name: records-live\nsteps:\n  - id: records\n    skill: ../..\n    runner: list\n",
+    )?;
+    let case = skill_dir.join("fixtures/graph-binds-grant.yaml");
+    fs::write(
+        &case,
+        format!(
+            "name: records-graph-binds-grant\nkind: graph\ntarget: support/live.graph\nexpect:\n  status: sealed\ncaller:\n{}",
+            records_provider(2)
+        ),
+    )?;
+    let run = runx_command()?
+        .current_dir(&root)
+        .args(["harness", case.to_str().ok_or("non-utf8 case")?, "--json"])
+        .output()?;
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
 fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
     ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
         std::io::Error::other(format!("static registry manifest seed rejected: {error:?}"))

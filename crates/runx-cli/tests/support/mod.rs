@@ -313,7 +313,7 @@ pub type ProviderOperations =
 
 /// A runx Connect the operator's runs reach on loopback: it authenticates
 /// `principal_id` and lists `grants`, each `(grant id, connector, scopes)`
-/// with the connector's exact binding. A provider operation is refused
+/// with the exact binding of that connector in the plugin at `root`. A provider operation is refused
 /// unless [`MockConnect::with_operations`] answers it, so a run that sends
 /// an unexpected request fails loudly.
 pub struct MockConnect {
@@ -322,31 +322,31 @@ pub struct MockConnect {
 
 impl MockConnect {
     pub fn serve(
+        root: &std::path::Path,
         principal_id: &str,
         grants: &[(&str, &str, &[&str])],
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::serve_with(principal_id, grants, None)
+        Self::serve_with(root, principal_id, grants, None)
     }
 
     pub fn with_operations(
+        root: &std::path::Path,
         principal_id: &str,
         grants: &[(&str, &str, &[&str])],
         operations: ProviderOperations,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::serve_with(principal_id, grants, Some(operations))
+        Self::serve_with(root, principal_id, grants, Some(operations))
     }
 
     fn serve_with(
+        root: &std::path::Path,
         principal_id: &str,
         grants: &[(&str, &str, &[&str])],
         mut operations: Option<ProviderOperations>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         use std::io::Write;
 
-        // The runx source tree, where every runx-maintained connector is in reach.
-        let scope = runx_runtime::ConnectorScope::at(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
-        )?;
+        let scope = runx_runtime::ConnectorScope::at(root)?;
         let grants = grants
             .iter()
             .map(|(grant_id, connector, scopes)| {
@@ -508,8 +508,6 @@ fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(Strin
     Ok((request_line, body))
 }
 
-/// Makes `root` a runx plugin holding copies of the runx source connectors
-/// `ids`: how a project reaches published connectors without a registry.
 /// Copy a directory tree.
 pub fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
@@ -525,6 +523,8 @@ pub fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
+/// Makes `root` a runx plugin holding copies of the runx source connectors
+/// `ids`: how a project reaches published connectors without a registry.
 pub fn plugin_with_source_connectors(
     root: &std::path::Path,
     ids: &[&str],

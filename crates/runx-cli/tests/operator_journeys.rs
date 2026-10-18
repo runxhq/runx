@@ -545,6 +545,228 @@ export function finish() {
     Ok(())
 }
 
+/// The hosted grants a loopback Connect lists for `fixture/records`: one
+/// holding every scope the `records` skill needs, and one short of them.
+const RECORDS_GRANTS: &[(&str, &str, &[&str])] = &[
+    (
+        "grant_records_read",
+        "fixture/records",
+        &["records.read", "records.summary.read"],
+    ),
+    (
+        "grant_records_wrong_scope",
+        "fixture/records",
+        &["records.summary.read"],
+    ),
+];
+
+/// Makes `root` the hosted-records plugin: one hosted connector,
+/// `fixture/records`, and the `records` skill that reads it.
+fn hosted_records(root: &Path) -> TestResult<std::path::PathBuf> {
+    crate::support::copy_dir(
+        &crate::support::repo_root()?.join("fixtures/journeys/hosted-records"),
+        root,
+    )?;
+    Ok(root.join("skills/records"))
+}
+
+/// The check and detail of an inspection's first failing readiness reason.
+fn failed_readiness(inspection: &Value) -> TestResult<(String, String)> {
+    let reason = inspection["connector_readiness"][0]["reasons"]
+        .as_array()
+        .and_then(|reasons| reasons.iter().find(|reason| reason["outcome"] == "fail"))
+        .ok_or("a failing readiness reason")?;
+    Ok((
+        json_string(reason, "check")?.to_owned(),
+        json_string(reason, "detail")?.to_owned(),
+    ))
+}
+
+#[test]
+fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-provider-readiness-journey");
+    let skill_dir = hosted_records(&root)?;
+    let receipt_dir = root.join(".runx/receipts");
+    let connect = crate::support::MockConnect::serve(&root, "operator-1", RECORDS_GRANTS)?;
+    let operator = |root: &Path| {
+        let mut command = command(root);
+        connect.apply(&mut command);
+        command
+    };
+    let inspect = || -> TestResult<Value> {
+        let output = operator(&root)
+            .arg("skill")
+            .arg("inspect")
+            .arg(&skill_dir)
+            .arg("list")
+            .arg("--json")
+            .output()?;
+        assert_json(&output, 0)
+    };
+    let confirm = |grant: &str| {
+        operator(&root)
+            .args(["connector", "use", "fixture/records", grant, "--json"])
+            .output()
+    };
+
+    // With no confirmed grant, readiness names the setup the run needs.
+    let unset = inspect()?;
+    assert_eq!(unset["readiness"]["status"], "needs_connector_setup");
+    assert_eq!(failed_readiness(&unset)?.0, "instance");
+
+    assert_json(&confirm("grant_records_read")?, 0)?;
+    let ready = inspect()?;
+    assert_eq!(ready["readiness"]["status"], "ready");
+    let readiness = ready["connector_readiness"]
+        .as_array()
+        .and_then(|operations| {
+            operations
+                .iter()
+                .find(|operation| operation["operation"] == "records.list")
+        })
+        .ok_or("records.list readiness missing")?;
+    assert_eq!(readiness["connector"], "fixture/records");
+    assert!(
+        readiness["instance_id"]
+            .as_str()
+            .is_some_and(|instance| instance.starts_with("hosted.")),
+        "{readiness}"
+    );
+    assert_eq!(readiness["ready"], true);
+
+    // A grant without the operation's scope is refused before anything is sent.
+    assert_json(&confirm("grant_records_wrong_scope")?, 0)?;
+    let denied = operator(&root)
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("list")
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .args(["--json", "--diagnostics"])
+        .output()?;
+    let denied = assert_json(&denied, 1)?;
+    assert_eq!(denied["status"], "sealed");
+    assert_eq!(denied["outcome"], "blocked");
+    assert_eq!(denied["closure"]["disposition"], "blocked");
+    assert_eq!(denied["closure"]["reason"], "authority_denied");
+    assert_eq!(denied["refusal"]["code"], "authority_denied", "{denied}");
+    assert_eq!(denied["refusal"]["verb"], "read", "{denied}");
+    assert_eq!(denied["trace"]["status"], "blocked");
+    let receipt_id = json_string(&denied, "receipt_id")?;
+    let run_id = json_string(&denied, "run_id")?;
+    assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
+    assert_run_sealed_with_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
+
+    Ok(())
+}
+
+#[test]
+fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-stated-grant-journey");
+    let skill_dir = hosted_records(&root)?;
+    let receipt_dir = root.join(".runx/receipts");
+    let sent = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+    let recorded = std::sync::Arc::clone(&sent);
+    // Connect records each provider call and answers none, so a call that
+    // gets past admission shows the grant it was sent under.
+    let connect = crate::support::MockConnect::with_operations(
+        &root,
+        "seller-1",
+        RECORDS_GRANTS,
+        Box::new(move |request| {
+            recorded.lock().ok()?.push(request.clone());
+            None
+        }),
+    )?;
+    let operator = |root: &Path| {
+        let mut command = command(root);
+        connect.apply(&mut command);
+        command
+    };
+    let stated = |grant: &str| format!(r#"{{"grants":{{"fixture/records":"{grant}"}}}}"#);
+    let inspect = |authority: &str| -> TestResult<Value> {
+        let output = operator(&root)
+            .arg("skill")
+            .arg("inspect")
+            .arg(&skill_dir)
+            .arg("list")
+            .args(["--run-authority", authority, "--json"])
+            .output()?;
+        assert_json(&output, 0)
+    };
+
+    // The stated grant is the run's instance, read through the host: the
+    // project has no setup at all.
+    let ready = inspect(&stated("grant_records_read"))?;
+    assert_eq!(ready["readiness"]["status"], "ready", "{ready}");
+    assert!(
+        ready["connector_readiness"][0]["instance_id"]
+            .as_str()
+            .is_some_and(|instance| instance.starts_with("hosted.")),
+        "{ready}"
+    );
+
+    // A stated grant short of the operation's scopes is not ready, by name.
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_wrong_scope"))?)?;
+    assert_eq!(check, "capability");
+    assert!(detail.contains("lacks records.read"), "{detail}");
+
+    // A grant the host does not hold is refused at the instance.
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_absent"))?)?;
+    assert_eq!(check, "instance");
+    assert!(
+        detail.contains("states grant grant_records_absent for connector fixture/records"),
+        "{detail}"
+    );
+
+    // A run under the stated grant is admitted and calls under that grant.
+    let run = operator(&root)
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("list")
+        .args(["--run-authority", &stated("grant_records_read")])
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .arg("--json")
+        .output()?;
+    let calls = sent
+        .lock()
+        .map_err(|_| "the Connect fixture panicked")?
+        .clone();
+    assert!(
+        !calls.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&run.stdout)
+    );
+    assert!(
+        calls
+            .iter()
+            .all(|call| call["grant_id"] == "grant_records_read"),
+        "{calls:?}"
+    );
+
+    // An operator's selection of another instance conflicts with the host's
+    // statement, and the run never chooses between them.
+    let confirm = operator(&root)
+        .args([
+            "connector",
+            "use",
+            "fixture/records",
+            "grant_records_wrong_scope",
+            "--json",
+        ])
+        .output()?;
+    assert_json(&confirm, 0)?;
+    let (check, detail) = failed_readiness(&inspect(&stated("grant_records_read"))?)?;
+    assert_eq!(check, "instance");
+    assert!(
+        detail.contains("is selected; a run never chooses between them"),
+        "{detail}"
+    );
+
+    Ok(())
+}
+
 fn command(root: &Path) -> Command {
     crate::support::unsigned_runx_command_at(root)
 }

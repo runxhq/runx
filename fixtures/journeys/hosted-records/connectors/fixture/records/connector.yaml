@@ -1,0 +1,29 @@
+schema: runx.connector.v1
+id: fixture/records
+name: Fixture Records
+description: A hosted fixture connector the CLI journeys reach through a loopback Connect.
+runtime_capability: false
+auth:
+  delegated: {principal: {url: "https://records.fixture.invalid/userinfo", id: sub, login: sub}}
+placements:
+  hosted:
+    auth: delegated
+operations:
+  records.list:
+    description: List the records the connected account can read.
+    verb: read
+    scopes: [records.read]
+    target:
+      template: "fixture-records://records"
+    result_fields: [records]
+    hosted:
+      provider_scopes: ["records.readonly"]
+  records.summary:
+    description: Summarize the records the connected account can read.
+    verb: read
+    scopes: [records.summary.read]
+    target:
+      template: "fixture-records://summary"
+    result_fields: [summary]
+    hosted:
+      provider_scopes: ["records.readonly"]

@@ -1,0 +1,32 @@
+skill: records
+version: "0.1.0"
+harness:
+  cases:
+    - name: lists-records-under-the-case-grant
+      runner: list
+      caller:
+        provider_responses:
+          principal_id: operator-fixture
+          grant:
+            grant_id: records-fixture
+            provider: fixture/records
+            scopes: [records.read]
+          operations:
+            - operation: records.list
+              target: "fixture-records://records"
+              access: read
+              result:
+                records: []
+      expect:
+        status: sealed
+connectors:
+  fixture/records:
+    operations: [records.list]
+runners:
+  list:
+    default: true
+    steps:
+      - id: list
+        operation: fixture/records/records.list
+        input: {}
+        result_fields: [records]
