@@ -4,6 +4,7 @@ export interface RunxClientConfig {
   readonly command: string;
   readonly cwd: string;
   readonly projectDir: string;
+  /** The runx home, given to runx as RUNX_HOME. HOME stays the host environment's, so the commands a run executes find the person's own tools and configuration. */
   readonly home: string;
   /** Trusted host environment; never populated from model or skill input. */
   readonly environment?: Readonly<Record<string, string | undefined>>;

@@ -148,14 +148,23 @@ describe("native invocation and decoding", () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
-      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), inputs: JSON.parse(readFileSync(0, 'utf8')), home: process.env.HOME }));
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), inputs: JSON.parse(readFileSync(0, 'utf8')) }));
       process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, inputs: { "receipt-dir": "untrusted", nested: { value: 1 } } });
     const captured = JSON.parse(await readFile(capture, "utf8"));
     expect(captured.args.filter((arg: string) => arg === "--receipt-dir")).toHaveLength(1);
     expect(captured.args[captured.args.indexOf("--inputs") + 1]).toBe("-");
     expect(captured.inputs).toEqual({ "receipt-dir": "untrusted", nested: { value: 1 } });
-    expect(captured.home).toBe(config.home);
+  });
+  it("gives runx its home as RUNX_HOME and keeps the host's HOME for the commands it runs", async () => {
+    const { root, config, receiptDir } = await setup();
+    const capture = path.join(root, "capture.json");
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ home: process.env.HOME, runxHome: process.env.RUNX_HOME }));
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
+    const person = path.join(root, "person");
+    await createRunxClient({ ...config, environment: { ...config.environment, HOME: person } }).skills.run({ skillPath: "/skill", receiptDir });
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ home: person, runxHome: config.home });
   });
   it("gives a run the host's authority, act and context as arguments", async () => {
     const { root, config, receiptDir } = await setup();

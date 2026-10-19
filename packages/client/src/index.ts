@@ -25,7 +25,7 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
   const maxOutputBytes = positive(config.maxOutputBytes ?? 64 * 1024 * 1024, "maxOutputBytes");
   const maxInputBytes = positive(config.maxInputBytes ?? 8 * 1024 * 1024, "maxInputBytes");
   const maxArtifactBytes = positive(config.maxArtifactBytes ?? 64 * 1024 * 1024, "maxArtifactBytes");
-  const trustedEnv = { ...config.environment, NO_COLOR: "1", RUNX_RUST_CLI: "1", RUNX_CWD: config.cwd, RUNX_PROJECT_DIR: config.projectDir, HOME: config.home, RUNX_HOME: config.home };
+  const trustedEnv = { ...config.environment, NO_COLOR: "1", RUNX_RUST_CLI: "1", RUNX_CWD: config.cwd, RUNX_PROJECT_DIR: config.projectDir, RUNX_HOME: config.home };
   const execute = (args: readonly string[], options: InvocationOptions, input?: string) => invoke({
     command: config.command, args, cwd: config.cwd, env: { ...skillEnvironment(options.environment), ...trustedEnv },
     timeoutMs, terminationGraceMs, maxOutputBytes, maxInputBytes, input, signal: options.signal,
