@@ -180,12 +180,7 @@ fn write(
         invocation.bounds,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
-    let write = report
-        .get("writes")
-        .and_then(JsonValue::as_array)
-        .and_then(|writes| writes.first())
-        .and_then(JsonValue::as_object)
-        .ok_or_else(|| invalid_input(WRITE_TOOL, "filesystem transaction omitted write proof"))?;
+    let write = first_write(WRITE_TOOL, &report)?;
     let normalized_path = required_string(WRITE_TOOL, write, "path")?;
     let bytes_written = write
         .get("bytes_written")
@@ -217,8 +212,32 @@ fn write(
             .get("before_digest")
             .and_then(JsonValue::as_str)
             .map(str::to_owned),
+        diff: diff_of(WRITE_TOOL, write)?,
         journal: journal_of(&report),
     })
+}
+
+/// A reported change's diff, exactly as it was computed: empty when the
+/// change left the file as it was.
+fn diff_of(tool: &str, change: &runx_contracts::JsonObject) -> Result<String, RuntimeError> {
+    change
+        .get("diff")
+        .and_then(JsonValue::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| invalid_input(tool, "filesystem transaction omitted its diff"))
+}
+
+/// The write a one-file bundle report proves.
+fn first_write<'a>(
+    tool: &str,
+    report: &'a runx_contracts::JsonObject,
+) -> Result<&'a runx_contracts::JsonObject, RuntimeError> {
+    report
+        .get("writes")
+        .and_then(JsonValue::as_array)
+        .and_then(|writes| writes.first())
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| invalid_input(tool, "filesystem transaction omitted write proof"))
 }
 
 /// The run's journal entry a bundle report names.
@@ -399,6 +418,7 @@ fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutp
         before_digest: edited.before_digest,
         content_digest: runx_contracts::sha256_prefixed(edited.contents.as_bytes()),
         bytes_written: edited.contents.len() as u64,
+        diff: diff_of(EDIT_TOOL, first_write(EDIT_TOOL, &report)?)?,
         journal: journal_of(&report),
     })
 }

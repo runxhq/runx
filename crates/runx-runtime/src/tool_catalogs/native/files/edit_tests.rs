@@ -189,3 +189,59 @@ fn a_bundle_binds_its_writes_and_deletes() -> TestResult {
     let _ = JsonValue::Null;
     Ok(())
 }
+
+#[test]
+fn every_change_returns_the_diff_it_made() -> TestResult {
+    let workspace = tempfile::tempdir()?;
+    let root = workspace.path();
+    fs::write(root.join("lib.rs"), "fn one() {}\n")?;
+    let edited = invoke::<FileEditInput, _>(
+        root,
+        serde_json::json!({"path": "lib.rs", "edits": [{"old": "one", "new": "first"}]}),
+        WorkspaceBounds::Agent,
+        edit,
+    )?;
+    assert_eq!(
+        edited.diff,
+        "--- lib.rs\n+++ lib.rs\n@@ -1 +1 @@\n-fn one() {}\n+fn first() {}\n"
+    );
+
+    let created = invoke::<FileWriteInput, _>(
+        root,
+        serde_json::json!({"path": "new.md", "contents": "hello\n", "create": true}),
+        WorkspaceBounds::Agent,
+        write,
+    )?;
+    assert!(
+        created.diff.starts_with("--- new.md\n+++ new.md\n") && created.diff.ends_with("+hello\n"),
+        "{}",
+        created.diff
+    );
+
+    let bundle = invoke::<FileApplyBundleInput, _>(
+        root,
+        serde_json::json!({
+            "writes": [{"path": "new.md", "contents": "hello there\n", "expected_digest": digest("hello\n")}],
+            "deletes": [{"path": "lib.rs", "expected_digest": digest("fn first() {}\n")}],
+        }),
+        WorkspaceBounds::Agent,
+        apply_files,
+    )?;
+    let [write] = bundle.writes.as_slice() else {
+        return Err("the bundle wrote one file".into());
+    };
+    assert_eq!(
+        write.diff,
+        "--- new.md\n+++ new.md\n@@ -1 +1 @@\n-hello\n+hello there\n"
+    );
+    let [delete] = bundle.deletes.as_slice() else {
+        return Err("the bundle deleted one file".into());
+    };
+    assert!(
+        delete.diff.starts_with("--- lib.rs\n+++ lib.rs\n")
+            && delete.diff.ends_with("-fn first() {}\n"),
+        "{}",
+        delete.diff
+    );
+    Ok(())
+}

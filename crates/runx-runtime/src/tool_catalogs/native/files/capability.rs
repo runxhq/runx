@@ -170,6 +170,8 @@ pub(super) struct FileWriteOutput {
     /// What the file held before, when it existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) before_digest: Option<String>,
+    /// The unified diff from what the file held to what it holds now.
+    pub(super) diff: String,
     /// The run's journal entry holding what it held.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) journal: Option<u64>,
@@ -214,6 +216,8 @@ pub(super) struct FileEditOutput {
     /// The digest of what the file now holds.
     pub(super) content_digest: String,
     pub(super) bytes_written: u64,
+    /// The unified diff from what the file held to what it holds now.
+    pub(super) diff: String,
     /// The run's journal entry holding what it held.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) journal: Option<u64>,
@@ -245,6 +249,8 @@ pub(super) struct AppliedWrite {
     /// What the file held before, when it existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) before_digest: Option<String>,
+    /// The unified diff from what the file held to what it holds now.
+    pub(super) diff: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
@@ -255,6 +261,9 @@ pub(super) struct AppliedDelete {
     /// What the file held before, when it existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) before_digest: Option<String>,
+    /// The unified diff from what the file held to its removal; empty when
+    /// it was already absent.
+    pub(super) diff: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]

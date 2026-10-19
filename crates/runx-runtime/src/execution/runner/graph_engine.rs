@@ -118,6 +118,10 @@ impl Host for AnsweringHost<'_> {
     fn drive_turn(&mut self, turn: &mut dyn super::turn::Turn) -> Result<(), RuntimeError> {
         self.host.drive_turn(turn)
     }
+
+    fn records(&self) -> bool {
+        self.host.records()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -357,8 +361,10 @@ impl GraphExecution {
         A: SkillAdapter,
     {
         // A driver asked to stop admits no further step; the run stays where
-        // it is.
-        if crate::interrupt::stop_requested() {
+        // it is. A pass that only records what a call did still re-enters the
+        // step it is suspended at, to record it.
+        let recording = host.records() && self.suspended_step.as_deref() == Some(step_id);
+        if crate::interrupt::stop_requested() && !recording {
             return Err(RuntimeError::Stopped {
                 run_id: runtime.options.run.run_id().to_owned(),
                 step_id: format!("step {step_id}"),

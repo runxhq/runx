@@ -68,16 +68,10 @@ pub(crate) fn text_bundle_effect(
                 JsonValue::String(sha256_prefixed(after.as_bytes())),
             );
         }
-        let before_text = before
-            .as_deref()
-            .map(String::from_utf8_lossy)
-            .unwrap_or_default();
-        let diff = similar::TextDiff::from_lines(before_text.as_ref(), after.unwrap_or_default())
-            .unified_diff()
-            .context_radius(3)
-            .header(relative, relative)
-            .to_string();
-        file.insert("diff".to_owned(), JsonValue::String(diff));
+        file.insert(
+            "diff".to_owned(),
+            JsonValue::String(unified_diff(relative, before.as_deref(), after)),
+        );
         files.push(JsonValue::Object(file));
         paths.push(relative.clone());
     }
@@ -89,6 +83,18 @@ pub(crate) fn text_bundle_effect(
         paths,
         argv: None,
     }))
+}
+
+/// The unified diff from what a file held (`None` when it did not exist) to
+/// what it becomes (`None` when it is deleted), as an approval shows it and
+/// the applied change returns it.
+pub(crate) fn unified_diff(relative: &str, before: Option<&[u8]>, after: Option<&str>) -> String {
+    let before = before.map(String::from_utf8_lossy).unwrap_or_default();
+    similar::TextDiff::from_lines(before.as_ref(), after.unwrap_or_default())
+        .unified_diff()
+        .context_radius(3)
+        .header(relative, relative)
+        .to_string()
 }
 
 #[cfg(test)]
