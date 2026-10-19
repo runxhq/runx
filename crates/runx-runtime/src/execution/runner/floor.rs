@@ -16,7 +16,7 @@ use runx_parser::{GraphStep, StepKind, ToolTarget};
 
 use super::Runtime;
 use crate::RuntimeError;
-use crate::approval::ApprovalResolution;
+use crate::approval::{ApprovalError, ApprovalResolution};
 use crate::capability::LocalEffect;
 use crate::host::Host;
 
@@ -107,6 +107,7 @@ pub(super) fn hold<A>(
         payload: None,
         payload_ref: None,
     };
+    let stale = changed(&effect);
     crate::approval::carry_payload(
         &mut gate,
         effect.payload,
@@ -114,10 +115,26 @@ pub(super) fn hold<A>(
         options.run.run_id(),
     )
     .map_err(|message| RuntimeError::effect_state("carrying a local effect", message))?;
-    let resolution = crate::approval::request_approval(host, request_id.clone(), gate.clone())
-        .map_err(|error| {
-            RuntimeError::effect_state("asking for a local effect", error.to_string())
-        })?;
+    let resolution = match crate::approval::request_approval(host, request_id.clone(), gate.clone())
+    {
+        Ok(resolution) => resolution,
+        // The effect is not the one the person was asked about: a file it
+        // changes changed since. What they approved never runs; the call is
+        // refused, naming what changed, and its agent reads it again.
+        Err(ApprovalError::Runtime(RuntimeError::ContinuationRejected { .. })) => {
+            return Err(RuntimeError::AuthorityDenied {
+                verb: AuthorityVerb::Execute,
+                step_id: step.id.clone(),
+                reason: stale,
+            });
+        }
+        Err(error) => {
+            return Err(RuntimeError::effect_state(
+                "asking for a local effect",
+                error.to_string(),
+            ));
+        }
+    };
     match resolution {
         ApprovalResolution::Approved { .. } => Ok(Admitted::Person),
         ApprovalResolution::Denied { reason, .. } => Err(RuntimeError::AuthorityDenied {
@@ -326,6 +343,20 @@ fn reason(effect: &LocalEffect) -> String {
     match &effect.argv {
         Some(argv) => format!("Run {}", argv.join(" ")),
         None => format!("Change {}", effect.paths.join(", ")),
+    }
+}
+
+/// Why an effect the person was asked about no longer runs.
+fn changed(effect: &LocalEffect) -> String {
+    match &effect.argv {
+        Some(argv) => format!(
+            "{} changed after the person was asked to approve it",
+            argv.join(" ")
+        ),
+        None => format!(
+            "{} changed after the person was asked to approve the change; read it again",
+            effect.paths.join(", ")
+        ),
     }
 }
 

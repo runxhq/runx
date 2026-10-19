@@ -839,6 +839,90 @@ mod tests {
     }
 
     #[test]
+    fn an_edit_whose_file_changed_after_the_person_was_asked_is_refused_naming_it() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        fs::write(root.join("note.txt"), "one\n")?;
+        let skill = root.join("edits-demo");
+        fs::create_dir_all(&skill)?;
+        fs::write(
+            skill.join("SKILL.md"),
+            "---\nname: edits-demo\ndescription: Edits a file.\n---\n# Edits demo\n\nEdit, answer.\n",
+        )?;
+        fs::write(
+            skill.join("run.yaml"),
+            "skill: edits-demo\ntools: [fs.edit]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        )?;
+        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(serde_json::from_value(
+                serde_json::json!({"agent_bounds": true}),
+            )?),
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        })?;
+        let run_id = started
+            .output
+            .as_object()
+            .and_then(|output| output.get("run_id"))
+            .and_then(JsonValue::as_str)
+            .ok_or("missing run_id")?
+            .to_owned();
+        let session = open(root, &run_id)?;
+        let waiting = session.call(
+            "answer",
+            "fs_edit",
+            Some("edit"),
+            input(
+                serde_json::json!({"path": "note.txt", "edits": [{"old": "one", "new": "two"}]}),
+            )?,
+        )?;
+        assert!(
+            matches!(waiting.outcome, TurnCallOutcome::Pending { .. }),
+            "{waiting:?}"
+        );
+        drop(session);
+
+        // The person changes the file while the edit waits on them, then approves the edit they saw.
+        fs::write(root.join("note.txt"), "one, changed\n")?;
+        let store = KernelStore::for_project(&RunxPaths::resolve(&env(root), root))?;
+        let digest = waiting_requests(&store, &run_id)?
+            .into_iter()
+            .find(|request| request.id == "answer/0/tool")
+            .ok_or("the edit waits on no approval")?
+            .digest;
+        LocalOrchestrator::default().resume(&ResumeRequest {
+            run_id: run_id.clone(),
+            answers: serde_json::from_value(serde_json::json!({
+                "approvals": {"answer/0/tool": {"request_digest": digest, "approved": true}}
+            }))?,
+            receipt_dir: Some(root.join("receipts")),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+            package_digest: None,
+            execution_closure_digest: None,
+        })?;
+
+        let status = open(root, &run_id)?.status("answer")?;
+        assert!(
+            matches!(&status.calls[0].outcome, TurnCallOutcome::Refused { reason } if reason.contains("note.txt") && reason.contains("read it again")),
+            "{:?}",
+            status.calls[0]
+        );
+        assert_eq!(fs::read_to_string(root.join("note.txt"))?, "one, changed\n");
+        Ok(())
+    }
+
+    #[test]
     fn calls_made_at_once_execute_at_once_and_a_change_waits_to_run_alone() -> TestResult {
         let temp = tempfile::tempdir()?;
         let root = temp.path();
