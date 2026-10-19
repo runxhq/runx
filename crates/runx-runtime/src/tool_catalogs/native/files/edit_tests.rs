@@ -1,55 +1,11 @@
 #![allow(clippy::expect_used)]
 
-use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
-
-use runx_contracts::{JsonObject, JsonValue};
 
 use super::capability::{FileApplyBundleInput, FileEditInput, FileWriteInput};
+use super::test_support::{TestResult, digest, invoke};
 use super::{apply_files, edit, write};
-use crate::RuntimeEffectRegistry;
-use crate::credentials::CredentialDelivery;
-use crate::paths::RUNX_CWD_ENV;
 use crate::services::WorkspaceBounds;
-use crate::tool_catalogs::native::{NativeInvocation, fixture_input};
-
-type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
-
-fn invoke<I, O>(
-    workspace: &Path,
-    inputs: serde_json::Value,
-    bounds: WorkspaceBounds,
-    handler: fn(&NativeInvocation<'_, I>) -> Result<O, crate::RuntimeError>,
-) -> Result<O, String>
-where
-    I: crate::CapabilityInput,
-{
-    let env = BTreeMap::from([(
-        RUNX_CWD_ENV.to_owned(),
-        workspace.to_string_lossy().into_owned(),
-    )]);
-    let inputs: JsonObject = serde_json::from_value(inputs).map_err(|error| error.to_string())?;
-    let inputs = fixture_input::<I>(inputs).map_err(|error| error.to_string())?;
-    let delivery = CredentialDelivery::none();
-    let effects = RuntimeEffectRegistry::default();
-    handler(&NativeInvocation {
-        inputs: &inputs,
-        observed_at: "2026-01-01T00:00:00Z",
-        env: &env,
-        skill_directory: workspace,
-        credential_delivery: &delivery,
-        local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-        effects: &effects,
-        bounds,
-        call: None,
-    })
-    .map_err(|error| error.to_string())
-}
-
-fn digest(text: &str) -> String {
-    runx_contracts::sha256_prefixed(text.as_bytes())
-}
 
 #[test]
 fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> TestResult {
@@ -186,7 +142,6 @@ fn a_bundle_binds_its_writes_and_deletes() -> TestResult {
     assert!(applied.is_ok(), "{applied:?}");
     assert!(!root.join("gone.md").exists());
     assert_eq!(fs::read_to_string(root.join("keep.md"))?, "kept\n");
-    let _ = JsonValue::Null;
     Ok(())
 }
 

@@ -13,7 +13,13 @@ outside the calls.
 ## How to work
 
 - Read before you change anything. `fs.read`, `fs.list`, `fs.search` and the
-  `git` tools return what is there, with each file's digest.
+  `git` tools return what is there, with each file's digest. `fs.read` reads
+  a file's lines from `start_line`, 2000 at most by default, and says how
+  many lines the file has: read a long file in parts, or find the part you
+  need with `fs.search` first.
+- For the web, search with `exa.search.query`, then read the pages that
+  matter with `web.page.read`. A search result is a lead, not a source: cite
+  the page you read.
 - An edit names what it replaces. `fs.edit` replaces exact text; `fs.write`
   takes the digest you read, or `create: true` for a new file. A file that
   changed since you read it is refused: read it again.

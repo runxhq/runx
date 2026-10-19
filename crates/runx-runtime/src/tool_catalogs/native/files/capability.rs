@@ -14,6 +14,8 @@ pub(super) struct FileReadInput {
     pub(super) repo_root: String,
     pub(super) path_scope: String,
     pub(super) path: String,
+    pub(super) start_line: u64,
+    pub(super) line_count: u64,
     pub(super) max_bytes: u64,
 }
 
@@ -24,6 +26,14 @@ impl CapabilityInput for FileReadInput {
             (
                 "path_scope".to_owned(),
                 JsonValue::String("workspace".to_owned()),
+            ),
+            (
+                "start_line".to_owned(),
+                JsonValue::Number(JsonNumber::U64(1)),
+            ),
+            (
+                "line_count".to_owned(),
+                JsonValue::Number(JsonNumber::U64(2000)),
             ),
             (
                 "max_bytes".to_owned(),
@@ -133,10 +143,18 @@ impl CapabilityInput for FileApplyBundleInput {
 pub(super) struct FileReadOutput {
     pub(super) path: String,
     pub(super) repo_root: String,
+    /// The lines read, from `start_line`, with their line endings.
     pub(super) contents: String,
+    /// The whole file's size.
     pub(super) bytes: u64,
+    /// The file goes on past the lines read.
     pub(super) truncated: bool,
+    /// The whole file's digest, which a write of it names.
     pub(super) content_digest: String,
+    /// The first line read, counting from 1.
+    pub(super) start_line: u64,
+    /// How many lines the whole file has.
+    pub(super) total_lines: u64,
 }
 
 impl CapabilityOutput for FileReadOutput {}
@@ -432,8 +450,16 @@ const READ_FIELDS: &[CapabilityField] = &[
         description: "UTF-8 file path relative to the resolved trusted root.",
     },
     CapabilityField {
+        name: "start_line",
+        description: "The first line to read, counting from 1; 1 by default.",
+    },
+    CapabilityField {
+        name: "line_count",
+        description: "The most lines to read; 2000 by default.",
+    },
+    CapabilityField {
         name: "max_bytes",
-        description: "Positive capture limit up to eight MiB.",
+        description: "Positive bound on the bytes read, up to eight MiB; a read stops at the last whole line within it.",
     },
 ];
 
@@ -516,7 +542,7 @@ static READ: TypedNativeCapability<FileReadInput, FileReadOutput> = TypedNativeC
     CapabilityDefinition {
         id: "fs.read",
         owner: "runx-runtime/filesystem",
-        summary: "Read one bounded UTF-8 file through native workspace and symlink containment.",
+        summary: "Read lines of one UTF-8 file of up to eight MiB through native workspace and symlink containment: from start_line, at most line_count lines within max_bytes, with the file's total lines and whole-file digest.",
         scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,

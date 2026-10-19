@@ -6,7 +6,7 @@
     {
       "tool_id": "native/fs.read",
       "name": "fs.read",
-      "summary": "Read one bounded UTF-8 file through native workspace and symlink containment.",
+      "summary": "Read lines of one UTF-8 file of up to eight MiB through native workspace and symlink containment: from start_line, at most line_count lines within max_bytes, with the file's total lines and whole-file digest.",
       "source": "runx-runtime/filesystem",
       "source_label": "runx-runtime/filesystem",
       "namespace": "fs",
