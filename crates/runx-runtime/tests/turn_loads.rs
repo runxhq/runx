@@ -246,7 +246,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         "the load records the runner's inputs: {tool:?}"
     );
     assert_eq!(runner.as_str(), "say");
-    assert_eq!(skill.as_str(), "skills/acme/echo/1.0.0");
+    assert_eq!(skill.as_str(), ".runx/added-skills/acme/echo/1.0.0");
     assert_eq!(
         tool_names(&turn)?,
         ["load", "skill__acme_echo__say"],
@@ -265,7 +265,9 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     );
 
     // What the load bound is what runs: a changed package is refused.
-    let manual = project.root.join("skills/acme/echo/1.0.0/SKILL.md");
+    let manual = project
+        .root
+        .join(".runx/added-skills/acme/echo/1.0.0/SKILL.md");
     std::fs::write(
         &manual,
         format!("{}\nChanged.\n", std::fs::read_to_string(&manual)?),
@@ -397,7 +399,7 @@ fn a_rule_admits_only_the_origin_it_names() -> TestResult {
         TURN,
         "load",
         None,
-        input(serde_json::json!({"skill": "skills/acme/echo/1.0.0"}))?,
+        input(serde_json::json!({"skill": ".runx/added-skills/acme/echo/1.0.0"}))?,
     )?;
     assert!(
         refused(&copy)?.contains("admit only the project's own"),

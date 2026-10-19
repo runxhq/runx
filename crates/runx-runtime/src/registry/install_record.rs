@@ -35,7 +35,7 @@ pub struct TrustRecord {
 }
 
 /// Record that the package at `package_dir`, under the project's
-/// `packages_root` (its skills or connectors directory), came from a
+/// `packages_root` (its added skills or added connectors), came from a
 /// registry. The record is written once per version, as the package is.
 pub(crate) fn write_install_record(
     records: &Path,
@@ -68,7 +68,7 @@ pub fn read_install_record(
     let resolved = |path: &Path| fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let records = paths.install_records();
     let package_dir = resolved(package_dir);
-    for root in [paths.skills(), paths.connectors()] {
+    for root in [paths.added_skills(), paths.added_connectors()] {
         if let Some(path) = record_path(&records, &resolved(&root), &package_dir) {
             return read_json(&path);
         }

@@ -113,11 +113,13 @@ fn operation_resends(
 ) -> bool {
     let (Some(operation), Ok(scope)) = (
         target.operation.as_ref(),
-        crate::kernel::connectors::ConnectorScope::at(graph_dir),
+        crate::kernel::connectors::ConnectorScope::in_project(
+            graph_dir,
+            &crate::paths::RunxPaths::resolve(env, graph_dir),
+        ),
     ) else {
         return false;
     };
-    let scope = scope.in_project(crate::paths::RunxPaths::resolve(env, graph_dir).connectors());
     let connectors = match target
         .declared
         .as_ref()

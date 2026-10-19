@@ -105,15 +105,12 @@ pub(crate) fn resolve_environment(
 }
 
 /// The variable every connector the skill in `skill_dir` can reach holds a
-/// credential in, its project's installed versions included.
+/// credential in, the versions runx added to its project included.
 pub(crate) fn credential_variables(
     skill_dir: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeSet<String>, RuntimeError> {
-    crate::ConnectorScope::at(skill_dir)
-        .map(|scope| {
-            scope.in_project(crate::paths::RunxPaths::resolve(env, skill_dir).connectors())
-        })
+    crate::ConnectorScope::in_project(skill_dir, &crate::paths::RunxPaths::resolve(env, skill_dir))
         .and_then(|scope| scope.credential_variables())
         .map_err(|error| {
             RuntimeError::effect_state("reading connector credentials", error.to_string())

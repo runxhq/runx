@@ -320,8 +320,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     let records = |instances: &Instances| instances.list().map_err(|error| error.to_string());
     match &plan.action {
         ConnectorAction::List => {
-            let connectors = ConnectorScope::at(workspace.paths().cwd())
-                .map(|scope| scope.in_project(workspace.paths().connectors()))
+            let connectors = ConnectorScope::in_project(workspace.paths().cwd(), workspace.paths())
                 .and_then(|scope| scope.reachable())
                 .map_err(|error| error.to_string())?;
             let sources = ConnectorSetup::new(&instances, workspace).sources()?;
@@ -504,15 +503,11 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
     }
 }
 
-/// A runtime capability, one of the plugin runx was invoked in, or an
-/// installed version, by name.
+/// A runtime capability, one of the plugin runx was invoked in, or a version
+/// runx added, by name.
 fn in_workspace(workspace: &WorkspaceEnv, connector: &str) -> Result<Arc<LoadedConnector>, String> {
-    ConnectorScope::at(workspace.paths().cwd())
-        .and_then(|scope| {
-            scope
-                .in_project(workspace.paths().connectors())
-                .named(connector)
-        })
+    ConnectorScope::in_project(workspace.paths().cwd(), workspace.paths())
+        .and_then(|scope| scope.named(connector))
         .map_err(|error| error.to_string())
 }
 

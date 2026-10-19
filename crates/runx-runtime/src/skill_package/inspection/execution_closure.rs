@@ -492,12 +492,14 @@ impl<'a> ExecutionClosureInspector<'a> {
             .runners
             .insert((skill_directory.clone(), runner_name.clone()));
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
-        let mut scope = crate::kernel::connectors::ConnectorScope::at(&package_root)
-            .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
-        if let Some(env) = self.env {
-            scope =
-                scope.in_project(crate::paths::RunxPaths::resolve(env, &package_root).connectors());
+        let scope = match self.env {
+            Some(env) => crate::kernel::connectors::ConnectorScope::in_project(
+                &package_root,
+                &crate::paths::RunxPaths::resolve(env, &package_root),
+            ),
+            None => crate::kernel::connectors::ConnectorScope::at(&package_root),
         }
+        .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
         for (key, requirement) in loaded
             .manifest()
             .into_iter()

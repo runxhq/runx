@@ -47,8 +47,8 @@ pub struct InstallCandidate {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstallLocalSkillOptions {
     pub destination_root: PathBuf,
-    /// The project's connectors directory: every connector the installed
-    /// package carries is added there, so the project can bind its instances.
+    /// The project's added connectors: every connector the installed package
+    /// carries is added there, so the project can bind its instances.
     pub connectors_root: PathBuf,
     /// Where the project records each package a registry added
     /// (`RunxPaths::install_records()`).
@@ -246,7 +246,7 @@ fn install_skill(
 }
 
 /// Adds every connector the installed package at `package_root` carries to
-/// the project's `connectors_root`, as the version it publishes: the package's
+/// `connectors_root`, the project's added connectors, as the version it publishes: the package's
 /// own copy, checked against the digests its bundle binds when it is loaded.
 /// A registry's package records each one at its own tier.
 fn add_carried_connectors(

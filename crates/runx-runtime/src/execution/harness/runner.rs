@@ -368,9 +368,11 @@ fn wire_operations(
     } else {
         target_path.parent().unwrap_or(target_path)
     };
-    let scope = crate::ConnectorScope::at(skill_dir)
-        .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?
-        .in_project(crate::paths::RunxPaths::resolve(&options.env, skill_dir).connectors());
+    let scope = crate::ConnectorScope::in_project(
+        skill_dir,
+        &crate::paths::RunxPaths::resolve(&options.env, skill_dir),
+    )
+    .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
     let invalid_provider = |message: String| {
         HarnessFixtureError::Parser(runx_parser::harness_fixture::HarnessFixtureError::Invalid {
             field: "caller.provider_responses.grant".to_owned(),
@@ -478,9 +480,8 @@ fn seed_harness_instances(
     let instances = crate::Instances::new(
         crate::KernelStore::for_project(&paths).map_err(|error| failed(error.to_string()))?,
     );
-    let scope = crate::ConnectorScope::at(skill_dir)
-        .map_err(|error| failed(error.to_string()))?
-        .in_project(paths.connectors());
+    let scope = crate::ConnectorScope::in_project(skill_dir, &paths)
+        .map_err(|error| failed(error.to_string()))?;
     // A case names a connector as its skill's `connectors:` block keys it, a
     // connector id or a qualified ref, and it resolves as the skill's
     // operations resolve it, pinned manifest included.

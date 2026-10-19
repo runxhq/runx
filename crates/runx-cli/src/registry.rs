@@ -254,8 +254,8 @@ fn run_install(
     let install = install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
-            destination_root: runx_runtime::RunxPaths::resolve(env, cwd).skills(),
-            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).connectors(),
+            destination_root: runx_runtime::RunxPaths::resolve(env, cwd).added_skills(),
+            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).added_connectors(),
             install_records: runx_runtime::RunxPaths::resolve(env, cwd).install_records(),
             expected_digest: plan.expected_digest.clone(),
             trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority)?,

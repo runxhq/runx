@@ -163,9 +163,8 @@ fn project_hits(
         }
     }
     if wants(CatalogPackageKind::Connector) {
-        let scope = ConnectorScope::at(workspace)
-            .map_err(|error| super::invalid_input(SEARCH, error.to_string()))?
-            .in_project(paths.connectors());
+        let scope = ConnectorScope::in_project(workspace, paths)
+            .map_err(|error| super::invalid_input(SEARCH, error.to_string()))?;
         for connector in scope
             .connectors()
             .map_err(|error| super::invalid_input(SEARCH, error.to_string()))?
@@ -236,9 +235,8 @@ fn inspect_connector(
     env: &BTreeMap<String, String>,
 ) -> Result<Option<ConnectorInspection>, RuntimeError> {
     let workspace = paths.workspace();
-    let scope = ConnectorScope::at(workspace)
-        .map_err(|error| super::invalid_input(INSPECT, error.to_string()))?
-        .in_project(paths.connectors());
+    let scope = ConnectorScope::in_project(workspace, paths)
+        .map_err(|error| super::invalid_input(INSPECT, error.to_string()))?;
     if let Ok(connector) = scope.named(reference) {
         let readiness = crate::kernel::admission::connector_readiness(&connector, env, workspace)
             .map_err(|message| super::invalid_input(INSPECT, message))?;

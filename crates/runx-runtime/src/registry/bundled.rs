@@ -185,8 +185,8 @@ impl BundledSkill {
         install_bundled_skill(
             &candidate,
             &InstallLocalSkillOptions {
-                destination_root: paths.skills(),
-                connectors_root: paths.connectors(),
+                destination_root: paths.added_skills(),
+                connectors_root: paths.added_connectors(),
                 install_records: paths.install_records(),
                 expected_digest: expected_digest.map(str::to_owned),
                 trusted_manifest_keys: Vec::new(),

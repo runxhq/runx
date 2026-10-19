@@ -491,11 +491,11 @@ impl RuntimeEffect for OperationEffect {
             request.run_id,
             crate::paths::RunxPaths::resolve(request.env, request.graph_dir).artifacts(),
         );
-        let scope = ConnectorScope::at(request.graph_dir)
-            .map_err(|error| invalid(error.to_string()))?
-            .in_project(
-                crate::paths::RunxPaths::resolve(request.env, request.graph_dir).connectors(),
-            );
+        let scope = ConnectorScope::in_project(
+            request.graph_dir,
+            &crate::paths::RunxPaths::resolve(request.env, request.graph_dir),
+        )
+        .map_err(|error| invalid(error.to_string()))?;
         let instances = Instances::new(Arc::clone(&store));
         let admitted = admission::admit(&Evaluation {
             step: target,

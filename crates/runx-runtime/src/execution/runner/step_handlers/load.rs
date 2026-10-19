@@ -295,11 +295,8 @@ fn bind_connector(
     paths: &RunxPaths,
     env: &BTreeMap<String, String>,
 ) -> Result<Bound, String> {
-    let scope = || {
-        ConnectorScope::at(paths.workspace())
-            .map(|scope| scope.in_project(paths.connectors()))
-            .map_err(|error| error.to_string())
-    };
+    let scope =
+        || ConnectorScope::in_project(paths.workspace(), paths).map_err(|error| error.to_string());
     let connector = match scope()?.named(name) {
         Ok(connector) => connector,
         Err(local) => {

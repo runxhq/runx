@@ -336,10 +336,9 @@ impl PackageHarnessEnvironment {
         let Some(manifest) = loaded.manifest() else {
             return Ok(());
         };
-        let scope = crate::ConnectorScope::at(&loaded.directory)
-            .map_err(|error| failed(error.to_string()))?
-            .in_project(operator.connectors());
-        let staged = self.workspace.join("connectors");
+        let scope = crate::ConnectorScope::in_project(&loaded.directory, operator)
+            .map_err(|error| failed(error.to_string()))?;
+        let staged = RunxPaths::resolve(&self.env, &self.workspace).added_connectors();
         for (key, requirement) in &manifest.connectors {
             let references = match requirement.connector_from {
                 Some(_) => requirement.allowed_connectors.clone(),

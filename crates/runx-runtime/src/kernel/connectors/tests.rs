@@ -30,17 +30,36 @@ fn only_the_runtime_capabilities_are_embedded() {
     ));
 }
 
-/// Outside a plugin, a connector that is not a runtime capability is an
-/// installed version: an operator reaches its one version by name, and a
+/// The paths of a project whose workspace is `work` and whose project
+/// directory is `project`.
+fn project(work: &Path, project: &Path) -> RunxPaths {
+    RunxPaths::resolve(
+        &BTreeMap::from([
+            (
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                work.to_string_lossy().into_owned(),
+            ),
+            (
+                crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+                project.to_string_lossy().into_owned(),
+            ),
+        ]),
+        work,
+    )
+}
+
+/// Outside a plugin, a connector that is not a runtime capability is a
+/// version runx added: an operator reaches its one version by name, and a
 /// skill reaches it only by pinning its manifest.
 #[test]
-fn a_connector_outside_a_plugin_is_an_installed_version_a_skill_pins() {
+fn a_connector_outside_a_plugin_is_an_added_version_a_skill_pins() {
     let root = tempfile::tempdir().unwrap();
-    // Not named connectors/, so the work directory is in no plugin.
-    let home = root.path().join("installed");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    // The project directory holds no connectors/, so the work directory is in no plugin.
+    let paths = project(&work, &root.path().join("project"));
+    let home = paths.added_connectors();
+    let scope = ConnectorScope::in_project(&work, &paths).unwrap();
 
     let missing = scope.connector("github").unwrap_err();
     assert!(
@@ -90,17 +109,18 @@ fn a_connector_outside_a_plugin_is_an_installed_version_a_skill_pins() {
 }
 
 /// What a run could bind: the runtime capabilities, the plugin's connectors,
-/// and every installed version, each content once.
+/// and every added version, each content once.
 #[test]
-fn the_reachable_connectors_include_every_installed_version_once() {
+fn the_reachable_connectors_include_every_added_version_once() {
     let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
+    let paths = project(&work, &root.path().join("project"));
+    let home = paths.added_connectors();
     install(&home, "acme/ops", "1.0.0", "First.");
     install(&home, "acme/ops", "1.1.0", "Second.");
     install(&home, "stripe", "1.0.0", "Leaf.");
-    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    let scope = ConnectorScope::in_project(&work, &paths).unwrap();
     // Resolving a runtime capability seeds its copy into the project.
     scope.connector("store").unwrap();
 
@@ -248,15 +268,17 @@ fn a_namespace_holding_a_connector_and_surfaces_is_refused() {
     ));
 }
 
-/// A project's own connectors and the versions installed into it share one
-/// directory; an installed version is never mistaken for a surface.
+/// The project's own connectors sit beside its source and the versions runx
+/// added sit in its project directory, and the project's own answers a
+/// requirement whatever version it pins (core-shape §6.5).
 #[test]
-fn installed_versions_and_a_plugins_own_connectors_share_the_directory() {
+fn the_projects_own_connector_takes_precedence_over_an_added_version() {
     let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("connectors");
     let skill = root.path().join("skills/work");
     std::fs::create_dir_all(&skill).unwrap();
-    write_plugin_connector(&home, "acme/billing");
+    write_plugin_connector(&root.path().join("connectors"), "acme/billing");
+    let paths = project(root.path(), &root.path().join(".runx"));
+    let home = paths.added_connectors();
     let leaf = load_installed(&install(&home, "stripe", "sha-000000000001", "Leaf.")).unwrap();
     let surface = load_installed(&install(
         &home,
@@ -265,7 +287,7 @@ fn installed_versions_and_a_plugins_own_connectors_share_the_directory() {
         "Installed.",
     ))
     .unwrap();
-    let scope = ConnectorScope::at(&skill).unwrap().in_project(home.clone());
+    let scope = ConnectorScope::in_project(&skill, &paths).unwrap();
 
     assert_eq!(
         scope
@@ -284,19 +306,41 @@ fn installed_versions_and_a_plugins_own_connectors_share_the_directory() {
             .manifest_digest,
         leaf.manifest_digest
     );
-    // The plugin's own `acme/billing` wins unpinned; the pin reaches the
-    // installed revision.
+    // The project's own `acme/billing` wins unpinned, and pinned to the
+    // manifest the added version publishes: a local copy composes.
     assert!(matches!(
         scope.connector("acme/billing").unwrap().origin,
         ConnectorOrigin::Plugin { .. }
     ));
+    let pinned_to_added = scope
+        .requirement("acme/billing", &pinned(&surface.manifest_digest))
+        .unwrap();
     assert!(matches!(
-        scope
-            .requirement("acme/billing", &pinned(&surface.manifest_digest))
-            .unwrap()
-            .origin,
-        ConnectorOrigin::Installed { .. }
+        pinned_to_added.origin,
+        ConnectorOrigin::Plugin { .. }
     ));
+    assert_ne!(pinned_to_added.manifest_digest, surface.manifest_digest);
+}
+
+/// A skill runx added sits in the project directory and has no plugin of its
+/// own: its plugin is the project's, wherever the project directory is.
+#[test]
+fn a_skill_runx_added_has_the_projects_plugin() {
+    let root = tempfile::tempdir().unwrap();
+    let root = root.path().canonicalize().unwrap();
+    let workspace = root.join("workspace");
+    write_plugin_connector(&workspace.join("connectors"), "acme");
+    for project_dir in [workspace.join(".runx"), root.join("elsewhere/project")] {
+        let paths = project(&workspace, &project_dir);
+        let added = paths.added_skills().join("acme/records/1.0.0");
+        std::fs::create_dir_all(&added).unwrap();
+        let scope = ConnectorScope::in_project(&added, &paths).unwrap();
+        assert_eq!(scope.plugin_root(), Some(workspace.as_path()));
+        assert!(matches!(
+            scope.connector("acme").unwrap().origin,
+            ConnectorOrigin::Plugin { .. }
+        ));
+    }
 }
 
 #[test]
@@ -325,27 +369,29 @@ fn a_missing_connector_says_where_it_was_looked_for() {
     ));
 }
 
-/// A plugin nothing else marks as a project is its own project, so seeding a
-/// runtime capability writes into the plugin's connectors, never into a
-/// nearer directory that would shadow the plugin.
+/// A plugin nothing else marks as a project is its own project, and seeding a
+/// runtime capability writes it among the project's added connectors: never
+/// beside the source, so never into the user's own connectors and never into
+/// a nearer directory that would shadow the plugin.
 #[test]
-fn seeding_a_runtime_capability_never_opens_a_nearer_plugin() {
+fn seeding_a_runtime_capability_writes_into_the_project_directory() {
     let root = tempfile::tempdir().unwrap();
     let plugin = root.path().canonicalize().unwrap().join("plugin");
     let skill = plugin.join("work");
     std::fs::create_dir_all(&skill).unwrap();
     write_plugin_connector(&plugin.join("connectors"), "acme");
-    let project = crate::paths::RunxPaths::resolve(&BTreeMap::new(), &skill).connectors();
-    assert_eq!(project, plugin.join("connectors"));
+    let paths = crate::paths::RunxPaths::resolve(&BTreeMap::new(), &skill);
+    assert_eq!(paths.workspace(), plugin.as_path());
 
-    ConnectorScope::at(&skill)
+    ConnectorScope::in_project(&skill, &paths)
         .unwrap()
-        .in_project(project)
         .connector("artifact")
         .unwrap();
 
-    let again = ConnectorScope::at(&skill).unwrap();
+    assert!(paths.added_connectors().join("artifact").is_dir());
+    assert!(!plugin.join("connectors/artifact").exists());
     assert!(!skill.join("connectors").exists());
+    let again = ConnectorScope::at(&skill).unwrap();
     assert_eq!(again.plugin_root(), Some(plugin.as_path()));
     assert!(matches!(
         again.connector("acme").unwrap().origin,
@@ -459,14 +505,15 @@ fn a_plugin_connector_lives_in_the_directory_its_name_names() {
 #[test]
 fn credential_variables_skip_an_install_that_does_not_load() {
     let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
+    let paths = project(&work, &root.path().join("project"));
+    let home = paths.added_connectors();
     install(&home, "acme/ops", "1.0.0", "First.");
     let broken = home.join("acme").join("broken").join("1.0.0");
     std::fs::create_dir_all(&broken).unwrap();
     std::fs::write(broken.join("connector.yaml"), "not: [a connector").unwrap();
-    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    let scope = ConnectorScope::in_project(&work, &paths).unwrap();
 
     assert!(scope.reachable().is_err());
     assert!(
@@ -505,17 +552,18 @@ fn pinned(digest: &Digest) -> runx_parser::ConnectorRequirement {
 }
 
 #[test]
-fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manifest() {
+fn a_pinned_requirement_resolves_only_the_added_version_publishing_its_manifest() {
     let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
+    let paths = project(&work, &root.path().join("project"));
+    let home = paths.added_connectors();
     let first = install(&home, "acme/ops", "1.0.0", "First.");
     install(&home, "acme/ops", "1.1.0", "Second.");
     // An install in progress is never read.
     std::fs::create_dir_all(home.join("acme/ops/.staging-1-2")).unwrap();
     let first = load_installed(&first).unwrap();
-    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    let scope = ConnectorScope::in_project(&work, &paths).unwrap();
 
     let resolved = scope
         .requirement("acme/ops", &pinned(&first.manifest_digest))
@@ -535,13 +583,13 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
         "{refused}"
     );
 
-    // The installed versions are read only through a scope given them; the
-    // directory holding them is no plugin connector.
+    // The added versions are read only through a scope in the project; the
+    // directory holding them is no plugin.
     assert!(matches!(
         ConnectorScope::at(&work)
             .unwrap()
             .requirement("acme/ops", &pinned(&first.manifest_digest)),
-        Err(ConnectorRegistryError::NotInPlugin { .. })
+        Err(ConnectorRegistryError::NoPlugin { .. })
     ));
 
     // An operator names one exact version; two installed versions of one
@@ -567,19 +615,20 @@ fn a_pinned_requirement_resolves_only_the_installed_version_publishing_its_manif
 }
 
 #[test]
-fn an_installed_version_of_a_runtime_capability_is_its_own_revision() {
+fn an_added_version_of_a_runtime_capability_is_its_own_revision() {
     let root = tempfile::tempdir().unwrap();
-    let home = root.path().join("connectors");
     let work = root.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
-    let installed = load_installed(&install(&home, "web", "9.0.0", "Next.")).unwrap();
+    let paths = project(&work, &root.path().join("project"));
+    let installed =
+        load_installed(&install(&paths.added_connectors(), "web", "9.0.0", "Next.")).unwrap();
     let embedded = ConnectorScope::runtime_capabilities_only()
         .unwrap()
         .connector("web")
         .unwrap();
     assert_ne!(installed.manifest_digest, embedded.manifest_digest);
 
-    let scope = ConnectorScope::at(&work).unwrap().in_project(home.clone());
+    let scope = ConnectorScope::in_project(&work, &paths).unwrap();
     let resolved = scope
         .requirement("web", &pinned(&installed.manifest_digest))
         .unwrap();

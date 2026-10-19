@@ -17,7 +17,7 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
     let root = temp_root("registry-local");
     let skill_dir = root.join("skill");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("skills");
+    let install_dir = crate::support::added_skills();
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
@@ -103,7 +103,7 @@ fn registry_local_publish_install_executes_bundled_sibling()
     let sibling_dir = source.join("sibling");
     let leaf_dir = source.join("leaf");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("skills");
+    let install_dir = crate::support::added_skills();
     fs::create_dir_all(skill_dir.join("packets"))?;
     fs::create_dir_all(&sibling_dir)?;
     fs::create_dir_all(&leaf_dir)?;
@@ -317,7 +317,7 @@ runners:
         .output()?;
     assert_success_contains(&add, &["\"status\": \"installed\""])?;
 
-    let versions = fs::read_dir(workspace.join("connectors/fixture/forge"))?
+    let versions = fs::read_dir(crate::support::added_connectors().join("fixture/forge"))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .collect::<Vec<_>>();
@@ -622,7 +622,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         ),
     ])?;
     let home = root.join("home");
-    // An installed connector is added to the project's connectors directory.
+    // An installed connector is added to the project's added connectors.
     let project = root.join("project");
     fs::create_dir_all(&project)?;
     let connector_command =
@@ -645,7 +645,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
             "\"status\": \"installed\"",
         ],
     )?;
-    let destination = project.join("connectors/acme/ops/1.0.0");
+    let destination = crate::support::added_connectors().join("acme/ops/1.0.0");
     let output: serde_json::Value = serde_json::from_slice(&install.stdout)?;
     assert_eq!(
         output["registry"]["install"]["destination"],
@@ -749,7 +749,13 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
 
     let installed = install("echo")?;
     assert_success_contains(&installed, &["\"action\": \"install\""])?;
-    assert!(project.join("skills/acme/echo/1.0.0/SKILL.md").is_file());
+    // runx adds it to the project directory, never beside the source.
+    assert!(
+        crate::support::added_skills()
+            .join("acme/echo/1.0.0/SKILL.md")
+            .is_file()
+    );
+    assert!(!project.join("skills").exists());
 
     // A name no skill holds as a root name is a connector's to answer, and
     // never a search of every publisher for a skill of that name.
@@ -765,7 +771,7 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
     let registry_dir = root.join("registry");
-    let install_dir = root.join("skills");
+    let install_dir = crate::support::added_skills();
     publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
     publish_fixture_version(&root, &registry_dir, "2.0.0", "Echo v2")?;
     sign_registry_version(&registry_dir, "1.0.0")?;
@@ -848,7 +854,7 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
             mutate(version);
             Ok(())
         })?;
-        let install_dir = root.join("skills");
+        let install_dir = crate::support::added_skills();
 
         let install = runx_command()?
             .env("RUNX_CWD", &root)
@@ -882,7 +888,7 @@ fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std:
         }
         Ok(())
     })?;
-    let install_dir = root.join("skills");
+    let install_dir = crate::support::added_skills();
 
     let install = runx_command()?
         .env("RUNX_CWD", &root)

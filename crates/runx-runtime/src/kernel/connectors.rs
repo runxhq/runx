@@ -1,18 +1,20 @@
 //! The connector registry: where a requirement's connector comes from.
 //!
 //! A connector has one name, `stripe` or `google/calendar`, and it resolves
-//! one way: a runtime capability, then the skill's own plugin, then an
-//! installed version. The runtime capability connectors, part of runx itself,
-//! are embedded in the binary and validated once per process. A skill also
-//! sees the connectors of the plugin that holds it,
+//! one way: a runtime capability, then the skill's own plugin, then a version
+//! runx added to the project. The runtime capability connectors, part of runx
+//! itself, are embedded in the binary and validated once per process. A skill
+//! also sees the connectors of the plugin that holds it,
 //! `<plugin root>/connectors/<name>/connector.yaml`. A bundled package, one
 //! under a registry package bundle descriptor, is its own plugin root and
 //! carries every connector it binds; in a source tree the plugin root is the
-//! nearest directory at or above the skill holding `connectors/`. Any other
-//! connector is an installed version, at `connectors/<name>/<version>/`, which
-//! a skill reaches only by pinning its manifest digest. A runtime capability
-//! cannot be shadowed: a plugin copy with other bytes is refused, and a
-//! bundled skill never sees its composer's plugin connectors.
+//! nearest directory at or above the skill holding `connectors/`, and a skill
+//! runx added to the project directory has the project's plugin. Any other
+//! connector is an added version, at `<project>/connectors/<name>/<version>/`,
+//! which a skill reaches only by pinning its manifest digest; a plugin's own
+//! connector of that name answers the pin instead (core-shape §6.5). A runtime
+//! capability cannot be shadowed: a plugin copy with other bytes is refused,
+//! and a bundled skill never sees its composer's plugin connectors.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -23,6 +25,8 @@ use runx_contracts::connector::{
 };
 use runx_parser::{ValidatedConnector, parse_connector_manifest, validate_connector_manifest};
 use thiserror::Error;
+
+use crate::paths::RunxPaths;
 
 pub mod references;
 mod runtime_capabilities;
@@ -72,8 +76,8 @@ pub enum ConnectorOrigin {
     Plugin {
         root: PathBuf,
     },
-    /// A version installed from a registry into the runx home: its exact
-    /// package, read from `directory`.
+    /// A version runx added to the project, from a registry or seeded from
+    /// the release: its exact package, read from `directory`.
     Installed {
         directory: PathBuf,
     },
@@ -349,14 +353,14 @@ pub struct ConnectorScope {
     /// The directory the plugin was looked for from, so a miss says where.
     /// None for the runtime capabilities alone.
     searched: Option<PathBuf>,
-    /// The project's connectors directory, whose added versions
-    /// (`<name>/<version>/`) are read only for a connector named exactly: by a
-    /// requirement's manifest pin, an operator's `name@version`, or an
-    /// operator naming a connector of which one version is installed.
+    /// The connectors runx added to the project (`RunxPaths::added_connectors`),
+    /// whose versions (`<name>/<version>/`) are read only for a connector named
+    /// exactly: by a requirement's manifest pin, an operator's `name@version`,
+    /// or an operator naming a connector of which one version is installed.
     installed: Option<PathBuf>,
-    /// The project's connectors directory a runtime capability is seeded into
-    /// and read back from (core-shape §6.5). None for the runx-maintained
-    /// source plugin itself and for a bundle.
+    /// The same directory, which a runtime capability is seeded into and read
+    /// back from (core-shape §6.5). None for the runx-maintained source plugin
+    /// itself and for a bundle.
     seeds: Option<PathBuf>,
 }
 
@@ -370,6 +374,34 @@ impl ConnectorScope {
     /// The connectors usable from `dir`, a skill's directory or an operator's
     /// workspace: the runtime capabilities, plus those of the plugin `dir` is in.
     pub fn at(dir: &Path) -> Result<Self, ConnectorRegistryError> {
+        Self::scoped(dir, None)
+    }
+
+    /// The connectors usable from `dir` in the project `paths` resolves
+    /// (core-shape §6.5): those of [`Self::at`], and the versions runx added
+    /// to the project, into which it seeds the runtime capabilities it
+    /// resolves. A skill runx added to the project directory has no plugin of
+    /// its own: its plugin is the project's, the user's connectors. The
+    /// runx-maintained source project is those connectors' source, so nothing
+    /// is seeded for it. A bundled package stays isolated: it carries every
+    /// connector it binds.
+    pub fn in_project(dir: &Path, paths: &RunxPaths) -> Result<Self, ConnectorRegistryError> {
+        let mut scope = Self::scoped(dir, Some(paths))?;
+        if scope.isolated() {
+            return Ok(scope);
+        }
+        let added = paths.added_connectors();
+        scope.seeds = runx_maintained_source(&added)
+            .is_none()
+            .then(|| added.clone());
+        scope.installed = Some(added);
+        Ok(scope)
+    }
+
+    /// `dir`'s runtime capabilities, and a bundle's own snapshots or the
+    /// plugin `dir` is in: for a skill under `project`'s directory, the
+    /// workspace's.
+    fn scoped(dir: &Path, project: Option<&RunxPaths>) -> Result<Self, ConnectorRegistryError> {
         runtime_capabilities()?;
         let dir = inspected(dir)?;
         if let Some(bindings) =
@@ -416,7 +448,19 @@ impl ConnectorScope {
                 seeds: None,
             });
         }
-        let plugin = match plugin_root(&dir)? {
+        // A skill runx added to the project directory has the project's plugin.
+        let from = match project {
+            Some(paths)
+                if paths
+                    .project()
+                    .canonicalize()
+                    .is_ok_and(|project| dir.starts_with(project)) =>
+            {
+                inspected(paths.workspace())?
+            }
+            _ => dir.clone(),
+        };
+        let plugin = match plugin_root(&from)? {
             Some(root) => Some(Arc::new(load_plugin(&root)?)),
             None => None,
         };
@@ -429,8 +473,8 @@ impl ConnectorScope {
     }
 
     /// `connector`, a runtime capability, as this project holds it: the
-    /// release's copy, written once into the project's connectors directory
-    /// and read back from there. A copy whose bytes are not the release's is
+    /// release's copy, written once among the project's added connectors and
+    /// read back from there. A copy whose bytes are not the release's is
     /// refused.
     fn seeded(
         &self,
@@ -460,24 +504,6 @@ impl ConnectorScope {
         Ok(held)
     }
 
-    /// This scope within the project whose connectors directory is `root`
-    /// (`RunxPaths::connectors`, core-shape §6.5): it reads the versions added
-    /// there, and seeds the runtime capabilities it resolves into it. The
-    /// runx-maintained source project is those connectors' source, so nothing
-    /// is seeded into it. A bundled package stays isolated: it carries every
-    /// connector it binds.
-    #[must_use]
-    pub fn in_project(mut self, root: PathBuf) -> Self {
-        if self.isolated() {
-            return self;
-        }
-        self.seeds = runx_maintained_source(&root)
-            .is_none()
-            .then(|| root.clone());
-        self.installed = Some(root);
-        self
-    }
-
     fn isolated(&self) -> bool {
         self.plugin.as_ref().is_some_and(|plugin| plugin.isolated)
     }
@@ -490,9 +516,10 @@ impl ConnectorScope {
     }
 
     /// The connector a skill's requirement keyed `key` binds. A runtime
-    /// capability or a connector of the skill's plugin needs no pin; any other
-    /// connector is the installed version publishing the exact manifest the
-    /// requirement pins, and a requirement without a pin cannot reach one.
+    /// capability or a connector of the skill's plugin needs no pin, and the
+    /// plugin's answers whatever a pin names; any other connector is the
+    /// version runx added publishing the exact manifest the requirement pins,
+    /// and a requirement without a pin cannot reach one.
     pub fn requirement(
         &self,
         key: &str,
@@ -503,6 +530,15 @@ impl ConnectorScope {
         };
         match self.in_reach(key) {
             Ok(connector) if &connector.manifest_digest == pin => Ok(connector),
+            // The project's own connector is used whatever the pin names, so a
+            // local copy composes (core-shape §6.5); its instance pins its own
+            // digests, so it holds no credential confirmed for another.
+            Ok(connector)
+                if !self.isolated()
+                    && matches!(connector.origin, ConnectorOrigin::Plugin { .. }) =>
+            {
+                Ok(connector)
+            }
             Ok(connector) if self.installed.is_none() => {
                 Err(ConnectorRegistryError::RequiredManifest {
                     connector: connector.name.clone(),

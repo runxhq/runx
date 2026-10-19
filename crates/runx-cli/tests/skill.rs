@@ -555,7 +555,8 @@ fn native_skill_resolves_trusted_registry_ref() -> Result<(), Box<dyn std::error
     let skill_dir = needs_agent_skill_directory(&output_json)?;
     assert!(skill_dir.join("SKILL.md").exists());
     assert!(skill_dir.join("run.yaml").exists());
-    assert!(skill_dir.ends_with("skills/acme/echo/1.0.0"));
+    // runx adds it to the project directory, never beside the source.
+    assert!(skill_dir.ends_with(".runx/added-skills/acme/echo/1.0.0"));
 
     Ok(())
 }
@@ -737,7 +738,7 @@ fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std
             .output()?;
         assert_json(&output, Some(2))
     };
-    let installed = root.join("project/skills/acme/echo/1.0.0");
+    let installed = crate::support::added_skills().join("acme/echo/1.0.0");
     let first = run(&root)?;
     assert_eq!(
         needs_agent_skill_directory(&first)?.canonicalize()?,
@@ -756,7 +757,7 @@ fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std
 }
 
 /// A registry context skill arrives the same way: fetched into the project's
-/// skills before the run, and given to the turn from there.
+/// added skills before the run, and given to the turn from there.
 #[test]
 fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-context");
@@ -792,7 +793,8 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
         .ok_or("the turn's context omits the registry skill")?;
     assert_eq!(echo["data"]["source"], "installed", "{echo}");
     assert!(
-        root.join("project/skills/acme/echo/1.0.0/SKILL.md")
+        crate::support::added_skills()
+            .join("acme/echo/1.0.0/SKILL.md")
             .is_file()
     );
     Ok(())
@@ -820,7 +822,7 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
             .as_str()
             .is_some_and(|message| message.contains("registry signed manifest is required"))
     );
-    assert!(!unsigned_root.join("project").join("skills").exists());
+    assert!(!crate::support::added_skills().join("acme/echo").exists());
 
     let mismatch_root = crate::support::temp_root("runx-skill-registry-digest-mismatch");
     let mismatch_registry =
@@ -844,7 +846,7 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
             .as_str()
             .is_some_and(|message| message.contains("digest mismatch"))
     );
-    assert!(!mismatch_root.join("project").join("skills").exists());
+    assert!(!crate::support::added_skills().join("acme/echo").exists());
 
     Ok(())
 }
@@ -1147,7 +1149,7 @@ fn trusted_registry_runx_command(root: &Path) -> Result<Command, Box<dyn std::er
     let mut command = crate::support::signed_runx_command("skill-test-key");
     let key_pair = test_manifest_key_pair()?;
     command.env("RUNX_HOME", root.join("home"));
-    // A fetched skill is added to the project's skills directory.
+    // A fetched skill is added to the project's added skills.
     let project = root.join("project");
     fs::create_dir_all(&project)?;
     command.env("RUNX_CWD", &project);

@@ -1265,19 +1265,16 @@ where
 
     /// The connectors the turn's skill may use, within its project.
     fn connector_scope(&self) -> Result<crate::kernel::connectors::ConnectorScope, RuntimeError> {
-        Ok(
-            crate::kernel::connectors::ConnectorScope::at(self.scope.graph_dir)
-                .map_err(|error| {
-                    RuntimeError::effect_state("reading the skill's connectors", error.to_string())
-                })?
-                .in_project(
-                    crate::paths::RunxPaths::resolve(
-                        &self.scope.runtime.options.env,
-                        self.scope.graph_dir,
-                    )
-                    .connectors(),
-                ),
+        crate::kernel::connectors::ConnectorScope::in_project(
+            self.scope.graph_dir,
+            &crate::paths::RunxPaths::resolve(
+                &self.scope.runtime.options.env,
+                self.scope.graph_dir,
+            ),
         )
+        .map_err(|error| {
+            RuntimeError::effect_state("reading the skill's connectors", error.to_string())
+        })
     }
 
     /// The skill a loaded runner's call runs: the package its load bound,

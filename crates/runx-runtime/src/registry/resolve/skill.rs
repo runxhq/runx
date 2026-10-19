@@ -126,7 +126,7 @@ pub fn resolve_skill_ref_details(
 
 /// A skill arrives when run, and so does every registry skill its runners
 /// name: each one the project does not hold is fetched exactly as a top-level
-/// ref is, into the project's skills directory, until the closure holds them
+/// ref is, into the project's added skills, until the closure holds them
 /// all, since a fetched skill can name its own. With `AbsentPins::Report`, a
 /// pin the registry does not hold stays unfetched for the inspection to report.
 fn fetch_unheld_registry_refs(
@@ -202,6 +202,11 @@ fn resolve_skill_ref(
 
     let raw_ref = skill_ref.to_string_lossy();
     let parsed = parse_registry_ref(&raw_ref);
+    // The user's own copy takes precedence over what runx adds, whatever
+    // version the ref names (core-shape §6.5).
+    if let Some(resolved) = resolve_workspace_skill(&parsed.skill_id, cwd, &options)? {
+        return Ok(resolved);
+    }
     if runx_parser::registry_ref(&raw_ref).is_some() {
         if split_skill_id(&parsed.skill_id).is_err() {
             return Err(format!(
@@ -211,10 +216,6 @@ fn resolve_skill_ref(
         }
         return resolve_registry_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, options)
             .map_err(String::from);
-    }
-
-    if let Some(resolved) = resolve_installed_or_workspace_skill(&raw_ref, cwd, &options)? {
-        return Ok(resolved);
     }
 
     if is_bare_skill_ref(skill_ref) {
@@ -310,7 +311,9 @@ fn resolve_bundled_skill(
     Ok(Some(resolved))
 }
 
-fn resolve_installed_or_workspace_skill(
+/// The skill `name` names among those the user writes, `skills/<name>/` or
+/// `skills/<publisher>/<name>/` in the skill roots.
+fn resolve_workspace_skill(
     name: &str,
     cwd: &Path,
     options: &SkillResolverOptions<'_>,
@@ -367,11 +370,15 @@ fn resolve_registry_skill(
         .and_then(|acquired| acquired.paid_listing.clone());
     canonicalize_candidate_ref(&mut candidate);
     let identity = registry_identity(&candidate)?;
-    // A fetched skill is added to the project's skills directory, once per
+    // A fetched skill is added to the project's added skills, once per
     // version, like any other; one read for inspection, to the home's cache.
     let paths = crate::RunxPaths::resolve(env, cwd);
     let (destination_root, connectors_root, install_records) = match options.holder {
-        Holder::Project => (paths.skills(), paths.connectors(), paths.install_records()),
+        Holder::Project => (
+            paths.added_skills(),
+            paths.added_connectors(),
+            paths.install_records(),
+        ),
         Holder::Cache => {
             let cache = paths.inspection_cache();
             (
@@ -560,6 +567,40 @@ mod tests {
         assert!(is_explicit_registry_ref("registry:acme/echo", "acme/echo"));
         assert!(!is_explicit_registry_ref("./echo", "./echo"));
         assert!(!is_explicit_registry_ref("echo", "echo"));
+    }
+
+    /// The user's own copy answers a registry ref, whatever version it names,
+    /// before any registry is asked (core-shape §6.5).
+    #[test]
+    fn the_users_own_copy_answers_a_registry_ref() -> Result<(), String> {
+        let text = |error: std::io::Error| error.to_string();
+        let workspace = tempfile::tempdir().map_err(text)?;
+        let own = workspace.path().join("skills/acme/echo");
+        std::fs::create_dir_all(&own).map_err(text)?;
+        std::fs::write(own.join("SKILL.md"), "---\nname: echo\n---\n# Echo\n").map_err(text)?;
+        let env = BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().display().to_string(),
+        )]);
+        for reference in ["acme/echo@1.0.0", "registry:acme/echo@1.0.0", "acme/echo"] {
+            let resolved = resolve_skill_ref(
+                Path::new(reference),
+                workspace.path(),
+                SkillResolverOptions {
+                    env: &env,
+                    registry: None,
+                    expected_digest: None,
+                    absent_pins: AbsentPins::Fail,
+                    holder: Holder::Project,
+                },
+            )?;
+            assert!(
+                resolved.runnable_path.ends_with("skills/acme/echo"),
+                "{reference}: {}",
+                resolved.runnable_path.display()
+            );
+        }
+        Ok(())
     }
 
     #[test]

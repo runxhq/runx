@@ -679,9 +679,8 @@ pub fn skill_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::at(skill_dir)
-        .map_err(|error| error.to_string())?
-        .in_project(crate::paths::RunxPaths::resolve(env, cwd).connectors());
+    let scope = ConnectorScope::in_project(skill_dir, &crate::paths::RunxPaths::resolve(env, cwd))
+        .map_err(|error| error.to_string())?;
     project(&scope, requirements, calls, authority, env, cwd)
 }
 
@@ -692,9 +691,8 @@ pub fn connector_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<Readiness>, String> {
-    let scope = ConnectorScope::at(cwd)
-        .map_err(|error| error.to_string())?
-        .in_project(crate::paths::RunxPaths::resolve(env, cwd).connectors());
+    let scope = ConnectorScope::in_project(cwd, &crate::paths::RunxPaths::resolve(env, cwd))
+        .map_err(|error| error.to_string())?;
     let requirement = ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
         manifest_digest: Some(connector.manifest_digest.clone()),

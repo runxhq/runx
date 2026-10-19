@@ -61,7 +61,7 @@ Operator rules:
   `runx skill inspect <ref>` shows one package. Use `--json` for the full
   registry contract.
 - `runx doctor registry [--json]` reports the selected registry target, the
-  project's skills directory, trusted manifest key readiness by key id, and
+  project's skills directory and added skills, trusted manifest key readiness by key id, and
   remote install identity readiness. It names the env
   vars to set but never prints raw manifest public keys.
 

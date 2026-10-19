@@ -260,7 +260,8 @@ mod tests {
     fn candidate_inspection_resolves_the_workspaces_pinned_installed_connector()
     -> Result<(), Box<dyn std::error::Error>> {
         let repo = tempfile::tempdir()?;
-        let installed = repo.path().join("connectors/slack/1.0.0");
+        let paths = crate::RunxPaths::resolve(&std::collections::BTreeMap::new(), repo.path());
+        let installed = paths.added_connectors().join("slack/1.0.0");
         std::fs::create_dir_all(&installed)?;
         std::fs::write(
             installed.join("connector.yaml"),
@@ -269,8 +270,7 @@ mod tests {
                 "/../../connectors/slack/connector.yaml"
             )),
         )?;
-        let connector = crate::kernel::connectors::ConnectorScope::at(repo.path())?
-            .in_project(repo.path().join("connectors"))
+        let connector = crate::kernel::connectors::ConnectorScope::in_project(repo.path(), &paths)?
             .named("slack@1.0.0")?;
         let candidate = repo.path().join("skills/probe");
         std::fs::create_dir_all(&candidate)?;

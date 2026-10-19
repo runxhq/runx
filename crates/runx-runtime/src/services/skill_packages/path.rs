@@ -121,12 +121,12 @@ pub(super) fn declared_secret_prefixes(
     repo_root: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeSet<String>, RuntimeError> {
-    crate::kernel::connectors::ConnectorScope::at(repo_root)
-        .map(|scope| {
-            scope.in_project(crate::paths::RunxPaths::resolve(env, repo_root).connectors())
-        })
-        .and_then(|scope| scope.credential_prefixes())
-        .map_err(|error| invalid_skill_change(error.to_string()))
+    crate::kernel::connectors::ConnectorScope::in_project(
+        repo_root,
+        &crate::paths::RunxPaths::resolve(env, repo_root),
+    )
+    .and_then(|scope| scope.credential_prefixes())
+    .map_err(|error| invalid_skill_change(error.to_string()))
 }
 
 fn is_private_key_header(line: &str) -> bool {

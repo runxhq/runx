@@ -7,8 +7,8 @@
 //!   `skills/` or `pnpm-workspace.yaml`, else the nearest holding
 //!   `connectors/`, else the working directory) holds the project's files;
 //! - the project directory (`RUNX_PROJECT_DIR`, else `<workspace>/.runx`)
-//!   holds the project's runx state: the kernel store, receipts, authoring
-//!   records, harness runs and scratch.
+//!   holds the project's runx state: the skills and connectors runx added,
+//!   the kernel store, receipts, authoring records, harness runs and scratch.
 //!
 //! A relative `RUNX_CWD` resolves against the working directory; every other
 //! relative location resolves against the workspace.
@@ -88,8 +88,10 @@ impl RunxPaths {
         &self.workspace
     }
 
-    /// Local directories containing skill packages. Additional roots are
-    /// explicitly configured with the platform-separated RUNX_SKILL_ROOTS.
+    /// The directories holding the skills the user writes, which take
+    /// precedence over what runx added (core-shape §6.5): the invocation
+    /// directory's and the workspace's `skills/`, then the roots configured
+    /// with the platform-separated RUNX_SKILL_ROOTS.
     #[must_use]
     pub fn skill_roots(&self, env: &BTreeMap<String, String>) -> Vec<PathBuf> {
         let mut roots = Vec::new();
@@ -99,7 +101,7 @@ impl RunxPaths {
             .flat_map(std::env::split_paths)
             .filter(|path| !path.as_os_str().is_empty())
             .map(|path| self.in_workspace(path));
-        for root in [self.cwd.join("skills"), self.workspace.join("skills")]
+        for root in [self.cwd.join("skills"), self.skills()]
             .into_iter()
             .chain(configured)
         {
@@ -173,22 +175,31 @@ impl RunxPaths {
         self.home.join("tools").join(digest.replace(':', "-"))
     }
 
-    /// The project's one skills directory (core-shape §6.5): the skills the
-    /// user writes, every skill added from a registry and the runx-maintained
-    /// skills the release carries, the latter two at
-    /// `<publisher>/<name>/<version>/`, each version written once.
+    /// The skills the user writes, beside the source (core-shape §6.5): runx
+    /// reads them first and never writes there.
     #[must_use]
     pub fn skills(&self) -> PathBuf {
         self.workspace.join("skills")
     }
 
-    /// The project's one connectors directory: the user's own connectors,
-    /// every connector added from a registry and the runtime capabilities the
-    /// release carries, the latter two at `<name>/<version>/`, each version
-    /// written once.
+    /// Every skill runx added to the project (core-shape §6.5): those from a
+    /// registry and the runx-maintained skills the release carries, at
+    /// `<publisher>/<name>/<version>/` in the project directory, each version
+    /// written once. Named apart from `skills/`, which marks a workspace, so
+    /// the project directory is never taken for one.
     #[must_use]
-    pub fn connectors(&self) -> PathBuf {
-        self.workspace.join("connectors")
+    pub fn added_skills(&self) -> PathBuf {
+        self.project.join("added-skills")
+    }
+
+    /// Every connector runx added to the project (core-shape §6.5): those
+    /// from a registry and the runtime capabilities the release carries, at
+    /// `<name>/<version>/` in the project directory, each version written
+    /// once. Named apart from `connectors/`, which marks a plugin: the user's
+    /// own connectors are the project's plugin.
+    #[must_use]
+    pub fn added_connectors(&self) -> PathBuf {
+        self.project.join("added-connectors")
     }
 
     /// The receipt root named by `RUNX_RECEIPT_DIR`, when one is.
@@ -297,13 +308,11 @@ fn env_path<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a Path
 }
 
 /// The project `start` lies in: the nearest ancestor that is a repository,
-/// a workspace, or holds the project's `skills/` directory, so a skill's
-/// packages land beside the skills, never inside one. Nothing marks a
-/// project but what is already there: the first skill written into
-/// `skills/` makes one. Where none of those marks one, the plugin `start`
-/// lies in (the nearest ancestor holding `connectors/`) is the project, so
-/// the project's connectors are the plugin's and seeding a runtime
-/// capability never opens a nearer plugin that shadows it.
+/// a workspace, or holds the user's `skills/` directory, so a skill in
+/// `skills/<name>/` belongs to the project above it, never to one of its
+/// own. Nothing marks a project but what is already there. Where none of those marks one, the
+/// plugin `start` lies in (the nearest ancestor holding `connectors/`) is the
+/// project, so the project's connectors are the plugin's.
 fn find_workspace(start: &Path) -> Option<PathBuf> {
     start
         .ancestors()

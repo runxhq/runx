@@ -72,21 +72,21 @@ pub fn prepare_registry_connector_package(
 }
 
 /// The connectors `loaded` declares, in canonical order, with the files of
-/// each plugin or installed connector added to `files` below its package
-/// root. A requirement pinned to another publisher's manifest packages the
-/// installed version under `installed` that publishes it.
+/// each plugin or added connector added to `files` below its package root:
+/// each the connector that runs in the project `paths` resolves, so a
+/// requirement pinned to another publisher's manifest packages the project's
+/// own copy, or else the added version that publishes it.
 pub(super) fn package_connectors(
     loaded: &LoadedSkillPackage,
     files: &mut BTreeMap<String, RegistryPackageFile>,
-    installed: std::path::PathBuf,
+    paths: &crate::RunxPaths,
 ) -> Result<Vec<RegistryConnectorMetadata>, RegistryPublishPackageError> {
     let declared = declared_connectors(loaded.manifest());
     if declared.is_empty() {
         return Ok(Vec::new());
     }
-    let scope = ConnectorScope::at(&loaded.package_root)
-        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
-        .in_project(installed);
+    let scope = ConnectorScope::in_project(&loaded.package_root, paths)
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     let fixed = loaded
         .manifest()
         .into_iter()

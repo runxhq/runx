@@ -697,29 +697,37 @@ Connectors are published only to a hosted registry: the runx catalog unless
   the content digest.
 - `runx registry install <name>[@version] [--digest <content-digest>]`
   adds what is published under that name. For a connector, the version goes to
-  the project's connectors directory,
-  `connectors/<name>/<version>/`. The signed manifest
+  the project's added connectors,
+  `.runx/added-connectors/<name>/<version>/`. The signed manifest
   must name that connector (never a skill), version and content digest under a
   trusted key scoped to its namespace, and the staged files must load and
   repackage as exactly those files before they are renamed into place. A
   version directory is written once and never rewritten: installing it again
   is `unchanged`, and other files under the same version are refused.
 
-A project keeps every package it runs in two directories beside its source.
-`skills/` holds the skills you write (`skills/<name>/`), every skill added
-from a registry by `runx registry install`, by running a registry ref or as a
-registry step's child (`skills/<owner>/<name>/<version>/`), and the core skills this
-release carries, added as `skills/runx/<name>/<version>/` when first used.
-`connectors/` holds your own connectors (`connectors/<name>/`), installed ones
-(`connectors/<name>/<version>/`) and the runtime capability connectors
-(`store`, `web`, `artifact`) a skill uses, added as
-`connectors/<name>/<version>/` from the release and checked against it on
-every read. A connector has one name, such as `github` or `google/calendar`.
-Every other connector, runx-maintained ones included, is a published package:
-a published skill carries the connectors it binds, and a local skill binding a
-connector outside its own plugin pins that connector's `manifest_digest` once
-`runx registry install` has added it. A version directory is written once;
-other bytes under it are refused. The runx home keeps keys, configuration and state, not packages.
+The packages you write sit beside your source; the packages runx adds sit in
+the project directory, `.runx/` (or `RUNX_PROJECT_DIR`). `skills/` holds the
+skills you write (`skills/<name>/`, or `skills/<owner>/<name>/` for your own
+copy of a registry skill) and `connectors/` your own connectors
+(`connectors/<name>/`). `.runx/added-skills/` holds every skill added from a
+registry by `runx registry install`, by running a registry ref or as a
+registry step's child (`<owner>/<name>/<version>/`), and the core skills this
+release carries, added as `runx/<name>/<version>/` when first used.
+`.runx/added-connectors/` holds installed connectors (`<name>/<version>/`) and
+the runtime capability connectors (`store`, `web`, `artifact`) a skill uses,
+added from the release and checked against it on every read. Yours take
+precedence: a skill or connector of the same name in `skills/` or
+`connectors/` is used over what runx added, whatever version or manifest a
+reference pins, so a locally edited copy composes with everything that names
+it. A connector binding pins the digests it was confirmed for, so an edited
+copy is bound again before it holds a credential. The runtime capabilities
+are never replaced. A connector has one name, such as `github` or
+`google/calendar`. Every other connector, runx-maintained ones included, is a
+published package: a published skill carries the connectors it binds, and a
+local skill binding a connector outside its own plugin pins that connector's
+`manifest_digest` once `runx registry install` has added it. A version
+directory is written once; other bytes under it are refused. The runx home
+keeps keys, configuration and state, not packages.
 
 Use [skill-catalog.md](skill-catalog.md) for the maintained category list,
 catalog search flow, and duplicate-check standard before proposing a new
@@ -914,10 +922,11 @@ coverage. Upstream skills that runx does not own keep their execution profiles
 under `bindings/<owner>/<skill>/run.yaml` with adjacent `binding.json`
 governance metadata. Bare skill names resolve to the workspace's own skills or
 to the core skills this release carries, which are added under
-`skills/runx/<name>/<version>/` when first used. Every other package runs by
-its `owner/name[@version]` ref, optionally with `--registry` and `--digest`;
+`.runx/added-skills/runx/<name>/<version>/` when first used. Every other
+package runs by its `owner/name[@version]` ref, optionally with `--registry`
+and `--digest`, unless your own copy at `skills/<owner>/<name>/` answers it;
 only a trusted, signed registry package is added to the project, at
-`skills/<owner>/<name>/<version>/`.
+`.runx/added-skills/<owner>/<name>/<version>/`.
 
 Agent graphs can also demand-load skills as context instead of executing them.
 Reference reusable judgement, operating procedure, or capability skills from an

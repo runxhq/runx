@@ -114,9 +114,9 @@ runx history <receipt-id> --json
   documentation decision skill"` to enter the canonical `skill-build` lane.
   Runx inspects the catalog, returns an exact agent/resume handoff unless
   `--managed-agent` was explicitly authorized, and writes only the validated
-  package. It never generates a placeholder module. Like every package a
-  project runs, the `skill-build` it uses is added beside your source under
-  `skills/runx/skill-build/<version>/`. To cold-start without installing Runx
+  package. It never generates a placeholder module. Like every package runx
+  adds, the `skill-build` it uses is added to the project directory under
+  `.runx/added-skills/runx/skill-build/<version>/`. To cold-start without installing Runx
   first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a graph with [Skill To Graph](./skill-to-graph.md).
 - Bind provider accounts once as described in

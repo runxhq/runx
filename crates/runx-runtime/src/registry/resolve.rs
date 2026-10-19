@@ -211,7 +211,7 @@ pub fn search(
 }
 
 /// Adds connector `name` at `version`, or its current version, from the
-/// hosted registry at `registry_url` to the project's connectors; none when
+/// hosted registry at `registry_url` to the project's added connectors; none when
 /// the registry publishes no connector under that name and version.
 ///
 /// # Errors
@@ -250,7 +250,7 @@ pub fn install_connector(
     install_registry_connector(
         &published,
         &InstallRegistryConnectorOptions {
-            connectors_root: crate::RunxPaths::resolve(env, cwd).connectors(),
+            connectors_root: crate::RunxPaths::resolve(env, cwd).added_connectors(),
             install_records: crate::RunxPaths::resolve(env, cwd).install_records(),
             expected_content_digest: expected_content_digest.map(ToOwned::to_owned),
             trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority.clone())?,

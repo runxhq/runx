@@ -639,6 +639,21 @@ fn resolve_step_skill_directory(
     if let Some(skill) = step.skill().map(|target| target.reference.as_str()) {
         if runx_parser::registry_ref(skill).is_some() {
             let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            // The user's own copy takes precedence over what runx added,
+            // whatever version the ref names (core-shape §6.5); a bundle's
+            // descriptor owns its children.
+            let in_bundle = crate::registry::package_bundle::package_bundle_root(graph_dir)
+                .map_err(|reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                })?
+                .is_some();
+            if !in_bundle && let Some(directory) = own_registry_skill(skill, &paths, options.env)? {
+                return Ok(ResolvedStepSkillDirectory {
+                    directory,
+                    registry: None,
+                });
+            }
             if let Some(directory) = installed_registry_skill(skill, &paths)? {
                 return Ok(ResolvedStepSkillDirectory {
                     directory,
@@ -719,7 +734,9 @@ pub(crate) fn registry_holds_step_skill(
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
     let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
-    if installed_registry_skill(reference, &paths)?.is_some() {
+    if own_registry_skill(reference, &paths, env)?.is_some()
+        || installed_registry_skill(reference, &paths)?.is_some()
+    {
         return Ok(true);
     }
     let Some(registry_dir) = paths.registry_dir() else {
@@ -787,9 +804,9 @@ fn materialize_registry_step_skill(
         package_digest: resolution.package_digest.clone(),
         trust_tier: registry_trust_tier_label(&resolution.trust_tier).to_owned(),
     };
-    // A registry child is added to the project's skills directory, once per
+    // A registry child is added to the project's added skills, once per
     // version, like any other added skill.
-    let destination_root = crate::RunxPaths::resolve(options.env, graph_dir).skills();
+    let destination_root = crate::RunxPaths::resolve(options.env, graph_dir).added_skills();
     let candidate = InstallCandidate {
         markdown: resolution.markdown,
         profile_document: resolution.profile_document,
@@ -820,7 +837,7 @@ fn materialize_registry_step_skill(
         &candidate,
         &InstallLocalSkillOptions {
             destination_root,
-            connectors_root: crate::RunxPaths::resolve(options.env, graph_dir).connectors(),
+            connectors_root: crate::RunxPaths::resolve(options.env, graph_dir).added_connectors(),
             install_records: crate::RunxPaths::resolve(options.env, graph_dir).install_records(),
             expected_digest: None,
             trusted_manifest_keys,
@@ -847,8 +864,23 @@ fn materialize_registry_step_skill(
     })
 }
 
+/// The user's own copy of the skill a registry ref names, at
+/// `skills/<owner>/<name>/` in the skill roots: it takes precedence over what
+/// runx added, whatever version the ref names (core-shape §6.5).
+fn own_registry_skill(
+    reference: &str,
+    paths: &crate::RunxPaths,
+    env: &BTreeMap<String, String>,
+) -> Result<Option<PathBuf>, RuntimeError> {
+    crate::resolve_local_skill_reference(
+        paths,
+        Path::new(&crate::registry::parse_registry_ref(reference).skill_id),
+        &paths.skill_roots(env),
+    )
+}
+
 /// The installed package a `registry:<owner>/<name>[@version]` ref names: the
-/// project's skills directory holds what `runx skill` fetched for it, once per
+/// project's added skills hold what `runx skill` fetched for it, once per
 /// version, and a ref with no version names the one version installed.
 pub(crate) fn installed_registry_skill(
     reference: &str,
@@ -865,7 +897,7 @@ pub(crate) fn installed_registry_skill(
     // reduced to a safe path segment, so no ref reaches outside the skills
     // directory and every version spelling finds what was installed.
     let parts = crate::registry::safe_skill_package_parts(registry_ref, &parsed.skill_id, None);
-    let root = paths.skills();
+    let root = paths.added_skills();
     let directory = parts
         .iter()
         .fold(root.clone(), |path, part| path.join(part));
@@ -986,8 +1018,40 @@ mod tests {
         serde_json::from_value(json).unwrap_or_default()
     }
 
-    /// A nested ref resolves only to what the install wrote under the
-    /// project's skills directory, named the way the install names it.
+    /// The user's own copy of a registry skill, `skills/<owner>/<name>/`
+    /// beside the source, answers its ref whatever version the ref names
+    /// (core-shape §6.5).
+    #[test]
+    fn the_users_own_copy_answers_a_registry_ref() -> Result<(), String> {
+        let text = |error: std::io::Error| error.to_string();
+        let workspace = tempfile::tempdir().map_err(text)?;
+        let env = std::collections::BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().display().to_string(),
+        )]);
+        let paths = crate::RunxPaths::resolve(&env, workspace.path());
+        let own = paths.skills().join("acme/echo");
+        std::fs::create_dir_all(&own).map_err(text)?;
+        std::fs::write(own.join("SKILL.md"), "---\nname: echo\n---\n").map_err(text)?;
+        let added = paths.added_skills().join("acme/echo/1.0.0");
+        std::fs::create_dir_all(&added).map_err(text)?;
+        std::fs::write(added.join("SKILL.md"), "---\nname: echo\n---\n").map_err(text)?;
+        let own_copy = |reference: &str| {
+            super::own_registry_skill(reference, &paths, &env).map_err(|error| error.to_string())
+        };
+        for reference in ["registry:acme/echo@1.0.0", "registry:acme/echo"] {
+            assert!(
+                own_copy(reference)?
+                    .is_some_and(|directory| directory.ends_with("skills/acme/echo")),
+                "{reference}"
+            );
+        }
+        assert_eq!(own_copy("registry:acme/other@1.0.0")?, None);
+        Ok(())
+    }
+
+    /// A nested ref resolves only to what the install wrote among the
+    /// project's added skills, named the way the install names it.
     #[test]
     fn an_installed_registry_skill_is_found_only_where_the_install_wrote_it() -> Result<(), String>
     {
@@ -996,14 +1060,14 @@ mod tests {
         let outside = tempfile::tempdir().map_err(text)?;
         std::fs::write(outside.path().join("SKILL.md"), "---\nname: outside\n---\n")
             .map_err(text)?;
-        let installed = workspace.path().join("skills/acme/echo/1.0.0-meta");
-        std::fs::create_dir_all(&installed).map_err(text)?;
-        std::fs::write(installed.join("SKILL.md"), "---\nname: echo\n---\n").map_err(text)?;
         let env = std::collections::BTreeMap::from([(
             crate::paths::RUNX_CWD_ENV.to_owned(),
             workspace.path().display().to_string(),
         )]);
         let paths = crate::RunxPaths::resolve(&env, workspace.path());
+        let installed = paths.added_skills().join("acme/echo/1.0.0-meta");
+        std::fs::create_dir_all(&installed).map_err(text)?;
+        std::fs::write(installed.join("SKILL.md"), "---\nname: echo\n---\n").map_err(text)?;
         let find = |reference: &str| {
             super::installed_registry_skill(reference, &paths).map_err(|error| error.to_string())
         };

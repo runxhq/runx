@@ -86,6 +86,17 @@ pub fn isolate_project(command: &mut Command) {
     command.env("RUNX_PROJECT_DIR", test_project_dir());
 }
 
+/// Where runx adds the skills this test's isolated commands fetch: its
+/// project directory's added skills (core-shape §6.5).
+pub fn added_skills() -> PathBuf {
+    test_project_dir().join("added-skills")
+}
+
+/// Where runx adds the connectors this test's isolated commands install.
+pub fn added_connectors() -> PathBuf {
+    test_project_dir().join("added-connectors")
+}
+
 /// One project per test: nextest runs each test in its own process, and
 /// `cargo test` runs each on its own thread, so per-thread is per-test under
 /// both and the commands of one test still share their project.

@@ -332,6 +332,12 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
             paths.skills(),
             &["RUNX_CWD"],
         ),
+        path_diagnostic(
+            "runx.project.added_skills",
+            "Added skills directory",
+            paths.added_skills(),
+            &["RUNX_PROJECT_DIR", "RUNX_CWD"],
+        ),
         registry_trust_key_diagnostic(env),
         registry_remote_install_diagnostic(&target, env),
     ];
