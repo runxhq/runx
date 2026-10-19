@@ -1,9 +1,9 @@
 [
   {
     "skill_id": "runx/agent-session",
-    "version": "sha-0f92fb233c71",
-    "digest": "05eb0592d874a185f5313a900812d64e469764eead8d945f6f726c9eae1033fa",
-    "content_digest": "sha256:0f92fb233c71741e09e0494dfa6283ba6f4860a0b707738cfd3885aaef331ebe",
+    "version": "sha-1b345487d905",
+    "digest": "f1df04ed6b60e6148732695b2a323cb540b2b7455392987517ccfcd8d2ddacee",
+    "content_digest": "sha256:1b345487d905253b429465e3e91d9587c9807ac36d806119e7872b5fb91ea484",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
