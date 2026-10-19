@@ -9,7 +9,8 @@
     "replacements",
     "before_digest",
     "content_digest",
-    "bytes_written"
+    "bytes_written",
+    "diff"
   ],
   "properties": {
     "path": {
@@ -35,6 +36,10 @@
     "bytes_written": {
       "type": "integer",
       "minimum": 0
+    },
+    "diff": {
+      "type": "string",
+      "description": "The unified diff from what the file held to what the change left; empty when it left the file as it was."
     },
     "journal": {
       "type": "integer",

@@ -573,13 +573,17 @@ where
 
     /// Take a skill call further: run its child again, from the child's own
     /// record. The parent records the call again only once the child settles.
+    /// A pass that only records what a call did enters its child even after
+    /// a stop, since the call it records may be the child's.
     fn enter(
         &mut self,
         host: &mut dyn Host,
         call: RecordedCall,
     ) -> Result<TurnCallResult, RuntimeError> {
         let made = Made::of(&call);
-        self.admits(made.index)?;
+        if !host.records() {
+            self.admits(made.index)?;
+        }
         let step = self
             .call_step(made.index, &made.target, &made.input)
             .map_err(|reason| RuntimeError::EngineInvariant {

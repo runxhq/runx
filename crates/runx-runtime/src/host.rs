@@ -20,6 +20,14 @@ pub trait Host {
         let _ = turn;
         Ok(())
     }
+
+    /// Whether this pass only records what a call already did. A stop keeps
+    /// a driver from admitting any further step or call, never from
+    /// recording what one did, so such a pass re-enters the step it is
+    /// suspended at even after a stop.
+    fn records(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Default)]

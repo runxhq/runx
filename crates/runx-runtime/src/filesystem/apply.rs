@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, sha256_prefixed};
 
 use super::admission::{AdmittedBundle, PriorFile};
+use super::effect::unified_diff;
 use super::invalid_bundle;
 use crate::RuntimeError;
 
@@ -257,14 +258,23 @@ pub(super) fn bundle_report(
     snapshots: &std::collections::BTreeMap<String, PriorFile>,
     journal: Option<u64>,
 ) -> JsonObject {
-    // What each file held before, which the journal keeps for an undo.
-    let before = |relative: &str, entry: &mut JsonObject| {
-        if let Some(PriorFile::File { contents, .. }) = snapshots.get(relative) {
+    // What each file held before, which the journal keeps for an undo, and
+    // the diff from it to what the bundle left, which a host shows.
+    let describe = |relative: &str, after: Option<&str>, entry: &mut JsonObject| {
+        let prior = match snapshots.get(relative) {
+            Some(PriorFile::File { contents, .. }) => Some(contents.as_slice()),
+            Some(PriorFile::Absent) | None => None,
+        };
+        if let Some(contents) = prior {
             entry.insert(
                 "before_digest".to_owned(),
                 JsonValue::String(sha256_prefixed(contents)),
             );
         }
+        entry.insert(
+            "diff".to_owned(),
+            JsonValue::String(unified_diff(relative, prior, after)),
+        );
     };
     let writes = bundle
         .writes
@@ -281,7 +291,7 @@ pub(super) fn bundle_report(
                     JsonValue::String(sha256_prefixed(write.contents.as_bytes())),
                 ),
             ]);
-            before(&write.relative, &mut entry);
+            describe(&write.relative, Some(write.contents.as_str()), &mut entry);
             JsonValue::Object(entry)
         })
         .collect();
@@ -297,7 +307,7 @@ pub(super) fn bundle_report(
                 ("path".to_owned(), JsonValue::String(relative.clone())),
                 ("status".to_owned(), JsonValue::String(status.to_owned())),
             ]);
-            before(relative, &mut entry);
+            describe(relative, None, &mut entry);
             JsonValue::Object(entry)
         })
         .collect();

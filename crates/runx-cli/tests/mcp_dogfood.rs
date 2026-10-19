@@ -583,6 +583,133 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A host's cancellation of a turn call (`notifications/cancelled`) stops it
+/// gracefully: the command it runs is terminated, the run records the call,
+/// and the turn's next call runs on the same connection. MCP sends no reply
+/// to a cancelled request, so the record is what says what happened.
+#[test]
+fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dyn std::error::Error>>
+{
+    let workspace = TestTempDir::new("runx-turn-cancel-workspace")?;
+    let skill_dir = workspace.path().join("cancel-demo");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: cancel-demo\ndescription: Runs a command, then answers.\n---\n# Cancel demo\n\nRun, then answer.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: cancel-demo\ntools: [command.execute, data.digest]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+    )?;
+    let receipts = workspace.path().join("receipts");
+    let started = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
+        .current_dir(workspace.path())
+        .env("RUNX_CWD", workspace.path())
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("--receipt-dir")
+        .arg(&receipts)
+        .arg("--json")
+        .output()?;
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    assert_eq!(started["status"], "needs_agent", "{started}");
+    let run_id = started["run_id"]
+        .as_str()
+        .ok_or("missing run_id")?
+        .to_owned();
+    let mut server = spawn_runx_stdio(
+        &[
+            "mcp".to_owned(),
+            "--run".to_owned(),
+            run_id.clone(),
+            "--receipt-dir".to_owned(),
+            receipts.display().to_string(),
+        ],
+        workspace.path(),
+        Some(workspace.path()),
+    )?;
+    write_frame(server.stdin_mut()?, &initialize_request(1))?;
+    server.read_response("initialize", MCP_INITIALIZE_TIMEOUT)?;
+    write_frame(server.stdin_mut()?, &initialized_notification())?;
+
+    let began = Instant::now();
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            2,
+            "tools/call",
+            json!({"name": "turn_call", "arguments": {
+                "turn": "answer",
+                "tool": "command_execute",
+                "input": {"command": "sleep", "args": ["30"]},
+                "call_id": "sleep",
+            }}),
+        ),
+    )?;
+    thread::sleep(Duration::from_millis(500));
+    write_frame(
+        server.stdin_mut()?,
+        &json!({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 2, "reason": "stopped by the person"}}),
+    )?;
+
+    // The record says the call settled, long before the command would have.
+    let recorded = loop {
+        let read = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
+            .current_dir(workspace.path())
+            .env("RUNX_CWD", workspace.path())
+            .args(["history", &run_id, "--json"])
+            .output()?;
+        let read: Value = serde_json::from_slice(&read.stdout)?;
+        let call = read["events"]
+            .as_array()
+            .ok_or("missing events")?
+            .iter()
+            .rev()
+            .find(|event| event["event"]["kind"] == "call" && event["event"]["call_id"] == "sleep")
+            .map(|event| event["event"]["outcome"].clone());
+        if let Some(outcome) = call.filter(|outcome| outcome["status"] != "claimed") {
+            break outcome;
+        }
+        assert!(
+            began.elapsed() < Duration::from_secs(15),
+            "the cancelled call is recorded"
+        );
+        thread::sleep(Duration::from_millis(100));
+    };
+    assert_eq!(recorded["status"], "completed", "{recorded}");
+    let artifact = recorded["outputs"][0]["artifact"]["path"]
+        .as_str()
+        .ok_or("the call's output is a project artifact")?;
+    let execution: Value = serde_json::from_slice(&fs::read(artifact)?)?;
+    assert_eq!(execution["decision"], "stopped", "{execution}");
+
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            3,
+            "tools/call",
+            json!({"name": "turn_call", "arguments": {
+                "turn": "answer",
+                "tool": "data_digest",
+                "input": {"value": "after", "encoding": "utf8_text"},
+                "call_id": "after",
+            }}),
+        ),
+    )?;
+    let after = server.read_response("turn_call", MCP_REQUEST_TIMEOUT)?;
+    assert_eq!(
+        path_text(
+            &after,
+            &["result", "structuredContent", "outcome", "status"]
+        )?,
+        "completed",
+        "{after}"
+    );
+    server.close_stdin();
+    server.wait_timeout(Duration::from_secs(10))?;
+    Ok(())
+}
+
 /// A client on the current protocol opens without `initialize`, as Claude
 /// Code does, stating its version on each request; a list result then states
 /// how long it may be cached, and by whom.

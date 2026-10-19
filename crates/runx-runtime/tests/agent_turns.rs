@@ -105,6 +105,33 @@ runners:
     Ok(skill_dir)
 }
 
+/// A parent whose act calls a child skill whose own act digests values and
+/// runs commands: both reach the world, so each is claimed and executed
+/// apart from the session's driver.
+fn write_nested_tool_skills(root: &Path) -> TestResult<PathBuf> {
+    crate::support::write_test_skill_package(
+        &root.join("tool-child"),
+        "---\nname: tool-child\ndescription: Works with tools, then answers.\n---\n# Tool child\n\nWork, then answer.\n",
+        "skill: tool-child\ntools: [data.digest, command.execute]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+    )?;
+    let skill_dir = root.join("tool-parent");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: tool-parent\ndescription: Answers through a child.\n---\n# Tool parent\n\nAsk the child, then answer.\n",
+        r#"skill: tool-parent
+skills: [../tool-child]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    Ok(skill_dir)
+}
+
 struct Paused {
     root: PathBuf,
     receipts: PathBuf,
@@ -615,6 +642,102 @@ fn a_nested_ask_is_answered_by_its_address() -> TestResult {
     )?;
     let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "done"}))?)?;
     assert_eq!(paused.sealed_step_children(&sealed)?, 1);
+    Ok(())
+}
+
+#[test]
+fn a_nested_turns_call_runs_where_it_waits() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_nested_tool_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    let entered = turn.call(TURN, "skill__tool-child", None, JsonObject::new())?;
+    let child_turn = "answer/0#answer";
+    assert_eq!(waiting_on(&entered)?, [child_turn]);
+
+    // The child's call reaches the world: admitted under the driver, then
+    // executed apart from it at the child's turn, and recorded there.
+    let digested = turn.call(
+        child_turn,
+        "data_digest",
+        Some("nested"),
+        input(serde_json::json!({"value": "nested", "encoding": "utf8_text"}))?,
+    )?;
+    assert!(
+        matches!(digested.outcome, TurnCallOutcome::Completed { .. }),
+        "{digested:?}"
+    );
+    assert_eq!(statuses(&turn.status(child_turn)?), ["completed"]);
+
+    // The child's answer settles the parent's call.
+    turn.complete(
+        child_turn,
+        input(serde_json::json!({"answer": "digested"}))?,
+    )?;
+    assert_eq!(statuses(&turn.status(TURN)?), ["completed"]);
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "done"}))?)?;
+    assert_eq!(paused.sealed_step_children(&sealed)?, 1);
+    Ok(())
+}
+
+#[test]
+fn a_cancelled_nested_call_is_recorded_and_its_turn_goes_on() -> TestResult {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
+
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_nested_tool_skills(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    turn.call(TURN, "skill__tool-child", None, JsonObject::new())?;
+    let child_turn = "answer/0#answer";
+
+    // The host cancels a command while it runs: the command is terminated,
+    // and the call records that it stopped, then returns.
+    let command = input(serde_json::json!({"command": "sleep", "args": ["30"]}))?;
+    let cancel = Arc::new(AtomicBool::new(false));
+    let began = Instant::now();
+    let stopped = std::thread::scope(|scope| {
+        let call = scope.spawn(|| {
+            runx_runtime::interrupt::while_working(&cancel, || {
+                turn.call(child_turn, "command_execute", Some("sleep"), command)
+            })
+        });
+        std::thread::sleep(Duration::from_millis(500));
+        cancel.store(true, Ordering::Release);
+        call.join()
+    })
+    .map_err(|_| "the cancelled call panicked")??;
+    assert!(
+        began.elapsed() < Duration::from_secs(15),
+        "the call returned once its command was stopped"
+    );
+    let TurnCallOutcome::Completed { output, .. } = &stopped.outcome else {
+        return Err(format!("the stopped call is recorded: {stopped:?}").into());
+    };
+    let decision = output
+        .get("command_execution")
+        .and_then(|execution| execution.as_object())
+        .and_then(|execution| execution.get("data"))
+        .and_then(|data| data.as_object())
+        .and_then(|data| data.get("decision"))
+        .and_then(JsonValue::as_str);
+    assert_eq!(decision, Some("stopped"), "{output:?}");
+
+    // The stop was the call's: the turn's next call runs.
+    let next = turn.call(
+        child_turn,
+        "data_digest",
+        Some("after"),
+        input(serde_json::json!({"value": "after", "encoding": "utf8_text"}))?,
+    )?;
+    assert!(
+        matches!(next.outcome, TurnCallOutcome::Completed { .. }),
+        "{next:?}"
+    );
+    assert_eq!(
+        statuses(&turn.status(child_turn)?),
+        ["completed", "completed"]
+    );
     Ok(())
 }
 

@@ -12,12 +12,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["path", "bytes_written", "sha256"],
+        "required": ["path", "bytes_written", "sha256", "diff"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "bytes_written": { "type": "integer", "minimum": 0 },
           "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "diff": { "type": "string", "description": "The unified diff from what the file held to what the change left; empty when it left the file as it was." }
         },
         "additionalProperties": false
       }
@@ -26,11 +27,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["path", "status"],
+        "required": ["path", "status", "diff"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "status": { "enum": ["deleted", "already_absent"] },
-          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          "before_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "diff": { "type": "string", "description": "The unified diff from what the file held to what the change left; empty when it left the file as it was." }
         },
         "additionalProperties": false
       }

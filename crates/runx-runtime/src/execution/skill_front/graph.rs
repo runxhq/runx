@@ -563,6 +563,8 @@ pub(super) struct RunHost {
     /// The answers turns are given while the run is driven, by address.
     given: BTreeMap<String, JsonValue>,
     act: Option<TurnAct>,
+    /// Whether the act only records what an executed call came to.
+    records: bool,
     /// What the act did, once the run reached its turn.
     acted: Option<TurnActed>,
     /// The calls a session executes apart from this pass, by turn and
@@ -581,6 +583,7 @@ impl RunHost {
             answers,
             given: BTreeMap::new(),
             act: None,
+            records: false,
             acted: None,
             in_flight: std::collections::BTreeSet::new(),
             gate: None,
@@ -592,6 +595,7 @@ impl RunHost {
     /// A host that does one thing on one of a paused run's turns.
     pub(super) fn acting(act: TurnAct) -> Self {
         Self {
+            records: matches!(act.action, TurnAction::Conclude(_)),
             act: Some(act),
             ..Self::new(ResolutionAnswers::default())
         }
@@ -681,18 +685,20 @@ impl RunHost {
     }
 
     /// Take further each pending call of `turn` this host brings something
-    /// for.
+    /// for. A pass that executes a call takes nothing else further: it only
+    /// descends through the skill call whose child holds its act's turn, which
+    /// records nothing while that child still waits.
     fn settle(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
-        // A pass that executes a call takes nothing else further.
-        if self.executes() {
-            return Ok(());
-        }
         let address = turn.invocation().id.as_str().to_owned();
         let mut reached = Vec::new();
         for call in turn.calls()? {
             if let TurnCallOutcome::Pending { waiting } = &call.outcome
                 && !self.in_flight.contains(&(address.clone(), call.index))
-                && self.reaches(waiting)?
+                && if self.executes() {
+                    self.leads_to_act(waiting)
+                } else {
+                    self.reaches(waiting)?
+                }
             {
                 reached.push(call.index);
             }
@@ -701,6 +707,16 @@ impl RunHost {
             turn.settle(self, index)?;
         }
         Ok(())
+    }
+
+    /// Whether a call that waits on `waiting` leads to this host's act: the
+    /// turn the act is for waits in the call's child.
+    fn leads_to_act(&self, waiting: &[ResolutionRequest]) -> bool {
+        self.act.as_ref().is_some_and(|act| {
+            waiting
+                .iter()
+                .any(|request| resolution_request_id(request) == act.turn)
+        })
     }
 
     /// Whether this host brings something for a call that waits on
@@ -760,6 +776,10 @@ impl Host for RunHost {
 
     fn log(&mut self, _message: String) -> Result<(), RuntimeError> {
         Ok(())
+    }
+
+    fn records(&self) -> bool {
+        self.records
     }
 
     /// The calls this host brings something for go further first. Then the
