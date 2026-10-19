@@ -10,7 +10,8 @@ import { test } from "node:test";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const script = path.join(root, "scripts/build-channel-input.mjs");
 const topology = JSON.parse(readFileSync(path.join(root, "packages/cli/native/supported-platforms.json"), "utf8"));
-const version = JSON.parse(readFileSync(path.join(root, "packages/cli/package.json"), "utf8")).version;
+const cliManifest = JSON.parse(readFileSync(path.join(root, "packages/cli/package.json"), "utf8"));
+const version = cliManifest.version;
 
 test("channel input binds every platform to actual archive bytes", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "runx-channel-input-"));
@@ -37,11 +38,16 @@ test("channel input binds every platform to actual archive bytes", () => {
     const input = JSON.parse(readFileSync(path.join(dir, "input.json"), "utf8"));
     assert.equal(Object.keys(input.artifacts).length, Object.keys(topology.nativePackages).length);
     assert.equal(input.commit_ref, commit);
+    assert.equal(input.homepage, "https://runx.ai");
+    assert.equal(input.homepage, cliManifest.homepage);
     assert.deepEqual(input.source, {
       url: `https://github.com/runxhq/runx/archive/refs/tags/cli-v${version}.tar.gz`,
       sha256: createHash("sha256").update(readFileSync(sourceArchive)).digest("hex"),
       root: sourceRoot,
     });
+    const channels = path.join(dir, "channels");
+    execFileSync("pnpm", ["exec", "tsx", "scripts/gen-channel-manifests.ts", "--input", path.join(dir, "input.json"), "--out-dir", channels], { cwd: root });
+    execFileSync(process.execPath, [path.join(root, "scripts/check-channel-manifests.mjs"), "--input", path.join(dir, "input.json"), "--channels", channels, "--archives", dir]);
 
     const strayArchive = path.join(dir, "stray.tar.gz");
     execFileSync("tar", ["-czf", strayArchive, "-C", path.join(dir, "source", sourceRoot), "crates"]);

@@ -297,7 +297,10 @@ function renderChocolateyNuspec(m: Manifest): string {
     <authors>runxhq</authors>
     <owners>runxhq</owners>
     <projectUrl>${xmlEscape(m.homepage)}</projectUrl>
+    <projectSourceUrl>https://github.com/${xmlEscape(m.repo)}</projectSourceUrl>
     <packageSourceUrl>https://github.com/${xmlEscape(m.repo)}</packageSourceUrl>
+    <docsUrl>${xmlEscape(m.homepage)}/docs</docsUrl>
+    <bugTrackerUrl>https://github.com/${xmlEscape(m.repo)}/issues</bugTrackerUrl>
     <licenseUrl>https://github.com/${xmlEscape(m.repo)}/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>${xmlEscape(m.description)}</description>

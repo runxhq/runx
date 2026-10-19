@@ -8,7 +8,7 @@
   "engines": {
     "node": ">=18"
   },
-  "homepage": "https://github.com/runxhq/runx",
+  "homepage": "https://runx.ai",
   "bugs": {
     "url": "https://github.com/runxhq/runx/issues"
   },

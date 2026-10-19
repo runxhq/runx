@@ -44,6 +44,7 @@ for (const target of Object.values(TARGETS)) {
 }
 
 const scoop = JSON.parse(readFileSync(path.join(options.channels, "scoop", "runx.json"), "utf8"));
+expectEqual("scoop homepage", scoop.homepage, manifest.homepage);
 const scoopArch = scoop.architecture?.["64bit"];
 const winStem = archiveStem(manifest.version, TARGETS.winX64);
 expectEqual("scoop architecture.64bit.extract_dir", scoopArch?.extract_dir, winStem);
@@ -57,6 +58,7 @@ expectIncludes("winget default locale", wingetVersion, "DefaultLocale: en-US");
 const wingetLocale = readFileSync(path.join(options.channels, "winget", "runxhq.runx.locale.en-US.yaml"), "utf8");
 expectIncludes("winget locale manifest type", wingetLocale, "ManifestType: defaultLocale");
 expectIncludes("winget locale package name", wingetLocale, "PackageName: runx");
+expectIncludes("winget locale homepage", wingetLocale, `PackageUrl: ${manifest.homepage}`);
 
 const wingetInstaller = readFileSync(path.join(options.channels, "winget", "runxhq.runx.installer.yaml"), "utf8");
 expectIncludes("winget installer manifest type", wingetInstaller, "ManifestType: installer");
@@ -73,6 +75,7 @@ expectIncludes(
 
 const aur = readFileSync(path.join(options.channels, "aur", "PKGBUILD"), "utf8");
 expectIncludes("aur package identity", aur, "pkgname=runx\n");
+expectIncludes("aur homepage", aur, `url="${manifest.homepage}"`);
 expectIncludes("aur version", aur, `pkgver=${manifest.version}\n`);
 expectIncludes("aur source checksum", aur, `sha256sums=('${manifest.source.sha256}')`);
 expectIncludes("aur builds both executables", aur, "-p runx-cli -p runx-js-worker");
@@ -85,6 +88,7 @@ expectIncludes("aur source info checksum", aurSrcinfo, `\tsha256sums = ${manifes
 expectIncludes("aur source info options", aurSrcinfo, "\toptions = !debug\n\toptions = !lto\n");
 
 const homebrew = readFileSync(path.join(options.channels, "homebrew", "runx.rb"), "utf8");
+expectIncludes("homebrew homepage", homebrew, `homepage "${manifest.homepage}"`);
 expectIncludes("homebrew nested archive install", homebrew, 'bin.install Dir["*/runx"].first => "runx"');
 expectIncludes("homebrew worker install", homebrew, 'bin.install Dir["*/runx-js-worker"].first => "runx-js-worker"');
 expectIncludes("winget worker file", wingetInstaller, `  - RelativeFilePath: ${winStem}\\runx-js-worker.exe`);
@@ -93,6 +97,10 @@ expectIncludes("aur worker install", aur, 'install -Dm755 target/release/runx-js
 const chocolatey = readFileSync(path.join(options.channels, "chocolatey", "runx.nuspec"), "utf8");
 expectIncludes("chocolatey version", chocolatey, `<version>${manifest.version}</version>`);
 expectIncludes("chocolatey homepage", chocolatey, `<projectUrl>${manifest.homepage}</projectUrl>`);
+expectIncludes("chocolatey source", chocolatey, `<projectSourceUrl>https://github.com/${manifest.repo}</projectSourceUrl>`);
+expectIncludes("chocolatey package source", chocolatey, `<packageSourceUrl>https://github.com/${manifest.repo}</packageSourceUrl>`);
+expectIncludes("chocolatey docs", chocolatey, `<docsUrl>${manifest.homepage}/docs</docsUrl>`);
+expectIncludes("chocolatey bugs", chocolatey, `<bugTrackerUrl>https://github.com/${manifest.repo}/issues</bugTrackerUrl>`);
 const chocolateyInstall = readFileSync(path.join(options.channels, "chocolatey", "tools", "chocolateyinstall.ps1"), "utf8");
 expectIncludes("chocolatey archive", chocolateyInstall, `/${manifest.tag}/${manifest.artifacts[TARGETS.winX64].file}'`);
 expectIncludes("chocolatey archive checksum", chocolateyInstall, `-Checksum '${manifest.artifacts[TARGETS.winX64].sha256}'`);

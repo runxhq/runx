@@ -12,6 +12,13 @@ import { loadRustCliPlatforms } from "./rust-cli-topology.mjs";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const options = parseArgs(process.argv.slice(2));
+const cliManifest = JSON.parse(readFileSync(path.join(workspaceRoot, "packages/cli/package.json"), "utf8"));
+if (cliManifest.version !== options.version) {
+  throw new Error(`CLI manifest version ${cliManifest.version} does not match ${options.version}`);
+}
+if (cliManifest.homepage !== "https://runx.ai") {
+  throw new Error(`CLI homepage must be https://runx.ai, got ${cliManifest.homepage}`);
+}
 const platforms = loadRustCliPlatforms(workspaceRoot);
 if (options.tag !== `cli-v${options.version}`) {
   throw new Error(`tag ${options.tag} does not match CLI version ${options.version}`);
@@ -63,7 +70,7 @@ const manifest = {
   repo: options.repo,
   tag: options.tag,
   commit_ref: options.commit,
-  homepage: "https://github.com/runxhq/runx",
+  homepage: cliManifest.homepage,
   description: "Native governed runtime for agent skills, tools, graphs, and packets.",
   artifacts,
   source,
