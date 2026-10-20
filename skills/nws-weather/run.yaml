@@ -1,5 +1,5 @@
 skill: nws-weather
-version: "0.1.8"
+version: "0.1.9"
 catalog:
   kind: graph
   audience: public
@@ -15,6 +15,7 @@ connectors:
     operations: [forecast.read, points.read]
 runners:
   forecast:
+    description: Read the National Weather Service forecast for a gridpoint, by its office and grid x and y.
     default: true
     inputs:
       office:
@@ -38,6 +39,7 @@ runners:
           grid_x: $input.grid_x
           grid_y: $input.grid_y
   locate:
+    description: Find the National Weather Service gridpoint for a latitude and longitude, before reading its forecast.
     inputs:
       lat:
         type: string

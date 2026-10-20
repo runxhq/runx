@@ -1,5 +1,5 @@
 skill: reddit
-version: "0.1.7"
+version: "0.1.8"
 catalog: { kind: graph, audience: operator, visibility: public, category: growth, role: canonical, execution: read, completion: runtime_receipt, approval: conditional }
 connectors:
   store:
@@ -14,6 +14,7 @@ input_definitions:
     schema: { minLength: 3, maxLength: 20, pattern: '^[a-z0-9_-]{3,20}$' }
 runners:
   reddit:
+    description: Research, draft, reply to or diagnose posts for one configured account, read-only. Submits nothing.
     inputs:
       account_id: { definition: account_id }
       objective:
@@ -327,6 +328,7 @@ runners:
           account: $steps.load.account
     default: true
   configure:
+    description: Store a non-secret binding for one Reddit account.
     inputs:
       account_id: { definition: account_id }
       config:
@@ -501,6 +503,7 @@ runners:
           expected_version: $input.expected_version
           event: $steps.prepare.event
   accounts:
+    description: List the configured Reddit accounts.
     inputs:
       cursor:
         type: string
@@ -515,6 +518,7 @@ runners:
         operation: store/heads.list
         input: { data_source_ref: 'local://reddit', resource: reddit_accounts, limit: 20, cursor: $input.cursor }
   publish:
+    description: Submit one exact drafted action for an account, after approval, recording its intent first.
     inputs:
       account_id: { definition: account_id }
       action:
@@ -1196,6 +1200,7 @@ runners:
         - { step: submit, value: $steps.attempt-claim.provider_operation.result.status, equals: committed }
         - { step: record, value: $steps.attempt-record.provider_operation.result.status, equals: committed }
   vote:
+    description: Upvote one observed target for an account, after approval.
     inputs:
       account_id: { definition: account_id }
       action:
@@ -1881,6 +1886,7 @@ runners:
         - { step: submit, value: $steps.attempt-claim.provider_operation.result.status, equals: committed }
         - { step: record, value: $steps.attempt-record.provider_operation.result.status, equals: committed }
   reconcile:
+    description: Resolve, or close, an earlier submission whose outcome was uncertain, without repeating it.
     inputs:
       account_id: { definition: account_id }
       disposition:

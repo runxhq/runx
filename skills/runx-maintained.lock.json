@@ -1,9 +1,9 @@
 [
   {
     "skill_id": "runx/agent-session",
-    "version": "sha-44fb21d44273",
+    "version": "sha-7e3b5b6771da",
     "digest": "3e9c7984bdff609ce6f1c91debeed7e549e5a975d1ee2f207d48190a3607b459",
-    "content_digest": "sha256:44fb21d44273c6266d1c938b3ca9e4b28281e5860b55a4bdff36a111b97a1fac",
+    "content_digest": "sha256:7e3b5b6771da73a50c60c2f912d9aaa3a628be5a8963ccc1b7a0d969654520ce",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -17,17 +17,17 @@
   },
   {
     "skill_id": "runx/brand-voice",
-    "version": "sha-911985c99e8e",
+    "version": "sha-68504f78c4c7",
     "digest": "b85b18c2d4e3800161e86ac1ab3134d98f047ec5a4ef85d559b266de18c37023",
-    "content_digest": "sha256:911985c99e8ed26d67ab4dae870c6e4e621c4d724c2eae9cf2341c84817f6f3f",
+    "content_digest": "sha256:68504f78c4c761e845591a959ce7f5e12aa1cf6dcbca61126cf08d5667816cc3",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/charge",
-    "version": "sha-7b45a583878b",
+    "version": "sha-a3abd2aed17d",
     "digest": "b3c8fc154ef057879933a32ef8ed465d932b819c69d736c5cd1785301dc9f480",
-    "content_digest": "sha256:dc6ccb907490b5f258d249dbcf8c73cbb5741269fff917827225ac5524072242",
+    "content_digest": "sha256:a3abd2aed17d9373b9b2988c8ca2af9a399d4009b623bb4b070c5ae53513a608",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -49,9 +49,9 @@
   },
   {
     "skill_id": "runx/cold-outreach",
-    "version": "sha-0d92c77d5f21",
+    "version": "sha-f89f992fcc6f",
     "digest": "e0503b6b58d0b2a5bc46fd163137b4e845fad274ae57a9dfd3af74c6a6cede37",
-    "content_digest": "sha256:0d92c77d5f21364019dc5e8e6db20fe8d686ab6494ac26d3b7348635619fc34d",
+    "content_digest": "sha256:f89f992fcc6f494a2e4eecf4c9f7083f2e6e297e9c150b8b44179f9d982f6b82",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -65,9 +65,9 @@
   },
   {
     "skill_id": "runx/content-package",
-    "version": "sha-b1512f6e7e54",
+    "version": "sha-5f9994efd460",
     "digest": "40050fb30dc9cedb6f56d6b02406404f3b7c34e77833faf83a1f2204f0db0f20",
-    "content_digest": "sha256:b1512f6e7e540bb2942a72438fbd73db32b66a560d4a7177838ad90e1e5e4e8e",
+    "content_digest": "sha256:5f9994efd460a9be68216491de604a841b0477c49d61d26df630b66a6617fad7",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -81,9 +81,9 @@
   },
   {
     "skill_id": "runx/conversation-review",
-    "version": "sha-4e23d6cfa482",
+    "version": "sha-f96bc11dda68",
     "digest": "78571883d45d90833190963b36e14d31cdbc1033d663e0f122c73f3a14fbd01c",
-    "content_digest": "sha256:4e23d6cfa48299e9251fc4ec86851314977dabbf5e18b453bfab2945a6d24799",
+    "content_digest": "sha256:f96bc11dda6878e99efbc32ab414cda5102d632b23d60c1621f30401d153a581",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -121,41 +121,41 @@
   },
   {
     "skill_id": "runx/extract",
-    "version": "sha-c20500c8533e",
+    "version": "sha-f3947400af96",
     "digest": "b737d7ae135054619bb3c86c42a6aab896a8063f490f1fe0dd7ec671ce7d91fb",
-    "content_digest": "sha256:c20500c8533e2c0083ea01ac87725d5e99b0e9d6eb3bc55f6eb7023ef9494c3d",
+    "content_digest": "sha256:f3947400af968fd3cdf83a421d5e932ce02e07f8ec8e7bd910e7fc3f8180eb79",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/ghostwrite",
-    "version": "sha-22fb993f5dca",
+    "version": "sha-7190fd02dd09",
     "digest": "bba553adeb3df24a28a79e941601080c10171fbace844c8ea66a2c7507b41261",
-    "content_digest": "sha256:22fb993f5dcafd643e9e89ee2cd1b1690e389c9558374aa8d998a1754bf3fd25",
+    "content_digest": "sha256:7190fd02dd09b87f4a6f7acaec8bbb556b90a20c217ab443f5b31c0a6373a981",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/github",
-    "version": "sha-ea4b1382668c",
+    "version": "sha-23042eb0379a",
     "digest": "ea5c3e7805f57c49e0713cf1329b34a4936cb3b9cdb2c8b7691f3bf4dfd98b49",
-    "content_digest": "sha256:ea4b1382668c736557a5b48c3208060fdaafc38bc8b9b38ca613489394d0b63d",
+    "content_digest": "sha256:23042eb0379a36a7d2fe062aac7bb88f6d88107419542e7bf3a58eb709a4b55b",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/github-issue-to-pr",
-    "version": "sha-67272da3d6e9",
+    "version": "sha-5b70bb08e994",
     "digest": "1e2d15f4580a18b5698e77334638ac990cc9937d998ed83fb17a8d296bc1210b",
-    "content_digest": "sha256:67272da3d6e99834e0f0956d90c08be84c4a35f0faf86726bf17a213464a9bf8",
+    "content_digest": "sha256:5b70bb08e994f574622369c8e94ff307e6b1a2dd0e4d7f9114f115d225a50185",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/github-issue-triage",
-    "version": "sha-9d6b72670d7e",
+    "version": "sha-5d8a47d6cae4",
     "digest": "df666eb2dbd38a0a34e890135db54690c10fa8866e62338788b7b64ff91a232f",
-    "content_digest": "sha256:9d6b72670d7e658a682de0997f3ee0a360752a5713d190b634d4e09026c29fa1",
+    "content_digest": "sha256:5d8a47d6cae421a89c7e7599240346986105f4e002904a5c44be0f7aac1763d3",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -169,33 +169,33 @@
   },
   {
     "skill_id": "runx/google-analytics",
-    "version": "sha-8b9cb4a4abfc",
+    "version": "sha-e24216563930",
     "digest": "d6c23b6ec788fc4f06711c445ed8faa3121b2705568dcda805d4635cc29a8bd2",
-    "content_digest": "sha256:8b9cb4a4abfc9e532f431e91d8a9d23af6a562ec640c36053ccda471174ca1ea",
+    "content_digest": "sha256:e24216563930b79fafbff4cc218833a441b9566d8cb427918c07e9db53609481",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/google-calendar",
-    "version": "sha-d817eae1aebf",
+    "version": "sha-27bf65f0732d",
     "digest": "5cae0833b3d93382cbe60f85739eea117055f1ae8eca418e5017dd6dd5166a7a",
-    "content_digest": "sha256:d817eae1aebf3d29e7be5aedd798b6d32a06c83d3333c1d9139c80a577c7ac2e",
+    "content_digest": "sha256:27bf65f0732db02926ffc7f3dc08c8a502043fe958a6358af131ca519f342c8f",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/google-search-console",
-    "version": "sha-b17d52a21c1b",
+    "version": "sha-10e32e527b23",
     "digest": "bf6ab059b5f6e42f48c0370183f06945168e72f0d79f11293fc2304e850569c9",
-    "content_digest": "sha256:b17d52a21c1b91aa27f8b9eb630d5b60b7e48184d40e37cd35b18efe0fb1ec11",
+    "content_digest": "sha256:10e32e527b23785856b6e03f469ae675cedf83f4c4d379d0f6c9bdd27ac5392a",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/invoice-pay",
-    "version": "sha-1ae24e3df21b",
+    "version": "sha-e8087ccf966c",
     "digest": "3c38cf38cb8d7c98a82976c6440d7f3a8fa89dc65b61c6251410286f5916022e",
-    "content_digest": "sha256:1ae24e3df21bb704accb82cfcea121db68f0a279b28e7ce1f2386d4d150424db",
+    "content_digest": "sha256:e8087ccf966c6203debb0ccd7b2d826a639c6f95e973d04bc49e6ea4245003db",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -233,41 +233,41 @@
   },
   {
     "skill_id": "runx/message-send",
-    "version": "sha-37a6e4f694cc",
+    "version": "sha-bb8791dbb0fe",
     "digest": "4d876a6b2b2eda9a1e3144c26ddc65c7fa02bb365d2cc1b18cc7b58fafc47bfd",
-    "content_digest": "sha256:b99542c9aef409a4e5d5c96684b84ae7574b9dda3414cc57cd70213c8cc20b97",
+    "content_digest": "sha256:bb8791dbb0fe33952d0b23542f1087354f76791de4c4d2238477d7b01854e7e6",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/moltbook",
-    "version": "sha-7ae3151c137b",
+    "version": "sha-5a33fac2f2e2",
     "digest": "2eb50b350e557c70875a5e9114c3d50de14f58163f78b32407a95c13057de5ff",
-    "content_digest": "sha256:7ae3151c137b4e041b8ee4a889094a055fb9ac6432833fb67cbd62f80cb3b06d",
+    "content_digest": "sha256:5a33fac2f2e2fe67968d3bc6a8d98479cced428d4083ed0dd21a5c27c12a6d09",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/nws-weather",
-    "version": "sha-199f43ba99da",
+    "version": "sha-c4049c3a056c",
     "digest": "55212e7a00917d3bf74355903a513c92bcc56af6bdd63b627130b311ba59ac51",
-    "content_digest": "sha256:199f43ba99da9f974564217c43d142ef96d78fcb1d4c5c030bbbcac57e8e1211",
+    "content_digest": "sha256:c4049c3a056c89f90abb21b2780d97cd1851c9b093b6163e81f969814eef5881",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/open-meteo-weather",
-    "version": "sha-0d6be9c48e0f",
+    "version": "sha-5bd437d616f5",
     "digest": "3adb1b80202c64bbf6203c1f4e7c1e80c3fe0030f032396f125d5ca6c35e9335",
-    "content_digest": "sha256:0d6be9c48e0f4769f00641f88e6b098cecc7832365c0ae6c9d9a5fd7f8061c1b",
+    "content_digest": "sha256:5bd437d616f569f47195a22610c798800791c264286cb4fb3bcd87d3839eb366",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/operations-review",
-    "version": "sha-ef0346a4dbcc",
+    "version": "sha-72b020b8b341",
     "digest": "9d986ad5fcef3e9e5cbda1487352002c835bb154b247c94597360226b98bfeaf",
-    "content_digest": "sha256:ef0346a4dbccb3722564f262a4bf3eef49304fca833da51f2daa15e8541f3f8b",
+    "content_digest": "sha256:72b020b8b341797e484a846f62ea1709f89458a3cd487c53ef26ab9451d8e0b6",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -281,9 +281,9 @@
   },
   {
     "skill_id": "runx/pay",
-    "version": "sha-e0878a3da267",
+    "version": "sha-1c2106ddd34e",
     "digest": "fcc45ac5f7ab1cdd51977b8879c33b4f5df3ad1bf255973cbbd44e1774ae0224",
-    "content_digest": "sha256:e0878a3da2673cf12298443b85c886cf9bd3434a1543cee11d111e9cb8ea1138",
+    "content_digest": "sha256:1c2106ddd34e39a73af598962ee5e24ebd61479e1b1818d01a6a79671931e0ce",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -361,9 +361,9 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-954ab67e4bf7",
+    "version": "sha-95ac41aeedd5",
     "digest": "755140d453d8319989520fa34a4e753aaf20d4ecf8858c5ba98b7ac84e15183c",
-    "content_digest": "sha256:954ab67e4bf7cd8cc42d58393d12d088e9b1f266a8373175a66850d76b1469ed",
+    "content_digest": "sha256:95ac41aeedd56c03aed5cfe71004930808beca88695921396381ec6247fe22f9",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -377,25 +377,25 @@
   },
   {
     "skill_id": "runx/release",
-    "version": "sha-264e40304896",
+    "version": "sha-f79251e1c024",
     "digest": "1fa7978a5f4f426d2727fbe65c0f0ded1df99060b089ed1e4af625e2db099f31",
-    "content_digest": "sha256:264e4030489679a2829696fae38992ff29ff8328c42c991e9ebe2e756966d210",
+    "content_digest": "sha256:f79251e1c0248c4c30efd7799b549c766fee5b692cc25037d5b30c7fb8a45eed",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/research",
-    "version": "sha-47777b4eb255",
+    "version": "sha-74da2347f408",
     "digest": "88dc6e79f2bf0991f7163e0ca04d2d026837028500859c469c660a915741f574",
-    "content_digest": "sha256:47777b4eb2556578a17afb371eaee199eba8e6095133a18e6512aafcbffa9cce",
+    "content_digest": "sha256:74da2347f408aa460166f4ae36bb939cfd9f5ee306fd5086769e7045cc4b919a",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/research-brief",
-    "version": "sha-9e89e61b6606",
+    "version": "sha-42979ba3422d",
     "digest": "c6f54ebfe9de109dff513909c2c91fbcc6263ba27c1439c3f9cae3dd8e3c5af4",
-    "content_digest": "sha256:9e89e61b6606eb25fbc87cada85f253740be79876872b7897ee32a86f87e064f",
+    "content_digest": "sha256:42979ba3422dac1f3f02b54ff168233b4d138303fa7c94a4fb5989c220c5f4f7",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -449,33 +449,33 @@
   },
   {
     "skill_id": "runx/skill-build",
-    "version": "sha-579a38d7a0b5",
+    "version": "sha-2336ee1befbf",
     "digest": "6f90c3f9fef2da1a90464190dfb41efde3ae9e05f7467c8f1fc755c2736118a7",
-    "content_digest": "sha256:579a38d7a0b58fbc787fa8abbb9266ef094e26eb33df8cf9c94b6914f9e06c13",
+    "content_digest": "sha256:2336ee1befbf4db3b2141c0294f757f0753006c88410745825836ab5d7d806d9",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/skill-review",
-    "version": "sha-a8e606a5775f",
+    "version": "sha-4693fcb8fec3",
     "digest": "f77e9abe7b9057ddac93b4e1f15b507dd7f73f51b7be186793f5e6fe57ec9ecb",
-    "content_digest": "sha256:a8e606a5775f932a6cf92114a4cee63ed51d1da9d08dcca0a4f435d8ae99bbf7",
+    "content_digest": "sha256:4693fcb8fec3bcdc898c432dde650888df9b8dccc7c0ff52bcb2d0e475145c46",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/slack",
-    "version": "sha-b04ef5296a8e",
+    "version": "sha-6e236c9c86ff",
     "digest": "6914e1367d2e9c8472f0de9614632f117863f72a5c4a486afb37b6b23b1fcb07",
-    "content_digest": "sha256:c825dadcd7269e84cbef8b0bec88c876122a1c8b79a49e83f21e1f14e36f278f",
+    "content_digest": "sha256:6e236c9c86ffe9285573f2248a4c56b036a637abce07c97c12d22c2ca9431ea9",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
   {
     "skill_id": "runx/sql-analysis",
-    "version": "sha-8734044ac60d",
+    "version": "sha-44c8a5dc3d0c",
     "digest": "adca4f40cab2a716c6225b77ddff991a379146649d66f4927c0694551b1ea99e",
-    "content_digest": "sha256:8734044ac60d23522aef935cb47541a6118b1a5015ac52aecff31d9a5ef51ea5",
+    "content_digest": "sha256:44c8a5dc3d0c1f08c1ab00b58f0777805a2ca221c343011df38cb8b56637d344",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -489,9 +489,9 @@
   },
   {
     "skill_id": "runx/taste-profile",
-    "version": "sha-6605304915d7",
+    "version": "sha-3315f0b2b9e5",
     "digest": "0209ee82f6b509653c860224772137ea6461eb8fe430e7c7cd718f82cf3f9b18",
-    "content_digest": "sha256:6605304915d75afb3bc26289c66e6c958107764c6b690ef3db6f161b84f6e27c",
+    "content_digest": "sha256:3315f0b2b9e53f244f9e45417d65a36701e10310af67593501627c7ec3f1db6a",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -505,17 +505,17 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-9392187a78cc",
+    "version": "sha-8d8ca2d8295c",
     "digest": "aa78eb16d5f39304172319d4130affeba61c1e5bce7b573f615860541d43cb00",
-    "content_digest": "sha256:9392187a78ccb97c1747e613bcd53ab9102f2e80628aa8cae5df10681b7b5af7",
+    "content_digest": "sha256:8d8ca2d8295c9ccd537b671eae70f4344ac6da1629683f87e20ea3834bc151a4",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
   {
     "skill_id": "runx/vuln-triage",
-    "version": "sha-62f1d51bb9c6",
+    "version": "sha-7bb327f6152e",
     "digest": "b07ece44309e621ef9a55e8a977c1da8b8b11ade7e75ec4b654d7015f0562f1e",
-    "content_digest": "sha256:62f1d51bb9c615ab0abe77f1e5cc099bf11ef91e3d1d3d591e2822db578e0f58",
+    "content_digest": "sha256:7bb327f6152eee515bd0c7c5a132c0e5e84faf352fb99478381ced5017475a8c",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -537,9 +537,9 @@
   },
   {
     "skill_id": "runx/webhook-handoff",
-    "version": "sha-3a2e445a8a80",
+    "version": "sha-0477f53e32b8",
     "digest": "a5d93e7e96cada970167cc8b0a3d902314b775515bb41ebabf00e87fde7e23dd",
-    "content_digest": "sha256:3a2e445a8a805a3a877e7f2a3ec33eb04db649299c0fd13b2d37fb853782f639",
+    "content_digest": "sha256:0477f53e32b8f831cb73a7e3ac4d0424e2e929d759c46ef3ea0a9f5cbb4dea4f",
     "catalog_visibility": "public",
     "catalog_role": "context"
   }

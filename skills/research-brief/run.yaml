@@ -1,5 +1,5 @@
 skill: research-brief
-version: "0.2.14"
+version: "0.2.15"
 
 catalog:
   kind: graph
@@ -442,6 +442,7 @@ harness:
 
 runners:
   research-brief:
+    description: Produce a decision-ready brief from governed source packets, researching the question and then drafting the brief with every source bound.
     default: true
     inputs:
       objective: { definition: objective }
@@ -495,6 +496,7 @@ runners:
           evidence_pack: $steps.research-topic.research_packet
 
   local-files:
+    description: Produce the brief from bounded local files, read through runx's filesystem.
     inputs:
       objective: { definition: objective }
       paths:
@@ -562,6 +564,7 @@ runners:
           voice_guide: Lead with the decision, distinguish verified evidence from inference, and preserve open questions.
           evidence_pack: $steps.research-topic.research_packet
   ecosystem:
+    description: Produce an ecosystem brief, checking first that every source is fresh against an explicit evaluation time.
     inputs:
       objective:
         type: string

@@ -1,5 +1,5 @@
 skill: release
-version: "0.4.10"
+version: "0.4.11"
 
 catalog:
   kind: graph
@@ -13,6 +13,7 @@ catalog:
 
 runners:
   prepare:
+    description: Run the release profile's preparation command and produce an evidence-bound release brief.
     inputs:
       project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }
       profile_ref: { type: string, required: true, description: JSON release profile inside project_root. }
@@ -227,6 +228,7 @@ runners:
           named_emits: { release_context: release_context, release_brief: release_brief }
           packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
   release:
+    description: Approve a release's exact publish plan, run it without a shell, then verify it with a separate command.
     default: true
     inputs:
       project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }

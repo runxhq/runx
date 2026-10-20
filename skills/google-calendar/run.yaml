@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.8"
+version: "0.1.9"
 catalog:
   kind: graph
   audience: public
@@ -107,6 +107,7 @@ connectors:
     operations: [events.list, freebusy.query]
 runners:
   assistant-brief:
+    description: Read the upcoming window of a selected calendar for one scheduled goal occurrence and return the assistant's work result for it.
     inputs:
       calendar_id: { definition: calendar_id }
       occurrence_ref:
@@ -144,6 +145,7 @@ runners:
           named_emits: { work_result: work_result }
           packets: { work_result: runx.work_outcome.v1 }
   events:
+    description: Read a selected calendar's event instances in a window of at most 30 days, recurrence expanded and private titles removed.
     default: true
     inputs:
       calendar_id: { definition: calendar_id }
@@ -173,6 +175,7 @@ runners:
         artifacts:
           named_emits: { calendar_context: calendar_context }
   freebusy:
+    description: Read only a calendar's busy intervals in a window, when availability is all that matters.
     inputs:
       calendar_id: { definition: calendar_id }
       time_min: { definition: time_min }
@@ -199,6 +202,7 @@ runners:
         artifacts:
           named_emits: { calendar_context: calendar_context }
   normalize-supplied:
+    description: Normalize calendar results already collected elsewhere, without calling Google.
     inputs:
       kind:
         type: string

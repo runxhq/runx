@@ -1,5 +1,5 @@
 skill: pay
-version: "0.1.1"
+version: "0.1.2"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   payment_signal:
@@ -42,6 +42,7 @@ connectors:
     operations: [payment.x402, payment.x402.read]
 runners:
   pay:
+    description: Pay one external payment requirement within the parent's authority, and read the payment and what it bought back at once.
     default: true
     inputs:
       payment_signal: { definition: payment_signal }
@@ -69,6 +70,7 @@ runners:
         outputs: { verified: object }
 
   settle:
+    description: Pay one requirement once, for a durable caller that reads it back later with readback.
     inputs:
       payment_signal: { definition: payment_signal }
       parent_payment_authority: { definition: payment_authority }
@@ -100,6 +102,7 @@ runners:
         result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest]
         input: { payment_signal: $input.payment_signal, parent_payment_authority: $input.parent_payment_authority }
   readback:
+    description: Observe, once, a payment already made and the resource it paid for.
     inputs:
       resource_url:
         type: string

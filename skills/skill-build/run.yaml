@@ -1,5 +1,5 @@
 skill: skill-build
-version: "0.9.17"
+version: "0.9.18"
 
 catalog:
   owner: runx
@@ -128,6 +128,7 @@ tools:
 
 runners:
   design:
+    description: Plan a skill's catalog fit and architecture without writing any package bytes.
     inputs:
       objective:
         type: string
@@ -186,6 +187,7 @@ runners:
           architecture: $steps.architect.architecture_decision
 
   build:
+    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe harness replay.
     default: true
     inputs:
       objective:
@@ -286,6 +288,7 @@ runners:
           change_bundle: $steps.bind.change_bundle
 
   improve:
+    description: Turn one receipt or harness failure into a bounded update of a package, validated before it is written.
     inputs:
       objective:
         type: string
@@ -404,6 +407,7 @@ runners:
           change_bundle: $steps.bind.change_bundle
 
   harness:
+    description: Add fixtures to an existing package and replay its harness against them before writing.
     inputs:
       objective:
         type: string

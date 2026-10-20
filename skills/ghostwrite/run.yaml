@@ -1,5 +1,5 @@
 skill: ghostwrite
-version: "0.4.5"
+version: "0.4.6"
 
 catalog:
   kind: skill
@@ -42,6 +42,7 @@ input_definitions:
 
 runners:
   draft:
+    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence, writing, then verifying every claim against its source.
     default: true
     inputs:
       objective: { definition: objective }
@@ -111,6 +112,7 @@ runners:
           content_draft: $steps.author.content_draft
 
   admit:
+    description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a skill that composes its own writing turn.
     inputs:
       objective: { definition: objective }
       audience: { definition: audience }
@@ -159,6 +161,7 @@ runners:
             evidence_context: evidence_context
 
   verify:
+    description: Check every material claim and context binding of a draft against what was admitted, withholding what it cannot bind.
     inputs:
       evidence_context:
         type: json
@@ -300,6 +303,7 @@ runners:
             content_draft_packet: runx.content.draft.v1
 
   package:
+    description: Turn a verified draft into a channel payload bound to its digest, not yet sent.
     inputs:
       channel:
         type: string
@@ -370,6 +374,7 @@ runners:
             content_publish_packet: runx.content.publish.v1
 
   handoff:
+    description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs approval. Sends nothing.
     inputs:
       channel:
         type: string

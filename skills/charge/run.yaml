@@ -1,5 +1,5 @@
 skill: charge
-version: "0.7.0"
+version: "0.7.1"
 catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
 input_definitions:
   resource:
@@ -22,6 +22,7 @@ connectors:
     operations: [payment.x402.merchant.quote, payment.x402.merchant.settle, payment.x402.merchant.read]
 runners:
   charge:
+    description: Verify and settle one buyer's x402 payment against the quote it answers, then read the settlement back.
     default: true
     inputs:
       resource: { definition: resource }
@@ -52,6 +53,7 @@ runners:
           currency: $input.currency
           status: settled
   quote:
+    description: Quote the x402 payment a buyer must make for a resource, before any payment is taken.
     inputs:
       resource: { definition: resource }
       amount_minor: { definition: amount_minor }

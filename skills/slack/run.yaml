@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.14"
+version: "0.2.15"
 
 catalog:
   kind: graph
@@ -17,6 +17,7 @@ connectors:
     operations: [messages.search, thread.read, file.read]
 runners:
   assistant_decide:
+    description: For an assistant watching Slack, read a decision thread and judge the authorized member's answer in it.
     inputs:
       presentation_ref:
         type: string
@@ -57,6 +58,7 @@ runners:
           named_emits: { decision_observation: decision_observation }
           packets: { decision_observation: runx.decision_observation.v1 }
   assistant_scan:
+    description: For an assistant watching Slack, search a bounded page of new source messages under its configuration.
     inputs:
       config: { type: object, required: true, description: Bounded source search configuration. }
       cursor: { type: string, required: false, description: Opaque source cursor. }
@@ -82,6 +84,7 @@ runners:
           named_emits: { assistant_page: assistant_page }
           packets: { assistant_page: runx.conversation_page.v1 }
   assistant_observe:
+    description: For an assistant watching Slack, turn one message assistant_scan found into an observation.
     inputs:
       config: { type: object, required: true, description: Bound source configuration. }
       item: { type: object, required: true, description: One message from assistant_scan. }
@@ -95,6 +98,7 @@ runners:
           named_emits: { assistant_observation: assistant_observation }
           packets: { assistant_observation: runx.conversation_observation.v1 }
   assistant_hydrate:
+    description: For an assistant watching Slack, read the thread of an admitted message for its open action.
     inputs:
       config: { type: object, required: true, description: Bound source configuration. }
       source_ref: { type: string, required: true, description: Admitted message locator. }
@@ -132,6 +136,7 @@ runners:
           named_emits: { assistant_context: assistant_context }
           packets: { assistant_context: runx.source_packet.v1 }
   search:
+    description: Search one bounded page of Slack messages by author, a mention of the connected member, or keywords, continuing with its cursor.
     default: true
     inputs:
       query:
@@ -168,6 +173,7 @@ runners:
         input: $input.query
 
   read_thread:
+    description: Read one bounded page of a thread from its exact slack:// locator.
     inputs:
       thread_locator:
         type: string
@@ -200,6 +206,7 @@ runners:
           cursor: $input.cursor
 
   read_link:
+    description: Read the thread a pasted Slack archive permalink points to, returning its canonical locator.
     inputs:
       permalink:
         type: string
@@ -230,6 +237,7 @@ runners:
           cursor: $input.cursor
 
   read_file:
+    description: Read one image attached to a thread, from the file locator read_thread returned.
     inputs:
       file_locator:
         type: string

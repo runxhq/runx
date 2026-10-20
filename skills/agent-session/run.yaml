@@ -1,5 +1,5 @@
 skill: agent-session
-version: "0.1.3"
+version: "0.1.4"
 
 catalog:
   owner: runx
@@ -79,6 +79,7 @@ harness:
 
 runners:
   read:
+    description: Work a turn that reads, searches and asks, across the workspace's files and git history, the web and the catalog, and changes nothing.
     default: true
     tools:
       - fs.read
@@ -99,6 +100,7 @@ runners:
         required: true
         description: What the turn did and found, what is still open, and what waits on the person.
   develop:
+    description: Work a turn that may also change the workspace, editing and writing files and running commands, each waiting on the person unless a standing approval covers it.
     outputs:
       summary:
         type: string

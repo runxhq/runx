@@ -1,5 +1,5 @@
 skill: skill-review
-version: "0.3.7"
+version: "0.3.8"
 
 catalog:
   owner: runx
@@ -110,6 +110,7 @@ harness:
 
 runners:
   review:
+    description: Inspect and safely test one skill package, then assess its capability, trust and readiness, recommending adopt, improve or reject.
     default: true
     inputs:
       skill_ref:
@@ -149,6 +150,7 @@ runners:
           native_validation: $steps.collect-evidence.skill_validation
 
   assess:
+    description: Assess a skill from native test evidence you already hold, without testing it again.
     inputs:
       skill_ref:
         type: string

@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.15"
+version: "0.1.16"
 
 catalog:
   kind: graph
@@ -443,6 +443,7 @@ connectors:
     operations: [search.analytics.query, sites.list, url.inspect, sitemaps.list, sitemaps.submit, sitemaps.get]
 runners:
   performance:
+    description: Read live search performance for a property (clicks, impressions, CTR and position), by page or the dimensions you name.
     default: true
     inputs:
       property:
@@ -521,6 +522,7 @@ runners:
           named_emits: { performance_evidence: performance_evidence }
 
   normalize-performance:
+    description: Normalize Search Console results a trusted import already supplied, without calling Google.
     inputs:
       provider_result:
         definition: performance_result
@@ -572,6 +574,7 @@ runners:
           named_emits: { performance_evidence: performance_evidence }
 
   sites:
+    description: List the Search Console properties the grant can read, before assuming one exists.
     inputs: {}
     result_from: [read]
     steps:
@@ -581,6 +584,7 @@ runners:
         input: {}
 
   inspect-url:
+    description: Inspect the current indexed state of one canonical URL.
     inputs:
       property:
         definition: property
@@ -631,6 +635,7 @@ runners:
           named_emits: { inspection_evidence: inspection_evidence }
 
   sitemaps:
+    description: List the sitemaps submitted for a property.
     inputs:
       property:
         definition: property
@@ -644,6 +649,7 @@ runners:
         input: { property: $input.property }
 
   plan-sitemap:
+    description: Plan one sitemap submission bound to its property, without calling Google. Submit it with submit-sitemap.
     inputs:
       property:
         definition: property
@@ -679,6 +685,7 @@ runners:
           named_emits: { sitemap_plan: sitemap_plan }
 
   submit-sitemap:
+    description: Submit a planned sitemap under a scoped grant and read it back.
     inputs:
       sitemap_plan:
         definition: sitemap_plan
@@ -766,6 +773,7 @@ runners:
         artifacts:
           named_emits: { sitemap_submission: sitemap_submission }
   plan-indexing:
+    description: Check whether a request belongs in Google's restricted Indexing API lane. Ordinary page indexing is refused.
     inputs:
       url:
         type: string

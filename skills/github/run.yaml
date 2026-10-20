@@ -1,5 +1,5 @@
 skill: github
-version: "0.6.0"
+version: "0.6.1"
 
 catalog:
   kind: skill
@@ -317,6 +317,7 @@ connectors:
     operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
 runners:
   github:
+    description: "Pull or push one bounded GitHub sync in the direction given: a bounded read of issues, pull requests or comments, or one to eight decided changes of one kind, each read back."
     default: true
     inputs:
       repo: { definition: repository }
@@ -369,6 +370,7 @@ runners:
           idempotency_key: $input.idempotency_key
 
   plan:
+    description: Plan a pull or push without touching GitHub, naming the exact resources, operation and scope it would use. Use it only when the plan is what you want.
     inputs:
       repo: { definition: repository }
       direction: { definition: direction }
@@ -396,6 +398,7 @@ runners:
             sync_plan: runx.github_sync.v1
 
   pull:
+    description: Read issues, pull requests or comments by a bounded selector, returning GitHub's records whole.
     inputs:
       repo: { definition: repository }
       resources: { definition: resources }
@@ -428,6 +431,7 @@ runners:
         input: $steps.plan.sync_plan.provider_input
 
   activity:
+    description: Read what changed in a repository since a time, the issues and pull requests updated since then, compact enough to summarise. Use it for a periodic summary.
     inputs:
       repo: { definition: repository }
       since:
@@ -501,6 +505,7 @@ runners:
           named_emits: { activity: activity }
 
   push:
+    description: Apply one to eight decided changes of one kind (new issues, issue or pull request updates, or comments) and read each back. Needs write scope.
     inputs:
       repo: { definition: repository }
       resources: { definition: resources }
@@ -542,6 +547,7 @@ runners:
         input: $steps.plan.sync_plan.provider_input
 
   plan_and_append_cursor:
+    description: Plan a sync and append it to the store's cursor log, reading the projection back. It keeps the cursor locally and touches nothing on GitHub.
     inputs:
       data_source_ref:
         type: string
@@ -618,6 +624,7 @@ runners:
           resource: $input.resource
           aggregate_id: $input.aggregate_id
   comment:
+    description: Post one note on a pull request, its exact body approved and read back.
     inputs:
       repository:
         type: string

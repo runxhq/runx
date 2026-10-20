@@ -1,5 +1,5 @@
 skill: github-issue-triage
-version: "0.4.10"
+version: "0.4.11"
 
 catalog:
   kind: graph
@@ -70,6 +70,7 @@ connectors:
     operations: [issue.read, comments.create]
 runners:
   provider-respond:
+    description: Read one issue from GitHub and draft the maintainer's next action, its profile, posture, reply and follow-up. Posts nothing.
     default: true
     inputs:
       repository: { definition: repository }
@@ -143,6 +144,7 @@ runners:
             issue_triage_packet: runx.issue.triage.v1
 
   discover:
+    description: Pick the issue that most deserves attention from a queue of issue snapshots you supply.
     inputs:
       issue_snapshots: { definition: issue_snapshots }
       query:
@@ -205,6 +207,7 @@ runners:
             issue_triage_queue: runx.issue.triage_queue.v1
 
   respond:
+    description: Draft the next action for one issue snapshot you already hold, or replay one. Posts nothing.
     inputs:
       issue_snapshot: { definition: issue_snapshot }
       objective:
@@ -266,6 +269,7 @@ runners:
             issue_triage_packet: runx.issue.triage.v1
 
   post:
+    description: Post the exact accepted reply of a triage packet as an issue comment, read back.
     inputs:
       issue_triage_packet:
         type: json

@@ -1,5 +1,5 @@
 skill: operations-review
-version: "0.3.10"
+version: "0.3.11"
 catalog:
   kind: skill
   audience: operator
@@ -15,6 +15,7 @@ connectors:
     - projection.read
 runners:
   operate:
+    description: Review an operations snapshot you supply, ranking the findings, choosing the next action and its governed lane, and saying what approval and evidence it needs.
     inputs:
       objective:
         type: string
@@ -278,6 +279,7 @@ runners:
           ops_desk_packet: runx.ops_desk.packet.v1
     default: true
   review-action:
+    description: Review one proposed action, its consequence, whether it needs approval, its blockers and the evidence that would prove it.
     inputs:
       action_packet:
         type: json
@@ -372,6 +374,7 @@ runners:
         wrap_as: action_review_packet
         packet: runx.ops_desk.action_review.v1
   operate_from_projection:
+    description: Review the same way, reading a bounded product-owned projection first.
     inputs:
       data_source_ref:
         type: string

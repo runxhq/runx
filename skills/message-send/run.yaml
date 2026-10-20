@@ -1,5 +1,5 @@
 skill: message-send
-version: "0.1.1"
+version: "0.1.2"
 
 catalog:
   kind: graph
@@ -82,6 +82,7 @@ connectors:
     allowed_connectors: [slack]
 runners:
   send:
+    description: Post one message to a channel, planning it, asking approval at the live post, posting once and reading it back.
     default: true
     inputs:
       channel_locator:
@@ -124,6 +125,7 @@ runners:
           notification_plan: $steps.plan.notify_plan
 
   plan_post_exact:
+    description: Plan a post whose destination, principal and text an operator already chose under its own policy, with no second judgment. Posts nothing.
     inputs:
       channel:
         type: string
@@ -179,6 +181,7 @@ runners:
             notify_plan: runx.notify.v1
 
   plan_post:
+    description: Plan one channel post, checking its destination, digesting its text and binding the plan, without posting or asking approval. Post it with post.
     inputs:
       channel:
         type: string
@@ -267,6 +270,7 @@ runners:
           packets:
             notify_plan: runx.notify.v1
   post:
+    description: Post a planned message once, exactly as planned, under approval or a standing authority, and read it back.
     inputs:
       notification_plan:
         type: json
@@ -367,6 +371,7 @@ runners:
         expected_result: $steps.deliver.provider_operation.result
         input: $steps.prepare-readback.read_request
   reconcile_post:
+    description: Read back a post whose delivery was uncertain, without posting again.
     inputs:
       notification_plan: { type: json, packet: runx.notify.v1, required: true }
       channel_locator: { type: string, required: true }
@@ -396,6 +401,7 @@ runners:
         tool: { module: post.mjs, export: reconcileExactNotification }
         outputs: { reconciliation: object }
   plan:
+    description: Authorize a message without sending it, binding the principal, audience, content digest, consent and approval into a send plan.
     inputs:
       objective:
         type: string
@@ -450,6 +456,7 @@ runners:
             send_plan: runx.message_send.plan.v1
 
   reply:
+    description: Reply once in a conversation from an admitted source packet, under exact approval, and read the reply back.
     inputs:
       source_context:
         type: json
@@ -525,6 +532,7 @@ runners:
           named_emits: { work_result: work_result }
           packets: { work_result: runx.work_outcome.v1 }
   plan_reply:
+    description: Plan one Slack thread reply, binding the thread and the text's digest, without sending it. Deliver it with deliver_reply.
     inputs:
       principal:
         type: string
@@ -576,6 +584,7 @@ runners:
           content_ref: $steps.digest.digest_result
 
   deliver_reply:
+    description: Deliver a reply planned by plan_reply once, under approval, and read it back.
     inputs:
       send_plan:
         type: json

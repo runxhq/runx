@@ -1,5 +1,5 @@
 skill: github-issue-to-pr
-version: "0.4.11"
+version: "0.4.12"
 
 catalog:
   kind: graph
@@ -54,6 +54,7 @@ connectors:
     operations: [receipt.verify]
 runners:
   github-issue-to-pr:
+    description: Read one issue, implement and test the change with your own tools, prove it through scafld's finalize, and publish the pull request when that is authorized.
     default: true
     inputs:
       repository: { definition: repository }
@@ -87,6 +88,7 @@ runners:
           issue_evidence: $steps.bind-issue-evidence.issue_evidence
 
   from-evidence:
+    description: Implement an issue from issue evidence you already hold, skipping the GitHub read.
     inputs:
       issue_evidence: { definition: issue_evidence }
       objective: { definition: objective }
@@ -100,6 +102,7 @@ runners:
           issue_evidence: $input.issue_evidence
 
   host:
+    description: The implementation turn on its own, doing the work, verifying the finalize receipt, then publishing or holding. The default and from-evidence runners call it.
     inputs:
       issue_evidence: { definition: issue_evidence }
       objective: { definition: objective }
@@ -199,6 +202,7 @@ runners:
           packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
 
   resume:
+    description: Continue from a completed host result and its issue evidence, verifying and publishing without repeating the work.
     inputs:
       issue_evidence: { definition: issue_evidence }
       host_result: { definition: host_result }
@@ -287,6 +291,7 @@ runners:
           packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
 
   verify:
+    description: Verify a scafld finalize receipt against its exact commit and contract, publishing nothing.
     inputs:
       host_result: { definition: host_result }
     result_from: [verify-finalization]
@@ -299,6 +304,7 @@ runners:
           repo_root: $input.host_result.repo_root
 
   finalize-local:
+    description: Verify a completed host result and return it, changing nothing on GitHub.
     inputs:
       host_result: { definition: host_result }
     result_from: [finalize]
@@ -324,6 +330,7 @@ runners:
           packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
 
   publish:
+    description: Verify a completed host result, push its exact commit, and open or reuse its pull request, read back.
     inputs:
       host_result: { definition: host_result }
     result_from: [finalize]
@@ -352,6 +359,7 @@ runners:
           packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
 
   pull-request:
+    description: Push an exact commit to a branch and open, or reuse, the one pull request for it, read back until its head is that commit.
     inputs:
       host_result: { definition: host_result }
     result_from: [settle-opened, settle-existing]

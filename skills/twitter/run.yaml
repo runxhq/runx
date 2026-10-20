@@ -1,5 +1,5 @@
 skill: twitter
-version: "0.5.9"
+version: "0.5.10"
 catalog:
   kind: skill
   audience: public
@@ -26,6 +26,7 @@ connectors:
     operations: [account.snapshot, account.posts.read, account.mentions.read, account.following.read, account.followers.read, posts.read, mentions.read, following.read, followers.read, posts.search, post.create, post.reply, post.quote, posts.delete, users.unfollow, users.follow, users.mute, users.block, posts.like, posts.repost]
 runners:
   read:
+    description: Read account evidence from X, page by page, from a snapshot, posts, mentions, search, following or followers.
     default: true
     inputs:
       query:
@@ -183,6 +184,7 @@ runners:
           packets:
             twitter_evidence: twitter.evidence.v1
   read-archive:
+    description: Read one X archive export (tweets, following or followers) in bounded pages.
     inputs:
       query:
         type: string
@@ -248,6 +250,7 @@ runners:
           packets:
             twitter_evidence: twitter.evidence.v1
   plan:
+    description: Turn one objective and its evidence into a plan of acts, each with its reason. Delivers nothing.
     inputs:
       objective:
         type: string
@@ -387,6 +390,7 @@ runners:
         inputs:
           value: $steps.draft.twitter_plan
   select:
+    description: Choose posts to delete or accounts to unfollow from an archive by a mechanical rule, for thousands of matches that need no judgment each.
     inputs:
       objective:
         type: string
@@ -615,6 +619,7 @@ runners:
           packets:
             twitter_selection: twitter.selection.v1
   execute:
+    description: Run the next batch of an approved plan under its own approval, recording each act's outcome and the progress made.
     inputs:
       plan_json:
         type: object

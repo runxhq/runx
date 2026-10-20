@@ -1,5 +1,5 @@
 skill: google-analytics
-version: "0.1.10"
+version: "0.1.11"
 
 catalog:
   kind: graph
@@ -259,6 +259,7 @@ connectors:
     operations: [reports.run, reports.run_realtime, properties.list, metadata.get]
 runners:
   report:
+    description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check unfamiliar fields with metadata first.
     default: true
     inputs:
       property:
@@ -346,6 +347,7 @@ runners:
           named_emits: { report_evidence: report_evidence }
 
   normalize-report:
+    description: Check and normalize a GA4-shaped result a trusted import already supplied, without calling Google, so never proof that runx reached Google.
     inputs:
       provider_result:
         definition: provider_result
@@ -391,6 +393,7 @@ runners:
           named_emits: { report_evidence: report_evidence }
 
   realtime:
+    description: Read a short GA4 realtime window, a current pulse after a deployment or campaign, provisional rather than settled reporting.
     inputs:
       property:
         definition: property
@@ -458,6 +461,7 @@ runners:
           named_emits: { report_evidence: report_evidence }
 
   properties:
+    description: List the GA4 properties the grant can read, when the property is unknown.
     inputs: {}
     result_from: [read]
     steps:
@@ -467,6 +471,7 @@ runners:
         input: {}
 
   metadata:
+    description: Read a property's dimension and metric catalog, before composing an unfamiliar report.
     inputs:
       property:
         type: string

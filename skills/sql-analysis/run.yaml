@@ -1,5 +1,5 @@
 skill: sql-analysis
-version: 0.4.6
+version: "0.4.7"
 catalog:
   kind: graph
   audience: operator
@@ -16,6 +16,7 @@ connectors:
     - query.read
 runners:
   analyst:
+    description: Answer a data question by choosing a declared parameterized SQL read, running it, and interpreting the rows it returns.
     default: true
     inputs:
       question:
@@ -136,6 +137,7 @@ runners:
         named_emits:
           analysis_result: analysis_result
   plan:
+    description: Plan the read for a question against a query catalog you supply, without running it.
     inputs:
       question:
         type: string

@@ -1,5 +1,5 @@
 skill: open-meteo-weather
-version: "0.1.9"
+version: "0.1.10"
 catalog:
   kind: graph
   audience: public
@@ -18,6 +18,7 @@ connectors:
     - air_quality.read
 runners:
   air_quality:
+    description: Read air quality for a latitude and longitude.
     inputs:
       latitude:
         type: string
@@ -36,6 +37,7 @@ runners:
         latitude: $input.latitude
         longitude: $input.longitude
   forecast:
+    description: Read a forecast for a latitude and longitude, anywhere in the world.
     default: true
     inputs:
       latitude:
@@ -61,6 +63,7 @@ runners:
         longitude: $input.longitude
         forecast_days: $input.forecast_days
   locate:
+    description: Find coordinates for a place name, as candidates to choose from before a forecast.
     inputs:
       name:
         type: string

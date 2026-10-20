@@ -1,5 +1,5 @@
 skill: extract
-version: "0.1.11"
+version: "0.1.12"
 catalog:
   kind: skill
   audience: public
@@ -237,6 +237,7 @@ harness:
       status: failure
 runners:
   extract:
+    description: Extract the fields your JSON schema names from text you supply, each value bound to a quotation from it.
     default: true
     inputs:
       content:
@@ -457,6 +458,7 @@ runners:
         packets:
           structured_extraction_result: runx.structured_extraction.result.v1
   from-file:
+    description: Extract the fields your JSON schema names from one bounded file in the workspace, each value bound to a quotation from it.
     inputs:
       source_ref:
         type: string

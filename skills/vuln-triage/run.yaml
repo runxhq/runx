@@ -1,5 +1,5 @@
 skill: vuln-triage
-version: "0.3.8"
+version: "0.3.9"
 
 catalog:
   kind: skill
@@ -13,6 +13,7 @@ catalog:
 
 runners:
   scan:
+    description: Triage verified vulnerability evidence for exact dependency versions, judging priority, exposure and remediation.
     default: true
     inputs:
       target:
@@ -115,6 +116,7 @@ runners:
             vulnerability_scan_packet: runx.security.vulnerability_scan.v1
 
   advisory:
+    description: Prepare advisory wording for a validated triage packet. Publishes nothing.
     inputs:
       triage_packet:
         type: json

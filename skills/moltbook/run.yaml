@@ -1,5 +1,5 @@
 skill: moltbook
-version: "0.4.10"
+version: "0.4.11"
 
 catalog:
   kind: skill
@@ -202,6 +202,7 @@ connectors:
     operations: [feed.scan, post.create]
 runners:
   scan-provider:
+    description: Read Moltbook's newest posts, in one submolt if named, and find at most one opportunity, cited to the posts behind it.
     default: true
     inputs:
       objective:
@@ -317,6 +318,7 @@ runners:
             moltbook_scan_packet: runx.moltbook.scan.v1
 
   scan:
+    description: Find at most one opportunity in a feed snapshot you already captured, for replay or offline work.
     inputs:
       objective:
         type: string
@@ -420,6 +422,7 @@ runners:
             moltbook_scan_packet: runx.moltbook.scan.v1
 
   post:
+    description: Draft a post for the opportunity a scan chose, within Moltbook's limits and the scan's evidence. Publishes nothing.
     inputs:
       scan_packet:
         type: json
@@ -537,6 +540,7 @@ runners:
             moltbook_post_packet: runx.moltbook.post.v1
 
   publish:
+    description: Publish a drafted post to its submolt once, after exact approval, and read it back.
     inputs:
       post_packet:
         type: json

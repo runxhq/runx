@@ -1,5 +1,5 @@
 skill: webhook-handoff
-version: "0.1.1"
+version: "0.1.2"
 catalog:
   kind: graph
   audience: operator
@@ -139,6 +139,7 @@ connectors:
     operations: [handoff.deliver]
 runners:
   preflight:
+    description: Validate and normalize a handoff's context with no network call and no approval.
     default: false
     inputs:
       platform:
@@ -181,6 +182,7 @@ runners:
           source: $input.source
           receiver: $input.receiver
   send:
+    description: Deliver a validated payload once to an n8n or Zapier webhook, after exact approval, recording the receiver's acknowledgement.
     default: true
     inputs:
       platform:

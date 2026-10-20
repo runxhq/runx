@@ -1,5 +1,5 @@
 skill: conversation-review
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: graph
@@ -134,6 +134,7 @@ harness:
 
 runners:
   review:
+    description: Review one conversation thread you supply, preparing an unsent reply or follow-up and flagging a genuine coding request for engineering intake.
     default: true
     inputs:
       source_ref:
@@ -250,6 +251,7 @@ runners:
           named_emits:
             conversation_packet: conversation_packet
   operate:
+    description: Review a conversation from a source packet and propose its reply, coding intake or follow-up on the handoff routes the operator configured, as a work outcome.
     inputs:
       source_context:
         type: json
