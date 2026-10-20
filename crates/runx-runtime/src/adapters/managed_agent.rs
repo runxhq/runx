@@ -501,9 +501,10 @@ struct AgentPromptContext<'a> {
     trust_boundary: &'a runx_contracts::schema::NonEmptyString,
 }
 
-/// The profiles a managed agent's provider receives: the project's memory
-/// and conventions. The project's instructions are its host's, read by a
-/// host's agent with its turn, and never sent to a provider.
+/// The profiles a managed agent's provider receives: the project's
+/// conventions, and the memory an envelope recorded before memory became its
+/// host's carried, read as it was. The project's instructions are its host's,
+/// read by a host's agent with its turn, and never sent to a provider.
 #[derive(Serialize)]
 struct PromptProfiles<'a> {
     memory: &'a Option<runx_contracts::ProfileFile>,

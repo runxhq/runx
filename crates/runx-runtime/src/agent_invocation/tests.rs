@@ -348,6 +348,36 @@ fn agent_step_fails_without_skill_instructions() -> Result<(), Box<dyn std::erro
 }
 
 #[test]
+fn an_act_carries_the_projects_conventions_and_never_its_memory()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let root = fs::canonicalize(workspace.path())?;
+    fs::write(root.join("MEMORY.md"), "Remember the launch date.\n")?;
+    fs::write(root.join("notes.md"), "A memory named for runx.\n")?;
+    fs::write(root.join("CONVENTIONS.md"), "Prefer typed boundaries.\n")?;
+    let skill = temp_skill("Plan from the project's conventions.")?;
+    let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
+    request.env = BTreeMap::from([
+        ("RUNX_CWD".to_owned(), root.to_string_lossy().into_owned()),
+        // A memory profile once named this way is read no more.
+        ("RUNX_MEMORY_PROFILE_PATH".to_owned(), "notes.md".to_owned()),
+    ]);
+
+    let invocation =
+        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+    let profiles = invocation
+        .envelope
+        .context
+        .ok_or("the act carries its conventions")?;
+    assert_eq!(profiles.memory, None, "memory is its host's");
+    assert_eq!(
+        profiles.conventions.map(|conventions| conventions.content),
+        Some("Prefer typed boundaries.\n".to_owned())
+    );
+    Ok(())
+}
+
+#[test]
 fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
 -> Result<(), Box<dyn std::error::Error>> {
     let repository = tempfile::tempdir()?;

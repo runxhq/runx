@@ -439,6 +439,124 @@ fn the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance(
 }
 
 #[test]
+fn a_managed_agent_reads_the_memory_its_run_is_given_by_ref()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("skill");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nRead what you remember, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: fixture-agent\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    // The workspace's own MEMORY.md is never sent; the memory the host
+    // supplies is.
+    fs::write(
+        temp.path().join("MEMORY.md"),
+        "Ambient memory runx never reads.\n",
+    )?;
+    let memory: runx_contracts::ContextEntry = serde_json::from_value(json!({
+        "type": "fieldwork.memory",
+        "summary": "Kam's launch date",
+        "version": "1",
+        "scope": {
+            "purpose": "confirmed_memory",
+            "trust": "operator_confirmed",
+            "sharing": "configured_model",
+            "goal_id": null,
+            "source_ref": null,
+        },
+        "data": {"quote": "We launch on the third of November."},
+        "meta": {
+            "artifact_id": "memory:1",
+            "run_id": "rx_host",
+            "step_id": null,
+            "producer": {"skill": "fieldwork", "runner": "memory"},
+            "created_at": "2026-10-20T00:00:00Z",
+            "hash": "sha256:memory",
+            "size_bytes": 48,
+            "parent_artifact_id": null,
+            "receipt_id": null,
+            "redacted": false,
+        },
+    }))?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-read","type":"function","function":{"name":"turn_read","arguments":"{\"ref\":\"current:0\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: vec![memory],
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(3)?,
+    })?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let requests = finish_server(server)?;
+    let sent = serde_json::to_string(&requests)?;
+    assert!(!sent.contains("Ambient memory runx never reads."), "{sent}");
+    let prompt = requests[0]["messages"][0]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        prompt.contains("current:0") && prompt.contains("Kam's launch date"),
+        "the memory is a line of the act's index: {prompt}"
+    );
+    assert!(
+        !prompt.contains("third of November"),
+        "and its data is read, never pasted: {prompt}"
+    );
+    let read = requests[1]["messages"]
+        .as_array()
+        .and_then(|messages| {
+            messages
+                .iter()
+                .find(|message| message["tool_call_id"] == "call-read")
+        })
+        .ok_or("the read's result is replayed")?;
+    assert!(
+        read["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("third of November")),
+        "{read}"
+    );
+    Ok(())
+}
+
+#[test]
 fn a_managed_turn_that_fails_still_names_the_calls_it_made()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

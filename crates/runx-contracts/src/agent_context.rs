@@ -124,10 +124,13 @@ pub struct ProfileFile {
     pub content: String,
 }
 
-/// The optional memory, conventions and project instructions context block.
+/// The optional conventions and project instructions context block.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextProfiles {
+    /// The workspace's `MEMORY.md`, as an envelope recorded before memory
+    /// became its host's carried it. runx writes none: memory a host supplies
+    /// travels as admitted context entries.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<ProfileFile>,
     #[serde(skip_serializing_if = "Option::is_none")]

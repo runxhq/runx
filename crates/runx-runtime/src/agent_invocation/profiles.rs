@@ -22,26 +22,25 @@ pub(super) fn resolve_voice_profile(
     )
 }
 
+/// The project's conventions and instructions an act carries. Memory is its
+/// host's (`core-shape.md` §8.1): runx reads no `MEMORY.md` into an act, and
+/// memory a host supplies travels as admitted context, read by its ref.
 pub(super) fn resolve_context_profiles(
     request: &SkillInvocation,
 ) -> Result<Option<runx_contracts::AgentContextProfiles>, RuntimeError> {
-    let optional = |env_key: &str, file_name: &str| -> Result<Option<ProfileFile>, RuntimeError> {
-        let path = configured_profile_path(request, env_key).or_else(|| {
-            profile_candidates(request, file_name)
+    let conventions = configured_profile_path(request, "RUNX_CONVENTIONS_PROFILE_PATH")
+        .or_else(|| {
+            profile_candidates(request, "CONVENTIONS.md")
                 .into_iter()
                 .find(|path| path.is_file())
-        });
-        path.as_deref()
-            .map(|path| read_profile_file(request, path))
-            .transpose()
-    };
-    let memory = optional("RUNX_MEMORY_PROFILE_PATH", "MEMORY.md")?;
-    let conventions = optional("RUNX_CONVENTIONS_PROFILE_PATH", "CONVENTIONS.md")?;
+        })
+        .map(|path| read_profile_file(request, &path))
+        .transpose()?;
     let instructions = project_instructions(request)?;
     Ok(
-        (memory.is_some() || conventions.is_some() || !instructions.is_empty()).then_some(
+        (conventions.is_some() || !instructions.is_empty()).then_some(
             runx_contracts::AgentContextProfiles {
-                memory,
+                memory: None,
                 conventions,
                 instructions,
             },
