@@ -496,4 +496,26 @@ mod tests {
 
         assert!(rendered.contains("next             runx skill acme/echo@1.2.3"));
     }
+
+    #[test]
+    fn registry_search_render_installs_a_connector_by_its_ref() -> Result<(), String> {
+        let rendered = output::render_search(
+            "github",
+            "remote",
+            &[],
+            &[runx_runtime::registry::RegistryConnectorSearchResult {
+                connector: runx_contracts::connector::ConnectorName::new("github")
+                    .ok_or("github is a connector name")?,
+                version: "sha-f92dd1307b53".to_owned(),
+                name: "GitHub".to_owned(),
+                description: "Read and update GitHub repositories.".to_owned(),
+                runtime_capability: false,
+                trust_tier: TrustTier::Verified,
+            }],
+        );
+
+        assert!(rendered.contains("  - github@sha-f92dd1307b53  connector\n    GitHub\n"));
+        assert!(rendered.contains("install  runx registry install github@sha-f92dd1307b53"));
+        Ok(())
+    }
 }

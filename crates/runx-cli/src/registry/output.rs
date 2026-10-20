@@ -92,14 +92,15 @@ pub(super) fn render_search(
         "\n  registry search  {query}\n  source           {source}\n  results          {}\n\n",
         results.len() + connectors.len()
     );
+    // A connector is named by its ref; its display name is only its title.
     for connector in connectors {
         output.push_str(&format!(
             "  - {}@{}  connector\n    {}\n    trust    {}\n    install  runx registry install {}@{}\n",
-            connector.name,
+            connector.connector,
             connector.version,
             connector.name,
             trust_tier_label(&connector.trust_tier),
-            connector.name,
+            connector.connector,
             connector.version,
         ));
     }
