@@ -14,7 +14,8 @@
 //! which a skill reaches only by pinning its manifest digest; a plugin's own
 //! connector of that name answers the pin instead (core-shape §6.5). A runtime
 //! capability cannot be shadowed: a plugin copy with other bytes is refused,
-//! and a bundled skill never sees its composer's plugin connectors.
+//! and a bundled skill never sees its composer's plugin connectors. A
+//! connector a turn loads is the project's, and its calls resolve there.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -396,6 +397,23 @@ impl ConnectorScope {
             .then(|| added.clone());
         scope.installed = Some(added);
         Ok(scope)
+    }
+
+    /// The connectors an operation step of the skill at `graph_dir` resolves
+    /// in: the project's for a connector a load of the turn bound, where the
+    /// load found it, so a bundled session reaches what it loads; the skill's
+    /// own otherwise.
+    pub fn of_operation(
+        target: &runx_parser::OperationStepTarget,
+        graph_dir: &Path,
+        paths: &RunxPaths,
+    ) -> Result<Self, ConnectorRegistryError> {
+        let dir = if target.loaded {
+            paths.workspace()
+        } else {
+            graph_dir
+        };
+        Self::in_project(dir, paths)
     }
 
     /// `dir`'s runtime capabilities, and a bundle's own snapshots or the

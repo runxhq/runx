@@ -491,7 +491,8 @@ impl RuntimeEffect for OperationEffect {
             request.run_id,
             crate::paths::RunxPaths::resolve(request.env, request.graph_dir).artifacts(),
         );
-        let scope = ConnectorScope::in_project(
+        let scope = ConnectorScope::of_operation(
+            target,
             request.graph_dir,
             &crate::paths::RunxPaths::resolve(request.env, request.graph_dir),
         )

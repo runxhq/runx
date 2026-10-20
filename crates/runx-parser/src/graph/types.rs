@@ -306,10 +306,15 @@ pub struct OperationStepTarget {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<OperationName>,
     /// The requirement as the enclosing skill declares it, bound when the
-    /// skill is parsed. A graph outside a skill has none, and its operation
-    /// steps are refused at admission.
+    /// skill is parsed, or as a load of the turn bound it. A graph outside a
+    /// skill has none, and its operation steps are refused at admission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared: Option<crate::ConnectorRequirement>,
+    /// Whether a load of the turn bound the requirement: its connector is
+    /// then the project's, where the load found it, never one the enclosing
+    /// skill reaches.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub loaded: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

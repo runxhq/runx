@@ -113,7 +113,8 @@ fn operation_resends(
 ) -> bool {
     let (Some(operation), Ok(scope)) = (
         target.operation.as_ref(),
-        crate::kernel::connectors::ConnectorScope::in_project(
+        crate::kernel::connectors::ConnectorScope::of_operation(
+            target,
             graph_dir,
             &crate::paths::RunxPaths::resolve(env, graph_dir),
         ),

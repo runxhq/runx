@@ -79,6 +79,17 @@ impl Project {
         Ok(skill_dir)
     }
 
+    /// A session skill as runx bundles its own: a registry package bundle
+    /// carrying no connector, so it reaches only what its turn loads.
+    fn bundled_session(&self, rules: serde_json::Value) -> TestResult<PathBuf> {
+        let skill_dir = self.session(rules)?;
+        std::fs::write(
+            skill_dir.join("runx.package.json"),
+            r#"{"schema": "runx.registry.package_bundle.v1", "dependencies": [], "connectors": []}"#,
+        )?;
+        Ok(skill_dir)
+    }
+
     fn env(&self) -> TestResult<BTreeMap<String, String>> {
         let mut env = crate::skill_run::trusted_manifest_env_for_owner("acme", None)?;
         env.insert(
@@ -431,8 +442,23 @@ fn a_rule_admits_only_the_origin_it_names() -> TestResult {
 fn a_loaded_connectors_operations_are_tools_of_the_turn() -> TestResult {
     let temp = tempdir()?;
     let project = Project::new(temp.path())?;
-    let run_id =
-        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let session = project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?;
+    loads_and_calls_store(&project, session)
+}
+
+#[test]
+fn a_bundled_session_calls_the_connector_it_loads_from_the_project() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let session =
+        project.bundled_session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?;
+    loads_and_calls_store(&project, session)
+}
+
+/// A turn of `session` loads the `store` connector, is offered its
+/// operations, and calls one.
+fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
+    let run_id = project.start(session)?;
     let turn = project.open(&run_id)?;
 
     let bound = loaded(&turn.call(

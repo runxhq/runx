@@ -319,6 +319,7 @@ fn parse_operation_target(
         requirement: requirement.to_owned(),
         operation,
         declared: None,
+        loaded: false,
     })
 }
 

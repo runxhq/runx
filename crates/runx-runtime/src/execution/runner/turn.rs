@@ -877,15 +877,23 @@ where
                         "an operation call takes connector, input, idempotency_key, amount and act, not {field}"
                     ));
                 }
+                let declared = self
+                    .declared(requirement.as_str())
+                    .map_err(|error| error.to_string())?;
                 let target = OperationStepTarget {
                     requirement: requirement.as_str().to_owned(),
                     operation: Some(
                         OperationName::new(operation.as_str().to_owned())
                             .ok_or_else(|| format!("{operation} is not an operation name"))?,
                     ),
-                    declared: self
-                        .declared(requirement.as_str())
-                        .map_err(|error| error.to_string())?,
+                    // A declaration the skill does not hold is one a load bound.
+                    loaded: declared.is_some()
+                        && !self
+                            .scope
+                            .agent
+                            .connectors
+                            .contains_key(requirement.as_str()),
+                    declared,
                 };
                 (StepKind::Operation(target), Vec::new())
             }
