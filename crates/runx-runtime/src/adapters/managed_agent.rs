@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use runx_contracts::{
     AgentContextEnvelope, JsonObject, JsonValue, LoadedPackage, OutputField, TurnCallOutcome,
-    TurnCallResult, TurnLoad, TurnTarget,
+    TurnCallResult, TurnEnvelope, TurnLoad, TurnRef, TurnTarget,
 };
 use serde::Serialize;
 
@@ -22,7 +22,7 @@ use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
 use crate::config::{ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect};
-use crate::execution::runner::turn::{TURN_COMPLETE_TOOL, TURN_STATUS_TOOL, Turn};
+use crate::execution::runner::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, TURN_STATUS_TOOL, Turn};
 use crate::host::Host;
 use crate::http::ReqwestHttpTransport;
 
@@ -87,7 +87,8 @@ impl ManagedAgent {
             )));
         }
         let mut given = BTreeSet::new();
-        let prompt = build_prompt(&envelope, &turn.calls()?, &mut given).map_err(&fail)?;
+        let prompt = build_prompt(&TurnEnvelope::from(&envelope), &turn.calls()?, &mut given)
+            .map_err(&fail)?;
         let model = caller(&config).map_err(&fail)?;
         let complete_schema = match &envelope.output_schema {
             Some(schema @ JsonValue::Object(_)) => schema.clone(),
@@ -156,11 +157,16 @@ impl TurnCalls<'_> {
                 .chain([
                     AgentToolDefinition {
                         name: TURN_STATUS_TOOL.to_owned(),
-                        description: "Read the turn: what it answers, what it may call, and how each call ended.".to_owned(),
+                        description: "Read the turn: what it answers, its context as an index, what it may call, and how each call ended.".to_owned(),
                         input_schema: JsonValue::Object(JsonObject::from([
                             ("type".to_owned(), JsonValue::String("object".to_owned())),
                             ("additionalProperties".to_owned(), JsonValue::Bool(false)),
                         ])),
+                    },
+                    AgentToolDefinition {
+                        name: TURN_READ_TOOL.to_owned(),
+                        description: "Read a page of what a ref of the turn names: a context entry by the ref its index gives, an input of the act as input:<name>, or an earlier call as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on.".to_owned(),
+                        input_schema: read_schema(),
                     },
                     AgentToolDefinition {
                         name: TURN_COMPLETE_TOOL.to_owned(),
@@ -181,7 +187,8 @@ impl ToolExecutor for TurnCalls<'_> {
     }
 
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
-        (self.targets.contains_key(tool) || tool == TURN_STATUS_TOOL).then(|| tool.to_owned())
+        (self.targets.contains_key(tool) || [TURN_STATUS_TOOL, TURN_READ_TOOL].contains(&tool))
+            .then(|| tool.to_owned())
     }
 
     // The loop ends the turn on its final tool; it never runs here.
@@ -191,6 +198,33 @@ impl ToolExecutor for TurnCalls<'_> {
                 content: json_text(&self.turn.status()?)?,
                 is_error: false,
                 guidance: None,
+            });
+        }
+        if tool == TURN_READ_TOOL {
+            let field = |name: &str| input.as_object().and_then(|input| input.get(name));
+            let read = match field("ref").and_then(JsonValue::as_str) {
+                Some(reference) => self.turn.read(
+                    reference,
+                    field("offset").and_then(JsonValue::as_u64).unwrap_or(0),
+                    field("limit").and_then(JsonValue::as_u64),
+                ),
+                None => Err(RuntimeError::ContinuationRejected {
+                    reason: "turn_read takes the ref to read".to_owned(),
+                }),
+            };
+            // A ref the turn does not hold is the model's to correct.
+            return Ok(match read {
+                Ok(page) => ToolOutcome::Result {
+                    content: json_text(&page)?,
+                    is_error: false,
+                    guidance: None,
+                },
+                Err(RuntimeError::ContinuationRejected { reason }) => ToolOutcome::Result {
+                    content: reason,
+                    is_error: true,
+                    guidance: None,
+                },
+                Err(error) => return Err(error),
             });
         }
         let target = self.targets.get(tool).cloned().ok_or_else(|| {
@@ -252,6 +286,38 @@ fn take_manual(
     };
     *output = stripped;
     Ok(guidance)
+}
+
+/// `turn_read`'s input: the ref, and where and how much to read.
+fn read_schema() -> JsonValue {
+    let count = || {
+        JsonValue::Object(JsonObject::from([
+            ("type".to_owned(), JsonValue::String("integer".to_owned())),
+            ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
+        ]))
+    };
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("object".to_owned())),
+        ("additionalProperties".to_owned(), JsonValue::Bool(false)),
+        (
+            "properties".to_owned(),
+            JsonValue::Object(JsonObject::from([
+                (
+                    "ref".to_owned(),
+                    JsonValue::Object(JsonObject::from([
+                        ("type".to_owned(), JsonValue::String("string".to_owned())),
+                        ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
+                    ])),
+                ),
+                ("offset".to_owned(), count()),
+                ("limit".to_owned(), count()),
+            ])),
+        ),
+        (
+            "required".to_owned(),
+            JsonValue::Array(vec![JsonValue::String("ref".to_owned())]),
+        ),
+    ]))
 }
 
 fn json_text(value: &impl Serialize) -> Result<String, RuntimeError> {
@@ -337,37 +403,73 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
 }
 
 /// The act's instructions, the manuals of the skills its turn loaded, each
-/// once, its context, the calls the turn has made so far, and how to end it.
-/// `given` gains the digest of each manual the prompt gives.
+/// once, its context with each entry as an index line, the calls the turn has
+/// made so far, each as its result's start and the ref that reads it whole,
+/// and how to end it. `given` gains the digest of each manual the prompt
+/// gives.
 fn build_prompt(
-    envelope: &AgentContextEnvelope,
+    envelope: &TurnEnvelope,
     calls: &[TurnCallResult],
     given: &mut BTreeSet<String>,
 ) -> Result<String, ManagedAgentError> {
     let context = pretty(&AgentPromptContext::from(envelope))?;
-    let mut calls = calls.to_vec();
     let mut manuals = String::new();
-    for call in &mut calls {
-        if let Some(manual) = take_manual(call, given).map_err(|error| {
+    let mut made = String::new();
+    for call in calls {
+        let mut call = call.clone();
+        if let Some(manual) = take_manual(&mut call, given).map_err(|error| {
             ManagedAgentError::sanitized(format!("a load could not be read: {error}"))
         })? {
             manuals.push_str("\n\n");
             manuals.push_str(&manual);
         }
+        made.push_str("\n- ");
+        made.push_str(&call_line(&call)?);
     }
-    let calls = if calls.is_empty() {
+    let made = if made.is_empty() {
         String::new()
     } else {
         format!(
-            "\n\nCalls already made in this turn (JSON):\n{}",
-            pretty(&calls)?
+            "\n\nCalls already made in this turn, each with the start of its result; {TURN_READ_TOOL} reads one whole by its ref:{made}"
         )
     };
     Ok(format!(
-        "{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON):\n{context}{calls}\n\nEach tool call is \
+        "{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON). Each context entry is a line of an \
+         index; {TURN_READ_TOOL} reads its data by its ref:\n{context}{made}\n\nEach tool call is \
          admitted and recorded by runx. When the task is complete, call {TURN_COMPLETE_TOOL} \
          exactly once with the final payload.",
         envelope.instructions
+    ))
+}
+
+/// The most of an earlier call's result a prompt shows; the rest reads by
+/// its ref.
+const CALL_START_CHARS: usize = 2_000;
+
+/// An earlier call of the turn as one line: its ref, what it called, how it
+/// ended, and the start of its result.
+fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
+    let (status, result) = match &call.outcome {
+        TurnCallOutcome::Completed { output, .. } => ("completed", pretty(output)?),
+        TurnCallOutcome::Failed { reason, .. } => ("failed", reason.as_str().to_owned()),
+        TurnCallOutcome::Refused { reason } => ("refused", reason.as_str().to_owned()),
+        TurnCallOutcome::Pending { waiting } => {
+            ("pending", format!("waits on {} request(s)", waiting.len()))
+        }
+    };
+    let total = result.chars().count();
+    let start = result.chars().take(CALL_START_CHARS).collect::<String>();
+    let rest = if total > CALL_START_CHARS {
+        format!(" ... ({} more characters)", total - CALL_START_CHARS)
+    } else {
+        String::new()
+    };
+    let target = serde_json::to_string(&call.target).map_err(|error| {
+        ManagedAgentError::sanitized(format!("a call could not be described: {error}"))
+    })?;
+    Ok(format!(
+        "{} {target} {status}: {start}{rest}",
+        TurnRef::Call(call.index)
     ))
 }
 
@@ -388,8 +490,8 @@ struct AgentPromptContext<'a> {
     instructions_sha256: &'a runx_contracts::schema::NonEmptyString,
     inputs: &'a JsonObject,
     requirements: &'a runx_contracts::AgentExecutionRequirements,
-    current_context: &'a [runx_contracts::ContextEntry],
-    historical_context: &'a [runx_contracts::ContextEntry],
+    current_context: &'a [runx_contracts::TurnContextLine],
+    historical_context: &'a [runx_contracts::TurnContextLine],
     provenance: &'a [runx_contracts::ProvenanceEntry],
     profiles: Option<PromptProfiles<'a>>,
     voice_profile: &'a Option<runx_contracts::ProfileFile>,
@@ -408,8 +510,8 @@ struct PromptProfiles<'a> {
     conventions: &'a Option<runx_contracts::ProfileFile>,
 }
 
-impl<'a> From<&'a AgentContextEnvelope> for AgentPromptContext<'a> {
-    fn from(envelope: &'a AgentContextEnvelope) -> Self {
+impl<'a> From<&'a TurnEnvelope> for AgentPromptContext<'a> {
+    fn from(envelope: &'a TurnEnvelope) -> Self {
         Self {
             run_id: &envelope.run_id,
             step_id: &envelope.step_id,
@@ -451,7 +553,7 @@ mod tests {
             JsonValue::String("bug report".to_owned()),
         );
         let prompt = build_prompt(
-            &prompt_envelope("Triage", inputs, Vec::new()),
+            &TurnEnvelope::from(&prompt_envelope("Triage", inputs, Vec::new())),
             &[],
             &mut BTreeSet::new(),
         )?;
@@ -466,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn prompt_carries_complete_typed_agent_context() -> Result<(), ManagedAgentError> {
+    fn prompt_carries_the_act_whole_and_its_context_as_an_index() -> Result<(), ManagedAgentError> {
         let mut inputs = JsonObject::new();
         inputs.insert(
             "objective".to_owned(),
@@ -497,12 +599,19 @@ mod tests {
             skill_directory: non_empty("/workspace/skills/review"),
             tool_roots: Some(vec![non_empty("/workspace/tools")]),
         });
-        let prompt = build_prompt(&envelope, &[], &mut BTreeSet::new())?;
+        let prompt = build_prompt(&TurnEnvelope::from(&envelope), &[], &mut BTreeSet::new())?;
 
         assert!(prompt.contains(CONTEXT_POLICY));
+        // Each context entry is an index line with its ref and summary, and
+        // its data reaches the model only through turn_read.
         assert!(prompt.contains("runx.skill.context"));
-        assert!(prompt.contains("sha256:taste"));
-        assert!(prompt.contains("Prefer clear hierarchy."));
+        assert!(prompt.contains("\"current:0\"") && prompt.contains("\"historical:0\""));
+        assert!(prompt.contains("Context skill taste-profile"));
+        assert!(
+            !prompt.contains("Prefer clear hierarchy."),
+            "an entry's data is never pasted into the prompt"
+        );
+        assert!(prompt.contains(TURN_READ_TOOL));
         assert!(prompt.contains("Remember the product constraint."));
         assert!(prompt.contains("Prefer typed boundaries."));
         assert!(
@@ -529,13 +638,35 @@ mod tests {
                 reason: "no reason given".into(),
             },
         };
+        let long = runx_contracts::TurnCallResult {
+            index: 1,
+            target: runx_contracts::TurnTarget::Tool {
+                tool: "fs.read".into(),
+            },
+            input_digest: "sha256:read".into(),
+            call_id: None,
+            outcome: runx_contracts::TurnCallOutcome::Completed {
+                output: JsonObject::from([(
+                    "text".to_owned(),
+                    JsonValue::String(format!("{}TAIL", "x".repeat(CALL_START_CHARS))),
+                )]),
+                receipt_id: "rx_read".into(),
+                artifacts: BTreeMap::new(),
+            },
+        };
         let prompt = build_prompt(
-            &prompt_envelope("Review", JsonObject::new(), Vec::new()),
-            &[call],
+            &TurnEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
+            &[call, long],
             &mut BTreeSet::new(),
         )?;
         assert!(prompt.contains("Calls already made in this turn"));
-        assert!(prompt.contains("no reason given"));
+        assert!(prompt.contains("call:0") && prompt.contains("no reason given"));
+        // A long result shows its start, and the rest reads by its ref.
+        assert!(prompt.contains("call:1") && prompt.contains("more characters"));
+        assert!(
+            !prompt.contains("TAIL"),
+            "a result's rest is read, never pasted"
+        );
         Ok(())
     }
 
@@ -575,7 +706,7 @@ mod tests {
         };
         let mut given = BTreeSet::new();
         let prompt = build_prompt(
-            &prompt_envelope("Review", JsonObject::new(), Vec::new()),
+            &TurnEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
             &[load(0)?, load(1)?],
             &mut given,
         )?;
@@ -647,6 +778,9 @@ mod tests {
         );
         ContextEntry {
             entry_type: Some(non_empty("runx.skill.context")),
+            summary: Some(non_empty(
+                "Context skill taste-profile: the product's taste in layout",
+            )),
             version: ContextEntryVersion::V1,
             scope: runx_contracts::ContextScope {
                 purpose: runx_contracts::ContextPurpose::Procedure,

@@ -132,6 +132,42 @@ runners:
     Ok(skill_dir)
 }
 
+/// A one-turn skill whose act reads the house style, a context skill the
+/// package holds.
+fn write_context_turn_skill(root: &Path) -> TestResult<PathBuf> {
+    let skill_dir = root.join("styled");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: styled\ndescription: Answers in the house style.\n---\n# Styled\n\nAnswer in the house style.\n",
+        r#"skill: styled
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    steps:
+      - id: answer
+        agent: { role: operator, task: answer }
+        inputs:
+          question: $input.question
+        context_skills: [./context/house-style]
+        outputs:
+          answer: string
+"#,
+    )?;
+    let style = skill_dir.join("context/house-style");
+    std::fs::create_dir_all(&style)?;
+    std::fs::write(
+        style.join("SKILL.md"),
+        "---\nname: house-style\ndescription: How the house writes.\n---\n# House style\n\nWrite in short sentences.\n",
+    )?;
+    std::fs::write(
+        style.join("run.yaml"),
+        "skill: house-style\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
+    )?;
+    Ok(skill_dir)
+}
+
 struct Paused {
     root: PathBuf,
     receipts: PathBuf,
@@ -333,6 +369,44 @@ fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResul
         paused.sealed_step_children(&sealed)?,
         3,
         "the turn's receipt names its completed calls"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_turns_context_is_an_index_each_entry_of_which_reads_by_its_ref() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_context_turn_skill(temp.path())?;
+    let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+    let turn = paused.open()?;
+    let status = turn.status(TURN)?;
+    let [line] = status.invocation.envelope.current_context.as_slice() else {
+        return Err(format!("one context entry: {status:?}").into());
+    };
+    assert_eq!(line.reference.as_str(), "current:0");
+    assert_eq!(
+        line.summary.as_ref().map(|summary| summary.as_str()),
+        Some("Context skill house-style: How the house writes.")
+    );
+    assert!(
+        !serde_json::to_string(&status)?.contains("Write in short sentences."),
+        "a turn's status never carries an entry's data"
+    );
+
+    let page = turn.read(TURN, "current:0", 0, None)?;
+    assert!(page.text.contains("Write in short sentences."), "{page:?}");
+    assert_eq!(page.next_offset, None);
+    assert_eq!(
+        turn.read(TURN, "input:question", 0, None)?.text,
+        "what digests?"
+    );
+    let unheld = turn
+        .read(TURN, "current:1", 0, None)
+        .err()
+        .ok_or("a ref the turn does not hold is refused")?;
+    assert!(
+        unheld.to_string().contains("holds no current:1"),
+        "{unheld}"
     );
     Ok(())
 }

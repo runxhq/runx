@@ -101,6 +101,17 @@ impl JsonValue {
             _ => None,
         }
     }
+
+    /// A whole number of zero or more. An integral float within the portable
+    /// range is already held as an integer.
+    #[must_use]
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Self::Number(JsonNumber::I64(value)) => u64::try_from(*value).ok(),
+            Self::Number(JsonNumber::U64(value)) => Some(*value),
+            _ => None,
+        }
+    }
 }
 
 #[must_use]

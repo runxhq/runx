@@ -248,7 +248,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx mcp --run <run-id> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
         ],
         notes: &[
-            "The governed MCP server. Each skill is a tool; a skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
+            "The governed MCP server. Each skill is a tool; a skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_read, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
             "--run serves one paused run's open turns, for a host that hands its agent that run alone. Each call is admitted against the turn's allowance and the run's authority, executed and recorded; a call that needs approval stays pending until runx resume answers it; turn_complete ends the turn and the run continues.",
         ],
         options: &[

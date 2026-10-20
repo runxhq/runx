@@ -145,8 +145,9 @@ pub use host_protocol::{
     HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState, LoadedPackage,
     LoadedRunner, LoadedRunnerInput, PURCHASE_BALANCE_CHOICE, PurchaseMethod, PurchaseQuote,
     PurchaseRequest, Question, QuestionOption, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor, RetryResend, SkillAllowance, SkillManual, TurnAllowance,
-    TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus, TurnTarget, TurnTool, check_answer,
+    ResolutionResponseActor, RetryResend, SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS,
+    TurnAllowance, TurnCallOutcome, TurnCallResult, TurnContextLine, TurnEnvelope, TurnInvocation,
+    TurnLoad, TurnReadPage, TurnRef, TurnStatus, TurnTarget, TurnTool, check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,

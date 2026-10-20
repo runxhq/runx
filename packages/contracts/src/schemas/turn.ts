@@ -119,15 +119,78 @@ export type TurnToolContract = DeepReadonly<{
   input_schema: Record<string, unknown>;
 }>;
 
-/** An open turn as its agent reads it; the invocation's id is its address. */
+/**
+ * One context entry of an act as a model reads it in an index: what it is,
+ * whom it may be shared with, how large it is, and the ref `turn_read` reads
+ * its data by.
+ */
+export type TurnContextLineContract = DeepReadonly<{
+  ref: string;
+  type?: string;
+  summary?: string;
+  scope: {
+    purpose:
+      | "procedure"
+      | "mandate"
+      | "confirmed_memory"
+      | "observation"
+      | "work_continuity"
+      | "retrieved_history"
+      | "hypothesis";
+    trust: "operator_confirmed" | "skill_instructions" | "untrusted_evidence";
+    sharing: "local_only" | "configured_model";
+    goal_id: string | null;
+    source_ref: string | null;
+  };
+  created_at: string;
+  size_bytes: number;
+}>;
+
+type AgentContextEnvelope = AgentActInvocationContract["envelope"];
+
+/**
+ * An act's envelope as its turn's agent reads it: whole, except that each
+ * context entry is a line of an index, its data read by `turn_read`.
+ */
+export type TurnEnvelopeContract = DeepReadonly<
+  Omit<AgentContextEnvelope, "current_context" | "historical_context"> & {
+    current_context: readonly TurnContextLineContract[];
+    historical_context: readonly TurnContextLineContract[];
+  }
+>;
+
+/** An agent act as its turn's agent reads it; its id is the turn's address. */
+export type TurnInvocationContract = DeepReadonly<
+  Omit<AgentActInvocationContract, "envelope"> & { envelope: TurnEnvelopeContract }
+>;
+
+/**
+ * An open turn as its agent reads it: the act it answers, with its context as
+ * an index, the calls it may make, and how each call it made so far ended.
+ */
 export type TurnStatusContract = DeepReadonly<{
-  invocation: AgentActInvocationContract;
+  invocation: TurnInvocationContract;
   tools: readonly TurnToolContract[];
   calls: readonly TurnCallContract[];
 }>;
 
+/**
+ * A page of what a turn's ref names (`current:<n>`, `historical:<n>`,
+ * `input:<name>` or `call:<index>`), as text: a string as it is, any other
+ * value as pretty JSON. Offsets count characters; `next_offset` reads on from
+ * what the page delivered and is absent at the end.
+ */
+export type TurnReadPageContract = DeepReadonly<{
+  ref: string;
+  offset: number;
+  text: string;
+  next_offset?: number;
+  total: number;
+}>;
+
 export const turnCallSchema = generatedSchema<TurnCallContract>("turn-call.schema.json");
 export const turnStatusSchema = generatedSchema<TurnStatusContract>("turn-status.schema.json");
+export const turnReadSchema = generatedSchema<TurnReadPageContract>("turn-read.schema.json");
 
 export function validateTurnCallContract(value: unknown, label = "turn_call"): TurnCallContract {
   return validateContractSchema(turnCallSchema, value, label);
@@ -135,4 +198,8 @@ export function validateTurnCallContract(value: unknown, label = "turn_call"): T
 
 export function validateTurnStatusContract(value: unknown, label = "turn_status"): TurnStatusContract {
   return validateContractSchema(turnStatusSchema, value, label);
+}
+
+export function validateTurnReadContract(value: unknown, label = "turn_read"): TurnReadPageContract {
+  return validateContractSchema(turnReadSchema, value, label);
 }

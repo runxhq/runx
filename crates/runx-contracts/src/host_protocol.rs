@@ -589,15 +589,241 @@ pub struct TurnTool {
 }
 
 /// An open turn as its agent reads it: the act it answers (its id is the
-/// turn's address), the calls it may make, and how each call it made so far
-/// ended.
+/// turn's address), with the act's context as an index, the calls it may
+/// make, and how each call it made so far ended. Nothing in it is the data of
+/// a context entry, which `turn_read` reads by its ref.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.turn_status.v1")]
 pub struct TurnStatus {
-    pub invocation: AgentActInvocation,
+    pub invocation: TurnInvocation,
     pub tools: Vec<TurnTool>,
     pub calls: Vec<TurnCallResult>,
+}
+
+/// An agent act as its turn's agent reads it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnInvocation {
+    pub id: NonEmptyString,
+    pub role: NonEmptyString,
+    pub task: NonEmptyString,
+    pub envelope: TurnEnvelope,
+    pub allowance: TurnAllowance,
+}
+
+impl From<&AgentActInvocation> for TurnInvocation {
+    fn from(invocation: &AgentActInvocation) -> Self {
+        let AgentActInvocation {
+            id,
+            role,
+            task,
+            envelope,
+            allowance,
+        } = invocation;
+        Self {
+            id: id.clone(),
+            role: role.clone(),
+            task: task.clone(),
+            envelope: TurnEnvelope::from(envelope),
+            allowance: allowance.clone(),
+        }
+    }
+}
+
+/// An act's envelope as its turn's agent reads it: whole, except that each
+/// context entry is a line of an index, its data read by `turn_read`. The
+/// act's instructions and inputs stay whole, as the act itself; each input
+/// also reads by its ref.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnEnvelope {
+    pub run_id: NonEmptyString,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub step_id: Option<NonEmptyString>,
+    pub skill: NonEmptyString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub act: Option<crate::CallAct>,
+    pub instructions_sha256: NonEmptyString,
+    pub instructions: NonEmptyString,
+    pub inputs: JsonObject,
+    pub requirements: crate::AgentExecutionRequirements,
+    pub current_context: Vec<TurnContextLine>,
+    pub historical_context: Vec<TurnContextLine>,
+    pub provenance: Vec<crate::ProvenanceEntry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<crate::AgentContextProfiles>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_profile: Option<crate::ProfileFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_location: Option<crate::ExecutionLocation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<BTreeMap<String, crate::OutputField>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<JsonValue>,
+    pub trust_boundary: NonEmptyString,
+}
+
+impl From<&AgentContextEnvelope> for TurnEnvelope {
+    fn from(envelope: &AgentContextEnvelope) -> Self {
+        let AgentContextEnvelope {
+            run_id,
+            step_id,
+            skill,
+            act,
+            instructions_sha256,
+            instructions,
+            inputs,
+            requirements,
+            current_context,
+            historical_context,
+            provenance,
+            context,
+            voice_profile,
+            execution_location,
+            output,
+            output_schema,
+            trust_boundary,
+        } = envelope;
+        let lines = |entries: &[crate::ContextEntry], at: fn(usize) -> TurnRef| {
+            entries
+                .iter()
+                .enumerate()
+                .map(|(index, entry)| TurnContextLine::of(at(index), entry))
+                .collect()
+        };
+        Self {
+            run_id: run_id.clone(),
+            step_id: step_id.clone(),
+            skill: skill.clone(),
+            act: act.clone(),
+            instructions_sha256: instructions_sha256.clone(),
+            instructions: instructions.clone(),
+            inputs: inputs.clone(),
+            requirements: requirements.clone(),
+            current_context: lines(current_context, TurnRef::Current),
+            historical_context: lines(historical_context, TurnRef::Historical),
+            provenance: provenance.clone(),
+            context: context.clone(),
+            voice_profile: voice_profile.clone(),
+            execution_location: execution_location.clone(),
+            output: output.clone(),
+            output_schema: output_schema.clone(),
+            trust_boundary: trust_boundary.clone(),
+        }
+    }
+}
+
+/// One context entry of an act as a model reads it in an index: what it is,
+/// whom it may be shared with, how large it is, and the ref `turn_read`
+/// reads its data by.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnContextLine {
+    #[serde(rename = "ref")]
+    pub reference: NonEmptyString,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub entry_type: Option<NonEmptyString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<NonEmptyString>,
+    pub scope: crate::ContextScope,
+    pub created_at: NonEmptyString,
+    pub size_bytes: u64,
+}
+
+impl TurnContextLine {
+    fn of(reference: TurnRef, entry: &crate::ContextEntry) -> Self {
+        Self {
+            reference: reference.to_string().into(),
+            entry_type: entry.entry_type.clone(),
+            summary: entry.summary.clone(),
+            scope: entry.scope.clone(),
+            created_at: entry.meta.created_at.clone(),
+            size_bytes: entry.meta.size_bytes,
+        }
+    }
+}
+
+/// What a ref names within one turn: an entry of the act's current or
+/// historical context by its place, an input of the act by name, or a call
+/// of the turn by its index. A ref means nothing outside its turn.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TurnRef {
+    Current(usize),
+    Historical(usize),
+    Input(String),
+    Call(u32),
+}
+
+impl TurnRef {
+    /// The ref `text` spells, if it spells one.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        let (kind, rest) = text.split_once(':')?;
+        match kind {
+            "current" => rest.parse().ok().map(Self::Current),
+            "historical" => rest.parse().ok().map(Self::Historical),
+            "input" if !rest.is_empty() => Some(Self::Input(rest.to_owned())),
+            "call" => rest.parse().ok().map(Self::Call),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for TurnRef {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Current(index) => write!(formatter, "current:{index}"),
+            Self::Historical(index) => write!(formatter, "historical:{index}"),
+            Self::Input(name) => write!(formatter, "input:{name}"),
+            Self::Call(index) => write!(formatter, "call:{index}"),
+        }
+    }
+}
+
+/// The most characters one `turn_read` page holds. It bounds a page, never
+/// what can be read: a read continues from the offset it returns.
+pub const TURN_READ_PAGE_CHARS: u64 = 32_000;
+
+/// One page of what a turn's ref names, as text: a string as it is, any
+/// other value as pretty JSON. Offsets count characters.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.turn_read.v1")]
+pub struct TurnReadPage {
+    #[serde(rename = "ref")]
+    pub reference: NonEmptyString,
+    pub offset: u64,
+    pub text: String,
+    /// Where the next page starts: the offset after the last character this
+    /// page delivered. None when this page reaches the end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_offset: Option<u64>,
+    /// How many characters the whole holds.
+    pub total: u64,
+}
+
+impl TurnReadPage {
+    /// The page of `whole` from `offset`, of at most `limit` characters
+    /// (and never more than a page holds).
+    #[must_use]
+    pub fn of(reference: &TurnRef, whole: &str, offset: u64, limit: Option<u64>) -> Self {
+        let total = whole.chars().count() as u64;
+        let limit = limit
+            .unwrap_or(TURN_READ_PAGE_CHARS)
+            .clamp(1, TURN_READ_PAGE_CHARS);
+        let start = usize::try_from(offset.min(total)).unwrap_or(usize::MAX);
+        let length = usize::try_from(limit).unwrap_or(usize::MAX);
+        let text = whole.chars().skip(start).take(length).collect::<String>();
+        let end = offset.min(total) + text.chars().count() as u64;
+        Self {
+            reference: reference.to_string().into(),
+            offset: offset.min(total),
+            text,
+            next_offset: (end < total).then_some(end),
+            total,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -784,4 +1010,54 @@ pub struct HostRunApproval {
 pub enum HostRunApprovalDecision {
     Approved,
     Denied,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_ref_reads_back_as_it_was_written_and_nothing_else_is_one() {
+        for reference in [
+            TurnRef::Current(0),
+            TurnRef::Historical(12),
+            TurnRef::Input("repo".to_owned()),
+            TurnRef::Call(3),
+        ] {
+            assert_eq!(TurnRef::parse(&reference.to_string()), Some(reference));
+        }
+        for text in ["", "current", "current:x", "input:", "call:-1", "turn:1"] {
+            assert_eq!(TurnRef::parse(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_read_makes_progress_page_by_page_to_the_end() {
+        let reference = TurnRef::Call(0);
+        let whole = "ab\u{e9}cd";
+        let first = TurnReadPage::of(&reference, whole, 0, Some(2));
+        assert_eq!((first.text.as_str(), first.next_offset), ("ab", Some(2)));
+        let second = TurnReadPage::of(&reference, whole, 2, Some(2));
+        assert_eq!(
+            (second.text.as_str(), second.next_offset),
+            ("\u{e9}c", Some(4))
+        );
+        let last = TurnReadPage::of(&reference, whole, 4, None);
+        assert_eq!(
+            (last.text.as_str(), last.next_offset, last.total),
+            ("d", None, 5)
+        );
+        // A limit of nothing still delivers, and an offset past the end reads empty.
+        assert_eq!(TurnReadPage::of(&reference, whole, 0, Some(0)).text, "a");
+        let past = TurnReadPage::of(&reference, whole, 9, None);
+        assert_eq!(
+            (past.offset, past.text.as_str(), past.next_offset),
+            (5, "", None)
+        );
+        // No page exceeds its ceiling, whatever is asked.
+        let long = "x".repeat(40_000);
+        let page = TurnReadPage::of(&reference, &long, 0, Some(100_000));
+        assert_eq!(page.text.len() as u64, TURN_READ_PAGE_CHARS);
+        assert_eq!(page.next_offset, Some(TURN_READ_PAGE_CHARS));
+    }
 }

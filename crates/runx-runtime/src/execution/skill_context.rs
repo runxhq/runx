@@ -195,15 +195,7 @@ fn load_context_skill_directory(
         );
     }
     insert_catalog_summary(&mut data, package.manifest())?;
-    let entry = manual_context_entry(
-        step_id,
-        reference,
-        env,
-        created_at,
-        &package.package.manual_digest,
-        &package.package.manual_markdown,
-        data,
-    )?;
+    let entry = manual_context_entry(step_id, reference, env, created_at, &package.package, data)?;
     super::prepared_skill::verify_prepared_artifact_at_use(env, &canonical_skill_path)?;
     Ok(entry)
 }
@@ -244,15 +236,7 @@ fn load_registry_context_skill(
         insert_string(&mut data, "description", description);
     }
     insert_catalog_summary(&mut data, package.root_manifest())?;
-    manual_context_entry(
-        step_id,
-        reference,
-        env,
-        created_at,
-        &package.manual_digest,
-        &package.manual_markdown,
-        data,
-    )
+    manual_context_entry(step_id, reference, env, created_at, &package, data)
 }
 
 fn resolve_registry_context_skill(
@@ -315,18 +299,24 @@ fn insert_catalog_summary(
     Ok(())
 }
 
+/// The context entry of a context skill: its manual, with what describes it,
+/// summarised for an index as the skill's name and description.
 fn manual_context_entry(
     step_id: &str,
     reference: &str,
     env: &BTreeMap<String, String>,
     created_at: &str,
-    manual_digest: &str,
-    manual_markdown: &str,
+    package: &runx_parser::ValidatedSkillPackage,
     mut data: JsonObject,
 ) -> Result<ContextEntry, RuntimeError> {
     insert_string(&mut data, "content_kind", "skill-manual");
-    insert_string(&mut data, "manual_sha256", manual_digest);
-    insert_string(&mut data, "content", manual_markdown);
+    insert_string(&mut data, "manual_sha256", &package.manual_digest);
+    insert_string(&mut data, "content", &package.manual_markdown);
+    let skill = &package.skill;
+    let summary = match &skill.description {
+        Some(description) => format!("Context skill {}: {description}", skill.name),
+        None => format!("Context skill {}", skill.name),
+    };
     let canonical = runx_contracts::canonical_stable_json(&JsonValue::Object(data.clone()))
         .map_err(|error| RuntimeError::ReceiptInvalid {
             message: format!("skill context artifact could not be canonicalized: {error}"),
@@ -339,6 +329,7 @@ fn manual_context_entry(
         created_at,
         digest: &digest,
         size_bytes: canonical.len() as u64,
+        summary,
         data,
     })
 }

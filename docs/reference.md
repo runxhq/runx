@@ -201,8 +201,16 @@ once.
 `runx mcp --run <run-id>` serves the agent turns a paused run waits on as MCP
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves
 the same tools beside its skills, over the runs its own skill calls open. The tools are fixed and take a turn's address: `turn_list` shows
-everything the run waits on, `turn_status` reads a turn, `turn_call` makes a
-call in it and `turn_complete` ends it. A turn's address is the id of the step
+everything the run waits on, each open turn as a line, `turn_status` reads a
+turn, `turn_read` reads what a ref of it names, `turn_call` makes a call in it
+and `turn_complete` ends it. `turn_status` gives the act's instructions and
+inputs whole and its context as an index: each entry's ref, type, summary,
+scope and size, never its data. `turn_read {turn, ref, offset?, limit?}` reads
+an entry by its ref (`current:<n>`, `historical:<n>`), an input of the act as
+`input:<name>`, or a call of the turn as `call:<index>`: a string as it is,
+anything else as JSON, a page of at most 32,000 characters with the
+`next_offset` that reads on from what it delivered. A ref the turn does not
+hold is refused. A turn's address is the id of the step
 that asks it, as an approval's is its gate. A turn that a call opens in a child
 skill is addressed by the child's place in the run, as in `answer/0#report`,
 and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
@@ -223,7 +231,7 @@ operation that reads, shares it; anything else, a tool runx runs as a process
 included, holds it alone, inside a child run too. So effects never overlap and
 reads never wait on each other, and the run's record, by `call_id`, is what a
 host reads back, whatever order the calls finished in. `turn_status`,
-`turn_list` and `turn_complete` wait until no call is executing. A completed call returns each packet
+`turn_read`, `turn_list` and `turn_complete` wait until no call is executing. A completed call returns each packet
 output's project artifact reference under `artifacts`, by output name; where a
 tool's or skill's input is of a packet type, a call may pass a reference to any
 packet the project holds in place of the packet, one an earlier call returned

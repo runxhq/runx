@@ -30,7 +30,7 @@ impl McpServerOptions {
             package_name: package_name.into(),
             package_version: package_version.into(),
             instructions: Some(
-                "Each skill is a tool. A skill that pauses for agent work names its run; work that run's open turns here with turn_list, turn_status, turn_call and turn_complete, naming the run. An approval is a person's to give, with runx resume."
+                "Each skill is a tool. A skill that pauses for agent work names its run; work that run's open turns here with turn_list, turn_status, turn_read, turn_call and turn_complete, naming the run. An approval is a person's to give, with runx resume."
                     .to_owned(),
             ),
             effects: execution.effects,

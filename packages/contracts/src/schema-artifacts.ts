@@ -824,6 +824,10 @@ export const runxSchemaArtifacts = {
                                   ],
                                   "type": "object"
                                 },
+                                "summary": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
                                 "type": {
                                   "anyOf": [
                                     {
@@ -1034,6 +1038,10 @@ export const runxSchemaArtifacts = {
                                     "source_ref"
                                   ],
                                   "type": "object"
+                                },
+                                "summary": {
+                                  "minLength": 1,
+                                  "type": "string"
                                 },
                                 "type": {
                                   "anyOf": [
@@ -2070,6 +2078,10 @@ export const runxSchemaArtifacts = {
                   ],
                   "type": "object"
                 },
+                "summary": {
+                  "minLength": 1,
+                  "type": "string"
+                },
                 "type": {
                   "anyOf": [
                     {
@@ -2280,6 +2292,10 @@ export const runxSchemaArtifacts = {
                     "source_ref"
                   ],
                   "type": "object"
+                },
+                "summary": {
+                  "minLength": 1,
+                  "type": "string"
                 },
                 "type": {
                   "anyOf": [
@@ -2912,6 +2928,10 @@ export const runxSchemaArtifacts = {
               ],
               "type": "object"
             },
+            "summary": {
+              "minLength": 1,
+              "type": "string"
+            },
             "type": {
               "anyOf": [
                 {
@@ -3122,6 +3142,10 @@ export const runxSchemaArtifacts = {
                 "source_ref"
               ],
               "type": "object"
+            },
+            "summary": {
+              "minLength": 1,
+              "type": "string"
             },
             "type": {
               "anyOf": [
@@ -25146,6 +25170,10 @@ export const runxSchemaArtifacts = {
                           ],
                           "type": "object"
                         },
+                        "summary": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
                         "type": {
                           "anyOf": [
                             {
@@ -25356,6 +25384,10 @@ export const runxSchemaArtifacts = {
                             "source_ref"
                           ],
                           "type": "object"
+                        },
+                        "summary": {
+                          "minLength": 1,
+                          "type": "string"
                         },
                         "type": {
                           "anyOf": [
@@ -28360,6 +28392,10 @@ export const runxSchemaArtifacts = {
                                     ],
                                     "type": "object"
                                   },
+                                  "summary": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
                                   "type": {
                                     "anyOf": [
                                       {
@@ -28570,6 +28606,10 @@ export const runxSchemaArtifacts = {
                                       "source_ref"
                                     ],
                                     "type": "object"
+                                  },
+                                  "summary": {
+                                    "minLength": 1,
+                                    "type": "string"
                                   },
                                   "type": {
                                     "anyOf": [
@@ -35382,6 +35422,10 @@ export const runxSchemaArtifacts = {
                                         ],
                                         "type": "object"
                                       },
+                                      "summary": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
                                       "type": {
                                         "anyOf": [
                                           {
@@ -35592,6 +35636,10 @@ export const runxSchemaArtifacts = {
                                           "source_ref"
                                         ],
                                         "type": "object"
+                                      },
+                                      "summary": {
+                                        "minLength": 1,
+                                        "type": "string"
                                       },
                                       "type": {
                                         "anyOf": [
@@ -36621,6 +36669,40 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-schema": "runx.turn_load.v1"
   } as JsonSchema,
+  "turn-read.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/turn-read/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "next_offset": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "offset": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "ref": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "total": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "ref",
+      "offset",
+      "text",
+      "total"
+    ],
+    "type": "object",
+    "x-runx-schema": "runx.turn_read.v1"
+  } as JsonSchema,
   "turn-status.schema.json": {
     "$id": "https://schemas.runx.ai/runx/turn-status/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -37347,6 +37429,10 @@ export const runxSchemaArtifacts = {
                                               ],
                                               "type": "object"
                                             },
+                                            "summary": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
                                             "type": {
                                               "anyOf": [
                                                 {
@@ -37557,6 +37643,10 @@ export const runxSchemaArtifacts = {
                                                 "source_ref"
                                               ],
                                               "type": "object"
+                                            },
+                                            "summary": {
+                                              "minLength": 1,
+                                              "type": "string"
                                             },
                                             "type": {
                                               "anyOf": [
@@ -38288,8 +38378,6 @@ export const runxSchemaArtifacts = {
         "type": "array"
       },
       "invocation": {
-        "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "allowance": {
@@ -38372,8 +38460,6 @@ export const runxSchemaArtifacts = {
             "type": "object"
           },
           "envelope": {
-            "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
               "act": {
@@ -38539,101 +38625,13 @@ export const runxSchemaArtifacts = {
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "data": {
-                      "additionalProperties": {},
-                      "type": "object"
+                    "created_at": {
+                      "minLength": 1,
+                      "type": "string"
                     },
-                    "meta": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "artifact_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "created_at": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "hash": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "parent_artifact_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "producer": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "runner": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "skill": {
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "skill",
-                            "runner"
-                          ],
-                          "type": "object"
-                        },
-                        "receipt_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "redacted": {
-                          "type": "boolean"
-                        },
-                        "run_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "size_bytes": {
-                          "minimum": 0,
-                          "type": "integer"
-                        },
-                        "step_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "artifact_id",
-                        "run_id",
-                        "step_id",
-                        "producer",
-                        "created_at",
-                        "hash",
-                        "size_bytes",
-                        "parent_artifact_id",
-                        "receipt_id",
-                        "redacted"
-                      ],
-                      "type": "object"
+                    "ref": {
+                      "minLength": 1,
+                      "type": "string"
                     },
                     "scope": {
                       "additionalProperties": false,
@@ -38697,30 +38695,24 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object"
                     },
-                    "type": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+                    "size_bytes": {
+                      "minimum": 0,
+                      "type": "integer"
                     },
-                    "version": {
-                      "enum": [
-                        "1"
-                      ],
+                    "summary": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "minLength": 1,
                       "type": "string"
                     }
                   },
                   "required": [
-                    "type",
-                    "version",
+                    "ref",
                     "scope",
-                    "data",
-                    "meta"
+                    "created_at",
+                    "size_bytes"
                   ],
                   "type": "object"
                 },
@@ -38750,101 +38742,13 @@ export const runxSchemaArtifacts = {
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "data": {
-                      "additionalProperties": {},
-                      "type": "object"
+                    "created_at": {
+                      "minLength": 1,
+                      "type": "string"
                     },
-                    "meta": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "artifact_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "created_at": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "hash": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "parent_artifact_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "producer": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "runner": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "skill": {
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "skill",
-                            "runner"
-                          ],
-                          "type": "object"
-                        },
-                        "receipt_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "redacted": {
-                          "type": "boolean"
-                        },
-                        "run_id": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "size_bytes": {
-                          "minimum": 0,
-                          "type": "integer"
-                        },
-                        "step_id": {
-                          "anyOf": [
-                            {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "artifact_id",
-                        "run_id",
-                        "step_id",
-                        "producer",
-                        "created_at",
-                        "hash",
-                        "size_bytes",
-                        "parent_artifact_id",
-                        "receipt_id",
-                        "redacted"
-                      ],
-                      "type": "object"
+                    "ref": {
+                      "minLength": 1,
+                      "type": "string"
                     },
                     "scope": {
                       "additionalProperties": false,
@@ -38908,30 +38812,24 @@ export const runxSchemaArtifacts = {
                       ],
                       "type": "object"
                     },
-                    "type": {
-                      "anyOf": [
-                        {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
+                    "size_bytes": {
+                      "minimum": 0,
+                      "type": "integer"
                     },
-                    "version": {
-                      "enum": [
-                        "1"
-                      ],
+                    "summary": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "minLength": 1,
                       "type": "string"
                     }
                   },
                   "required": [
-                    "type",
-                    "version",
+                    "ref",
                     "scope",
-                    "data",
-                    "meta"
+                    "created_at",
+                    "size_bytes"
                   ],
                   "type": "object"
                 },
@@ -39187,8 +39085,7 @@ export const runxSchemaArtifacts = {
               "provenance",
               "trust_boundary"
             ],
-            "type": "object",
-            "x-runx-schema": "runx.agent_context_envelope.v1"
+            "type": "object"
           },
           "id": {
             "minLength": 1,
@@ -39210,8 +39107,7 @@ export const runxSchemaArtifacts = {
           "envelope",
           "allowance"
         ],
-        "type": "object",
-        "x-runx-schema": "runx.agent_act_invocation.v1"
+        "type": "object"
       },
       "tools": {
         "items": {

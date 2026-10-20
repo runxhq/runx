@@ -1,0 +1,34 @@
+{
+  "$id": "https://schemas.runx.ai/runx/turn-read/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "next_offset": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "offset": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "total": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ref",
+    "offset",
+    "text",
+    "total"
+  ],
+  "type": "object",
+  "x-runx-schema": "runx.turn_read.v1"
+}

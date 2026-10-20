@@ -933,6 +933,12 @@ where
     };
     let executable = Executable::Agent(agent.clone());
     let requirements = step_requirements(step, &executable);
+    // The act's context skills are dated by the run's admission, so the act
+    // a step asks again when the run is driven again is the one it waits on.
+    let admitted_at = match runtime.options.run.admitted_at()? {
+        Some(admitted_at) => admitted_at,
+        None => runtime.options.clock.now(),
+    };
     let invocation = SkillInvocation {
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
@@ -948,7 +954,7 @@ where
             graph_dir,
             &step.context_skills,
             &runtime.options.env,
-            &runtime.options.clock.now(),
+            &admitted_at,
         )?,
         provenance,
         skill_directory: graph_dir.to_path_buf(),

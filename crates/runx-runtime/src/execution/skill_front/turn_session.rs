@@ -107,6 +107,27 @@ impl TurnSession {
         }
     }
 
+    /// A page of what `reference` names in the turn at `turn`: an entry of
+    /// its act's context, an input of its act, or a call it made.
+    pub fn read(
+        &self,
+        turn: &str,
+        reference: &str,
+        offset: u64,
+        limit: Option<u64>,
+    ) -> Result<runx_contracts::TurnReadPage, SkillRunError> {
+        let driver = self.quiet();
+        let action = TurnAction::Read {
+            reference: reference.to_owned(),
+            offset,
+            limit,
+        };
+        match self.pass(&driver, turn, action)?.0 {
+            TurnActed::Read(page) => Ok(*page),
+            _ => Err(invalid("reading a turn did something else")),
+        }
+    }
+
     /// Make the call the turn at `turn` offers as `tool`; the run admits,
     /// executes and records it. A `call_id` pins the call: made again with
     /// it, the recorded call returns rather than running twice. Calls made

@@ -654,6 +654,22 @@ impl RunLog {
         Self::open(Arc::clone(&self.0.store), self.child_id(step_id))
     }
 
+    /// When the run was admitted, as the event that opened its stream records
+    /// it; none before the run is recorded. What a run's steps derive from
+    /// its admission is dated by it, so a step driven again asks the same.
+    pub(crate) fn admitted_at(&self) -> Result<Option<String>, RunRecordError> {
+        Ok(self
+            .0
+            .store
+            .first::<RunEvent>(&self.0.run_id)?
+            .and_then(|first| match first.event {
+                RunEvent::Started(started) => Some(started.created_at),
+                RunEvent::ChildStarted(started) => Some(started.created_at),
+                RunEvent::EvaluationStarted(started) => Some(started.created_at),
+                _ => None,
+            }))
+    }
+
     /// Rebuild the run from its stream; `None` when it has not started.
     pub(crate) fn load(&self) -> Result<Option<RunRecord>, RunRecordError> {
         let events = self.0.store.read::<RunEvent>(&self.0.run_id)?;

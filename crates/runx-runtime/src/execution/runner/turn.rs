@@ -16,8 +16,8 @@ use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AgentActInvocation, AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject,
     JsonValue, LoadedPackage, ProjectArtifactRef, ProvenanceEntry, Reference, ReferenceType,
-    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus,
-    TurnTarget, TurnTool,
+    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad,
+    TurnReadPage, TurnRef, TurnStatus, TurnTarget, TurnTool,
 };
 use runx_parser::{
     AgentTask, AskGate, ConnectorRequirement, GraphStep, LoadStep, LoadTarget, OperationStepTarget,
@@ -56,13 +56,56 @@ pub trait Turn {
     /// How each call the turn made so far ended.
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError>;
 
-    /// The turn as its agent reads it.
+    /// The turn as its agent reads it, its act's context as an index.
     fn status(&self) -> Result<TurnStatus, RuntimeError> {
         Ok(TurnStatus {
-            invocation: self.invocation().clone(),
+            invocation: TurnInvocation::from(self.invocation()),
             tools: self.tools()?,
             calls: self.calls()?,
         })
+    }
+
+    /// A page of what `reference` names in this turn: an entry of its act's
+    /// context, an input of its act, or a call it made. A ref the turn does
+    /// not hold is refused, so a read never reaches past its turn.
+    fn read(
+        &self,
+        reference: &str,
+        offset: u64,
+        limit: Option<u64>,
+    ) -> Result<TurnReadPage, RuntimeError> {
+        let refused = || RuntimeError::ContinuationRejected {
+            reason: format!(
+                "turn {} holds no {reference}: read a ref its status lists, an input of its act as input:<name>, or one of its calls as call:<index>",
+                self.invocation().id
+            ),
+        };
+        let named = TurnRef::parse(reference).ok_or_else(refused)?;
+        let envelope = &self.invocation().envelope;
+        let entry = |entries: &[runx_contracts::ContextEntry], index: usize| {
+            entries
+                .get(index)
+                .map(|entry| JsonValue::Object(entry.data.clone()))
+        };
+        let value = match &named {
+            TurnRef::Current(index) => entry(&envelope.current_context, *index),
+            TurnRef::Historical(index) => entry(&envelope.historical_context, *index),
+            TurnRef::Input(name) => envelope.inputs.get(name).cloned(),
+            TurnRef::Call(index) => self
+                .calls()?
+                .into_iter()
+                .find(|call| call.index == *index)
+                .map(|call| JsonValue::from_serialize(&call))
+                .transpose()
+                .map_err(|error| RuntimeError::effect_state("reading a call", error.to_string()))?,
+        }
+        .ok_or_else(refused)?;
+        let text = match value {
+            JsonValue::String(text) => text,
+            other => serde_json::to_string_pretty(&other)
+                .map_err(|source| RuntimeError::json("reading a turn's item", source))?,
+        };
+        Ok(TurnReadPage::of(&named, &text, offset, limit))
     }
 
     /// Make a new call. `host` answers what the call itself asks; a call it
@@ -158,6 +201,7 @@ fn offered_target(turn: &dyn Turn, tool: &str) -> Result<TurnTarget, RuntimeErro
 /// The controls a host presents beside a turn's own tools; a turn's tools
 /// never take these names.
 pub(crate) const TURN_STATUS_TOOL: &str = "turn_status";
+pub(crate) const TURN_READ_TOOL: &str = "turn_read";
 pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
 const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount", "act"];
@@ -1804,6 +1848,7 @@ fn offered(
 fn distinct_names(tools: &mut [TurnTool]) {
     let mut seen = std::collections::BTreeSet::from([
         TURN_STATUS_TOOL.to_owned(),
+        TURN_READ_TOOL.to_owned(),
         TURN_COMPLETE_TOOL.to_owned(),
     ]);
     for tool in tools {

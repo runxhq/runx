@@ -1,7 +1,9 @@
 //! A run's open agent turns served as MCP tools. The tool set is fixed,
-//! `turn_list`, `turn_status`, `turn_call` and `turn_complete`, each taking a
-//! turn's address, so a turn a call opens mid-session is reachable in every
-//! client; a turn's own tools arrive with its status. `runx mcp --run` serves
+//! `turn_list`, `turn_status`, `turn_read`, `turn_call` and `turn_complete`,
+//! each taking a turn's address, so a turn a call opens mid-session is
+//! reachable in every client; a turn's own tools arrive with its status, and
+//! its act's context as an index each entry of which `turn_read` reads.
+//! `runx mcp --run` serves
 //! one run's turns; a skill server serves the same tools over the runs its own
 //! skill calls opened, so a turn one of them opened is worked on the same
 //! connection. Every call is made through the run: admitted against the
@@ -40,7 +42,7 @@ impl McpServerOptions {
             })
             .unwrap_or_default();
         let instructions = format!(
-            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema and the tools it offers. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
+            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema, the tools it offers, and its context as an index, each entry with a ref that turn_read reads it by. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
             session.run_id()
         );
         Self {
@@ -53,8 +55,8 @@ impl McpServerOptions {
     }
 }
 
-/// The four fixed turn tools over `runs`. Tools that work any run the call
-/// names take that run's id beside the turn's address.
+/// The fixed turn tools over `runs`. Tools that work any run the call names
+/// take that run's id beside the turn's address.
 pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
     let named = matches!(runs, McpTurnRuns::Named(_));
     let fields = |extra: &[(&str, JsonValue)], optional: &[(&str, JsonValue)]| {
@@ -72,14 +74,23 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
         (
             McpTurnAction::List,
             "turn_list",
-            "What the run waits on: each open turn's act, whose id is the turn's address, and each ask, approval or retry beneath them.",
+            "What the run waits on: each open turn, by the address its act's id gives it, and each ask, approval or retry beneath them.",
             fields(&[], &[]),
         ),
         (
             McpTurnAction::Status,
             "turn_status",
-            "Read an open turn: its instructions, inputs and output schema, the tools it offers with their input schemas, and how each call it made so far ended.",
+            "Read an open turn: its instructions, inputs and output schema, its context as an index of entries each with a ref, the tools it offers with their input schemas, and how each call it made so far ended.",
             fields(&[turn()], &[]),
+        ),
+        (
+            McpTurnAction::Read,
+            "turn_read",
+            "Read a page of what a ref of an open turn names: a context entry by the ref its status lists, an input of its act as input:<name>, or one of its calls as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on from what it delivered.",
+            fields(
+                &[turn(), ("ref", string_schema())],
+                &[("offset", count_schema()), ("limit", count_schema())],
+            ),
         ),
         (
             McpTurnAction::Call,
@@ -180,12 +191,21 @@ pub(super) fn execute_mcp_turn_tool(
     let result = session(&tool.runs, &arguments, served).and_then(|session| match tool.action {
         McpTurnAction::List => session
             .waiting()
-            .map(|requests| structured(&Waiting { requests }, false))
+            .map(|requests| structured(&Waiting::of(requests), false))
             .map_err(|error| error.to_string()),
         McpTurnAction::Status => text(&arguments, "turn").and_then(|turn| {
             session
                 .status(turn)
                 .map(|status| structured(&status, false))
+                .map_err(|error| error.to_string())
+        }),
+        McpTurnAction::Read => text(&arguments, "turn").and_then(|turn| {
+            let reference = text(&arguments, "ref")?;
+            let offset = count(&arguments, "offset")?.unwrap_or(0);
+            let limit = count(&arguments, "limit")?;
+            session
+                .read(turn, reference, offset, limit)
+                .map(|page| structured(&page, false))
                 .map_err(|error| error.to_string())
         }),
         McpTurnAction::Call => text(&arguments, "turn").and_then(|turn| {
@@ -238,10 +258,40 @@ pub(super) fn execute_mcp_turn_tool(
     })
 }
 
-/// What `turn_list` returns.
+/// What `turn_list` returns: each open turn as a line, its act read by
+/// `turn_status`, and everything else the run waits on whole.
 #[derive(Serialize)]
 struct Waiting {
+    turns: Vec<OpenTurn>,
     requests: Vec<ResolutionRequest>,
+}
+
+/// One open turn: its address, and what kind of act it answers.
+#[derive(Serialize)]
+struct OpenTurn {
+    turn: String,
+    skill: String,
+    role: String,
+    task: String,
+}
+
+impl Waiting {
+    fn of(waiting: Vec<ResolutionRequest>) -> Self {
+        let mut turns = Vec::new();
+        let mut requests = Vec::new();
+        for request in waiting {
+            match request {
+                ResolutionRequest::AgentAct { id, invocation } => turns.push(OpenTurn {
+                    turn: id.to_string(),
+                    skill: invocation.envelope.skill.to_string(),
+                    role: invocation.role.to_string(),
+                    task: invocation.task.to_string(),
+                }),
+                other => requests.push(other),
+            }
+        }
+        Self { turns, requests }
+    }
 }
 
 fn text<'a>(arguments: &'a JsonObject, field: &str) -> Result<&'a str, String> {
@@ -250,6 +300,18 @@ fn text<'a>(arguments: &'a JsonObject, field: &str) -> Result<&'a str, String> {
         .and_then(JsonValue::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("{field} must be a non-empty string"))
+}
+
+/// An optional count: absent, or a whole number of zero or more.
+fn count(arguments: &JsonObject, field: &str) -> Result<Option<u64>, String> {
+    arguments
+        .get(field)
+        .map(|value| {
+            value
+                .as_u64()
+                .ok_or_else(|| format!("{field} must be a whole number of zero or more"))
+        })
+        .transpose()
 }
 
 fn object(arguments: &JsonObject, field: &str) -> Result<JsonObject, String> {
@@ -281,6 +343,13 @@ fn string_schema() -> JsonValue {
     JsonValue::Object(JsonObject::from([
         ("type".to_owned(), JsonValue::String("string".to_owned())),
         ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
+    ]))
+}
+
+fn count_schema() -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        ("type".to_owned(), JsonValue::String("integer".to_owned())),
+        ("minimum".to_owned(), JsonValue::Number(0_u64.into())),
     ]))
 }
 

@@ -20,6 +20,8 @@ pub(super) struct SkillContextEntryInput<'a> {
     pub(super) created_at: &'a str,
     pub(super) digest: &'a str,
     pub(super) size_bytes: u64,
+    /// What the entry is, in a line, for an index.
+    pub(super) summary: String,
     pub(super) data: JsonObject,
 }
 
@@ -35,6 +37,7 @@ pub(super) fn skill_context_entry(
     );
     Ok(ContextEntry {
         entry_type: Some(non_empty(CONTEXT_ENTRY_TYPE)?),
+        summary: Some(non_empty(input.summary)?),
         version: ContextEntryVersion::V1,
         scope: runx_contracts::ContextScope {
             purpose: runx_contracts::ContextPurpose::Procedure,

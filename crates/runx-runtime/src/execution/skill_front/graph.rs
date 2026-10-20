@@ -528,6 +528,12 @@ pub(super) struct TurnAct {
 
 pub(super) enum TurnAction {
     Status,
+    /// Read a page of what a ref of the turn names.
+    Read {
+        reference: String,
+        offset: u64,
+        limit: Option<u64>,
+    },
     /// Admit the call the turn offers as `tool`, under the id its host pins.
     Admit {
         tool: String,
@@ -548,6 +554,7 @@ pub(super) enum TurnAction {
 /// What an action on a turn did.
 pub(super) enum TurnActed {
     Status(Box<TurnStatus>),
+    Read(Box<runx_contracts::TurnReadPage>),
     Admitted(Box<Admission>),
     Executed(Box<ExecutedCall>),
     Call(Box<TurnCallResult>),
@@ -792,6 +799,11 @@ impl Host for RunHost {
         if let Some(act) = self.act.take_if(|act| act.turn == address) {
             self.acted = Some(match act.action {
                 TurnAction::Status => TurnActed::Status(Box::new(turn.status()?)),
+                TurnAction::Read {
+                    reference,
+                    offset,
+                    limit,
+                } => TurnActed::Read(Box::new(turn.read(&reference, offset, limit)?)),
                 TurnAction::Admit {
                     tool,
                     call_id,

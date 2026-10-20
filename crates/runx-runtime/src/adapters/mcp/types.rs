@@ -84,6 +84,7 @@ impl NamedRuns {
 pub enum McpTurnAction {
     List,
     Status,
+    Read,
     Call,
     Complete,
 }

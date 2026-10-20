@@ -585,6 +585,10 @@
                         ],
                         "type": "object"
                       },
+                      "summary": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "type": {
                         "anyOf": [
                           {
@@ -795,6 +799,10 @@
                           "source_ref"
                         ],
                         "type": "object"
+                      },
+                      "summary": {
+                        "minLength": 1,
+                        "type": "string"
                       },
                       "type": {
                         "anyOf": [

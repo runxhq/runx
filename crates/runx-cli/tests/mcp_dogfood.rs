@@ -483,7 +483,13 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        ["turn_list", "turn_status", "turn_call", "turn_complete"],
+        [
+            "turn_list",
+            "turn_status",
+            "turn_read",
+            "turn_call",
+            "turn_complete"
+        ],
         "the tool set is fixed; a turn's own tools come with its status"
     );
     write_frame(
@@ -551,6 +557,41 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         Some(1),
         "the turn reads back its recorded call: {status}"
     );
+    // A ref of the turn reads what it names, page by page; one the turn does
+    // not hold is refused.
+    let read = |server: &mut McpProcess,
+                id: i64,
+                arguments: Value|
+     -> Result<Value, Box<dyn std::error::Error>> {
+        write_frame(
+            server.stdin_mut()?,
+            &request(
+                id,
+                "tools/call",
+                json!({"name": "turn_read", "arguments": arguments}),
+            ),
+        )?;
+        server.read_response("turn_read", MCP_REQUEST_TIMEOUT)
+    };
+    let question = read(
+        &mut server,
+        7,
+        json!({"turn": "answer", "ref": "input:question"}),
+    )?;
+    assert_eq!(
+        question["result"]["structuredContent"]["text"], "what digests?",
+        "{question}"
+    );
+    let call = read(
+        &mut server,
+        8,
+        json!({"turn": "answer", "ref": "call:0", "limit": 40}),
+    )?;
+    let page = &call["result"]["structuredContent"];
+    assert_eq!(page["text"].as_str().map(str::len), Some(40), "{call}");
+    assert_eq!(page["next_offset"], 40, "{call}");
+    let unheld = read(&mut server, 9, json!({"turn": "answer", "ref": "call:9"}))?;
+    assert_eq!(unheld["result"]["isError"], true, "{unheld}");
 
     write_frame(
         server.stdin_mut()?,

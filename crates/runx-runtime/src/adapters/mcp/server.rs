@@ -70,7 +70,7 @@ pub fn mcp_tool_result_from_run_result(
                 result.pending_requests.len()
             ),
             _ => format!(
-                "{skill_name} needs agent work at {run_id}: {} request(s). Work its open turns with turn_list, turn_status, turn_call and turn_complete for run {run_id}.",
+                "{skill_name} needs agent work at {run_id}: {} request(s). Work its open turns with turn_list, turn_status, turn_read, turn_call and turn_complete for run {run_id}.",
                 result.pending_requests.len()
             ),
         }

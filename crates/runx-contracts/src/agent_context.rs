@@ -49,6 +49,10 @@ pub struct ContextArtifactMeta {
 pub struct ContextEntry {
     #[serde(rename = "type")]
     pub entry_type: Option<NonEmptyString>,
+    /// What the entry is, in a line, as its producer declares it: what a
+    /// model reads in an index to choose whether to read the entry's data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<NonEmptyString>,
     pub version: ContextEntryVersion,
     pub scope: ContextScope,
     pub data: JsonObject,

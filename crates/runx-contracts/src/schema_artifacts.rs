@@ -24,8 +24,8 @@ use crate::{
     RunxX402InvocationExtensionInfo, Signal, SkillApplyResult, SkillArchitectureDecision,
     SkillArchitecturePlan, SkillChangeBundle, SkillChangeDraft, SkillInspection,
     SkillValidationResult, SourcePacket, SuppressionRecord, ToolManifest, TurnCallResult, TurnLoad,
-    TurnStatus, WorkOutcome, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
-    X402ResourceInfo, X402SettleResponse,
+    TurnReadPage, TurnStatus, WorkOutcome, X402PaymentPayload, X402PaymentRequired,
+    X402PaymentRequirements, X402ResourceInfo, X402SettleResponse,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,6 +57,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         schema_artifact::<TurnCallResult>("turn-call.schema.json"),
         schema_artifact::<TurnStatus>("turn-status.schema.json"),
         schema_artifact::<TurnLoad>("turn-load.schema.json"),
+        schema_artifact::<TurnReadPage>("turn-read.schema.json"),
         schema_artifact::<SkillInspection>("skill-inspection.schema.json"),
         schema_artifact::<crate::RunRead>("run-read.schema.json"),
         schema_artifact::<crate::ResumeDocument>("resume.schema.json"),
