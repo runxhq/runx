@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const publisher = JSON.parse(readFileSync(path.join(workspaceRoot, "release", "publisher.json"), "utf8"));
 const releaseTopology = JSON.parse(
   readFileSync(path.join(workspaceRoot, "packages", "cli", "native", "supported-platforms.json"), "utf8"),
 );
@@ -58,6 +59,7 @@ expectIncludes("winget default locale", wingetVersion, "DefaultLocale: en-US");
 const wingetLocale = readFileSync(path.join(options.channels, "winget", "runxhq.runx.locale.en-US.yaml"), "utf8");
 expectIncludes("winget locale manifest type", wingetLocale, "ManifestType: defaultLocale");
 expectIncludes("winget locale package name", wingetLocale, "PackageName: runx");
+expectIncludes("winget publisher", wingetLocale, `Publisher: ${publisher.name}`);
 expectIncludes("winget locale homepage", wingetLocale, `PackageUrl: ${manifest.homepage}`);
 
 const wingetInstaller = readFileSync(path.join(options.channels, "winget", "runxhq.runx.installer.yaml"), "utf8");
@@ -75,6 +77,7 @@ expectIncludes(
 
 const aur = readFileSync(path.join(options.channels, "aur", "PKGBUILD"), "utf8");
 expectIncludes("aur package identity", aur, "pkgname=runx\n");
+expectIncludes("aur maintainer", aur, `# Maintainer: ${publisher.name} <${publisher.email}>`);
 expectIncludes("aur homepage", aur, `url="${manifest.homepage}"`);
 expectIncludes("aur version", aur, `pkgver=${manifest.version}\n`);
 expectIncludes("aur source checksum", aur, `sha256sums=('${manifest.source.sha256}')`);
@@ -96,11 +99,16 @@ expectIncludes("aur worker install", aur, 'install -Dm755 target/release/runx-js
 
 const chocolatey = readFileSync(path.join(options.channels, "chocolatey", "runx.nuspec"), "utf8");
 expectIncludes("chocolatey version", chocolatey, `<version>${manifest.version}</version>`);
+expectIncludes("chocolatey author", chocolatey, `<authors>${publisher.name}</authors>`);
+expectIncludes("chocolatey owner", chocolatey, `<owners>${publisher.name}</owners>`);
 expectIncludes("chocolatey homepage", chocolatey, `<projectUrl>${manifest.homepage}</projectUrl>`);
+expectIncludes("chocolatey icon", chocolatey, `<iconUrl>${manifest.homepage}/assets/logo/runx-symbol-192.png</iconUrl>`);
 expectIncludes("chocolatey source", chocolatey, `<projectSourceUrl>https://github.com/${manifest.repo}</projectSourceUrl>`);
 expectIncludes("chocolatey package source", chocolatey, `<packageSourceUrl>https://github.com/${manifest.repo}</packageSourceUrl>`);
 expectIncludes("chocolatey docs", chocolatey, `<docsUrl>${manifest.homepage}/docs</docsUrl>`);
 expectIncludes("chocolatey bugs", chocolatey, `<bugTrackerUrl>https://github.com/${manifest.repo}/issues</bugTrackerUrl>`);
+const debManifest = readFileSync(path.join(workspaceRoot, "crates", "runx-cli", "Cargo.toml"), "utf8");
+expectIncludes("debian maintainer", debManifest, `maintainer = "${publisher.name} <${publisher.email}>"`);
 const chocolateyInstall = readFileSync(path.join(options.channels, "chocolatey", "tools", "chocolateyinstall.ps1"), "utf8");
 expectIncludes("chocolatey archive", chocolateyInstall, `/${manifest.tag}/${manifest.artifacts[TARGETS.winX64].file}'`);
 expectIncludes("chocolatey archive checksum", chocolateyInstall, `-Checksum '${manifest.artifacts[TARGETS.winX64].sha256}'`);
