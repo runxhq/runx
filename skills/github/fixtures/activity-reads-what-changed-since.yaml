@@ -1,0 +1,57 @@
+name: github-activity-reads-what-changed-since
+kind: skill
+target: ..
+runner: activity
+operator_journeys:
+  - mode: standalone
+    confusors: [github-issue-triage, github-pr-review]
+    request: What changed in runxhq/runx since 8am yesterday, Sydney time?
+    expected_outcome: Read the issues and pull requests updated since then once, with the signed-in gh session and no approval, and return each in a few fields, newest change first.
+setup:
+  sessions: [github]
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+inputs:
+  repo: runxhq/runx
+  since: "2026-10-19T21:00:00Z"
+caller:
+  http_exchanges:
+    - request: { method: GET, url: "https://api.github.com/user", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '{"id": 7, "login": "operator"}'
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues?page=1&per_page=100&since=2026-10-19T21%3A00%3A00Z&state=all", body: none }
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: '[{"number": 553, "title": "Search offers an install command that fails", "state": "open", "user": {"login": "ada", "type": "User"}, "created_at": "2026-10-19T22:10:00Z", "updated_at": "2026-10-19T22:40:00Z", "closed_at": null, "labels": [{"name": "bug"}], "assignees": [], "comments": 1, "html_url": "https://github.com/runxhq/runx/issues/553", "body": "runx registry search github prints an install line naming GitHub, and installing it fails."}, {"number": 549, "title": "Bump rustls", "state": "closed", "user": {"login": "dependabot[bot]", "type": "Bot"}, "created_at": "2026-10-18T03:00:00Z", "updated_at": "2026-10-20T01:00:00Z", "closed_at": "2026-10-20T01:00:00Z", "labels": [], "assignees": [], "comments": 0, "html_url": "https://github.com/runxhq/runx/pull/549", "pull_request": {"merged_at": "2026-10-20T01:00:00Z"}, "body": null}]'
+expect:
+  status: sealed
+  steps: [window, read, digest]
+  output:
+    subset:
+      activity:
+        data:
+          repository: runxhq/runx
+          since: "2026-10-19T21:00:00Z"
+          page: 1
+          items:
+            - number: 549
+              kind: pull_request
+              state: merged
+              new: false
+              author: dependabot[bot]
+              bot: true
+            - number: 553
+              kind: issue
+              state: open
+              new: true
+              author: ada
+              bot: false
+              labels: [bug]
+              comments: 1
+              url: https://github.com/runxhq/runx/issues/553
+              body_left_out: 0
+  receipt: { schema: runx.receipt.v1 }
+metadata: { public_skill: github, source_case: activity-since-last-check, source: skills-fixture }

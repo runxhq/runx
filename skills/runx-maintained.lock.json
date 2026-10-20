@@ -137,9 +137,9 @@
   },
   {
     "skill_id": "runx/github",
-    "version": "sha-eecf0dfcdeaf",
-    "digest": "90bb41315945c2fc661ffa3fbd811f2ff03d1481bf1ac07570221563cefc4f67",
-    "content_digest": "sha256:eecf0dfcdeafbfb46626b6e34c697fccada465b69b5464374fb5b4c7e99dfbb0",
+    "version": "sha-f0e2ca967ae7",
+    "digest": "ea5c3e7805f57c49e0713cf1329b34a4936cb3b9cdb2c8b7691f3bf4dfd98b49",
+    "content_digest": "sha256:f0e2ca967ae7e580b19efe1c65e752442be67654a5f71fd454d50d4eb4a8fbb5",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

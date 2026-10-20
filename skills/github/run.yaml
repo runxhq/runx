@@ -1,5 +1,5 @@
 skill: github
-version: "0.5.12"
+version: "0.6.0"
 
 catalog:
   kind: skill
@@ -426,6 +426,79 @@ runners:
         operation: github
         operation_name: $steps.plan.sync_plan.provider_operation
         input: $steps.plan.sync_plan.provider_input
+
+  activity:
+    inputs:
+      repo: { definition: repository }
+      since:
+        type: string
+        required: true
+        description: The time to read from; every issue and pull request updated at or after it is read.
+        schema: { format: date-time, maxLength: 64 }
+      page:
+        type: integer
+        required: false
+        description: The page to read, 1 by default; a result with next_page has more.
+        schema: { minimum: 1, maximum: 100000 }
+    examples:
+      - { repo: runxhq/runx, since: "2026-10-19T21:00:00Z" }
+    result_from: [digest]
+    steps:
+      - id: window
+        tool: { module: github.mjs, export: activityWindow }
+        inputs:
+          repo: $input.repo
+          since: $input.since
+          page: $input.page
+        outputs:
+          read_input: object
+
+      - id: read
+        operation: github/issues.list
+        input: $steps.window.read_input
+
+      - id: digest
+        tool: { module: github.mjs, export: digestActivity }
+        inputs:
+          read_input: $steps.window.read_input
+          provider_operation: $steps.read.provider_operation
+        outputs:
+          activity:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [repository, since, page, items]
+              properties:
+                repository: { type: string }
+                since: { type: string }
+                page: { type: integer, minimum: 1 }
+                next_page: { type: integer, minimum: 2 }
+                items:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [number, kind, title, state, new, author, bot, created_at, updated_at, closed_at, labels, assignees, comments, url, body, body_left_out]
+                    properties:
+                      number: { type: integer, minimum: 1 }
+                      kind: { enum: [issue, pull_request] }
+                      title: { type: string }
+                      state: { enum: [open, closed, merged] }
+                      new: { type: boolean, description: Opened at or after since. }
+                      author: { type: [string, 'null'] }
+                      bot: { type: boolean }
+                      created_at: { type: string }
+                      updated_at: { type: string }
+                      closed_at: { type: [string, 'null'] }
+                      labels: { type: array, items: { type: string } }
+                      assignees: { type: array, items: { type: string } }
+                      comments: { type: integer, minimum: 0 }
+                      url: { type: string }
+                      body: { type: string, maxLength: 600, description: The body's first 600 characters. }
+                      body_left_out: { type: integer, minimum: 0, description: Characters of the body not kept. }
+        artifacts:
+          named_emits: { activity: activity }
 
   push:
     inputs:

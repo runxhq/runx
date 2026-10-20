@@ -16,15 +16,19 @@ lanes for compatible callers. Pulls are bounded reads. A push carries one to
 eight typed mutations that one GitHub operation applies, and returns each
 item's outcome. It closes only on an independent GitHub readback of every
 applied item. An item whose outcome is unknown holds the push for
-reconciliation and is never silently retried. No GitHub token enters this
-package.
+reconciliation and is never silently retried. `activity` reads what changed
+in a repository since a time, compact enough to summarise. No GitHub token
+enters this package.
 
 ## When to use it
 
 Use `github` when an operator needs a reproducible pull or push contract for
 issues, pull requests, or threads, especially when cursor state must survive
 across runs. Use `plan` only when the requested outcome is a plan. Use `pull`
-for an explicitly selected read lane. Use `push` for already-decided issue,
+for an explicitly selected read lane. Use `activity` to learn what changed in
+a repository since a time, such as since the last check of a daily summary:
+it reads issues and pull requests together and returns the fields a reader
+needs rather than GitHub's whole records. Use `push` for already-decided issue,
 pull-request, or comment changes of one kind. Batches are bounded and
 best-effort, not atomic: a refused item does not stop the rest, the result
 identifies each item, and the operator reconciles before retrying. Use `github-issue-triage` to decide what an issue means
@@ -57,6 +61,14 @@ evidence. Do not silently turn a denied push into a pull.
    every applied item back before the push closes.
    Both run under the GitHub instance selected here: the signed-in `gh` session
    or a stored token.
+6. `activity` calls `issues.list` with `repo.read` for one page of 100 of
+   everything updated at or after `since`, open or closed. GitHub's listing
+   holds pull requests too, so one read finds both. The result keeps each
+   item's number, kind, title, state (`merged` for a merged pull request),
+   whether it was opened at or after `since`, its author and whether that is a
+   bot, its times, labels, assignees, comment count and link, and the first
+   600 characters of its body with the count left out. Items come newest
+   change first; a full page names its `next_page`.
 
 ## Inputs and result
 
@@ -68,6 +80,10 @@ evidence. Do not silently turn a denied push into a pull.
   uses `ref: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
   return GitHub's records whole.
 - `scope` is the requested read or write scope.
+- `activity` takes `repo`, `since` (RFC 3339) and an optional `page`, and
+  returns `activity`: the repository, `since`, the page, its items, and
+  `next_page` when more may follow. Its provider evidence is the read's
+  `runx.provider.operation.v1`, kept in the run's record.
 
 The `runx.github_sync.v1` plan records exact direction, provider operation,
 scope, filters, blockers, authority posture, cursor state when used, and the
@@ -98,4 +114,5 @@ selected instance and returns the provider result. To close issue 241, a push
 carries `ref: issues/241`, `op: update`, and
 `payload: {state: closed, state_reason: completed}`. Runx applies only that
 issue update through `issues.update` under `repo.write`, and reads issue 241
-back.
+back. A morning summary calls `activity` with `since` set to its last check
+and reports the items that are new, or changed by someone else.
