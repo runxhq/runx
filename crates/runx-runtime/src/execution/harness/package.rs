@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::JsonObject;
@@ -333,29 +334,13 @@ impl PackageHarnessEnvironment {
             skill_name: "package-harness".to_owned(),
             message: format!("staging an installed connector failed: {message}"),
         };
-        let Some(manifest) = loaded.manifest() else {
-            return Ok(());
-        };
-        let scope = crate::ConnectorScope::in_project(&loaded.directory, operator)
-            .map_err(|error| failed(error.to_string()))?;
         let staged = RunxPaths::resolve(&self.env, &self.workspace).added_connectors();
-        for (key, requirement) in &manifest.connectors {
-            let references = match requirement.connector_from {
-                Some(_) => requirement.allowed_connectors.clone(),
-                None => vec![key.clone()],
-            };
-            for reference in references {
-                // A connector out of reach is the run's to refuse, as it would
-                // anywhere; only an installed version is staged.
-                let Ok(connector) = scope.requirement(&reference, requirement) else {
-                    continue;
-                };
-                if let crate::kernel::connectors::ConnectorOrigin::Installed { directory } =
-                    &connector.origin
-                {
-                    crate::registry::write_connector_version(&staged, &connector, Some(directory))
-                        .map_err(failed)?;
-                }
+        for connector in bound_installed_connectors(loaded, operator)? {
+            if let crate::kernel::connectors::ConnectorOrigin::Installed { directory } =
+                &connector.origin
+            {
+                crate::registry::write_connector_version(&staged, &connector, Some(directory))
+                    .map_err(failed)?;
             }
         }
         Ok(())
@@ -408,6 +393,43 @@ impl PackageHarnessEnvironment {
             .join("fixture-receipts")
             .join(index.to_string())
     }
+}
+
+/// Resolve only the pinned versions the package declares. An unrelated or
+/// broken install in the operator's project cannot affect this harness.
+pub(super) fn bound_installed_connectors(
+    loaded: &crate::LoadedSkillPackage,
+    paths: &RunxPaths,
+) -> Result<Vec<Arc<crate::kernel::connectors::LoadedConnector>>, SkillRunError> {
+    let Some(manifest) = loaded.manifest() else {
+        return Ok(Vec::new());
+    };
+    let scope = crate::ConnectorScope::in_project(&loaded.directory, paths)
+        .map_err(|error| RuntimeError::effect_state("selecting harness connectors", error))?;
+    let mut bound: Vec<Arc<crate::kernel::connectors::LoadedConnector>> = Vec::new();
+    for (key, requirement) in &manifest.connectors {
+        let references = match requirement.connector_from {
+            Some(_) => requirement.allowed_connectors.clone(),
+            None => vec![key.clone()],
+        };
+        for reference in references {
+            // An unavailable connector is the run's to refuse, not a staging
+            // error. No other installed version belongs in the case.
+            let Ok(connector) = scope.requirement(&reference, requirement) else {
+                continue;
+            };
+            if matches!(
+                connector.origin,
+                crate::kernel::connectors::ConnectorOrigin::Installed { .. }
+            ) && !bound
+                .iter()
+                .any(|known: &Arc<_>| known.connector_digest == connector.connector_digest)
+            {
+                bound.push(connector);
+            }
+        }
+    }
+    Ok(bound)
 }
 
 fn is_declared_harness_executable(relative: &str) -> bool {
