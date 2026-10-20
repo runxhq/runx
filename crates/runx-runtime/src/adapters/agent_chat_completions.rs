@@ -20,7 +20,6 @@ pub struct ChatCompletionsCaller<T> {
     endpoint: String,
     api_key: Option<SecretString>,
     model: String,
-    tools: AgentToolNameMap,
 }
 
 impl<T> ChatCompletionsCaller<T> {
@@ -29,14 +28,12 @@ impl<T> ChatCompletionsCaller<T> {
         endpoint: String,
         api_key: Option<SecretString>,
         model: String,
-        tools: AgentToolNameMap,
     ) -> Self {
         Self {
             transport,
             endpoint,
             api_key,
             model,
-            tools,
         }
     }
 
@@ -77,8 +74,8 @@ impl<T> ChatCompletionsCaller<T> {
         messages
     }
 
-    fn tools_json(&self) -> Vec<WireValue> {
-        self.tools.definitions().iter().map(|tool| json!({
+    fn tools_json(tools: &AgentToolNameMap) -> Vec<WireValue> {
+        tools.definitions().iter().map(|tool| json!({
             "type":"function",
             "function":{
                 "name":wire_tool_name(&tool.name),
@@ -88,7 +85,10 @@ impl<T> ChatCompletionsCaller<T> {
         })).collect()
     }
 
-    fn parse_tool_uses(&self, body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn parse_tool_uses(
+        tools: &AgentToolNameMap,
+        body: &str,
+    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
         let response: WireValue = serde_json::from_str(body)
             .map_err(|error| RuntimeError::json("parsing openai-compatible response", error))?;
         let choices = response
@@ -137,8 +137,7 @@ impl<T> ChatCompletionsCaller<T> {
                 .unwrap_or(JsonValue::Null);
             uses.push(AgentToolUse {
                 id: id.to_owned(),
-                name: self
-                    .tools
+                name: tools
                     .real_name(wire_name)
                     .unwrap_or(UNRECOGNIZED_MODEL_TOOL)
                     .to_owned(),
@@ -152,11 +151,15 @@ impl<T> ChatCompletionsCaller<T> {
 }
 
 impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
-    fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn next_tool_uses(
+        &self,
+        tools: &AgentToolNameMap,
+        transcript: &[AgentTurn],
+    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
         let body = json!({
             "model":self.model,
             "messages":self.messages_json(transcript),
-            "tools":self.tools_json(),
+            "tools":Self::tools_json(tools),
             "tool_choice":"auto",
             // The current name; OpenAI's newer models refuse `max_tokens`.
             "max_completion_tokens":MAX_TOKENS,
@@ -190,6 +193,6 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
                 self.api_key.as_ref().map(SecretString::expose),
             ));
         }
-        self.parse_tool_uses(&response.body)
+        Self::parse_tool_uses(tools, &response.body)
     }
 }

@@ -17,9 +17,14 @@ use runx_runtime::{
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
-struct ReadExecutor(Cell<u32>);
+/// Reads the fixture: the calls it made, and the tools it offers.
+struct ReadExecutor(Cell<u32>, AgentToolNameMap);
 
 impl ToolExecutor for ReadExecutor {
+    fn tools(&self) -> &AgentToolNameMap {
+        &self.1
+    }
+
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
         (tool == "fixture.read").then(|| tool.to_owned())
     }
@@ -41,6 +46,7 @@ impl ToolExecutor for ReadExecutor {
             )])))
             .unwrap_or_default(),
             is_error: false,
+            guidance: None,
         })
     }
 }
@@ -136,9 +142,8 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
             )?,
         },
     ])?;
-    let model =
-        ChatCompletionsCaller::new(transport, endpoint, None, "fixture-model".to_owned(), tools);
-    let mut executor = ReadExecutor(Cell::new(0));
+    let model = ChatCompletionsCaller::new(transport, endpoint, None, "fixture-model".to_owned());
+    let mut executor = ReadExecutor(Cell::new(0), tools);
     let config = AgentLoopConfig {
         max_rounds: 3,
         max_empty_turn_resamples: 0,
@@ -211,9 +216,8 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
         endpoint,
         None,
         "fixture-model".to_owned(),
-        tools,
     );
-    let mut executor = ReadExecutor(Cell::new(0));
+    let mut executor = ReadExecutor(Cell::new(0), tools);
     let Err(error) = run_agent_loop(
         &AgentLoopConfig {
             max_rounds: 2,
@@ -318,6 +322,118 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
                         )))
             ),
         "the step must replay the actual native digest result"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let child_dir = temp.path().join("skills").join("child");
+    fs::create_dir_all(&child_dir)?;
+    fs::write(
+        child_dir.join("SKILL.md"),
+        "---\nname: child\ndescription: Digests values.\n---\n# Child\n\nDigest the exact value the person gave.\n",
+    )?;
+    fs::write(
+        child_dir.join("run.yaml"),
+        "skill: child\nrunners:\n  digest:\n    default: true\n    description: Digest one value.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n  other:\n    description: Another runner, never bound here.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+    let skill_dir = temp.path().join("session");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad the child, digest proof, then finish.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "skill: session\nskills: [{project: true}]\nrunners:\n  work:\n    default: true\n    outputs:\n      status: string\n",
+    )?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-load","type":"function","function":{"name":"load","arguments":"{\"skill\":\"skills/child\",\"runner\":\"digest\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-digest","type":"function","function":{"name":"skill__child__digest","arguments":"{\"value\":\"proof\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "local".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(4)?,
+    })?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    let requests = finish_server(server)?;
+    assert_eq!(requests.len(), 3);
+    let tools = |request: &Value| -> Vec<String> {
+        request["tools"]
+            .as_array()
+            .map(|tools| {
+                tools
+                    .iter()
+                    .filter_map(|tool| tool["function"]["name"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert!(!tools(&requests[0]).contains(&"skill__child__digest".to_owned()));
+    assert!(
+        tools(&requests[1]).contains(&"skill__child__digest".to_owned()),
+        "the runner the load bound is offered on the next round"
+    );
+    assert!(!tools(&requests[1]).contains(&"skill__child__other".to_owned()));
+    let messages = requests[1]["messages"]
+        .as_array()
+        .ok_or("the second request carries the transcript")?;
+    let (index, load_result) = messages
+        .iter()
+        .enumerate()
+        .find(|(_, message)| message["tool_call_id"] == "call-load")
+        .ok_or("the load's result is replayed")?;
+    let load_result = load_result["content"].as_str().unwrap_or_default();
+    assert!(
+        !load_result.contains("Digest the exact value"),
+        "the manual is never a result's data: {load_result}"
+    );
+    assert!(load_result.contains("Digest one value."), "{load_result}");
+    let guidance = &messages[index + 1];
+    assert_eq!(guidance["role"], "user");
+    assert!(
+        guidance["content"]
+            .as_str()
+            .is_some_and(|text| text.contains("operating guidance")
+                && text.contains("Digest the exact value the person gave.")),
+        "{guidance}"
     );
     Ok(())
 }

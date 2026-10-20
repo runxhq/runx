@@ -58,6 +58,24 @@
           "path": {
             "type": "string"
           },
+          "runners": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "scopes": {
             "items": {
               "type": "string"

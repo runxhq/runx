@@ -14524,6 +14524,24 @@ export const runxSchemaArtifacts = {
             "path": {
               "type": "string"
             },
+            "runners": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
             "scopes": {
               "items": {
                 "type": "string"
@@ -24484,7 +24502,19 @@ export const runxSchemaArtifacts = {
             },
             "runners": {
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
               },
               "minItems": 1,
               "type": "array"
@@ -36303,6 +36333,23 @@ export const runxSchemaArtifacts = {
         "minProperties": 1,
         "type": "object"
       },
+      "manual": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "sha256": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "content"
+        ],
+        "type": "object"
+      },
       "package": {
         "anyOf": [
           {
@@ -36376,6 +36423,57 @@ export const runxSchemaArtifacts = {
             "type": "object"
           }
         ]
+      },
+      "runners": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bound": {
+              "type": "boolean"
+            },
+            "inputs": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type",
+                  "required"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "purpose": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "inputs",
+            "bound"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
       },
       "tools": {
         "items": {

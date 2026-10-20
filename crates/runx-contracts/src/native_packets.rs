@@ -342,9 +342,19 @@ pub struct CatalogHit {
     pub trust_tier: Option<crate::TrustTier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
-    /// A skill's runners, by name.
+    /// A skill's runners, each with its purpose when its source states one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runners: Vec<String>,
+    pub runners: Vec<CatalogRunner>,
+}
+
+/// One runner of a skill, as a model chooses it from an index.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogRunner {
+    pub name: String,
+    /// What it does and when to use it, as its package states it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purpose: Option<String>,
 }
 
 /// What `registry.search` found for a query, in the project and the

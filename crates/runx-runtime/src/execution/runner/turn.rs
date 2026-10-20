@@ -1410,7 +1410,7 @@ where
         if allowance.rules().next().is_some() {
             tools.push(offered(
                 "load",
-                "Load a skill or connector the turn's catalog rules admit: {skill, runner?} by ref, or {connector} by name. Each runner or operation it binds is a tool of this turn from then on. A package below the rule's trust tier waits on the person's trust."
+                "Load a skill or connector the turn's catalog rules admit: {skill, runner?} by ref, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier waits on the person's trust."
                     .to_owned(),
                 load_schema()?,
                 TurnTarget::Load,
@@ -1697,17 +1697,21 @@ pub(super) fn operation_descriptor(
     ))
 }
 
-/// A child skill's tool: its description and its runner's inputs, beside
-/// the act a skill call states.
+/// A child skill's tool: its runner's purpose (else the skill's description)
+/// and its runner's inputs, beside the act a skill call states.
 pub(super) fn skill_descriptor(
     name: &str,
-    description: Option<String>,
+    skill_description: Option<String>,
     runner: &runx_parser::SkillRunnerDefinition,
     target: TurnTarget,
 ) -> Result<TurnTool, RuntimeError> {
     let describing =
         |message: String| RuntimeError::effect_state("describing a child skill", message);
-    let description = description.unwrap_or_else(|| format!("Run the {} skill.", runner.name));
+    let description = runner
+        .description
+        .clone()
+        .or(skill_description)
+        .unwrap_or_else(|| format!("Run the {} skill.", runner.name));
     let mut input_schema = runx_contracts::call_input_schema(&runner.inputs)
         .map_err(|error| describing(error.to_string()))?;
     if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {

@@ -20,28 +20,20 @@ pub struct OpenAiResponsesCaller<T> {
     endpoint: String,
     api_key: SecretString,
     model: String,
-    tools: AgentToolNameMap,
 }
 
 impl<T> OpenAiResponsesCaller<T> {
-    pub fn new(
-        transport: T,
-        endpoint: String,
-        api_key: SecretString,
-        model: String,
-        tools: AgentToolNameMap,
-    ) -> Self {
+    pub fn new(transport: T, endpoint: String, api_key: SecretString, model: String) -> Self {
         Self {
             transport,
             endpoint,
             api_key,
             model,
-            tools,
         }
     }
 
-    fn tools_json(&self) -> Vec<WireValue> {
-        self.tools
+    fn tools_json(tools: &AgentToolNameMap) -> Vec<WireValue> {
+        tools
             .definitions()
             .iter()
             .map(|tool| {
@@ -58,7 +50,10 @@ impl<T> OpenAiResponsesCaller<T> {
             .collect()
     }
 
-    fn parse_tool_uses(&self, body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn parse_tool_uses(
+        tools: &AgentToolNameMap,
+        body: &str,
+    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
         let response: WireValue = serde_json::from_str(body)
             .map_err(|_| provider_failed("openai response is not JSON"))?;
         if response.get("status").and_then(WireValue::as_str) == Some("incomplete") {
@@ -95,8 +90,7 @@ impl<T> OpenAiResponsesCaller<T> {
                 .unwrap_or(JsonValue::Null);
             uses.push(AgentToolUse {
                 id: id.to_owned(),
-                name: self
-                    .tools
+                name: tools
                     .real_name(wire_name)
                     .unwrap_or(UNRECOGNIZED_MODEL_TOOL)
                     .to_owned(),
@@ -138,11 +132,15 @@ fn input_json(transcript: &[AgentTurn]) -> Vec<WireValue> {
 }
 
 impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
-    fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn next_tool_uses(
+        &self,
+        tools: &AgentToolNameMap,
+        transcript: &[AgentTurn],
+    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
         let body = json!({
             "model": self.model,
             "input": input_json(transcript),
-            "tools": self.tools_json(),
+            "tools": Self::tools_json(tools),
             "tool_choice": "auto",
             "max_output_tokens": MAX_OUTPUT_TOKENS,
             // The loop replays its own transcript; OpenAI keeps nothing.
@@ -172,7 +170,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
                 Some(self.api_key.expose()),
             ));
         }
-        self.parse_tool_uses(&response.body)
+        Self::parse_tool_uses(tools, &response.body)
     }
 }
 
@@ -214,18 +212,21 @@ mod tests {
         }
     }
 
-    fn caller(stub: &StubTransport) -> Result<OpenAiResponsesCaller<&StubTransport>, String> {
-        Ok(OpenAiResponsesCaller::new(
+    fn caller(stub: &StubTransport) -> OpenAiResponsesCaller<&StubTransport> {
+        OpenAiResponsesCaller::new(
             stub,
             "https://responses.test/v1/responses".to_owned(),
             SecretString::new("sk-test-key"),
             "gpt".to_owned(),
-            AgentToolNameMap::new(vec![AgentToolDefinition {
-                name: "acme.post".to_owned(),
-                description: "Post the bounded message.".to_owned(),
-                input_schema: JsonValue::Object(Default::default()),
-            }])?,
-        ))
+        )
+    }
+
+    fn tools() -> Result<AgentToolNameMap, String> {
+        Ok(AgentToolNameMap::new(vec![AgentToolDefinition {
+            name: "acme.post".to_owned(),
+            description: "Post the bounded message.".to_owned(),
+            input_schema: JsonValue::Object(Default::default()),
+        }])?)
     }
 
     #[test]
@@ -249,8 +250,8 @@ mod tests {
                 is_error: false,
             }]),
         ];
-        let uses = caller(&stub)?
-            .next_tool_uses(&transcript)
+        let uses = caller(&stub)
+            .next_tool_uses(&tools()?, &transcript)
             .map_err(|error| error.to_string())?;
         assert!(
             uses.len() == 1 && uses[0].id == "call_1" && uses[0].name == "acme.post",
@@ -281,8 +282,8 @@ mod tests {
             200,
             r#"{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ready"}]}]}"#,
         );
-        let uses = caller(&stub)?
-            .next_tool_uses(&[AgentTurn::User("go".to_owned())])
+        let uses = caller(&stub)
+            .next_tool_uses(&tools()?, &[AgentTurn::User("go".to_owned())])
             .map_err(|error| error.to_string())?;
         assert!(uses.is_empty());
         Ok(())
@@ -294,7 +295,7 @@ mod tests {
             200,
             r#"{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}"#,
         );
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = caller(&stub).next_tool_uses(&tools()?, &[AgentTurn::User("go".to_owned())]);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail })
                 if detail == "openai response was incomplete: max_output_tokens"),
@@ -309,7 +310,7 @@ mod tests {
             401,
             r#"{"error":{"message":"Incorrect API key provided: sk-test-key.","type":"invalid_request_error","code":"invalid_api_key"}}"#,
         );
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = caller(&stub).next_tool_uses(&tools()?, &[AgentTurn::User("go".to_owned())]);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail })
                 if detail == "status 401 invalid_api_key: Incorrect API key provided: [redacted]."),

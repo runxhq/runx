@@ -11,7 +11,7 @@ pub struct AgentToolDefinition {
     pub input_schema: JsonValue,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AgentToolNameMap {
     definitions: Vec<AgentToolDefinition>,
     real_by_wire: BTreeMap<String, String>,

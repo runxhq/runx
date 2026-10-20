@@ -8,8 +8,8 @@ use std::path::Path;
 
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::{
-    CatalogHit, CatalogPackageKind, CatalogSource, ConnectorInspection, InspectedOperation,
-    JsonObject, JsonValue, RegistryInspection, RegistrySearchPacket,
+    CatalogHit, CatalogPackageKind, CatalogRunner, CatalogSource, ConnectorInspection,
+    InspectedOperation, JsonObject, JsonValue, RegistryInspection, RegistrySearchPacket,
 };
 use serde::{Deserialize, Serialize};
 
@@ -86,17 +86,26 @@ fn search(
         crate::registry::resolve::search(&inputs.query, Some(limit), target, invocation.env)
             .map_err(|error| super::invalid_input(SEARCH, error.into_message()))?;
     if wants(CatalogPackageKind::Skill) {
-        hits.extend(found.results.into_iter().map(|result| CatalogHit {
-            r#ref: match &result.version {
-                Some(version) => format!("{}@{version}", result.skill_id),
-                None => result.skill_id.clone(),
-            },
-            kind: CatalogPackageKind::Skill,
-            source: CatalogSource::Registry,
-            publisher: Some(result.owner),
-            trust_tier: Some(result.trust_tier),
-            summary: result.summary,
-            runners: result.runner_names,
+        hits.extend(found.results.into_iter().map(|result| {
+            CatalogHit {
+                r#ref: match &result.version {
+                    Some(version) => format!("{}@{version}", result.skill_id),
+                    None => result.skill_id.clone(),
+                },
+                kind: CatalogPackageKind::Skill,
+                source: CatalogSource::Registry,
+                publisher: Some(result.owner),
+                trust_tier: Some(result.trust_tier),
+                summary: result.summary,
+                runners: result
+                    .runner_names
+                    .into_iter()
+                    .map(|name| CatalogRunner {
+                        name,
+                        purpose: None,
+                    })
+                    .collect(),
+            }
         }));
     }
     if wants(CatalogPackageKind::Connector) {
@@ -157,7 +166,7 @@ fn project_hits(
                 summary: skill.description.clone(),
                 runners: loaded
                     .manifest()
-                    .map(|manifest| manifest.runners.keys().cloned().collect())
+                    .map(crate::skill_package::catalog_runners)
                     .unwrap_or_default(),
             });
         }
@@ -354,7 +363,7 @@ static SEARCH_CAPABILITY: TypedNativeCapability<SearchInput, RegistrySearchPacke
         CapabilityDefinition {
             id: SEARCH,
             owner: "runx-runtime/registry",
-            summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, runners, and whether the registry or the project holds it.",
+            summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, runners with their purposes, and whether the registry or the project holds it.",
             scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,

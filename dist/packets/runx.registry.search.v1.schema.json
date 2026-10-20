@@ -24,7 +24,19 @@
           },
           "runners": {
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
             },
             "minItems": 1,
             "type": "array"

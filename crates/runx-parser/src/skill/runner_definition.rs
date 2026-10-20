@@ -9,6 +9,7 @@ const RUNNER_FIELDS: &[&str] = &[
     "asks",
     "default",
     "continuations",
+    "description",
     "examples",
     "inputs",
     "outputs",
@@ -38,6 +39,12 @@ pub(crate) fn validate_runner_definition(
     validate_input_examples(&format!("runners.{name}.examples"), &examples, &inputs)?;
     Ok(SkillRunnerDefinition {
         name: name.to_owned(),
+        description: FIELDS
+            .optional_non_empty_string(
+                runner.get("description"),
+                &format!("runners.{name}.description"),
+            )?
+            .map(|description| description.trim().to_owned()),
         continuations: FIELDS
             .optional_string_array(
                 runner.get("continuations"),

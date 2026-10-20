@@ -193,6 +193,7 @@ fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> R
         status: RunxListStatus::Ok,
         visibility: None,
         description: None,
+        runners: None,
         diagnostics: None,
         scopes: (!scopes.is_empty())
             .then(|| scopes.iter().map(|scope| (*scope).to_owned()).collect()),

@@ -3,8 +3,10 @@
 //! admit it by where it comes from and its tier; what it binds must agree with
 //! the connectors the turn already reaches; and a package below its rule's
 //! tier waits on the person's trust, which the project records for that exact
-//! closure. Its output names what it bound and the calls the turn offers from
-//! then on.
+//! closure. Its output carries a skill's manual and runners, what it bound and
+//! the calls the turn offers from then on. A skill's load binds the runner it
+//! names or the skill's only runner; one that binds none binds no closure, so
+//! it asks no trust.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -13,7 +15,8 @@ use std::sync::Arc;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedPackage,
-    ResolutionRequest, TrustTier, TurnLoad, TurnTarget, TurnTool,
+    LoadedRunner, LoadedRunnerInput, ResolutionRequest, SkillManual, TrustTier, TurnLoad,
+    TurnTarget, TurnTool,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{LoadStep, LoadTarget};
@@ -59,6 +62,9 @@ enum Ruling {
 struct Bound {
     package: LoadedPackage,
     origin: Origin,
+    /// A skill's manual and every runner it declares.
+    manual: Option<SkillManual>,
+    runners: Vec<LoadedRunner>,
     tools: Vec<TurnTool>,
     /// The execution closures a person's trust covers.
     closures: Vec<String>,
@@ -117,6 +123,8 @@ where
     }
     let output = TurnLoad {
         package: bound.package,
+        manual: bound.manual,
+        runners: bound.runners,
         tools: bound.tools,
         connectors: bound
             .connectors
@@ -169,7 +177,9 @@ where
     })
 }
 
-/// The skill `reference` names, with `runner` or every runner bound.
+/// The skill `reference` names, with `runner` bound, or the skill's only
+/// runner when it names none. A skill of several runners loaded without one
+/// binds none: the load reads its manual and runners, and binds no closure.
 fn bind_skill(
     reference: &str,
     runner: Option<&str>,
@@ -212,7 +222,8 @@ fn bind_skill(
     let runners = match runner {
         Some(runner) if manifest.runners.contains_key(runner) => vec![runner.to_owned()],
         Some(runner) => return Err(format!("{reference} has no runner {runner}")),
-        None => manifest.runners.keys().cloned().collect(),
+        None if manifest.runners.len() == 1 => manifest.runners.keys().cloned().collect(),
+        None => Vec::new(),
     };
     let package_digest = loaded.package.package_digest.clone();
     let description = loaded.package.skill.description.clone();
@@ -281,6 +292,31 @@ fn bind_skill(
             package_digest: package_digest.into(),
         },
         origin,
+        manual: Some(SkillManual {
+            sha256: loaded.package.manual_digest.as_str().into(),
+            content: loaded.package.manual_markdown.clone(),
+        }),
+        runners: manifest
+            .runners
+            .values()
+            .map(|declared| LoadedRunner {
+                name: declared.name.as_str().into(),
+                purpose: declared
+                    .description
+                    .as_deref()
+                    .and_then(NonEmptyString::new),
+                inputs: declared
+                    .inputs
+                    .iter()
+                    .map(|(name, input)| LoadedRunnerInput {
+                        name: name.as_str().into(),
+                        input_type: input.input_type.as_str().into(),
+                        required: input.required,
+                    })
+                    .collect(),
+                bound: runners.contains(&declared.name),
+            })
+            .collect(),
         tools,
         closures,
         connectors,
@@ -376,6 +412,8 @@ fn bind_connector(
             manifest_digest: connector.manifest_digest.as_str().into(),
         },
         origin,
+        manual: None,
+        runners: Vec::new(),
         tools,
         closures: vec![connector.connector_digest.as_str().to_owned()],
         connectors,
@@ -664,6 +702,8 @@ mod tests {
                 manifest_digest: "sha256:b".into(),
             },
             origin: Origin::Project,
+            manual: None,
+            runners: Vec::new(),
             tools: Vec::new(),
             closures: Vec::new(),
             connectors: BTreeMap::from([("github".to_owned(), "sha256:b".to_owned())]),

@@ -21,6 +21,9 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 /// The act of the session skill's one-turn runner.
 const TURN: &str = "work";
 
+/// A runner's body that digests its value.
+const DIGEST_RUNNER: &str = "    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
+
 /// A project with a local registry holding `acme/echo` at each tier asked.
 struct Project {
     root: PathBuf,
@@ -40,6 +43,25 @@ impl Project {
     /// Publish `acme/<name>@<version>` at `tier`: one runner, `say`, that
     /// digests its value.
     fn publish(&self, name: &str, version: &str, tier: TrustTier, note: &str) -> TestResult {
+        self.publish_runners(
+            name,
+            version,
+            tier,
+            note,
+            &format!("  say:\n    default: true\n{DIGEST_RUNNER}"),
+        )
+    }
+
+    /// Publish `acme/<name>@<version>` at `tier` with the `runners` of its
+    /// profile.
+    fn publish_runners(
+        &self,
+        name: &str,
+        version: &str,
+        tier: TrustTier,
+        note: &str,
+        runners: &str,
+    ) -> TestResult {
         ingest_skill_markdown(
             &FileRegistryStore::new(&self.registry),
             &format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n"),
@@ -47,9 +69,7 @@ impl Project {
                 owner: Some("acme".to_owned()),
                 version: Some(version.to_owned()),
                 created_at: Some("2026-10-16T00:00:00Z".to_owned()),
-                profile_document: Some(format!(
-                    "skill: {name}\nrunners:\n  say:\n    default: true\n    inputs:\n      value: {{ type: string, required: true }}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n"
-                )),
+                profile_document: Some(format!("skill: {name}\nrunners:\n{runners}")),
                 trust_tier: Some(tier),
                 ..IngestSkillOptions::default()
             },
@@ -258,6 +278,26 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     );
     assert_eq!(runner.as_str(), "say");
     assert_eq!(skill.as_str(), ".runx/added-skills/acme/echo/1.0.0");
+    // A skill of one runner binds it without naming it, and its manual comes
+    // with it at the digest of its exact bytes.
+    let [say] = bound.runners.as_slice() else {
+        return Err(format!("the skill's one runner: {bound:?}").into());
+    };
+    assert!(say.bound && say.name.as_str() == "say", "{say:?}");
+    let manual = bound
+        .manual
+        .as_ref()
+        .ok_or("a skill's load carries its manual")?;
+    let on_disk = std::fs::read(
+        project
+            .root
+            .join(".runx/added-skills/acme/echo/1.0.0/SKILL.md"),
+    )?;
+    assert_eq!(manual.content.as_bytes(), on_disk.as_slice());
+    assert_eq!(
+        manual.sha256.as_str(),
+        runx_contracts::sha256_prefixed(&on_disk)
+    );
     assert_eq!(
         tool_names(&turn)?,
         ["load", "skill__acme_echo__say"],
@@ -361,6 +401,121 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     let turn = project.open(&again)?;
     let status = turn.status(TURN)?;
     refused(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    Ok(())
+}
+
+#[test]
+fn a_skill_of_several_runners_is_read_without_trust_and_binds_the_runner_named() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    project.publish_runners(
+        "voice",
+        "1.0.0",
+        TrustTier::Community,
+        "",
+        &format!(
+            "  say:\n    default: true\n    description: Say the value as given.\n{DIGEST_RUNNER}  shout:\n    description: Say the value loudly, when the person asks for emphasis.\n{DIGEST_RUNNER}"
+        ),
+    )?;
+    let run_id =
+        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let turn = project.open(&run_id)?;
+
+    // Loaded without a runner, a skill of several binds none: the load reads
+    // its manual and runners, binds no closure, and so asks no trust.
+    let reading = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/voice@1.0.0"}))?,
+    )?)?;
+    assert!(reading.tools.is_empty(), "{reading:?}");
+    assert!(reading.connectors.is_empty(), "{reading:?}");
+    assert!(
+        reading
+            .manual
+            .as_ref()
+            .is_some_and(|manual| manual.content.contains("# voice")),
+        "{reading:?}"
+    );
+    let index = reading
+        .runners
+        .iter()
+        .map(|runner| {
+            (
+                runner.name.as_str(),
+                runner.purpose.as_ref().map(|purpose| purpose.as_str()),
+                runner.bound,
+                runner
+                    .inputs
+                    .iter()
+                    .map(|input| {
+                        (
+                            input.name.as_str(),
+                            input.input_type.as_str(),
+                            input.required,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        index,
+        [
+            (
+                "say",
+                Some("Say the value as given."),
+                false,
+                vec![("value", "string", true)]
+            ),
+            (
+                "shout",
+                Some("Say the value loudly, when the person asks for emphasis."),
+                false,
+                vec![("value", "string", true)]
+            ),
+        ]
+    );
+    assert_eq!(tool_names(&turn)?, ["load"], "a reading adds no tool");
+
+    // Naming a runner binds it alone, and binding a closure below the rule's
+    // tier still waits on the person's trust.
+    let held = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/voice@1.0.0", "runner": "shout"}))?,
+    )?;
+    let gate = trust_gate(&held, "work/1/trust")?;
+    let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
+    assert_eq!(payload["declares"]["runners"], serde_json::json!(["shout"]));
+    drop(turn);
+    project.resume(
+        &run_id,
+        serde_json::json!({"approvals": {"work/1/trust": true}}),
+    )?;
+    let turn = project.open(&run_id)?;
+    let status = turn.status(TURN)?;
+    let bound = loaded(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    let [tool] = bound.tools.as_slice() else {
+        return Err(format!("one bound runner: {bound:?}").into());
+    };
+    assert_eq!(tool.name.as_str(), "skill__acme_voice__shout");
+    assert_eq!(
+        tool.description.as_str(),
+        "Say the value loudly, when the person asks for emphasis.",
+        "a bound runner is described by its own purpose"
+    );
+    assert_eq!(
+        bound
+            .runners
+            .iter()
+            .map(|runner| (runner.name.as_str(), runner.bound))
+            .collect::<Vec<_>>(),
+        [("say", false), ("shout", true)]
+    );
+    assert_eq!(tool_names(&turn)?, ["load", "skill__acme_voice__shout"]);
     Ok(())
 }
 
@@ -502,7 +657,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     crate::support::write_test_skill_package(
         &project.root.join("skills/notes"),
         "---\nname: notes\ndescription: Takes the project's notes.\n---\n# Notes\n",
-        "skill: notes\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "skill: notes\nrunners:\n  jot:\n    default: true\n    description: Jot one note down.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     let run_id = project.start(project.session_with(
         serde_json::json!([{"catalog": {"trust": "verified"}}]),
@@ -533,14 +688,20 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         .ok_or_else(|| format!("the registry's skill is found: {echo}"))?;
     assert_eq!(hit["source"], "registry");
     assert_eq!(hit["trust_tier"], "verified");
-    assert_eq!(hit["runners"], serde_json::json!(["say"]));
+    // The registry lists its runners by name; a purpose comes with the
+    // package's own description.
+    assert_eq!(hit["runners"], serde_json::json!([{"name": "say"}]));
     let notes = found("notes")?;
     let hit = notes["hits"]
         .as_array()
         .and_then(|hits| hits.iter().find(|hit| hit["ref"] == "skills/notes"))
         .ok_or("the project's own skill is found")?;
     assert_eq!(hit["source"], "project");
-    assert_eq!(hit["runners"], serde_json::json!(["jot"]));
+    assert_eq!(
+        hit["runners"],
+        serde_json::json!([{"name": "jot", "purpose": "Jot one note down."}]),
+        "a project skill's runners carry their purposes"
+    );
 
     let inspected = turn.call(
         TURN,

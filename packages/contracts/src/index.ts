@@ -278,6 +278,8 @@ export {
   validateTurnStatusContract,
   type BoundClosureContract,
   type LoadedPackageContract,
+  type LoadedRunnerContract,
+  type SkillManualContract,
   type TurnLoadContract,
   type TurnTargetContract,
   type TurnCallOutcomeContract,
@@ -386,6 +388,7 @@ export {
   type RunxListSourceContract,
   type RunxListVisibilityContract,
   type RunxListEmitContract,
+  type CatalogRunnerContract,
   type RunxListItemContract,
   type RunxListReportContract,
 } from "./schemas/list.js";

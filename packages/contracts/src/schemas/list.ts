@@ -24,6 +24,13 @@ export type RunxListEmitContract = DeepReadonly<{
   packet?: string;
 }>;
 
+/** One runner of a skill, as a model chooses it from an index. */
+export type CatalogRunnerContract = DeepReadonly<{
+  name: string;
+  /** What it does and when to use it, as its package states it. */
+  purpose?: string;
+}>;
+
 export type RunxListItemContract = DeepReadonly<{
   kind: RunxListItemKindContract;
   name: string;
@@ -32,6 +39,8 @@ export type RunxListItemContract = DeepReadonly<{
   status: RunxListStatusContract;
   visibility?: RunxListVisibilityContract;
   description?: string;
+  /** A skill's runners, each with its purpose when its `run.yaml` states one. */
+  runners?: readonly CatalogRunnerContract[];
   diagnostics?: readonly string[];
   scopes?: readonly string[];
   emits?: readonly RunxListEmitContract[];

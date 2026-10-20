@@ -105,6 +105,10 @@ pub struct ValidatedSkill {
 #[serde(rename_all = "camelCase")]
 pub struct SkillRunnerDefinition {
     pub name: String,
+    /// What the runner does and when to use it rather than the skill's other
+    /// runners: the purpose a model chooses it by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     pub default: bool,
     /// Same-package runners that may fulfil this runner after its turn ends.
     /// They are part of its pinned execution closure, not implicit execution.

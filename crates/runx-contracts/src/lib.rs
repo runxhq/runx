@@ -143,10 +143,10 @@ pub use host_protocol::{
     CatalogRule, CatalogTrust, ExecutionEvent, HostNeedsAgentState, HostRunApproval,
     HostRunApprovalDecision, HostRunKind, HostRunLineage, HostRunLineageKind, HostRunResult,
     HostRunState, HostRunVerification, HostRunVerificationStatus, HostTerminalState, LoadedPackage,
-    PURCHASE_BALANCE_CHOICE, PurchaseMethod, PurchaseQuote, PurchaseRequest, Question,
-    QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
-    SkillAllowance, TurnAllowance, TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus,
-    TurnTarget, TurnTool, check_answer,
+    LoadedRunner, LoadedRunnerInput, PURCHASE_BALANCE_CHOICE, PurchaseMethod, PurchaseQuote,
+    PurchaseRequest, Question, QuestionOption, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, RetryResend, SkillAllowance, SkillManual, TurnAllowance,
+    TurnCallOutcome, TurnCallResult, TurnLoad, TurnStatus, TurnTarget, TurnTool, check_answer,
 };
 pub use json::{
     JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
@@ -164,7 +164,7 @@ pub use list::{
 };
 pub use native_packets::{
     ApprovalDecisionActor, ApprovalDecisionPacket, ApprovalDecisionStatus, CatalogHit,
-    CatalogPackageKind, CatalogSource, ConnectorInspection, DataOperationResult,
+    CatalogPackageKind, CatalogRunner, CatalogSource, ConnectorInspection, DataOperationResult,
     DataOperationStatus, DataStopCondition, DataValidation, DataValidationIssue,
     DataValueValidation, GitBlobDigest, InspectedOperation, LocalArtifact, LocalArtifactPage,
     ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk,

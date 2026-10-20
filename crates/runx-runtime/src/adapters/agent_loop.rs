@@ -26,6 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::{JsonValue, OutputField, SealReason, validate_output_value};
 
 use super::agent::{AgentExecutionTelemetry, AgentToolExecutionTrace};
+use super::agent_tool_definitions::AgentToolNameMap;
 use crate::RuntimeError;
 
 pub(crate) const UNRECOGNIZED_MODEL_TOOL: &str = "unrecognized_tool";
@@ -122,11 +123,15 @@ pub enum AgentTurn {
     ToolResults(Vec<AgentToolResult>),
 }
 
-/// Per-turn provider call. Given the transcript so far, return the model's next
-/// tool-use requests. The provider resolver owns the tool catalog it offered, so
-/// the loop never inspects tool specifications itself.
+/// Per-turn provider call. Given the tools offered now and the transcript so
+/// far, return the model's next tool-use requests, named as `tools` names
+/// them. The loop passes the catalog through and never inspects it.
 pub trait ModelCaller {
-    fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError>;
+    fn next_tool_uses(
+        &self,
+        tools: &AgentToolNameMap,
+        transcript: &[AgentTurn],
+    ) -> Result<Vec<AgentToolUse>, RuntimeError>;
 }
 
 /// The most of a provider failure the loop reports.
@@ -185,6 +190,10 @@ pub(crate) fn provider_refused(status: u16, body: &str, key: Option<&str>) -> Ru
 /// executors make each call through the agent's turn, which admits and
 /// records it; tests supply a fake.
 pub trait ToolExecutor {
+    /// The tools the model is offered on its next round. A call can change
+    /// them (a load binds a runner), so the loop reads them every round.
+    fn tools(&self) -> &AgentToolNameMap;
+
     /// Return the canonical name this executor would admit for execution.
     /// Model-authored names that were not offered must return `None`; the loop
     /// records only a fixed sentinel for those attempts.
@@ -196,8 +205,14 @@ pub trait ToolExecutor {
 /// How one tool call ended for the loop.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToolOutcome {
-    /// What the model reads back, and whether the call failed.
-    Result { content: String, is_error: bool },
+    /// What the model reads back, whether the call failed, and any guidance
+    /// the call brought (a loaded skill's manual), which the model reads after
+    /// the round's results as instructions rather than as a result's data.
+    Result {
+        content: String,
+        is_error: bool,
+        guidance: Option<String>,
+    },
     /// The call waits on a human; the pass ends here.
     Paused,
 }
@@ -242,6 +257,7 @@ enum TurnStop {
 /// model call is surfaced immediately and never retried.
 fn next_tool_uses_resilient<M>(
     model: &M,
+    tools: &AgentToolNameMap,
     transcript: &[AgentTurn],
     max_resamples: u32,
     model_calls: &mut u32,
@@ -251,7 +267,7 @@ where
 {
     for _ in 0..=max_resamples {
         *model_calls = model_calls.saturating_add(1);
-        let uses = model.next_tool_uses(transcript).map_err(|error| {
+        let uses = model.next_tool_uses(tools, transcript).map_err(|error| {
             TurnStop::Provider(match error {
                 RuntimeError::ModelProvider { detail } => Some(detail),
                 _ => None,
@@ -307,6 +323,7 @@ where
     for round in 1..=config.max_rounds {
         let uses = match next_tool_uses_resilient(
             model,
+            executor.tools(),
             &transcript,
             config.max_empty_turn_resamples,
             &mut model_calls,
@@ -386,6 +403,7 @@ where
         transcript.push(AgentTurn::AssistantToolUses(uses.clone()));
 
         let mut results = Vec::with_capacity(uses.len());
+        let mut guidance = Vec::new();
         for (use_, admitted_name) in uses.iter().zip(admitted_names) {
             if use_.name == config.final_result_tool {
                 if let Err(error) = validate_final_result(config, &use_.input) {
@@ -418,7 +436,14 @@ where
             }
 
             let (content, is_error) = match executor.execute(&tool_name, &use_.input) {
-                Ok(ToolOutcome::Result { content, is_error }) => (content, is_error),
+                Ok(ToolOutcome::Result {
+                    content,
+                    is_error,
+                    guidance: brought,
+                }) => {
+                    guidance.extend(brought);
+                    (content, is_error)
+                }
                 Ok(ToolOutcome::Paused) => {
                     tool_executions.push(AgentToolExecutionTrace {
                         tool: tool_name,
@@ -464,6 +489,7 @@ where
             });
         }
         transcript.push(AgentTurn::ToolResults(results));
+        transcript.extend(guidance.into_iter().map(AgentTurn::User));
     }
 
     Err(AgentLoopFailure::new(
@@ -557,8 +583,13 @@ mod tests {
         ToolOutcome::Result {
             content: content.to_owned(),
             is_error: false,
+            guidance: None,
         }
     }
+
+    /// The catalog of a fake executor, which admits by name alone.
+    static NO_TOOLS: std::sync::LazyLock<AgentToolNameMap> =
+        std::sync::LazyLock::new(AgentToolNameMap::default);
 
     fn done_payload() -> JsonValue {
         JsonValue::Object(JsonObject::from([(
@@ -572,6 +603,7 @@ mod tests {
     impl ModelCaller for OneBatch {
         fn next_tool_uses(
             &self,
+            _tools: &AgentToolNameMap,
             _transcript: &[AgentTurn],
         ) -> Result<Vec<AgentToolUse>, RuntimeError> {
             Ok(self.0.clone())
@@ -581,6 +613,10 @@ mod tests {
     struct CountingExecutor(Cell<u32>);
 
     impl ToolExecutor for CountingExecutor {
+        fn tools(&self) -> &AgentToolNameMap {
+            &NO_TOOLS
+        }
+
         fn admitted_tool_name(&self, tool: &str) -> Option<String> {
             (tool == "noop").then(|| tool.to_owned())
         }
@@ -652,6 +688,10 @@ mod tests {
 
     struct OkExecutor;
     impl ToolExecutor for OkExecutor {
+        fn tools(&self) -> &AgentToolNameMap {
+            &NO_TOOLS
+        }
+
         fn admitted_tool_name(&self, tool: &str) -> Option<String> {
             Some(tool.to_owned())
         }
@@ -669,6 +709,7 @@ mod tests {
     impl ModelCaller for ScriptedModel {
         fn next_tool_uses(
             &self,
+            _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
         ) -> Result<Vec<AgentToolUse>, RuntimeError> {
             // Round 1 has only the user prompt -> call a tool. Once tool results
@@ -726,6 +767,10 @@ mod tests {
     fn a_call_waiting_on_a_human_ends_the_pass_without_an_answer() -> Result<(), String> {
         struct Waits(u32);
         impl ToolExecutor for Waits {
+            fn tools(&self) -> &AgentToolNameMap {
+                &NO_TOOLS
+            }
+
             fn admitted_tool_name(&self, tool: &str) -> Option<String> {
                 Some(tool.to_owned())
             }
@@ -764,6 +809,7 @@ mod tests {
         impl ModelCaller for BareThenWrapped {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 let call = self.calls.get();
@@ -842,6 +888,7 @@ mod tests {
         impl ModelCaller for NeverFinal {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 Ok(vec![AgentToolUse {
@@ -883,6 +930,7 @@ mod tests {
         impl ModelCaller for Silent {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 Ok(Vec::new())
@@ -921,6 +969,7 @@ mod tests {
         impl ModelCaller for EmptyOnceThenScripted {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 if self.empties.get() == 0 {
@@ -978,6 +1027,10 @@ mod tests {
         calls: std::cell::Cell<u32>,
     }
     impl ToolExecutor for ErrExecutor {
+        fn tools(&self) -> &AgentToolNameMap {
+            &NO_TOOLS
+        }
+
         fn admitted_tool_name(&self, tool: &str) -> Option<String> {
             Some(tool.to_owned())
         }
@@ -1039,6 +1092,7 @@ mod tests {
         impl ModelCaller for FailingModel {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 Err(RuntimeError::SkillFailed {
@@ -1085,6 +1139,7 @@ mod tests {
         impl ModelCaller for RefusingModel {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 let body = format!(
@@ -1140,6 +1195,7 @@ mod tests {
         impl ModelCaller for UnknownToolModel {
             fn next_tool_uses(
                 &self,
+                _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<Vec<AgentToolUse>, RuntimeError> {
                 Ok(vec![AgentToolUse {
@@ -1153,6 +1209,10 @@ mod tests {
 
         struct PayOnlyExecutor;
         impl ToolExecutor for PayOnlyExecutor {
+            fn tools(&self) -> &AgentToolNameMap {
+                &NO_TOOLS
+            }
+
             fn admitted_tool_name(&self, tool: &str) -> Option<String> {
                 (tool == "pay").then(|| tool.to_owned())
             }
@@ -1192,6 +1252,10 @@ mod tests {
 
     struct FailingExecutor;
     impl ToolExecutor for FailingExecutor {
+        fn tools(&self) -> &AgentToolNameMap {
+            &NO_TOOLS
+        }
+
         fn admitted_tool_name(&self, tool: &str) -> Option<String> {
             Some(tool.to_owned())
         }
@@ -1204,6 +1268,7 @@ mod tests {
             Ok(ToolOutcome::Result {
                 content: "insufficient funds".to_owned(),
                 is_error: true,
+                guidance: None,
             })
         }
     }
@@ -1253,6 +1318,7 @@ mod tests {
     impl ModelCaller for DistinctThenRepeat {
         fn next_tool_uses(
             &self,
+            _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
         ) -> Result<Vec<AgentToolUse>, RuntimeError> {
             // Call pay, then read, then pay again (a repeat), then finalize.

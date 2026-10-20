@@ -29,8 +29,12 @@ outside the calls.
 - Ask the person with `ask_human` when the act leaves a choice that is theirs.
   Do not ask what you can find out.
 - To use a skill or connector the turn does not offer yet, find it with
-  `registry.search`, read it with `registry.inspect`, then `load` it. A
-  package below the turn's trust rule waits on the person's trust.
+  `registry.search`, whose hits list each skill's runners and what each is
+  for, then `load` it naming the runner you need. A skill's load gives you
+  its manual: read it before you call the runner, and follow it. Loading a
+  skill of several runners without naming one binds none, so you can read
+  its manual and runners first and load again with the one you need.
+  Binding a package below the turn's trust rule waits on the person's trust.
 - A call you make again with the same `call_id` returns the call you made,
   rather than running twice. Pin one on every call that changes something.
 

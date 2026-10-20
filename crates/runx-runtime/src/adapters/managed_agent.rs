@@ -5,12 +5,12 @@
 //! ends the pass with the turn open; a later pass continues from what the
 //! turn recorded. Model configuration alone never enables it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use runx_contracts::{
-    AgentContextEnvelope, JsonObject, JsonValue, OutputField, TurnCallOutcome, TurnCallResult,
-    TurnTarget,
+    AgentContextEnvelope, JsonObject, JsonValue, LoadedPackage, OutputField, TurnCallOutcome,
+    TurnCallResult, TurnLoad, TurnTarget,
 };
 use serde::Serialize;
 
@@ -86,12 +86,66 @@ impl ManagedAgent {
                 "selected model is outside a context entry's sharing scope",
             )));
         }
-        let tools = turn.tools()?;
-        let targets = tools
+        let mut given = BTreeSet::new();
+        let prompt = build_prompt(&envelope, &turn.calls()?, &mut given).map_err(&fail)?;
+        let model = caller(&config).map_err(&fail)?;
+        let complete_schema = match &envelope.output_schema {
+            Some(schema @ JsonValue::Object(_)) => schema.clone(),
+            _ => runx_contracts::output_value_schema(envelope.output.as_ref()),
+        };
+        let loop_config = AgentLoopConfig {
+            max_rounds: self.max_rounds,
+            max_empty_turn_resamples: MAX_EMPTY_TURN_RESAMPLES,
+            final_result_tool: TURN_COMPLETE_TOOL.to_owned(),
+            final_result_output: envelope.output,
+            final_result_schema: envelope.output_schema,
+        };
+        let mut calls = TurnCalls {
+            turn,
+            host,
+            complete_schema,
+            offered: AgentToolNameMap::default(),
+            targets: BTreeMap::new(),
+            given,
+        };
+        calls.refresh()?;
+        let end =
+            run_agent_loop(&loop_config, model.as_ref(), &mut calls, prompt).map_err(|error| {
+                fail(ManagedAgentError::bounded_failure(
+                    error.reason().seal_reason(),
+                    error.sanitized_message(),
+                    error.telemetry().clone(),
+                ))
+            })?;
+        Ok(end.answer)
+    }
+}
+
+/// The model's tool calls, made through the turn it works.
+struct TurnCalls<'a> {
+    turn: &'a mut dyn Turn,
+    host: &'a mut dyn Host,
+    /// The output `turn_complete` takes.
+    complete_schema: JsonValue,
+    /// The turn's tools as the model is offered them, with the host's
+    /// controls.
+    offered: AgentToolNameMap,
+    /// The turn's tools by name.
+    targets: BTreeMap<String, TurnTarget>,
+    /// The digests of the manuals the model has been given this pass.
+    given: BTreeSet<String>,
+}
+
+impl TurnCalls<'_> {
+    /// Read the turn's tools again. A load adds the runners it binds, which
+    /// the model calls from its next round.
+    fn refresh(&mut self) -> Result<(), RuntimeError> {
+        let tools = self.turn.tools()?;
+        self.targets = tools
             .iter()
             .map(|tool| (tool.name.as_str().to_owned(), tool.target.clone()))
             .collect();
-        let definitions = AgentToolNameMap::new(
+        self.offered = AgentToolNameMap::new(
             tools
                 .into_iter()
                 .map(|tool| AgentToolDefinition {
@@ -111,50 +165,21 @@ impl ManagedAgent {
                     AgentToolDefinition {
                         name: TURN_COMPLETE_TOOL.to_owned(),
                         description: "End the turn with its output; the run continues.".to_owned(),
-                        input_schema: match &envelope.output_schema {
-                            Some(schema @ JsonValue::Object(_)) => schema.clone(),
-                            _ => runx_contracts::output_value_schema(envelope.output.as_ref()),
-                        },
+                        input_schema: self.complete_schema.clone(),
                     },
                 ])
                 .collect(),
         )
-        .map_err(|error| fail(ManagedAgentError::sanitized(error)))?;
-        let prompt = build_prompt(&envelope, &turn.calls()?).map_err(&fail)?;
-        let model = caller(&config, definitions).map_err(&fail)?;
-        let loop_config = AgentLoopConfig {
-            max_rounds: self.max_rounds,
-            max_empty_turn_resamples: MAX_EMPTY_TURN_RESAMPLES,
-            final_result_tool: TURN_COMPLETE_TOOL.to_owned(),
-            final_result_output: envelope.output,
-            final_result_schema: envelope.output_schema,
-        };
-        let mut calls = TurnCalls {
-            turn,
-            host,
-            targets,
-        };
-        let end =
-            run_agent_loop(&loop_config, model.as_ref(), &mut calls, prompt).map_err(|error| {
-                fail(ManagedAgentError::bounded_failure(
-                    error.reason().seal_reason(),
-                    error.sanitized_message(),
-                    error.telemetry().clone(),
-                ))
-            })?;
-        Ok(end.answer)
+        .map_err(|error| RuntimeError::effect_state("offering a turn's tools", error.to_owned()))?;
+        Ok(())
     }
 }
 
-/// The model's tool calls, made through the turn it works.
-struct TurnCalls<'a> {
-    turn: &'a mut dyn Turn,
-    host: &'a mut dyn Host,
-    /// The turn's tools by name.
-    targets: BTreeMap<String, TurnTarget>,
-}
-
 impl ToolExecutor for TurnCalls<'_> {
+    fn tools(&self) -> &AgentToolNameMap {
+        &self.offered
+    }
+
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
         (self.targets.contains_key(tool) || tool == TURN_STATUS_TOOL).then(|| tool.to_owned())
     }
@@ -165,6 +190,7 @@ impl ToolExecutor for TurnCalls<'_> {
             return Ok(ToolOutcome::Result {
                 content: json_text(&self.turn.status()?)?,
                 is_error: false,
+                guidance: None,
             });
         }
         let target = self.targets.get(tool).cloned().ok_or_else(|| {
@@ -174,17 +200,58 @@ impl ToolExecutor for TurnCalls<'_> {
             )
         })?;
         let input = input.as_object().cloned().unwrap_or_default();
-        let result = self.turn.call(&mut *self.host, None, target, input)?;
+        let mut result = self.turn.call(&mut *self.host, None, target, input)?;
         let is_error = match &result.outcome {
             TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
             TurnCallOutcome::Completed { .. } => false,
             TurnCallOutcome::Failed { .. } | TurnCallOutcome::Refused { .. } => true,
         };
+        if result.target == TurnTarget::Load && !is_error {
+            self.refresh()?;
+        }
+        let guidance = take_manual(&mut result, &mut self.given)?;
         Ok(ToolOutcome::Result {
             content: json_text(&result)?,
             is_error,
+            guidance,
         })
     }
+}
+
+/// A completed load's manual, taken out of its result. The model reads it as
+/// the loaded skill's operating guidance, in the act's instructions rather
+/// than in a result's data, below the act's own instructions and runx's
+/// governance; a manual it was already `given` this pass is not given again.
+fn take_manual(
+    result: &mut TurnCallResult,
+    given: &mut BTreeSet<String>,
+) -> Result<Option<String>, RuntimeError> {
+    let reading = |error: String| RuntimeError::effect_state("reading a load", error);
+    let (TurnTarget::Load, TurnCallOutcome::Completed { output, .. }) =
+        (&result.target, &mut result.outcome)
+    else {
+        return Ok(None);
+    };
+    let mut load = JsonValue::Object(output.clone())
+        .deserialize_into::<TurnLoad>()
+        .map_err(|error| reading(error.to_string()))?;
+    let (Some(manual), LoadedPackage::Skill { skill, .. }) = (load.manual.take(), &load.package)
+    else {
+        return Ok(None);
+    };
+    let guidance = given.insert(manual.sha256.as_str().to_owned()).then(|| {
+        format!(
+            "The manual of skill {skill}, loaded by call {} (its SKILL.md at {}). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
+            result.index, manual.sha256, manual.content
+        )
+    });
+    let JsonValue::Object(stripped) =
+        JsonValue::from_serialize(&load).map_err(|error| reading(error.to_string()))?
+    else {
+        return Err(reading("a load is an object".to_owned()));
+    };
+    *output = stripped;
+    Ok(guidance)
 }
 
 fn json_text(value: &impl Serialize) -> Result<String, RuntimeError> {
@@ -224,23 +291,18 @@ fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) 
 }
 
 /// The configured dialect's caller over the configured transport.
-fn caller(
-    config: &ManagedAgentConfig,
-    tools: AgentToolNameMap,
-) -> Result<Box<dyn ModelCaller>, ManagedAgentError> {
+fn caller(config: &ManagedAgentConfig) -> Result<Box<dyn ModelCaller>, ManagedAgentError> {
     match config.auth_mode {
         ManagedAgentAuthMode::LocalNone => speak(
             config,
             ReqwestHttpTransport::for_exact_loopback_agent(&config.endpoint_url)
                 .map_err(|_| ManagedAgentError::sanitized("local model endpoint is invalid"))?,
-            tools,
         ),
         ManagedAgentAuthMode::ApiKey => speak(
             config,
             ReqwestHttpTransport::for_managed_agent().map_err(|_| {
                 ManagedAgentError::sanitized("managed agent transport is unavailable")
             })?,
-            tools,
         ),
     }
 }
@@ -248,7 +310,6 @@ fn caller(
 fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
     config: &ManagedAgentConfig,
     transport: T,
-    tools: AgentToolNameMap,
 ) -> Result<Box<dyn ModelCaller>, ManagedAgentError> {
     let (endpoint, model) = (config.endpoint_url.clone(), config.model.clone());
     Ok(match config.dialect {
@@ -257,34 +318,43 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
                 ManagedAgentError::sanitized("the anthropic_messages dialect requires an API key")
             })?;
             Box::new(AnthropicMessagesCaller::new(
-                transport, endpoint, key, model, tools,
+                transport, endpoint, key, model,
             ))
         }
         ModelDialect::OpenAiResponses => {
             let key = config.api_key.clone().ok_or_else(|| {
                 ManagedAgentError::sanitized("the openai_responses dialect requires an API key")
             })?;
-            Box::new(OpenAiResponsesCaller::new(
-                transport, endpoint, key, model, tools,
-            ))
+            Box::new(OpenAiResponsesCaller::new(transport, endpoint, key, model))
         }
         ModelDialect::ChatCompletions => Box::new(ChatCompletionsCaller::new(
             transport,
             endpoint,
             config.api_key.clone(),
             model,
-            tools,
         )),
     })
 }
 
-/// The act's instructions and context, the calls the turn has made so far,
-/// and how to end it.
+/// The act's instructions, the manuals of the skills its turn loaded, each
+/// once, its context, the calls the turn has made so far, and how to end it.
+/// `given` gains the digest of each manual the prompt gives.
 fn build_prompt(
     envelope: &AgentContextEnvelope,
     calls: &[TurnCallResult],
+    given: &mut BTreeSet<String>,
 ) -> Result<String, ManagedAgentError> {
     let context = pretty(&AgentPromptContext::from(envelope))?;
+    let mut calls = calls.to_vec();
+    let mut manuals = String::new();
+    for call in &mut calls {
+        if let Some(manual) = take_manual(call, given).map_err(|error| {
+            ManagedAgentError::sanitized(format!("a load could not be read: {error}"))
+        })? {
+            manuals.push_str("\n\n");
+            manuals.push_str(&manual);
+        }
+    }
     let calls = if calls.is_empty() {
         String::new()
     } else {
@@ -294,7 +364,7 @@ fn build_prompt(
         )
     };
     Ok(format!(
-        "{}\n\n{CONTEXT_POLICY}\n\nRun context (JSON):\n{context}{calls}\n\nEach tool call is \
+        "{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON):\n{context}{calls}\n\nEach tool call is \
          admitted and recorded by runx. When the task is complete, call {TURN_COMPLETE_TOOL} \
          exactly once with the final payload.",
         envelope.instructions
@@ -380,7 +450,11 @@ mod tests {
             "issue_title".to_owned(),
             JsonValue::String("bug report".to_owned()),
         );
-        let prompt = build_prompt(&prompt_envelope("Triage", inputs, Vec::new()), &[])?;
+        let prompt = build_prompt(
+            &prompt_envelope("Triage", inputs, Vec::new()),
+            &[],
+            &mut BTreeSet::new(),
+        )?;
         assert!(
             prompt.contains("Triage")
                 && prompt.contains(TURN_COMPLETE_TOOL)
@@ -423,7 +497,7 @@ mod tests {
             skill_directory: non_empty("/workspace/skills/review"),
             tool_roots: Some(vec![non_empty("/workspace/tools")]),
         });
-        let prompt = build_prompt(&envelope, &[])?;
+        let prompt = build_prompt(&envelope, &[], &mut BTreeSet::new())?;
 
         assert!(prompt.contains(CONTEXT_POLICY));
         assert!(prompt.contains("runx.skill.context"));
@@ -458,9 +532,64 @@ mod tests {
         let prompt = build_prompt(
             &prompt_envelope("Review", JsonObject::new(), Vec::new()),
             &[call],
+            &mut BTreeSet::new(),
         )?;
         assert!(prompt.contains("Calls already made in this turn"));
         assert!(prompt.contains("no reason given"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_loaded_manual_is_guidance_given_once_and_never_a_calls_data()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let load = |index: u32| -> Result<TurnCallResult, Box<dyn std::error::Error>> {
+            let output = JsonValue::from_serialize(&TurnLoad {
+                package: LoadedPackage::Skill {
+                    skill: non_empty("acme/notes@1.0.0"),
+                    trust_tier: None,
+                    publisher: None,
+                    package_digest: non_empty("sha256:package"),
+                },
+                manual: Some(runx_contracts::SkillManual {
+                    sha256: non_empty("sha256:manual"),
+                    content: "Write each note in one line.".to_owned(),
+                }),
+                runners: Vec::new(),
+                tools: Vec::new(),
+                connectors: BTreeMap::new(),
+            })?;
+            let JsonValue::Object(output) = output else {
+                return Err("a load is an object".into());
+            };
+            Ok(TurnCallResult {
+                index,
+                target: TurnTarget::Load,
+                input_digest: non_empty("sha256:input"),
+                call_id: None,
+                outcome: TurnCallOutcome::Completed {
+                    output,
+                    receipt_id: non_empty("rx_load"),
+                    artifacts: BTreeMap::new(),
+                },
+            })
+        };
+        let mut given = BTreeSet::new();
+        let prompt = build_prompt(
+            &prompt_envelope("Review", JsonObject::new(), Vec::new()),
+            &[load(0)?, load(1)?],
+            &mut given,
+        )?;
+        assert_eq!(
+            prompt.matches("Write each note in one line.").count(),
+            1,
+            "{prompt}"
+        );
+        assert!(prompt.contains("operating guidance"));
+        assert_eq!(given, BTreeSet::from(["sha256:manual".to_owned()]));
+        // A load later in the pass gives a manual already given no second time.
+        let mut later = load(2)?;
+        assert_eq!(take_manual(&mut later, &mut given)?, None);
+        assert!(!serde_json::to_string(&later)?.contains("Write each note"));
         Ok(())
     }
 

@@ -45,11 +45,34 @@ export type LoadedPackageContract = DeepReadonly<
 >;
 
 /**
- * A completed load's output: what it bound, the calls it adds to the turn,
- * and each connector it reaches at the manifest digest it binds.
+ * A skill's manual: its `SKILL.md` exactly as its package holds it, and the
+ * digest of those bytes. It is the skill's operating guidance, which a host
+ * gives its model as guidance below its own instructions and runx's
+ * governance, never as a tool result's data.
+ */
+export type SkillManualContract = DeepReadonly<{
+  sha256: string;
+  content: string;
+}>;
+
+/** One runner of a loaded skill, as a model chooses it, and whether the load bound it. */
+export type LoadedRunnerContract = DeepReadonly<{
+  name: string;
+  purpose?: string;
+  inputs: readonly { name: string; type: string; required: boolean }[];
+  bound: boolean;
+}>;
+
+/**
+ * A completed load's output: what it bound, a skill's manual and runners,
+ * the calls it adds to the turn, and each connector it reaches at the
+ * manifest digest it binds. A skill's load binds the runner it names or the
+ * skill's only runner; one that binds none is a reading, which asks no trust.
  */
 export type TurnLoadContract = DeepReadonly<{
   package: LoadedPackageContract;
+  manual?: SkillManualContract;
+  runners?: readonly LoadedRunnerContract[];
   tools: readonly TurnToolContract[];
   connectors?: Record<string, string>;
 }>;

@@ -55,6 +55,20 @@ impl LoadedSkillPackage {
     }
 }
 
+/// Each runner `manifest` declares, as a model chooses it from an index.
+pub(crate) fn catalog_runners(
+    manifest: &SkillRunnerManifest,
+) -> Vec<runx_contracts::CatalogRunner> {
+    manifest
+        .runners
+        .values()
+        .map(|runner| runx_contracts::CatalogRunner {
+            name: runner.name.clone(),
+            purpose: runner.description.clone(),
+        })
+        .collect()
+}
+
 /// Return the authored runner examples, or derive the smallest copy-valid
 /// direct-use example from the standalone harness journey that already proves
 /// the public runner. This keeps generated agent instructions executable

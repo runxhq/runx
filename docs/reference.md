@@ -767,6 +767,7 @@ connectors:
     operations: [post.create]
 runners:
   publish:
+    description: Publish one post to a submolt, once its exact text is approved.
     result_from: [publish]
     steps:
       - id: publish
@@ -781,6 +782,13 @@ runners:
           title: $input.title
           content: $input.body
 ```
+
+A runner states its purpose in `description`: what it does and when to use it
+rather than the skill's other runners, in a sentence or two. A model chooses a
+runner by it: the tool a turn offers for the runner carries it, a load lists
+it, and `registry.search` and `runx list skills` show it. A runner without one
+is described by its skill's description; every runx-maintained runner declares
+one.
 
 The verb, scopes, target and readbacks come from the connector operation, and
 the kernel confirms a write by its declared readbacks before the step

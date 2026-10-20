@@ -36,49 +36,41 @@ pub struct AnthropicMessagesCaller<T> {
     url: String,
     api_key: SecretString,
     model: String,
-    tools: AgentToolNameMap,
 }
 
 impl<T> AnthropicMessagesCaller<T> {
-    pub fn new(
-        transport: T,
-        url: String,
-        api_key: SecretString,
-        model: String,
-        tools: AgentToolNameMap,
-    ) -> Self {
+    pub fn new(transport: T, url: String, api_key: SecretString, model: String) -> Self {
         Self {
             transport,
             url,
             api_key,
             model,
-            tools,
         }
     }
+}
 
-    fn tools_json(&self) -> Vec<WireValue> {
-        self.tools
-            .definitions()
-            .iter()
-            .map(|tool| {
-                json!({
-                    "name": wire_tool_name(&tool.name),
-                    "description": tool.description,
-                    "input_schema": to_wire(&tool.input_schema),
-                })
+fn tools_json(tools: &AgentToolNameMap) -> Vec<WireValue> {
+    tools
+        .definitions()
+        .iter()
+        .map(|tool| {
+            json!({
+                "name": wire_tool_name(&tool.name),
+                "description": tool.description,
+                "input_schema": to_wire(&tool.input_schema),
             })
-            .collect()
-    }
+        })
+        .collect()
+}
 
-    /// Map a wire tool name from the model back to the runx tool ref it was
-    /// offered as. runx tool refs are namespaced with a dot (`acme.post`),
-    /// which the Anthropic tool-name schema forbids, so they are offered with
-    /// dots flattened; recover the real ref before the governed executor sees it.
-    fn real_tool_name(&self, wire: &str) -> String {
-        self.tools
-            .real_name(wire)
-            .map_or_else(|| UNRECOGNIZED_MODEL_TOOL.to_owned(), str::to_owned)
-    }
+/// Map a wire tool name from the model back to the runx tool ref it was
+/// offered as. runx tool refs are namespaced with a dot (`acme.post`), which
+/// the Anthropic tool-name schema forbids, so they are offered with dots
+/// flattened; recover the real ref before the governed executor sees it.
+fn real_tool_name(tools: &AgentToolNameMap, wire: &str) -> String {
+    tools
+        .real_name(wire)
+        .map_or_else(|| UNRECOGNIZED_MODEL_TOOL.to_owned(), str::to_owned)
 }
 
 /// Convert a runx `JsonValue` to a wire `serde_json::Value`. A plain value never
@@ -87,40 +79,57 @@ fn to_wire(value: &JsonValue) -> WireValue {
     serde_json::to_value(value).unwrap_or(WireValue::Null)
 }
 
+/// The transcript as Messages turns. Roles alternate: guidance that follows a
+/// round's tool results joins their user turn, after its `tool_result` blocks.
 fn messages_json(transcript: &[AgentTurn]) -> Vec<WireValue> {
-    transcript
-        .iter()
-        .map(|turn| match turn {
-            AgentTurn::User(text) => json!({
-                "role": "user",
-                "content": [{ "type": "text", "text": text }],
-            }),
-            AgentTurn::AssistantToolUses(uses) => json!({
-                "role": "assistant",
-                "content": uses
-                    .iter()
-                    .map(|use_| json!({
-                        "type": "tool_use",
-                        "id": use_.id,
-                        "name": wire_tool_name(&use_.name),
-                        "input": to_wire(&use_.input),
-                    }))
-                    .collect::<Vec<WireValue>>(),
-            }),
-            AgentTurn::ToolResults(results) => json!({
-                "role": "user",
-                "content": results
-                    .iter()
-                    .map(|result| json!({
-                        "type": "tool_result",
-                        "tool_use_id": result.tool_use_id,
-                        "content": result.content,
-                        "is_error": result.is_error,
-                    }))
-                    .collect::<Vec<WireValue>>(),
-            }),
-        })
-        .collect()
+    let mut messages: Vec<WireValue> = Vec::new();
+    for message in transcript.iter().map(message_json) {
+        match messages.last_mut() {
+            Some(last) if last["role"] == message["role"] => {
+                if let (Some(content), Some(more)) = (
+                    last["content"].as_array_mut(),
+                    message["content"].as_array(),
+                ) {
+                    content.extend(more.iter().cloned());
+                }
+            }
+            _ => messages.push(message),
+        }
+    }
+    messages
+}
+
+fn message_json(turn: &AgentTurn) -> WireValue {
+    match turn {
+        AgentTurn::User(text) => json!({
+            "role": "user",
+            "content": [{ "type": "text", "text": text }],
+        }),
+        AgentTurn::AssistantToolUses(uses) => json!({
+            "role": "assistant",
+            "content": uses
+                .iter()
+                .map(|use_| json!({
+                    "type": "tool_use",
+                    "id": use_.id,
+                    "name": wire_tool_name(&use_.name),
+                    "input": to_wire(&use_.input),
+                }))
+                .collect::<Vec<WireValue>>(),
+        }),
+        AgentTurn::ToolResults(results) => json!({
+            "role": "user",
+            "content": results
+                .iter()
+                .map(|result| json!({
+                    "type": "tool_result",
+                    "tool_use_id": result.tool_use_id,
+                    "content": result.content,
+                    "is_error": result.is_error,
+                }))
+                .collect::<Vec<WireValue>>(),
+        }),
+    }
 }
 
 fn parse_tool_uses(body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
@@ -153,12 +162,16 @@ fn parse_tool_uses(body: &str) -> Result<Vec<AgentToolUse>, RuntimeError> {
 }
 
 impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
-    fn next_tool_uses(&self, transcript: &[AgentTurn]) -> Result<Vec<AgentToolUse>, RuntimeError> {
+    fn next_tool_uses(
+        &self,
+        tools: &AgentToolNameMap,
+        transcript: &[AgentTurn],
+    ) -> Result<Vec<AgentToolUse>, RuntimeError> {
         let request_body = json!({
             "model": self.model,
             "max_tokens": MAX_TOKENS,
             "messages": messages_json(transcript),
-            "tools": self.tools_json(),
+            "tools": tools_json(tools),
         });
         let request_body = serde_json::to_string(&request_body)
             .map_err(|source| RuntimeError::json("serializing anthropic request", source))?;
@@ -184,7 +197,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
         }
         let mut uses = parse_tool_uses(&response.body)?;
         for use_ in &mut uses {
-            use_.name = self.real_tool_name(&use_.name);
+            use_.name = real_tool_name(tools, &use_.name);
         }
         Ok(uses)
     }
@@ -219,20 +232,34 @@ mod tests {
         }
     }
 
-    fn caller(stub: &StubTransport) -> Result<AnthropicMessagesCaller<&StubTransport>, String> {
-        Ok(AnthropicMessagesCaller::new(
+    fn caller(stub: &StubTransport) -> AnthropicMessagesCaller<&StubTransport> {
+        AnthropicMessagesCaller::new(
             stub,
             "https://messages.test/v1/messages".to_owned(),
             SecretString::new("key"),
             "claude".to_owned(),
-            AgentToolNameMap::new(vec![
-                super::super::agent_tool_definitions::AgentToolDefinition {
-                    name: "pay".to_owned(),
-                    description: "Pay the bounded amount.".to_owned(),
-                    input_schema: JsonValue::Object(Default::default()),
+        )
+    }
+
+    fn tools(name: &str) -> Result<AgentToolNameMap, String> {
+        Ok(AgentToolNameMap::new(vec![
+            super::super::agent_tool_definitions::AgentToolDefinition {
+                name: name.to_owned(),
+                description: "A tool.".to_owned(),
+                input_schema: {
+                    let mut schema = runx_contracts::JsonObject::new();
+                    schema.insert("type".to_owned(), JsonValue::String("object".to_owned()));
+                    JsonValue::Object(schema)
                 },
-            ])?,
-        ))
+            },
+        ])?)
+    }
+
+    fn go(stub: &StubTransport) -> Result<Vec<AgentToolUse>, RuntimeError> {
+        caller(stub).next_tool_uses(
+            &tools("pay").map_err(|message| RuntimeError::effect_state("test tools", message))?,
+            &[AgentTurn::User("go".to_owned())],
+        )
     }
 
     #[test]
@@ -243,7 +270,8 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("buy a quota".to_owned())]);
+        let result = caller(&stub)
+            .next_tool_uses(&tools("pay")?, &[AgentTurn::User("buy a quota".to_owned())]);
         assert!(
             matches!(
                 &result,
@@ -279,25 +307,8 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let model = AnthropicMessagesCaller::new(
-            &stub,
-            "https://messages.test/v1/messages".to_owned(),
-            SecretString::new("key"),
-            "claude".to_owned(),
-            AgentToolNameMap::new(vec![
-                super::super::agent_tool_definitions::AgentToolDefinition {
-                    name: "acme.post".to_owned(),
-                    description: "post".to_owned(),
-                    input_schema: {
-                        let mut schema = runx_contracts::JsonObject::new();
-                        schema.insert("type".to_owned(), JsonValue::String("object".to_owned()));
-                        JsonValue::Object(schema)
-                    },
-                },
-            ])?,
-        );
-        let uses = model
-            .next_tool_uses(&[AgentTurn::User("go".to_owned())])
+        let uses = caller(&stub)
+            .next_tool_uses(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])
             .map_err(|error| format!("call should succeed: {error}"))?;
         // The model's flattened call maps back to the dotted runx tool ref.
         assert_eq!(uses.len(), 1);
@@ -323,21 +334,8 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let model = AnthropicMessagesCaller::new(
-            &stub,
-            "https://messages.test/v1/messages".to_owned(),
-            SecretString::new("key"),
-            "claude".to_owned(),
-            AgentToolNameMap::new(vec![
-                super::super::agent_tool_definitions::AgentToolDefinition {
-                    name: "acme.post".to_owned(),
-                    description: "post".to_owned(),
-                    input_schema: JsonValue::Object(Default::default()),
-                },
-            ])?,
-        );
-
-        let uses = model.next_tool_uses(&[AgentTurn::User("go".to_owned())])?;
+        let uses = caller(&stub)
+            .next_tool_uses(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])?;
 
         assert_eq!(uses[0].name, UNRECOGNIZED_MODEL_TOOL);
         assert!(!uses[0].name.contains(SENSITIVE_MARKER));
@@ -351,7 +349,7 @@ mod tests {
             status: 429,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail }) if detail == "status 429"),
             "non-2xx should be an error; got: {result:?}"
@@ -367,7 +365,7 @@ mod tests {
             status: 404,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail })
                 if detail == "status 404 not_found_error: model: claude-retired"),
@@ -383,7 +381,7 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Ok(uses) if uses.is_empty()),
             "no tool_use blocks should yield no uses; got: {result:?}"
@@ -398,7 +396,7 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             result.is_err(),
             "a malformed body must error, not panic; got: {result:?}"
@@ -413,7 +411,7 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Ok(uses) if uses.is_empty()),
             "a response with no content array should yield no uses; got: {result:?}"
@@ -435,7 +433,7 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Ok(uses) if uses.len() == 1 && uses[0].id == "ok" && uses[0].name == "pay"),
             "blocks missing id or name must be skipped; got: {result:?}"
@@ -450,7 +448,7 @@ mod tests {
             status: 200,
             requests: RefCell::new(Vec::new()),
         };
-        let result = caller(&stub)?.next_tool_uses(&[AgentTurn::User("go".to_owned())]);
+        let result = go(&stub);
         assert!(
             matches!(&result, Ok(uses) if uses.len() == 1 && matches!(uses[0].input, JsonValue::Null)),
             "a tool_use with no input defaults to a null input; got: {result:?}"

@@ -441,20 +441,64 @@ pub struct BoundClosure {
     pub closure_digest: NonEmptyString,
 }
 
-/// A completed load's output: what it bound, and the calls it adds to the
-/// turn.
+/// A completed load's output: what it bound, a skill's manual and runners,
+/// and the calls it adds to the turn. A skill's load binds the runner it
+/// names, or the skill's only runner; one that binds none is a reading of the
+/// skill, which binds no closure and so asks no trust.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.turn_load.v1")]
 pub struct TurnLoad {
     pub package: LoadedPackage,
-    /// One per loaded runner, or per operation of a loaded connector, as the
+    /// A loaded skill's manual; none for a connector.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual: Option<SkillManual>,
+    /// Every runner of a loaded skill, as a model chooses one, and whether
+    /// this load bound it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runners: Vec<LoadedRunner>,
+    /// One per bound runner, or per operation of a loaded connector, as the
     /// turn offers it from then on.
     pub tools: Vec<TurnTool>,
     /// Each connector what it bound reaches, by name, at the manifest digest
     /// it binds: a later load that binds another revision is refused.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub connectors: BTreeMap<String, NonEmptyString>,
+}
+
+/// A skill's manual: its `SKILL.md` exactly as its package holds it, the
+/// skill's operating guidance. A host gives it to its model as guidance,
+/// below the host's own instructions and runx's governance, which it never
+/// widens, and never as a tool result's data.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillManual {
+    /// `sha256:` over `content`'s bytes.
+    pub sha256: NonEmptyString,
+    pub content: String,
+}
+
+/// One runner of a loaded skill, as a model chooses it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LoadedRunner {
+    pub name: NonEmptyString,
+    /// What it does and when to use it, as its package states it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purpose: Option<NonEmptyString>,
+    pub inputs: Vec<LoadedRunnerInput>,
+    /// Whether this load bound it, so the turn offers it as a tool.
+    pub bound: bool,
+}
+
+/// One input of a loaded skill's runner.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LoadedRunnerInput {
+    pub name: NonEmptyString,
+    #[serde(rename = "type")]
+    pub input_type: NonEmptyString,
+    pub required: bool,
 }
 
 /// The package a load bound. A project's own package has no tier and no
