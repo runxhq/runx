@@ -275,6 +275,9 @@ where
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
+    if fixture.kind == HarnessFixtureKind::Skill {
+        stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
+    }
     // The host's workspace policy is the host's: a case's environment never
     // sets it, so a publisher's harness cannot lift a refusal the host made.
     let policy = crate::execution_environment::RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV;
@@ -304,6 +307,32 @@ where
             Err(error)
         }
     }
+}
+
+/// A skill case has a private project for its instances and receipts. Stage
+/// only the pinned installed connector versions its package binds into that
+/// project before resolving its sessions; no mutable state crosses the edge.
+fn stage_installed_connectors_for_case(
+    source_env: &BTreeMap<String, String>,
+    case_env: &BTreeMap<String, String>,
+    target: &Path,
+) -> Result<(), HarnessReplayError> {
+    let source_paths = crate::paths::RunxPaths::resolve(source_env, target);
+    let case_paths = crate::paths::RunxPaths::resolve(case_env, target);
+    let loaded = crate::load_validated_skill_package(target)?;
+    for connector in super::package::bound_installed_connectors(&loaded, &source_paths)? {
+        if let crate::kernel::connectors::ConnectorOrigin::Installed { directory } =
+            &connector.origin
+        {
+            crate::registry::write_connector_version(
+                &case_paths.added_connectors(),
+                &connector,
+                Some(directory),
+            )
+            .map_err(|error| RuntimeError::effect_state("staging harness connectors", error))?;
+        }
+    }
+    Ok(())
 }
 
 fn seed_harness_receipts(
@@ -1030,9 +1059,135 @@ fn resolve_fixture_path(
 
 #[cfg(test)]
 mod tests {
-    use super::{HarnessOptions, overlay_harness_env, resolve_fixture_path};
+    use super::{
+        HarnessOptions, overlay_harness_env, resolve_fixture_path,
+        stage_installed_connectors_for_case,
+    };
     use std::collections::BTreeMap;
+    use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn installed_connector_is_staged_into_each_case_project()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let publisher = workspace.path().join("publisher");
+        fs::create_dir_all(&publisher)?;
+        fs::write(publisher.join("plugin.json"), r#"{"namespace":"acme"}"#)?;
+        let connector_dir = publisher.join("connectors/ledger");
+        fs::create_dir_all(&connector_dir)?;
+        fs::write(
+            connector_dir.join("connector.yaml"),
+            r#"schema: runx.connector.v1
+id: ledger
+name: Ledger
+description: Read a public ledger.
+category: agent-tools
+runtime_capability: false
+auth:
+  credentials:
+    service_token:
+      kind: api_key
+      fields:
+        - {name: token, label: Acme service token}
+      delivery: {env: ACME_SERVICE_TOKEN}
+      audience: [api.example.com]
+placements:
+  hosted: {auth: credential, credential: service_token}
+  local: {auth: [credentials]}
+operations:
+  entry.read:
+    description: Read one ledger entry.
+    verb: read
+    scopes: [entry.read]
+    credentials: [service_token]
+    target: {template: "acme:ledger"}
+    result_fields: [entry]
+    hosted: {}
+"#,
+        )?;
+        let connector = crate::ConnectorScope::at(&publisher)?.named("ledger")?;
+        let source_project = workspace.path().join("source-project");
+        let installed_source = crate::registry::write_connector_version(
+            &source_project.join("added-connectors"),
+            &connector,
+            Some(&connector_dir),
+        )?;
+        let version = installed_source
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or("installed connector has no version")?;
+        let case_project = workspace.path().join("case-project");
+        let skill_dir = workspace.path().join("skills/ledger-read");
+        fs::create_dir_all(&skill_dir)?;
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: ledger-read\ndescription: Read a ledger entry.\n---\n# Ledger read\n",
+        )?;
+        fs::write(
+            skill_dir.join("run.yaml"),
+            format!(
+                "skill: ledger-read\nversion: \"0.1.0\"\nconnectors:\n  ledger:\n    manifest_digest: {}\n    operations: [entry.read]\nrunners:\n  inspect:\n    default: true\n    steps:\n      - id: read\n        operation: ledger/entry.read\n        input: {{}}\n",
+                connector.manifest_digest
+            ),
+        )?;
+        let broken = source_project.join("added-connectors/broken/sha-bad");
+        fs::create_dir_all(&broken)?;
+        fs::write(broken.join("connector.yaml"), "not: [a connector")?;
+        let source_env = BTreeMap::from([
+            (
+                "RUNX_CWD".to_owned(),
+                workspace.path().to_string_lossy().into_owned(),
+            ),
+            (
+                "RUNX_PROJECT_DIR".to_owned(),
+                source_project.to_string_lossy().into_owned(),
+            ),
+        ]);
+        let case_env = BTreeMap::from([
+            (
+                "RUNX_CWD".to_owned(),
+                workspace.path().to_string_lossy().into_owned(),
+            ),
+            (
+                "RUNX_PROJECT_DIR".to_owned(),
+                case_project.to_string_lossy().into_owned(),
+            ),
+        ]);
+
+        let fixtures = skill_dir.join("fixtures");
+        fs::create_dir_all(&fixtures)?;
+        fs::write(
+            fixtures.join("binds-installed.yaml"),
+            "name: binds-installed\nkind: skill\ntarget: ..\nrunner: inspect\nsetup:\n  credentials: [ledger]\nenv:\n  ACME_SERVICE_TOKEN: fixture-token\nexpect:\n  status: policy_denied\n",
+        )?;
+        let report = super::super::package::run_package_harness_with_effects(
+            &skill_dir,
+            None,
+            &source_env,
+            &crate::RuntimeEffectRegistry::default(),
+        )?;
+        assert_eq!(report.status, "passed", "{report:?}");
+        assert_eq!(report.case_names, ["binds-installed"]);
+
+        stage_installed_connectors_for_case(&source_env, &case_env, &skill_dir)?;
+
+        let scope = crate::ConnectorScope::in_project(
+            workspace.path(),
+            &crate::paths::RunxPaths::resolve(&case_env, workspace.path()),
+        )?;
+        let installed = scope.named(&format!("ledger@{version}"))?;
+        assert_eq!(installed.manifest_digest, connector.manifest_digest);
+        assert!(
+            case_project
+                .join("added-connectors/ledger")
+                .join(version)
+                .join("connector.yaml")
+                .is_file()
+        );
+        assert!(!case_project.join("added-connectors/broken").exists());
+        Ok(())
+    }
 
     #[test]
     fn overlay_harness_env_preserves_operator_env_and_allows_fixture_override()
