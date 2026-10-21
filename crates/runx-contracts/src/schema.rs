@@ -58,8 +58,18 @@ where
 
 /// A type that can emit its own JSON Schema document.
 pub trait RunxSchema {
-    /// The inlined JSON Schema for this type.
+    /// The inlined JSON Schema for this type: the one wire form Rust writes,
+    /// so a record's digest is stable.
     fn json_schema() -> Value;
+
+    /// The schema of what decoding this type accepts: its wire schema without
+    /// the constraint that keeps a field's default off the wire, since a field
+    /// omitted at its default decodes it written out as well, and without a
+    /// document's identity, being a shape. An input is decoded, never digested
+    /// in its wire form, so it offers this one.
+    fn accepted_schema() -> Value {
+        Self::json_schema()
+    }
 }
 
 /// One object property: its wire name, schema, and whether it is required.
@@ -407,6 +417,10 @@ impl<T: RunxSchema> RunxSchema for Vec<T> {
     fn json_schema() -> Value {
         json!({ "type": "array", "items": T::json_schema() })
     }
+
+    fn accepted_schema() -> Value {
+        json!({ "type": "array", "items": T::accepted_schema() })
+    }
 }
 
 /// A non-empty array (`minItems: 1`) for contract fields where an empty list
@@ -467,23 +481,39 @@ where
 
 impl<T: RunxSchema> RunxSchema for NonEmptyVec<T> {
     fn json_schema() -> Value {
-        let mut schema = Vec::<T>::json_schema();
-        if let Some(object) = schema.as_object_mut() {
-            object.insert("minItems".to_owned(), json!(1));
-        }
-        schema
+        non_empty(Vec::<T>::json_schema())
     }
+
+    fn accepted_schema() -> Value {
+        non_empty(Vec::<T>::accepted_schema())
+    }
+}
+
+/// An array schema that takes at least one item.
+fn non_empty(mut schema: Value) -> Value {
+    if let Some(object) = schema.as_object_mut() {
+        object.insert("minItems".to_owned(), json!(1));
+    }
+    schema
 }
 
 impl<T: RunxSchema> RunxSchema for Option<T> {
     fn json_schema() -> Value {
         T::json_schema()
     }
+
+    fn accepted_schema() -> Value {
+        T::accepted_schema()
+    }
 }
 
 impl<T: RunxSchema> RunxSchema for Box<T> {
     fn json_schema() -> Value {
         T::json_schema()
+    }
+
+    fn accepted_schema() -> Value {
+        T::accepted_schema()
     }
 }
 
@@ -499,14 +529,23 @@ impl SchemaMapKey for String {
 
 impl<K: SchemaMapKey, T: RunxSchema> RunxSchema for BTreeMap<K, T> {
     fn json_schema() -> Value {
-        match K::PATTERN {
-            None => json!({ "type": "object", "additionalProperties": T::json_schema() }),
-            Some(pattern) => json!({
-                "type": "object",
-                "propertyNames": { "pattern": pattern },
-                "additionalProperties": T::json_schema(),
-            }),
-        }
+        map_schema::<K>(T::json_schema())
+    }
+
+    fn accepted_schema() -> Value {
+        map_schema::<K>(T::accepted_schema())
+    }
+}
+
+/// An object whose keys are `K`s and whose values each take `value`.
+fn map_schema<K: SchemaMapKey>(value: Value) -> Value {
+    match K::PATTERN {
+        None => json!({ "type": "object", "additionalProperties": value }),
+        Some(pattern) => json!({
+            "type": "object",
+            "propertyNames": { "pattern": pattern },
+            "additionalProperties": value,
+        }),
     }
 }
 
@@ -700,13 +739,22 @@ impl<T: RunxSchema, const MIN_ITEMS: usize, const MAX_ITEMS: usize> RunxSchema
     for BoundedVec<T, MIN_ITEMS, MAX_ITEMS>
 {
     fn json_schema() -> Value {
-        json!({
-            "type": "array",
-            "minItems": MIN_ITEMS,
-            "maxItems": MAX_ITEMS,
-            "items": T::json_schema(),
-        })
+        bounded_array::<MIN_ITEMS, MAX_ITEMS>(T::json_schema())
     }
+
+    fn accepted_schema() -> Value {
+        bounded_array::<MIN_ITEMS, MAX_ITEMS>(T::accepted_schema())
+    }
+}
+
+/// An array of `MIN_ITEMS` to `MAX_ITEMS` items, each taking `items`.
+fn bounded_array<const MIN_ITEMS: usize, const MAX_ITEMS: usize>(items: Value) -> Value {
+    json!({
+        "type": "array",
+        "minItems": MIN_ITEMS,
+        "maxItems": MAX_ITEMS,
+        "items": items,
+    })
 }
 
 /// The ISO-8601 datetime pattern the contracts commit to (`...Z`, optional

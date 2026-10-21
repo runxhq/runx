@@ -166,6 +166,65 @@ fn capability_registry_exposes_one_input_schema() {
 }
 
 #[test]
+fn every_capability_offers_the_input_shape_it_decodes() {
+    for capability in core_capabilities() {
+        let id = capability.definition().id;
+        let typed = capability
+            .input_schema()
+            .expect("typed schema should derive");
+        let catalog = capability.catalog_inputs().expect("catalog should derive");
+        let offered = serde_json::to_value(runx_contracts::input_contract_schema(&catalog))
+            .expect("offered schema should serialize");
+        for (name, property) in typed
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+            .expect("typed schema should expose properties")
+        {
+            // An optional property's value, when present, takes its choice other than null.
+            let present = property
+                .get("anyOf")
+                .and_then(serde_json::Value::as_array)
+                .and_then(|choices| {
+                    choices.iter().find(|choice| {
+                        choice.get("type").and_then(serde_json::Value::as_str) != Some("null")
+                    })
+                })
+                .unwrap_or(property);
+            let offered = &offered["properties"][name];
+            for (keyword, value) in present.as_object().expect("a property is an object") {
+                assert_eq!(&offered[keyword], value, "{id} {name} offers its {keyword}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_capability_input_offers_the_defaults_decoding_takes_written_out() {
+    let offered = |id: &str| {
+        let catalog = definition(id)
+            .expect("capability should be registered")
+            .catalog_inputs()
+            .expect("catalog should derive");
+        serde_json::to_value(runx_contracts::input_contract_schema(&catalog))
+            .expect("offered schema should serialize")
+    };
+    let command = offered("command.execute");
+    assert_eq!(
+        command["properties"]["args"],
+        serde_json::json!({
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Zero to 128 exact string arguments.",
+        })
+    );
+    let edit = offered("fs.edit");
+    assert_eq!(
+        edit["properties"]["edits"]["items"]["properties"]["replace_all"],
+        serde_json::json!({ "type": "boolean" })
+    );
+}
+
+#[test]
 fn native_output_contract_is_exact_and_rejects_invalid_inner_fields() {
     let capability = definition("data.digest").expect("data.digest should be registered");
     let schema = capability.output_schema();

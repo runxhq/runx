@@ -1,6 +1,7 @@
 //! `#[derive(RunxSchema)]`: emit a wire-conformant JSON Schema document from a
-//! contract type's definition and its serde attributes. Part of Phase 1 of
-//! `rust-contract-pipeline-inversion`.
+//! contract type's definition and its serde attributes, and the schema of what
+//! decoding it accepts, which takes a field omitted at its default written out
+//! too. Part of Phase 1 of `rust-contract-pipeline-inversion`.
 //!
 //! Supported today: named-field structs (honoring `#[serde(rename)]`,
 //! `#[serde(rename_all)]`, `#[serde(skip)]`, `Option<T>` /
@@ -50,45 +51,80 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         None => quote! { ::core::option::Option::None },
     };
 
-    let body = match &input.data {
+    let wire = schema_body(input, &identity_expr, Mode::Wire)?;
+    // What decoding accepts is a shape, not a document: it carries no identity.
+    let accepted = schema_body(
+        input,
+        &quote! { ::core::option::Option::None },
+        Mode::Accepted,
+    )?;
+
+    Ok(quote! {
+        impl ::runx_contracts::schema::RunxSchema for #ident {
+            fn json_schema() -> ::serde_json::Value {
+                #wire
+            }
+
+            fn accepted_schema() -> ::serde_json::Value {
+                #accepted
+            }
+        }
+    })
+}
+
+/// Which schema a body emits: the one wire form Rust writes
+/// (`json_schema`), or what decoding accepts (`accepted_schema`), a field's
+/// default written out included.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Wire,
+    Accepted,
+}
+
+impl Mode {
+    /// The trait method that gives a nested type's schema in this mode.
+    fn method(self) -> proc_macro2::TokenStream {
+        match self {
+            Self::Wire => quote! { json_schema },
+            Self::Accepted => quote! { accepted_schema },
+        }
+    }
+}
+
+fn schema_body(
+    input: &DeriveInput,
+    identity_expr: &proc_macro2::TokenStream,
+    mode: Mode,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let ident = &input.ident;
+    match &input.data {
         Data::Struct(data) => match &data.fields {
-            Fields::Named(_) => struct_body(input, data, &identity_expr)?,
+            Fields::Named(_) => struct_body(input, data, identity_expr, mode),
             // A single-field tuple struct (commonly `#[serde(transparent)]`)
             // wrapping a `BTreeMap<String, T>` is a map-rooted document: it
             // emits the committed open-map shape (`patternProperties` over the
             // value type's schema), carrying any top-level identity.
             Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                map_newtype_body(ident, &fields.unnamed[0].ty, &identity_expr)?
+                map_newtype_body(ident, &fields.unnamed[0].ty, identity_expr, mode)
             }
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    ident,
-                    "RunxSchema supports only named-field structs or single-field map newtypes",
-                ));
-            }
-        },
-        Data::Enum(data) => enum_body(input, data, &identity_expr)?,
-        Data::Union(_) => {
-            return Err(syn::Error::new_spanned(
+            _ => Err(syn::Error::new_spanned(
                 ident,
-                "RunxSchema cannot be derived for unions",
-            ));
-        }
-    };
-
-    Ok(quote! {
-        impl ::runx_contracts::schema::RunxSchema for #ident {
-            fn json_schema() -> ::serde_json::Value {
-                #body
-            }
-        }
-    })
+                "RunxSchema supports only named-field structs or single-field map newtypes",
+            )),
+        },
+        Data::Enum(data) => enum_body(input, data, identity_expr, mode),
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            ident,
+            "RunxSchema cannot be derived for unions",
+        )),
+    }
 }
 
 fn struct_body(
     input: &DeriveInput,
     data: &syn::DataStruct,
     identity_expr: &proc_macro2::TokenStream,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let rename_all = serde_rename_all(&input.attrs)?;
     let deny_unknown = serde_deny_unknown_fields(&input.attrs);
@@ -97,7 +133,7 @@ fn struct_body(
     let container_default = serde_default(&input.attrs);
 
     let (properties, flattened) =
-        struct_field_properties(&data.fields, rename_all.as_deref(), container_default)?;
+        struct_field_properties(&data.fields, rename_all.as_deref(), container_default, mode)?;
 
     Ok(object_body(
         &properties,
@@ -114,6 +150,7 @@ fn map_newtype_body(
     ident: &syn::Ident,
     ty: &Type,
     identity_expr: &proc_macro2::TokenStream,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let Some(value_ty) = map_value_type(ty) else {
         return Err(syn::Error::new_spanned(
@@ -121,9 +158,10 @@ fn map_newtype_body(
             "RunxSchema map newtype must wrap a `BTreeMap<String, T>`",
         ));
     };
+    let method = mode.method();
     Ok(quote! {
         ::runx_contracts::schema::object_map_schema(
-            <#value_ty as ::runx_contracts::schema::RunxSchema>::json_schema(),
+            <#value_ty as ::runx_contracts::schema::RunxSchema>::#method(),
             #identity_expr,
         )
     })
@@ -208,7 +246,9 @@ fn struct_field_properties(
     fields: &Fields,
     rename_all: Option<&str>,
     container_default: bool,
+    mode: Mode,
 ) -> syn::Result<(Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>)> {
+    let method = mode.method();
     let mut properties = Vec::new();
     let mut flattened = Vec::new();
     for field in fields {
@@ -223,7 +263,7 @@ fn struct_field_properties(
         if serde_flag(&field.attrs, "flatten") {
             let ty = &field.ty;
             flattened.push(quote! {
-                <#ty as ::runx_contracts::schema::RunxSchema>::json_schema()
+                <#ty as ::runx_contracts::schema::RunxSchema>::#method()
             });
             continue;
         }
@@ -243,10 +283,13 @@ fn struct_field_properties(
         let required = !(omittable || field_default || container_default);
         let nullable = optional && !omittable;
         let inner_schema = quote! {
-            <#inner_ty as ::runx_contracts::schema::RunxSchema>::json_schema()
+            <#inner_ty as ::runx_contracts::schema::RunxSchema>::#method()
         };
+        // Decoding takes a field omitted at its default written out as well.
         let property_schema = if nullable {
             quote! { ::runx_contracts::schema::nullable(#inner_schema) }
+        } else if mode == Mode::Accepted {
+            inner_schema
         } else {
             present_schema(field, inner_schema)?
         };
@@ -265,6 +308,7 @@ fn enum_body(
     input: &DeriveInput,
     data: &syn::DataEnum,
     identity_expr: &proc_macro2::TokenStream,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let rename_all = serde_rename_all(&input.attrs)?;
     let rename_all_fields = serde_rename_all_fields(&input.attrs)?;
@@ -307,7 +351,7 @@ fn enum_body(
             None => apply_rename_all(&variant.ident.to_string(), rename_all.as_deref()),
         };
         let schema = if untagged {
-            untagged_variant_schema(variant, rename_all_fields.as_deref())?
+            untagged_variant_schema(variant, rename_all_fields.as_deref(), mode)?
         } else if let Some(tag) = &internal_tag {
             internally_tagged_variant_schema(
                 variant,
@@ -315,9 +359,15 @@ fn enum_body(
                 tag,
                 rename_all_fields.as_deref(),
                 container_deny,
+                mode,
             )?
         } else {
-            externally_tagged_variant_schema(variant, &wire_name, rename_all_fields.as_deref())?
+            externally_tagged_variant_schema(
+                variant,
+                &wire_name,
+                rename_all_fields.as_deref(),
+                mode,
+            )?
         };
         variant_schemas.push(schema);
     }
@@ -336,16 +386,17 @@ fn enum_body(
 fn untagged_variant_schema(
     variant: &syn::Variant,
     rename_all_fields: Option<&str>,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     match &variant.fields {
         Fields::Unit => {
             let wire_name = apply_rename_all(&variant.ident.to_string(), None);
             Ok(quote! { ::runx_contracts::schema::const_string(#wire_name) })
         }
-        Fields::Unnamed(fields) => newtype_inner_schema(variant, fields),
+        Fields::Unnamed(fields) => newtype_inner_schema(variant, fields, mode),
         Fields::Named(_) => {
             let (properties, flattened) =
-                struct_field_properties(&variant.fields, rename_all_fields, false)?;
+                struct_field_properties(&variant.fields, rename_all_fields, false, mode)?;
             let deny_unknown = serde_deny_unknown_fields(&variant.attrs);
             let none = quote! { ::core::option::Option::None };
             Ok(object_body(&properties, &flattened, deny_unknown, &none))
@@ -360,18 +411,19 @@ fn externally_tagged_variant_schema(
     variant: &syn::Variant,
     wire_name: &str,
     rename_all_fields: Option<&str>,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     match &variant.fields {
         Fields::Unit => Ok(quote! { ::runx_contracts::schema::const_string(#wire_name) }),
         Fields::Unnamed(fields) => {
-            let inner = newtype_inner_schema(variant, fields)?;
+            let inner = newtype_inner_schema(variant, fields, mode)?;
             Ok(quote! {
                 ::runx_contracts::schema::externally_tagged_variant(#wire_name, #inner)
             })
         }
         Fields::Named(_) => {
             let (properties, flattened) =
-                struct_field_properties(&variant.fields, rename_all_fields, false)?;
+                struct_field_properties(&variant.fields, rename_all_fields, false, mode)?;
             let deny_unknown = serde_deny_unknown_fields(&variant.attrs);
             let none = quote! { ::core::option::Option::None };
             let inner = object_body(&properties, &flattened, deny_unknown, &none);
@@ -391,6 +443,7 @@ fn internally_tagged_variant_schema(
     tag: &str,
     rename_all_fields: Option<&str>,
     container_deny: bool,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut properties = Vec::new();
     let mut flattened: Vec<proc_macro2::TokenStream> = Vec::new();
@@ -405,7 +458,7 @@ fn internally_tagged_variant_schema(
         Fields::Unit => {}
         Fields::Named(_) => {
             let (field_props, field_flattened) =
-                struct_field_properties(&variant.fields, rename_all_fields, false)?;
+                struct_field_properties(&variant.fields, rename_all_fields, false, mode)?;
             properties.extend(field_props);
             flattened.extend(field_flattened);
         }
@@ -435,6 +488,7 @@ fn internally_tagged_variant_schema(
 fn newtype_inner_schema(
     variant: &syn::Variant,
     fields: &syn::FieldsUnnamed,
+    mode: Mode,
 ) -> syn::Result<proc_macro2::TokenStream> {
     if fields.unnamed.len() != 1 {
         return Err(syn::Error::new_spanned(
@@ -443,8 +497,9 @@ fn newtype_inner_schema(
         ));
     }
     let inner_ty = &fields.unnamed[0].ty;
+    let method = mode.method();
     Ok(quote! {
-        <#inner_ty as ::runx_contracts::schema::RunxSchema>::json_schema()
+        <#inner_ty as ::runx_contracts::schema::RunxSchema>::#method()
     })
 }
 

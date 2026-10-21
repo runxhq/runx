@@ -37,42 +37,63 @@ fn receipt_refuses_a_field_no_issuer_writes() -> Result<(), String> {
     Ok(())
 }
 
+/// The corpus's minimal valid receipt with one authority term of `bounds` and
+/// `approvals`.
+fn receipt_with_term(bounds: Value, approvals: Option<Value>) -> Result<Value, String> {
+    let mut receipt = corpora::receipt_corpus()
+        .into_iter()
+        .find_map(|(label, value)| (label == "minimal valid").then_some(value))
+        .ok_or("receipt corpus must contain a minimal valid case")?;
+    let mut term = json!({
+        "term_id": "term_1",
+        "principal_ref": { "type": "principal", "uri": "runx:principal:p" },
+        "resource_ref": { "type": "connector_instance", "uri": "runx:connector_instance:i" },
+        "resource_family": "connector",
+        "verbs": ["read"],
+        "bounds": bounds,
+        "issued_by_ref": { "type": "principal", "uri": "runx:principal:issuer" },
+    });
+    if let Some(approvals) = approvals {
+        term["approvals"] = approvals;
+    }
+    receipt["authority"]["terms"] = json!([term]);
+    Ok(receipt)
+}
+
+fn validator(schema: &Value) -> Result<jsonschema::Validator, String> {
+    jsonschema::draft202012::options()
+        .with_retriever(SchemaDirRetriever {
+            dir: committed_dir(),
+        })
+        .build(schema)
+        .map_err(|error| error.to_string())
+}
+
 /// A field left off the wire at its default has one wire form: the schema
 /// refuses the default written out, so a validator and the strict reader agree.
 #[test]
 fn receipt_schema_refuses_an_omitted_default_written_out() -> Result<(), String> {
-    let valid = corpora::receipt_corpus()
-        .into_iter()
-        .find_map(|(label, value)| (label == "minimal valid").then_some(value))
-        .ok_or("receipt corpus must contain a minimal valid case")?;
-    let validator = jsonschema::draft202012::options()
-        .with_retriever(SchemaDirRetriever {
-            dir: committed_dir(),
-        })
-        .build(&<Receipt as RunxSchema>::json_schema())
-        .map_err(|error| error.to_string())?;
-    let with_term = |bounds: Value, approvals: Option<Value>| {
-        let mut receipt = valid.clone();
-        let mut term = json!({
-            "term_id": "term_1",
-            "principal_ref": { "type": "principal", "uri": "runx:principal:p" },
-            "resource_ref": { "type": "connector_instance", "uri": "runx:connector_instance:i" },
-            "resource_family": "connector",
-            "verbs": ["read"],
-            "bounds": bounds,
-            "issued_by_ref": { "type": "principal", "uri": "runx:principal:issuer" },
-        });
-        if let Some(approvals) = approvals {
-            term["approvals"] = approvals;
-        }
-        receipt["authority"]["terms"] = json!([term]);
-        receipt
-    };
+    let validator = validator(&<Receipt as RunxSchema>::json_schema())?;
+    assert!(validator.is_valid(&receipt_with_term(json!({}), None)?));
+    assert!(!validator.is_valid(&receipt_with_term(json!({ "operations": [] }), None)?));
+    assert!(!validator.is_valid(&receipt_with_term(json!({ "scopes": [] }), None)?));
+    assert!(!validator.is_valid(&receipt_with_term(json!({}), Some(json!([])))?));
+    Ok(())
+}
 
-    assert!(validator.is_valid(&with_term(json!({}), None)));
-    assert!(!validator.is_valid(&with_term(json!({ "operations": [] }), None)));
-    assert!(!validator.is_valid(&with_term(json!({ "scopes": [] }), None)));
-    assert!(!validator.is_valid(&with_term(json!({}), Some(json!([])))));
+/// What decoding takes is wider: a default written out decodes, so the
+/// accepted schema an input offers takes it too, nested fields included.
+#[test]
+fn accepted_schema_takes_an_omitted_default_written_out_as_decoding_does() -> Result<(), String> {
+    let validator = validator(&<Receipt as RunxSchema>::accepted_schema())?;
+    for written in [
+        receipt_with_term(json!({ "operations": [] }), None)?,
+        receipt_with_term(json!({ "scopes": [] }), None)?,
+        receipt_with_term(json!({}), Some(json!([])))?,
+    ] {
+        assert!(validator.is_valid(&written));
+        assert!(serde_json::from_value::<Receipt>(written).is_ok());
+    }
     Ok(())
 }
 
