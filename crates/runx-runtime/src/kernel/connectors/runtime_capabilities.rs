@@ -203,27 +203,33 @@ pub(super) const ASSETS: &[(&str, &str, &str)] = &[
     (
         "artifact",
         "mark.svg",
-        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>
-  <path fill="#f56819" d="M10 47h14l4 11H7Z"/>
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <g transform="translate(0 2)">
+    <path fill="#f56819" d="M14 0h43c4 0 7 3 7 7v33H46c-3 0-4-2-4-5V21c0-4-2-6-6-6H18c-3 0-4-2-4-5Z"/>
+    <path fill="#252421" d="M0 18h10c2 3 5 4 10 4h9c3 0 5 2 5 6v11c0 5 2 7 6 7h9c3 0 5 2 5 5v9H7c-4 0-7-3-7-7Z"/>
+  </g>
 </svg>
 "###,
     ),
     (
         "store",
         "mark.svg",
-        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>
-  <path fill="#f56819" d="M10 47h14l4 11H7Z"/>
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <g transform="translate(0 2)">
+    <path fill="#f56819" d="M14 0h43c4 0 7 3 7 7v33H46c-3 0-4-2-4-5V21c0-4-2-6-6-6H18c-3 0-4-2-4-5Z"/>
+    <path fill="#252421" d="M0 18h10c2 3 5 4 10 4h9c3 0 5 2 5 6v11c0 5 2 7 6 7h9c3 0 5 2 5 5v9H7c-4 0-7-3-7-7Z"/>
+  </g>
 </svg>
 "###,
     ),
     (
         "web",
         "mark.svg",
-        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <path fill="#252421" d="M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z"/>
-  <path fill="#f56819" d="M10 47h14l4 11H7Z"/>
+        r###"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <g transform="translate(0 2)">
+    <path fill="#f56819" d="M14 0h43c4 0 7 3 7 7v33H46c-3 0-4-2-4-5V21c0-4-2-6-6-6H18c-3 0-4-2-4-5Z"/>
+    <path fill="#252421" d="M0 18h10c2 3 5 4 10 4h9c3 0 5 2 5 6v11c0 5 2 7 6 7h9c3 0 5 2 5 5v9H7c-4 0-7-3-7-7Z"/>
+  </g>
 </svg>
 "###,
     ),

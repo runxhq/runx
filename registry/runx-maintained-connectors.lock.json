@@ -7,8 +7,8 @@
     },
     {
       "ref": "artifact",
-      "version": "sha-fae2346a83ec",
-      "content_digest": "sha256:fae2346a83ec06dc25fc906fcc311a8afda57f442ad45f44c62e88c84d374393"
+      "version": "sha-5d942c1b901f",
+      "content_digest": "sha256:5d942c1b901f8ff33cb7988296ce7485fd6bca9d75b0f48a638a6b684ad575ef"
     },
     {
       "ref": "aws",
@@ -117,8 +117,8 @@
     },
     {
       "ref": "store",
-      "version": "sha-3ba3776b3e5d",
-      "content_digest": "sha256:3ba3776b3e5ddd5f3407020caf1fb47512ba920e53c178a623fefa708d4ba43c"
+      "version": "sha-b9364a332994",
+      "content_digest": "sha256:b9364a332994b5ddd1adb1f4a40361c77cee214da70fb14cce8f614ba76f9bc3"
     },
     {
       "ref": "twitter",
@@ -132,8 +132,8 @@
     },
     {
       "ref": "web",
-      "version": "sha-5de9ac4920ac",
-      "content_digest": "sha256:5de9ac4920ac02ba1247b7efa896476ca991d0a16e8cdc4235832cc6447c4bdf"
+      "version": "sha-6b70e6099d8e",
+      "content_digest": "sha256:6b70e6099d8ede4e146ebeafdf4b2b9a45b4431a1b77cf3d3b64349e77f6c0f7"
     },
     {
       "ref": "zapier",

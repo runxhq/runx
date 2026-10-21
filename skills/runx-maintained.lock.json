@@ -1,9 +1,9 @@
 [
   {
     "skill_id": "runx/agent-session",
-    "version": "sha-1b345487d905",
+    "version": "sha-1aad1fec5288",
     "digest": "f1df04ed6b60e6148732695b2a323cb540b2b7455392987517ccfcd8d2ddacee",
-    "content_digest": "sha256:1b345487d905253b429465e3e91d9587c9807ac36d806119e7872b5fb91ea484",
+    "content_digest": "sha256:1aad1fec52888351459fd6615fc092c691b6d3c8796a514cf9dd5de632c1caca",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -17,9 +17,9 @@
   },
   {
     "skill_id": "runx/brand-voice",
-    "version": "sha-711c54dc7d7b",
+    "version": "sha-911985c99e8e",
     "digest": "b85b18c2d4e3800161e86ac1ab3134d98f047ec5a4ef85d559b266de18c37023",
-    "content_digest": "sha256:711c54dc7d7b97f6891d5e2b55c323e2d0e07db7709b0b3123b2a8ff4f9b7af7",
+    "content_digest": "sha256:911985c99e8ed26d67ab4dae870c6e4e621c4d724c2eae9cf2341c84817f6f3f",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -57,9 +57,9 @@
   },
   {
     "skill_id": "runx/contact-consent-review",
-    "version": "sha-fe572c6700c2",
+    "version": "sha-7f25ec839769",
     "digest": "495b397e5c6d08849169a6b5a7c6896be160a16e195a988b5080a792e069894e",
-    "content_digest": "sha256:fe572c6700c24187db2b8f0abb9d97b4b9dae399c31ea7afeda95c52ecb95c6d",
+    "content_digest": "sha256:7f25ec83976994e8801aedf2b79ae1bc1c884445dc609c1a9060db7b8ffc890e",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -97,9 +97,9 @@
   },
   {
     "skill_id": "runx/cve-audit",
-    "version": "sha-91335edb8944",
+    "version": "sha-279b3ea5e357",
     "digest": "4b47db6e4d6dd52717fbc374b71c09955a84c1756814c389fdbc7ac91c0fcab5",
-    "content_digest": "sha256:91335edb89447f0ddcf791b2a0812f7fe6e890535804e229ab1b453870d2d2db",
+    "content_digest": "sha256:279b3ea5e35797291eef9f80bc2e430d4c208bc4383dd589727ec9a4a08d1cd3",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -137,9 +137,9 @@
   },
   {
     "skill_id": "runx/github",
-    "version": "sha-f0e2ca967ae7",
+    "version": "sha-ea4b1382668c",
     "digest": "ea5c3e7805f57c49e0713cf1329b34a4936cb3b9cdb2c8b7691f3bf4dfd98b49",
-    "content_digest": "sha256:f0e2ca967ae7e580b19efe1c65e752442be67654a5f71fd454d50d4eb4a8fbb5",
+    "content_digest": "sha256:ea4b1382668c736557a5b48c3208060fdaafc38bc8b9b38ca613489394d0b63d",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -265,9 +265,9 @@
   },
   {
     "skill_id": "runx/operations-review",
-    "version": "sha-6bfa6e891733",
+    "version": "sha-ef0346a4dbcc",
     "digest": "9d986ad5fcef3e9e5cbda1487352002c835bb154b247c94597360226b98bfeaf",
-    "content_digest": "sha256:6bfa6e8917332bcd8384a8e1b5256bab6fdba1c23100f1c7e66655d076323fb2",
+    "content_digest": "sha256:ef0346a4dbccb3722564f262a4bf3eef49304fca833da51f2daa15e8541f3f8b",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -313,9 +313,9 @@
   },
   {
     "skill_id": "runx/privacy-request-review",
-    "version": "sha-a560e258cc1c",
+    "version": "sha-19d01137a632",
     "digest": "f5946cc54339ebf1e369a23670e1cf5e453339faf1ee2ff4f8cbd7bce506863c",
-    "content_digest": "sha256:a560e258cc1c50d942f0cccd38de7c86ad92a84fa625d41b34f108113ad99be2",
+    "content_digest": "sha256:19d01137a63209140f16332c24ce16687f457e98caf8bb073a842a6d49a891c7",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -361,9 +361,9 @@
   },
   {
     "skill_id": "runx/reddit",
-    "version": "sha-18a63e0f99fc",
+    "version": "sha-954ab67e4bf7",
     "digest": "755140d453d8319989520fa34a4e753aaf20d4ecf8858c5ba98b7ac84e15183c",
-    "content_digest": "sha256:18a63e0f99fc3c922a4dd10a9adc39ac360cfcda253f634ce629e125a572ebe7",
+    "content_digest": "sha256:954ab67e4bf7cd8cc42d58393d12d088e9b1f266a8373175a66850d76b1469ed",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -489,9 +489,9 @@
   },
   {
     "skill_id": "runx/taste-profile",
-    "version": "sha-4ea21ced0b7c",
+    "version": "sha-6605304915d7",
     "digest": "0209ee82f6b509653c860224772137ea6461eb8fe430e7c7cd718f82cf3f9b18",
-    "content_digest": "sha256:4ea21ced0b7c304883dea7b49d715b492736c66a3c571f098ce20591870b6117",
+    "content_digest": "sha256:6605304915d75afb3bc26289c66e6c958107764c6b690ef3db6f161b84f6e27c",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -505,9 +505,9 @@
   },
   {
     "skill_id": "runx/twitter",
-    "version": "sha-0f6fa068a133",
+    "version": "sha-9392187a78cc",
     "digest": "aa78eb16d5f39304172319d4130affeba61c1e5bce7b573f615860541d43cb00",
-    "content_digest": "sha256:0f6fa068a1333bb153842976cd15a3fd49f6efce69290d60a4ca5da2293ecdcd",
+    "content_digest": "sha256:9392187a78ccb97c1747e613bcd53ab9102f2e80628aa8cae5df10681b7b5af7",
     "catalog_visibility": "public",
     "catalog_role": "branded"
   },
@@ -521,9 +521,9 @@
   },
   {
     "skill_id": "runx/web-fetch",
-    "version": "sha-9c1b9ed816f0",
+    "version": "sha-26bbcd956113",
     "digest": "7f254589438b2b055b6441895c790ffdc429df4b266696c01c1ce88c1bec6e03",
-    "content_digest": "sha256:9c1b9ed816f0401ab62a2a6f393fb16f7fd7aa6495b613e354eb0292d8633f45",
+    "content_digest": "sha256:26bbcd9561133cdf9583038fc484cad59a00e2f11896eb99f6ec51cb49782f17",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

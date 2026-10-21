@@ -1035,7 +1035,7 @@
           },
           {
             "path": "connectors/web/mark.svg",
-            "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 60 60\">\n  <path fill=\"#252421\" d=\"M2 2h32c13 0 22 9 22 22 0 8-3.5 14-10 18l12 16H41L28 33h6c6 0 10-3.5 10-9s-4-9-10-9H8Z\"/>\n  <path fill=\"#f56819\" d=\"M10 47h14l4 11H7Z\"/>\n</svg>\n"
+            "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <g transform=\"translate(0 2)\">\n    <path fill=\"#f56819\" d=\"M14 0h43c4 0 7 3 7 7v33H46c-3 0-4-2-4-5V21c0-4-2-6-6-6H18c-3 0-4-2-4-5Z\"/>\n    <path fill=\"#252421\" d=\"M0 18h10c2 3 5 4 10 4h9c3 0 5 2 5 6v11c0 5 2 7 6 7h9c3 0 5 2 5 5v9H7c-4 0-7-3-7-7Z\"/>\n  </g>\n</svg>\n"
           },
           {
             "path": "references/catalog.md",
@@ -1088,7 +1088,7 @@
             },
             {
               "ref": "web",
-              "version": "sha-5de9ac4920ac",
+              "version": "sha-6b70e6099d8e",
               "manifest_digest": "sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d",
               "connector_digest": "sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599",
               "runtime_capability": true,
