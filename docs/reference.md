@@ -498,7 +498,8 @@ owner for bounded text; they are not alternate large-file transports.
 
 `fs.list` and `fs.search` list and search beneath a root with the project's
 ignore files honoured as Git honours them; both skip `.git`, `.runx` and any
-nested Git worktree unless the request names a path inside it. `git.log`,
+nested Git worktree unless the request names a path inside it. `fs.search`
+also searches the one file its path names. `git.log`,
 `git.show` and `git.diff` read commits with their changed files, one commit or
 one file at a revision, and patches between revisions or against the working
 tree, all bounded.

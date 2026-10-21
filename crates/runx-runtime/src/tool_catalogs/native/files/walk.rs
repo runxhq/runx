@@ -1,6 +1,7 @@
 //! Native bounded listing and search, ignore-file aware.
 //!
-//! Both walk beneath one resolved root, honour the project's ignore files as
+//! A listing walks a directory; a search walks one, or reads one file. Both
+//! walk beneath one resolved root, honour the project's ignore files as
 //! Git does, never descend into `.git` or `.runx`, and skip a nested Git
 //! worktree (a directory whose `.git` is a file) unless the request names a
 //! path inside it, so agents that keep worktrees under the project do not see
@@ -44,7 +45,10 @@ pub(super) fn list(
         inputs.max_entries,
         MAX_LIST_ENTRIES,
     )?;
-    let start = start_directory(LIST_TOOL, &root, &inputs.path, invocation.bounds)?;
+    let start = walk_start(LIST_TOOL, &root, &inputs.path, invocation.bounds)?;
+    if !start.is_dir() {
+        return Err(invalid_input(LIST_TOOL, "path must be a directory"));
+    }
     let mut entries = Vec::new();
     let mut truncated = false;
     let depth = usize::try_from(depth).unwrap_or(usize::MAX);
@@ -119,7 +123,7 @@ pub(super) fn search(
                 .map_err(|error| invalid_input(SEARCH_TOOL, format!("glob is invalid: {error}")))
         })
         .transpose()?;
-    let start = start_directory(SEARCH_TOOL, &root, &inputs.path, invocation.bounds)?;
+    let start = walk_start(SEARCH_TOOL, &root, &inputs.path, invocation.bounds)?;
     let mut matches = Vec::new();
     let mut files_searched = 0_u64;
     let mut truncated = false;
@@ -187,9 +191,9 @@ fn pattern(inputs: &FileSearchInput) -> Result<Regex, RuntimeError> {
         .map_err(|error| invalid_input(SEARCH_TOOL, format!("pattern is invalid: {error}")))
 }
 
-/// The directory `requested` names under `root`, which must stay inside it and
-/// within `bounds`.
-fn start_directory(
+/// What `requested` names under `root`, through any symlink, which must stay
+/// inside it and within `bounds` both as named and as resolved.
+fn walk_start(
     tool: &str,
     root: &Path,
     requested: &str,
@@ -206,17 +210,19 @@ fn start_directory(
             "path must be a relative path inside the root",
         ));
     }
-    bounds
-        .admit(requested)
-        .map_err(|error| invalid_input(tool, error.to_string()))?;
+    let admit = |path: &Path| {
+        bounds
+            .admit(path)
+            .map_err(|error| invalid_input(tool, error.to_string()))
+    };
+    admit(requested)?;
     let start = std::fs::canonicalize(root.join(requested))
         .map_err(|error| invalid_input(tool, format!("path is unavailable: {error}")))?;
-    if !start.starts_with(root) {
-        return Err(invalid_input(tool, "path escapes the root"));
-    }
-    if !start.is_dir() {
-        return Err(invalid_input(tool, "path must be a directory"));
-    }
+    admit(
+        start
+            .strip_prefix(root)
+            .map_err(|_| invalid_input(tool, "path escapes the root"))?,
+    )?;
     Ok(start)
 }
 

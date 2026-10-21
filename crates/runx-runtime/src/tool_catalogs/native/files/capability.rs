@@ -414,7 +414,7 @@ const SEARCH_FIELDS: &[CapabilityField] = &[
     path_scope_field(),
     CapabilityField {
         name: "path",
-        description: "Directory to search under, relative to the resolved trusted root.",
+        description: "Directory to search under, or one file to search, relative to the resolved trusted root.",
     },
     CapabilityField {
         name: "pattern",

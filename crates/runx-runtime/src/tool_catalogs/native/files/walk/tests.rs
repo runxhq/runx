@@ -264,6 +264,64 @@ fn a_search_takes_a_regex_a_glob_and_a_limit() -> TestResult {
 }
 
 #[test]
+fn a_search_of_one_file_finds_its_lines_and_a_listing_of_one_is_refused() -> TestResult {
+    let workspace = project()?;
+    let output = invoke::<FileSearchInput, _>(
+        workspace.path(),
+        JsonObject::from([
+            ("pattern".to_owned(), JsonValue::String("run".to_owned())),
+            (
+                "path".to_owned(),
+                JsonValue::String("src/main.rs".to_owned()),
+            ),
+        ]),
+        WorkspaceBounds::Agent,
+        search,
+    )?;
+    assert_eq!(
+        paths(&output, "matches", "path"),
+        vec!["src/main.rs".to_owned()]
+    );
+    assert_eq!(output.get("files_searched"), Some(&number(1)));
+    let listed = invoke::<FileListInput, _>(
+        workspace.path(),
+        JsonObject::from([(
+            "path".to_owned(),
+            JsonValue::String("src/main.rs".to_owned()),
+        )]),
+        WorkspaceBounds::Operator,
+        list,
+    );
+    assert!(listed.is_err(), "a listing names a directory");
+    Ok(())
+}
+
+#[test]
+fn agent_bounds_refuse_a_secret_file_named_or_reached_through_a_link() -> TestResult {
+    let workspace = project()?;
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(".env", workspace.path().join("settings"))?;
+    let refused: &[&str] = if cfg!(unix) {
+        &[".env", "settings"]
+    } else {
+        &[".env"]
+    };
+    for &path in refused {
+        let searched = invoke::<FileSearchInput, _>(
+            workspace.path(),
+            JsonObject::from([
+                ("pattern".to_owned(), JsonValue::String("RUN".to_owned())),
+                ("path".to_owned(), JsonValue::String(path.to_owned())),
+            ]),
+            WorkspaceBounds::Agent,
+            search,
+        );
+        assert!(searched.is_err(), "{path} is refused");
+    }
+    Ok(())
+}
+
+#[test]
 fn agent_bounds_refuse_a_start_outside_or_protected() -> TestResult {
     let workspace = project()?;
     for path in ["..", ".git", ".runx"] {
