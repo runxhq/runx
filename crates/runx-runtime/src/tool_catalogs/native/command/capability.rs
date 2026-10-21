@@ -129,7 +129,7 @@ const FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "output_mode",
-        description: "Captured output projection: digest, text, or one JSON value.",
+        description: "What the result carries of the output: digest (its digest and size only, the output kept off the record), text (stdout and stderr), or json (stdout as one JSON object). Ask for text to read what the command printed.",
     },
     CapabilityField {
         name: "expected_command_digest",
