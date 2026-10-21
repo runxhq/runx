@@ -26,6 +26,8 @@ export type AgentContextProvenanceContract = DeepReadonly<Static<typeof agentCon
 
 export const contextDocumentSchema = Type.Object(
   {
+    /** Who may read it: a local model only, or any model the host configured. */
+    sharing: Type.Union([Type.Literal("local_only"), Type.Literal("configured_model")]),
     root_path: Type.String({ minLength: 1 }),
     path: Type.String({ minLength: 1 }),
     sha256: Type.String({ minLength: 1 }),
