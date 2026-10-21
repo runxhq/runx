@@ -46,12 +46,8 @@ pub(super) fn observe_command(
             "the run was asked to stop, and the command was terminated",
         ));
     }
-    if output_mode != OutputMode::Digest && (stdout_truncated || stderr_truncated) {
-        errors.push(error(
-            "command.output_truncated",
-            "command output exceeded the runtime capture limit",
-        ));
-    }
+    // Output past the capture limit is carried as far as it held, `stdout_truncated` and
+    // `stderr_truncated` saying so: the command still ran as it did.
     if !outcome.status.success() {
         errors.push(JsonValue::Object(JsonObject::from([
             (
@@ -207,20 +203,19 @@ mod tests {
     use super::*;
     use crate::process::{CapturedOutput, ProcessOutcome};
 
-    #[test]
-    fn digest_mode_reports_the_complete_stream_beyond_retained_output()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let complete = b"complete process output";
-        let complete_bytes = u64::try_from(complete.len())?;
-        let outcome = ProcessOutcome {
+    const COMPLETE: &[u8] = b"complete process output";
+
+    /// A command that printed `COMPLETE` and exited 0, its capture holding the first 8 bytes.
+    fn cut_at_capture() -> Result<ProcessOutcome, std::num::TryFromIntError> {
+        Ok(ProcessOutcome {
             status: ExitStatus::from_raw(0),
             timed_out: false,
             stopped: false,
             stdout: CapturedOutput {
-                bytes: complete[..8].to_vec(),
+                bytes: COMPLETE[..8].to_vec(),
                 truncated: true,
-                total_bytes: complete_bytes,
-                sha256: runx_contracts::sha256_prefixed(complete),
+                total_bytes: u64::try_from(COMPLETE.len())?,
+                sha256: runx_contracts::sha256_prefixed(COMPLETE),
             },
             stderr: CapturedOutput {
                 bytes: Vec::new(),
@@ -229,21 +224,40 @@ mod tests {
                 sha256: runx_contracts::sha256_prefixed(&[]),
             },
             duration_ms: 1,
-        };
+        })
+    }
 
+    #[test]
+    fn digest_mode_reports_the_complete_stream_beyond_retained_output()
+    -> Result<(), Box<dyn std::error::Error>> {
         let observation = observe_command(
             OutputMode::Digest,
-            outcome,
+            cut_at_capture()?,
             &crate::credentials::CredentialDelivery::none(),
         );
 
         assert!(observation.errors.is_empty());
         assert!(observation.stdout_truncated);
-        assert_eq!(observation.stdout_bytes, complete_bytes);
+        assert_eq!(observation.stdout_bytes, u64::try_from(COMPLETE.len())?);
         assert_eq!(
             observation.stdout_digest,
-            runx_contracts::sha256_prefixed(complete)
+            runx_contracts::sha256_prefixed(COMPLETE)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn text_mode_carries_output_past_the_capture_limit_as_far_as_it_held()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let observation = observe_command(
+            OutputMode::Text,
+            cut_at_capture()?,
+            &crate::credentials::CredentialDelivery::none(),
+        );
+
+        assert!(observation.errors.is_empty());
+        assert!(observation.stdout_truncated);
+        assert_eq!(observation.stdout, "complete");
         Ok(())
     }
 

@@ -209,6 +209,11 @@ fn a_capability_input_offers_the_defaults_decoding_takes_written_out() {
             .expect("offered schema should serialize")
     };
     let command = offered("command.execute");
+    // The result carries the command's output unless the call asks otherwise.
+    assert_eq!(
+        command["properties"]["output_mode"]["default"],
+        serde_json::json!("text")
+    );
     assert_eq!(
         command["properties"]["args"],
         serde_json::json!({

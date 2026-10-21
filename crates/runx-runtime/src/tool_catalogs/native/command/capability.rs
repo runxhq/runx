@@ -35,9 +35,10 @@ impl CapabilityInput for CommandInput {
                 "timeout_ms".to_owned(),
                 JsonValue::Number(JsonNumber::U64(60_000)),
             ),
+            // The result carries the bounded output unless asked otherwise (agent-sessions §4.10).
             (
                 "output_mode".to_owned(),
-                JsonValue::String("digest".to_owned()),
+                JsonValue::String("text".to_owned()),
             ),
         ])
     }
@@ -129,7 +130,7 @@ const FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "output_mode",
-        description: "What the result carries of the output: digest (its digest and size only, the output kept off the record), text (stdout and stderr), or json (stdout as one JSON object). Ask for text to read what the command printed.",
+        description: "What the result carries of the output: text (stdout and stderr, as far as the capture limit holds them, the default), digest (its digest and size only, the output kept off the record), or json (stdout as one JSON object).",
     },
     CapabilityField {
         name: "expected_command_digest",
