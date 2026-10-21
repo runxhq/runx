@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/runxhq/runx",
+  "public_key": "pk_J6q1FndEj5wx1BZJAh2I7",
   "projectTitle": "runx",
   "description": "The governed runtime for agent skills: explicit skills, bounded authority, gated actions, and a signed receipt for every run.",
   "folders": ["docs", "skills", "schemas", "examples"],
