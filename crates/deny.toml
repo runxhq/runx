@@ -50,9 +50,9 @@ allow = [
 confidence-threshold = 0.8
 exceptions = [
   { name = "ring", version = "=0.17.14", allow = ["ISC"] },
-  { name = "rustls-webpki", version = "=0.103.15", allow = ["ISC"] },
+  { name = "rustls-webpki", version = "=0.103.16", allow = ["ISC"] },
   { name = "untrusted", version = "=0.9.0", allow = ["ISC"] },
-  { name = "webpki-root-certs", version = "=1.0.9", allow = ["CDLA-Permissive-2.0"] },
+  { name = "webpki-root-certs", version = "=1.0.10", allow = ["CDLA-Permissive-2.0"] },
   # The store connector's Redis backend: redis hashes cluster slots with
   # xxhash-rust, under the OSI-approved, permissive Boost license.
   { name = "xxhash-rust", version = "=0.8.19", allow = ["BSL-1.0"] },
