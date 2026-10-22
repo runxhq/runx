@@ -1,5 +1,5 @@
 skill: research-analyze
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
   kind: graph
@@ -62,7 +62,50 @@ runners:
         label: synthesize indexed evidence
         when: { value: $steps.ready.comparison.equal, equals: true }
         agent: { role: researcher, task: research-synthesize }
-        outputs: { research_candidate: object }
+        # The research packet without what finalize binds from the source index
+        # (source_evidence, index_digest) and its validation.
+        outputs:
+          research_candidate:
+            type: object
+            schema:
+              required: [decision, research_brief, evidence_log, decision_support, risks]
+              additionalProperties: false
+              properties:
+                decision: { enum: [ready, needs_more_evidence, not_worth_publishing] }
+                research_brief:
+                  type: object
+                  required: [objective, scope, summary, open_questions]
+                  additionalProperties: false
+                  properties:
+                    objective: { type: string }
+                    scope: { type: string }
+                    summary: { type: string }
+                    open_questions: { type: array, items: { type: string } }
+                evidence_log:
+                  type: array
+                  items:
+                    type: object
+                    required: [claim, source_digest, content_digest, confidence, relevance]
+                    additionalProperties: false
+                    properties:
+                      claim: { type: string }
+                      source_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+                      content_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+                      confidence: { enum: [verified, inference] }
+                      relevance: { type: string }
+                decision_support:
+                  type: array
+                  items:
+                    type: object
+                    required: [option, rationale, source_digests]
+                    additionalProperties: false
+                    properties:
+                      option: { type: string }
+                      rationale: { type: string }
+                      source_digests:
+                        type: array
+                        items: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+                risks: { type: array }
         inputs:
           objective: $input.objective
           domain: $input.domain

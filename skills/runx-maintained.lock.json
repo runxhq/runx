@@ -65,9 +65,9 @@
   },
   {
     "skill_id": "runx/content-package",
-    "version": "sha-5f9994efd460",
+    "version": "sha-2fdc282b67ef",
     "digest": "40050fb30dc9cedb6f56d6b02406404f3b7c34e77833faf83a1f2204f0db0f20",
-    "content_digest": "sha256:5f9994efd460a9be68216491de604a841b0477c49d61d26df630b66a6617fad7",
+    "content_digest": "sha256:2fdc282b67efa633103d19e0b0b9fd249d9985916e843bca1ee04aa7efdd5f47",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
@@ -385,17 +385,17 @@
   },
   {
     "skill_id": "runx/research",
-    "version": "sha-74da2347f408",
+    "version": "sha-af42b4acfe60",
     "digest": "88dc6e79f2bf0991f7163e0ca04d2d026837028500859c469c660a915741f574",
-    "content_digest": "sha256:74da2347f408aa460166f4ae36bb939cfd9f5ee306fd5086769e7045cc4b919a",
+    "content_digest": "sha256:af42b4acfe606cf102e7d23a82f7a33f3b8b2d6ecc1ea4262d1bc137c43dbd8b",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
   {
     "skill_id": "runx/research-brief",
-    "version": "sha-42979ba3422d",
+    "version": "sha-56ee573e9e34",
     "digest": "c6f54ebfe9de109dff513909c2c91fbcc6263ba27c1439c3f9cae3dd8e3c5af4",
-    "content_digest": "sha256:42979ba3422dac1f3f02b54ff168233b4d138303fa7c94a4fb5989c220c5f4f7",
+    "content_digest": "sha256:56ee573e9e3496fc13c97f94233fd5b702fe5e2e7b1dc47fe4e43e5040b67340",
     "catalog_visibility": "public",
     "catalog_role": "context"
   },
