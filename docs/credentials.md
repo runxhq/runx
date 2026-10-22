@@ -337,7 +337,13 @@ runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
   interprets, found on an absolute `PATH` entry outside the workspace (a
   project cannot stand in for `aws` and receive its sign-in), and gives it
   only the baseline environment plus its own variables (`OP_*`, `AWS_*`,
-  `VAULT_*`). Whatever sign-in that CLI supports works: the 1Password app's
+  `VAULT_*`). Both come from the environment runx was started with, never
+  from a name the workspace `.env` filled, and the CLI runs in the runx home,
+  not the workspace: a project's files never sign a manager in, configure it
+  (an `AWS_CONFIG_FILE` whose `credential_process` runs a command) or choose
+  what it trusts (`SSL_CERT_FILE`). Set `AWS_PROFILE`, `OP_ACCOUNT` or
+  `VAULT_ADDR` in your shell, not in a project's `.env`. Whatever sign-in that
+  CLI supports works: the 1Password app's
   unlock, profiles, SSO, instance and workload roles, GitHub OIDC, Vault
   tokens. No part of a reference a CLI reads may begin with `-`, so none
   reaches the CLI as a flag; `op` takes the whole reference as one argument.

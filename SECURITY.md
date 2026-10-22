@@ -17,7 +17,9 @@ resource it was pinned to, never the value, and a proof keyed by the operator's
 runx home over the whole binding, so a project store cannot supply or widen
 one; runx reads it through the
 manager's own CLI, found outside the workspace, with fixed arguments, only for
-a reference the operator bound with `--from`. A secret
+a reference the operator bound with `--from`, in the runx home and with the
+environment runx was started with, so a workspace `.env` never signs a manager
+in, configures it or chooses what it trusts. A secret
 given to `runx connector use` is read without echo at a terminal or from stdin,
 never from argv; encrypted local material is never written to manifests, argv,
 receipts, or resume checkpoints. A connector's sign-in command comes from its

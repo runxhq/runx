@@ -6,7 +6,9 @@
 //! Each scheme is one provider: the program it runs, the fixed arguments, the
 //! variables that program signs in with, and what binding pins. The program
 //! is found outside the workspace, its arguments are never interpreted by a
-//! shell, and it runs only for a reference the operator bound.
+//! shell, and it runs only for a reference the operator bound. It runs in the
+//! runx home with the operator's own environment: a workspace's `.env` never
+//! signs it in, configures it or chooses what it trusts.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -84,8 +86,9 @@ pub(crate) fn read(
             "{reference} was bound without a pin; bind it again with --from"
         ));
     }
+    let env = crate::services::process_environment(env);
     let manager = Manager {
-        env,
+        env: &env,
         cwd,
         reference,
         purpose,
@@ -161,6 +164,7 @@ fn arn_region(id: &str) -> Vec<String> {
 
 /// One read of one reference, through its manager's CLI.
 struct Manager<'a> {
+    /// The operator's process environment, without what a `.env` filled.
     env: &'a BTreeMap<String, String>,
     cwd: &'a Path,
     reference: &'a SecretReference,
@@ -390,9 +394,9 @@ impl Manager<'_> {
         })
     }
 
-    /// Run a manager's CLI, found outside the workspace, with fixed
-    /// arguments, the baseline environment and the variables it signs in
-    /// with, and return what it printed.
+    /// Run a manager's CLI, found outside the workspace, in the runx home,
+    /// with fixed arguments, the baseline environment and the variables it
+    /// signs in with, and return what it printed.
     fn run(
         &self,
         program: &str,
@@ -401,13 +405,19 @@ impl Manager<'_> {
         install: &str,
     ) -> Result<String, String> {
         let reference = self.reference;
-        let workspace = crate::RunxPaths::resolve(self.env, self.cwd)
-            .workspace()
-            .to_path_buf();
+        let paths = crate::RunxPaths::resolve(self.env, self.cwd);
         let not_installed =
             || format!("{reference} is read with {program}, which is not installed; {install}");
         let executable =
-            trusted_executable(self.env, &workspace, program).ok_or_else(not_installed)?;
+            trusted_executable(self.env, paths.workspace(), program).ok_or_else(not_installed)?;
+        // A manager reads configuration from where it runs (a project's
+        // `doppler.yaml`, `.infisical.json`): never from the workspace.
+        std::fs::create_dir_all(paths.home()).map_err(|error| {
+            format!(
+                "{reference}: the runx home {} could not be made: {error}",
+                paths.home().display()
+            )
+        })?;
         let mut child_env = crate::execution_environment::process_baseline_environment(self.env);
         child_env.extend(
             self.env
@@ -422,7 +432,7 @@ impl Manager<'_> {
                 SECRET_OUTPUT_BYTES,
             )
             .args(args)
-            .cwd(workspace)
+            .cwd(paths.home())
             .env(child_env)
             .timeout(Some(READ_TIMEOUT)),
         )
@@ -1076,6 +1086,60 @@ mod tests {
         let seen = fs::read_to_string(seen)?;
         assert!(seen.contains("AWS_PROFILE=team"), "{seen}");
         assert!(!seen.contains("UNRELATED_SECRET"), "{seen}");
+        Ok(())
+    }
+
+    /// A project's `.env` could otherwise name a config file whose
+    /// `credential_process` runs a command of its choosing, sign the manager
+    /// in as another account, or have it trust another certificate.
+    #[test]
+    fn a_workspace_env_never_signs_in_configures_or_locates_a_manager() -> TestResult {
+        let m = machine()?;
+        let home = tempfile::tempdir()?;
+        fs::create_dir_all(&m.bin)?;
+        let seen = m.bin.join("seen");
+        let path = m.bin.join("aws");
+        fs::write(
+            &path,
+            format!(
+                "#!/bin/sh\n{{ /bin/pwd; /usr/bin/env; }} > '{}'\necho '{{\"ARN\":\"{ARN}\",\"SecretString\":\"x\"}}'\n",
+                seen.display()
+            ),
+        )?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+        fs::write(
+            m.workspace.join(".env"),
+            "AWS_CONFIG_FILE=./aws-config\nAWS_PROFILE=project\nSSL_CERT_FILE=./ca.pem\n",
+        )?;
+        let workspace = crate::services::WorkspaceEnv::load(
+            env(&m.bin, &[("RUNX_HOME", &home.path().display().to_string())]),
+            m.workspace.clone(),
+        )?;
+        assert_eq!(
+            workspace.env().get("AWS_CONFIG_FILE").map(String::as_str),
+            Some("./aws-config"),
+            "the file still fills the workspace's own environment"
+        );
+
+        read(
+            workspace.env(),
+            &m.workspace,
+            &reference("aws-sm://team/keys")?,
+            None,
+            Purpose::Bind,
+        )?;
+
+        let seen = fs::read_to_string(seen)?;
+        let mut lines = seen.lines();
+        assert_eq!(
+            lines.next().map(PathBuf::from),
+            Some(home.path().canonicalize()?),
+            "{seen}"
+        );
+        assert!(seen.contains("AWS_PROFILE=team"), "{seen}");
+        assert!(!seen.contains("AWS_PROFILE=project"), "{seen}");
+        assert!(!seen.contains("AWS_CONFIG_FILE"), "{seen}");
+        assert!(!seen.contains("SSL_CERT_FILE"), "{seen}");
         Ok(())
     }
 

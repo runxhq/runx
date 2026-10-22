@@ -18,6 +18,11 @@ const RUNX_NAME_PREFIX: &str = "RUNX_";
 /// the one kept; a credential read refuses such a name instead of acting on
 /// whichever value happened to win.
 pub(crate) const RUNX_ENV_FILE_DIFFERS_ENV: &str = "RUNX_ENV_FILE_DIFFERS";
+/// The names a workspace's `.env` filled because the process environment
+/// lacked them, comma-separated, never their values. Only the operator's own
+/// environment signs in to a secrets manager or configures it, so a
+/// manager's CLI never sees one of these (`process_environment`).
+pub(crate) const RUNX_ENV_FILE_FILLED_ENV: &str = "RUNX_ENV_FILE_FILLED";
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WorkspaceEnv {
@@ -50,11 +55,16 @@ impl WorkspaceEnv {
         require_absolute_cwd(&cwd)?;
         let env_path = cwd.join(WORKSPACE_ENV_FILE);
         let mut env = ambient_env;
-        let (env_file_loaded, differs) = merge_env_file(&mut env, &env_path)?;
+        let env_file = merge_env_file(&mut env, &env_path)?;
         // Recomputed for this workspace; never inherited from a parent.
-        env.remove(RUNX_ENV_FILE_DIFFERS_ENV);
-        if !differs.is_empty() {
-            env.insert(RUNX_ENV_FILE_DIFFERS_ENV.to_owned(), differs.join(","));
+        for (marker, names) in [
+            (RUNX_ENV_FILE_DIFFERS_ENV, &env_file.differs),
+            (RUNX_ENV_FILE_FILLED_ENV, &env_file.filled),
+        ] {
+            env.remove(marker);
+            if !names.is_empty() {
+                env.insert(marker.to_owned(), names.join(","));
+            }
         }
 
         // Freeze workspace identity after discovery. A value inside `.env`
@@ -66,7 +76,7 @@ impl WorkspaceEnv {
             env,
             cwd,
             paths,
-            env_file_loaded,
+            env_file_loaded: env_file.loaded,
         })
     }
 
@@ -191,16 +201,38 @@ pub(crate) fn env_file_differs(env: &BTreeMap<String, String>, name: &str) -> bo
         .is_some_and(|names| names.split(',').any(|differs| differs == name))
 }
 
-/// Fill the names `path` sets that `env` lacks, and return whether the file
-/// exists and the names it sets to a value other than `env`'s.
+/// The process environment a workspace environment was loaded from: `env`
+/// without the names the workspace's `.env` filled.
+pub(crate) fn process_environment(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    let filled = |name: &str| {
+        env.get(RUNX_ENV_FILE_FILLED_ENV)
+            .is_some_and(|names| names.split(',').any(|filled| filled == name))
+    };
+    env.iter()
+        .filter(|(name, _)| !filled(name))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
+}
+
+/// What merging a workspace's `.env` did.
+#[derive(Default)]
+struct EnvFile {
+    loaded: bool,
+    /// The names it filled, which the environment lacked.
+    filled: Vec<String>,
+    /// The names it sets to a value other than the environment's.
+    differs: Vec<String>,
+}
+
+/// Fill the names `path` sets that `env` lacks.
 fn merge_env_file(
     env: &mut BTreeMap<String, String>,
     path: &Path,
-) -> Result<(bool, Vec<String>), WorkspaceEnvError> {
+) -> Result<EnvFile, WorkspaceEnvError> {
     let entries = match dotenvy::from_path_iter(path) {
         Ok(entries) => entries,
         Err(dotenvy::Error::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok((false, Vec::new()));
+            return Ok(EnvFile::default());
         }
         Err(error) => return Err(workspace_env_error(path, error)),
     };
@@ -230,7 +262,11 @@ fn merge_env_file(
     }
     differs.sort();
     differs.dedup();
-    Ok((true, differs))
+    Ok(EnvFile {
+        loaded: true,
+        filled: filled.into_iter().collect(),
+        differs,
+    })
 }
 
 fn workspace_env_error(path: &Path, error: dotenvy::Error) -> WorkspaceEnvError {
@@ -350,6 +386,36 @@ mod tests {
         assert!(!super::env_file_differs(workspace.env(), "SAME"));
         assert!(!super::env_file_differs(workspace.env(), "FILE_ONLY"));
         assert_eq!(workspace.env().get("FILE_ONLY"), Some(&"x".to_owned()));
+        Ok(())
+    }
+
+    #[test]
+    fn the_process_environment_is_the_workspace_env_without_what_the_file_filled()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        fs::write(
+            temp.path().join(".env"),
+            "SHELL_SET=from-file\nFILLED=from-file\nALSO_FILLED=from-file\n",
+        )?;
+        let ambient = BTreeMap::from([
+            ("SHELL_SET".to_owned(), "from-shell".to_owned()),
+            (
+                super::RUNX_ENV_FILE_FILLED_ENV.to_owned(),
+                "SHELL_SET".to_owned(),
+            ),
+        ]);
+
+        let workspace = WorkspaceEnv::load(ambient, temp.path().to_path_buf())?;
+
+        assert_eq!(
+            workspace.env().get(super::RUNX_ENV_FILE_FILLED_ENV),
+            Some(&"ALSO_FILLED,FILLED".to_owned()),
+            "recomputed here, never inherited, and never a value"
+        );
+        let process = super::process_environment(workspace.env());
+        assert_eq!(process.get("SHELL_SET"), Some(&"from-shell".to_owned()));
+        assert!(!process.contains_key("FILLED"));
+        assert!(!process.contains_key("ALSO_FILLED"));
         Ok(())
     }
 
