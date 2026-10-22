@@ -160,10 +160,8 @@ Name a skill so an agent instinctively reaches for the right one:
   drops go in the `description`.
 
 Renaming an existing skill is a `git mv`, a token sweep, and a regenerate
-(`packet-schemas`, `runx-maintained-lock`) plus `verify:fast` and the harness. For a
-maintained `runx/*` skill the hosted registry row is preserved (its
-`created_at` and version history carry across) during the operator deploy, so a
-rename never resets the row.
+(`packet-schemas`) plus `verify:fast` and the harness. The registry knows the
+renamed skill once it is published under its new name.
 
 ## Canonical category slugs
 

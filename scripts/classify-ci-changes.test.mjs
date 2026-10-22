@@ -19,7 +19,7 @@ test("documentation changes stay in the light lane", () => {
 
 test("a vendor skill is product content: light, never the runtime or a harness", () => {
   const result = classifyFiles(
-    ["skills/reddit/run.yaml", "skills/reddit/reddit.mjs", "skills/runx-maintained.lock.json"],
+    ["skills/reddit/run.yaml", "skills/reddit/reddit.mjs"],
     core,
   );
   assert.equal(result.full, false);

@@ -16,9 +16,6 @@ const lightOnlyPatterns = [
   /^docs\//u,
   /^llms\.txt$/u,
   /^plans\//u,
-  // A vendor skill is product content the registry proves when it is
-  // published; changes to its lock need no runtime build or package gate.
-  /^skills\/runx-maintained\.lock\.json$/u,
 ];
 
 // Release tooling runs only in the release workflow: a change to it alone is
