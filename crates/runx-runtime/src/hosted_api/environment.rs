@@ -10,10 +10,7 @@ use super::{
     DEFAULT_HOSTED_API_BASE_URL, HOSTED_API_ALLOW_PRIVATE_NETWORK_ENV, HOSTED_API_BASE_URL_ENV,
     HOSTED_API_TOKEN_ENV, HostedApiError, parse_hosted_api_error,
 };
-use crate::config::{
-    load_local_public_api_token, load_runx_config_file, store_local_public_api_token,
-    write_runx_config_file,
-};
+use crate::config::{load_runx_config_file, write_runx_config_file};
 use crate::http::{
     HttpMethod, ReqwestHttpTransport as DefaultRuntimeHttpTransport, RuntimeHttpError,
     RuntimeHttpHeader, RuntimeHttpRequest as HttpRequest, RuntimeHttpTransport as Transport,
@@ -273,6 +270,18 @@ impl AuthenticatedHostedApiEnvironment {
     }
 }
 
+/// What `runx login` seals its token as in the runx home: runx's own
+/// credential, kept apart from the secrets the operator names.
+const PUBLIC_API_TOKEN_KIND: &str = "local_public_api_token";
+
+/// The token `runx login` sealed under `token_ref`.
+pub fn load_local_public_api_token(
+    paths: &crate::paths::RunxPaths,
+    token_ref: &str,
+) -> Result<String, HostedApiError> {
+    Ok(crate::secrets::sealed::load(paths, token_ref)?)
+}
+
 pub fn store_authenticated_hosted_environment(
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -285,7 +294,7 @@ pub fn store_authenticated_hosted_environment(
     let paths = crate::paths::RunxPaths::resolve(env, cwd);
     let config_path = paths.config_file();
     let mut next = load_runx_config_file(&config_path)?;
-    let token_ref = store_local_public_api_token(&paths, token)?;
+    let token_ref = crate::secrets::sealed::store(&paths, token, PUBLIC_API_TOKEN_KIND)?;
     let public = next.public.get_or_insert_default();
     let base_url = normalize_hosted_base_url(Some(base_url))?
         .unwrap_or_else(|| DEFAULT_HOSTED_API_BASE_URL.to_owned());

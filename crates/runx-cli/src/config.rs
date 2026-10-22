@@ -5,12 +5,12 @@ use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
 
-use crate::cli_args::{flag_value, os_arg, split_flag};
+use crate::cli_args::{os_arg, split_flag};
 use runx_runtime::{
     ConfigError, RunxConfigFile, RunxPaths, clear_runx_agent_dialect,
-    clear_runx_agent_endpoint_url, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, parse_config_key, remove_local_agent_api_key,
-    set_runx_agent_api_key_reference, update_runx_config_value, write_runx_config_file,
+    clear_runx_agent_endpoint_url, clear_runx_agent_secret, load_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, parse_config_key, update_runx_config_value,
+    write_runx_config_file,
 };
 use serde::Serialize;
 
@@ -23,14 +23,13 @@ pub enum ConfigAction {
     Unset,
 }
 
+/// A config command. Config holds settings, never a secret: the model key
+/// is a secret `runx secret` keeps, which `agent.secret` names.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigPlan {
     pub action: ConfigAction,
     pub key: Option<String>,
     pub value: Option<String>,
-    pub value_from_stdin: bool,
-    /// The value is a secret reference to read the key from, not the key.
-    pub value_from_reference: bool,
     pub json: bool,
 }
 
@@ -89,6 +88,9 @@ impl From<serde_json::Error> for ConfigCliError {
     }
 }
 
+/// What a model key is set with now: it is a secret, which the agent names.
+const MODEL_KEY_IS_A_SECRET: &str = "the model key is a secret: set it with `runx secret set <name>`, then name it with `runx config set agent.secret <name>`";
+
 // Function rationale: config set/get/list/unset share one small
 // flag grammar and keeping it adjacent avoids divergent command parsing.
 pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
@@ -109,53 +111,26 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
     };
 
     let mut json = false;
-    let mut value_from_stdin = false;
-    let mut reference = None;
     let mut positionals = Vec::new();
-    let mut index = 2;
-    while index < args.len() {
+    for index in 2..args.len() {
         let token = os_arg(args, index, "config")?;
         if !token.starts_with('-') {
             positionals.push(token.to_owned());
-            index += 1;
             continue;
         }
-
-        let (flag, inline_value) = split_flag(token);
-        match flag {
-            "--json" | "-j" => {
-                if inline_value.is_some() {
-                    return Err("--json does not take a value".to_owned());
-                }
-                json = true;
-                index += 1;
-            }
-            "--from-stdin" => {
-                if inline_value.is_some() {
-                    return Err("--from-stdin does not take a value".to_owned());
-                }
-                value_from_stdin = true;
-                index += 1;
-            }
-            "--from" => {
-                let (value, next) = flag_value(args, index, flag, inline_value, "config")?;
-                if reference.replace(value).is_some() {
-                    return Err("runx config set takes --from once".to_owned());
-                }
-                index = next;
-            }
-            _ => return Err(format!("unknown config flag {flag}")),
+        match split_flag(token) {
+            ("--json" | "-j", None) => json = true,
+            ("--json" | "-j", Some(_)) => return Err("--json does not take a value".to_owned()),
+            (flag, _) => return Err(format!("unknown config flag {flag}")),
         }
     }
 
-    if reference.is_some() && (action != ConfigAction::Set || value_from_stdin) {
-        return Err("--from sets api-key from a secret reference: runx config set api-key --from <reference>".to_owned());
-    }
+    let key = |key: &str| match normalize_config_key(key) {
+        "agent.api_key" => Err(MODEL_KEY_IS_A_SECRET.to_owned()),
+        key => Ok(key.to_owned()),
+    };
     match action {
         ConfigAction::List => {
-            if value_from_stdin {
-                return Err("runx config list does not accept --from-stdin".to_owned());
-            }
             if !positionals.is_empty() {
                 return Err("runx config list does not accept extra arguments".to_owned());
             }
@@ -163,95 +138,53 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
                 action,
                 key: None,
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json,
             })
         }
         ConfigAction::Get => {
-            if value_from_stdin {
-                return Err("runx config get does not accept --from-stdin".to_owned());
-            }
-            let [key] = positionals.as_slice() else {
+            let [name] = positionals.as_slice() else {
                 return Err("runx config get requires exactly one key".to_owned());
             };
             Ok(ConfigPlan {
                 action,
-                key: Some(normalize_config_key(key).to_owned()),
+                key: Some(key(name)?),
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json,
             })
         }
         ConfigAction::Unset => {
-            if value_from_stdin {
-                return Err("runx config unset does not accept --from-stdin".to_owned());
-            }
-            let [key] = positionals.as_slice() else {
+            let [name] = positionals.as_slice() else {
                 return Err("runx config unset requires exactly one key".to_owned());
             };
-            let key = normalize_config_key(key);
-            if !matches!(key, "agent.endpoint_url" | "agent.dialect") {
+            let key = key(name)?;
+            if !matches!(
+                key.as_str(),
+                "agent.endpoint_url" | "agent.dialect" | "agent.secret"
+            ) {
                 return Err(UNSET_ONLY.to_owned());
             }
             Ok(ConfigPlan {
                 action,
-                key: Some(key.to_owned()),
+                key: Some(key),
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json,
             })
         }
         ConfigAction::Set => {
-            let [key, values @ ..] = positionals.as_slice() else {
+            let [name, values @ ..] = positionals.as_slice() else {
                 return Err("runx config set requires a key".to_owned());
             };
-            let key = normalize_config_key(key);
-            if is_secret_config_key(key) {
-                if !values.is_empty() {
-                    return Err(
-                        "secret config values must be provided through --from-stdin or --from <reference>".to_owned()
-                    );
-                }
-                if let Some(reference) = reference {
-                    return Ok(ConfigPlan {
-                        action,
-                        key: Some(key.to_owned()),
-                        value: Some(reference),
-                        value_from_stdin: false,
-                        value_from_reference: true,
-                        json,
-                    });
-                }
-                if !value_from_stdin {
-                    return Err(
-                        "secret config values require --from-stdin or --from <reference>"
-                            .to_owned(),
-                    );
-                }
-            } else if reference.is_some() {
-                return Err("--from is only valid for api-key".to_owned());
-            } else if value_from_stdin {
-                return Err("--from-stdin is only valid for secret config values".to_owned());
-            } else if values.is_empty() {
+            if values.is_empty() {
                 return Err("runx config set requires a value".to_owned());
             }
             Ok(ConfigPlan {
                 action,
-                key: Some(key.to_owned()),
-                value: (!values.is_empty()).then(|| values.join(" ")),
-                value_from_stdin,
-                value_from_reference: false,
+                key: Some(key(name)?),
+                value: Some(values.join(" ")),
                 json,
             })
         }
     }
-}
-
-pub fn is_secret_config_key(key: &str) -> bool {
-    normalize_config_key(key) == "agent.api_key"
 }
 
 fn normalize_config_key(key: &str) -> &str {
@@ -259,6 +192,7 @@ fn normalize_config_key(key: &str) -> &str {
         "provider" => "agent.provider",
         "dialect" => "agent.dialect",
         "model" => "agent.model",
+        "secret" => "agent.secret",
         "endpoint-url" => "agent.endpoint_url",
         "auth-mode" => "agent.auth_mode",
         "api-key" | "agent-key" => "agent.api_key",
@@ -289,8 +223,7 @@ fn execute_config_plan(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConfigResult, ConfigCliError> {
-    let paths = RunxPaths::resolve(env, cwd);
-    let config_path = paths.config_file();
+    let config_path = RunxPaths::resolve(env, cwd).config_file();
     let config = load_runx_config_file(&config_path)?;
 
     match plan.action {
@@ -313,27 +246,12 @@ fn execute_config_plan(
                 ConfigCliError::InvalidArgs("config value is required.".to_owned())
             })?;
             let parsed_key = parse_config_key(key)?;
-            let replaced = config
-                .agent
-                .as_ref()
-                .and_then(|agent| agent.api_key_ref.clone());
-            let next = if plan.value_from_reference {
-                set_runx_agent_api_key_reference(config, value, env, cwd)?
-            } else {
-                update_runx_config_value(config, parsed_key, value, &paths)?
-            };
+            let next = update_runx_config_value(config, parsed_key, value)?;
             write_runx_config_file(&config_path, &next)?;
-            // The key a reference replaced leaves the home once the config
-            // no longer names it.
-            if plan.value_from_reference
-                && let Some(replaced) = replaced
-            {
-                remove_local_agent_api_key(&paths, &replaced)?;
-            }
             Ok(ConfigResult::Set {
                 action: ConfigAction::Set,
                 key: key.to_owned(),
-                value: lookup_runx_config_value(&mask_runx_config_file(&next), parsed_key),
+                value: lookup_runx_config_value(&next, parsed_key),
             })
         }
         ConfigAction::Unset => {
@@ -341,6 +259,7 @@ fn execute_config_plan(
             let next = match key {
                 "agent.endpoint_url" => clear_runx_agent_endpoint_url(config),
                 "agent.dialect" => clear_runx_agent_dialect(config),
+                "agent.secret" => clear_runx_agent_secret(config),
                 _ => return Err(ConfigCliError::InvalidArgs(UNSET_ONLY.to_owned())),
             };
             write_runx_config_file(&config_path, &next)?;
@@ -353,9 +272,9 @@ fn execute_config_plan(
     }
 }
 
-/// The settings whose absence means the provider's own profile.
-const UNSET_ONLY: &str =
-    "runx config unset clears only endpoint-url or dialect; set another value with runx config set";
+/// The settings whose absence means something: the provider's own profile,
+/// or a managed agent that names no key.
+const UNSET_ONLY: &str = "runx config unset clears only endpoint-url, dialect or secret; set another value with runx config set";
 
 fn required_key(plan: &ConfigPlan) -> Result<&str, ConfigCliError> {
     plan.key
@@ -384,6 +303,7 @@ fn render_config_result(result: &ConfigResult) -> String {
     }
 }
 
+/// The settings as rows. The secrets are `runx secret list`'s to show.
 fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, &str)> {
     let mut rows = Vec::new();
     if let Some(agent) = config.agent.as_ref() {
@@ -402,8 +322,8 @@ fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, &str)> {
         if let Some(auth_mode) = agent.auth_mode.as_deref() {
             rows.push(("agent.auth_mode", auth_mode));
         }
-        if let Some(api_key_ref) = agent.api_key_ref.as_deref() {
-            rows.push(("agent.api_key", api_key_ref));
+        if let Some(secret) = agent.secret.as_ref() {
+            rows.push(("agent.secret", secret.as_str()));
         }
     }
     if let Some(public) = config.public.as_ref() {
@@ -452,163 +372,93 @@ mod tests {
 
     use super::*;
 
+    fn plan(args: &[&str]) -> Result<ConfigPlan, String> {
+        parse_config_plan(&args.iter().map(OsString::from).collect::<Vec<_>>())
+    }
+
     #[test]
     fn parses_config_set_with_multi_word_value() {
         assert_eq!(
-            parse_config_plan(&[
-                "config".into(),
-                "set".into(),
-                "model".into(),
-                "gpt".into(),
-                "test".into(),
-                "-j".into(),
-            ]),
+            plan(&["config", "set", "model", "gpt", "test", "-j"]),
             Ok(ConfigPlan {
                 action: ConfigAction::Set,
                 key: Some("agent.model".to_owned()),
                 value: Some("gpt test".to_owned()),
-                value_from_stdin: false,
-                value_from_reference: false,
                 json: true,
             })
         );
     }
 
     #[test]
-    fn unset_is_limited_to_the_settings_a_profile_supplies() {
+    fn unset_is_limited_to_the_settings_whose_absence_means_something() {
         assert_eq!(
-            parse_config_plan(&["config".into(), "unset".into(), "endpoint-url".into()]),
+            plan(&["config", "unset", "endpoint-url"]),
             Ok(ConfigPlan {
                 action: ConfigAction::Unset,
                 key: Some("agent.endpoint_url".to_owned()),
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json: false,
             })
         );
-        assert!(parse_config_plan(&["config".into(), "unset".into(), "dialect".into()]).is_ok());
-        assert!(parse_config_plan(&["config".into(), "unset".into(), "api-key".into()]).is_err());
+        assert!(plan(&["config", "unset", "dialect"]).is_ok());
+        assert!(plan(&["config", "unset", "secret"]).is_ok());
+        assert!(plan(&["config", "unset", "model"]).is_err());
     }
 
     #[test]
-    fn secret_config_values_require_stdin_and_never_accept_argv() {
+    fn a_model_key_is_never_config_and_says_what_sets_it() {
+        for args in [
+            &["config", "set", "api-key", "secret-on-argv"][..],
+            &["config", "get", "agent-key"][..],
+            &["config", "unset", "agent.api_key"][..],
+        ] {
+            assert_eq!(plan(args), Err(MODEL_KEY_IS_A_SECRET.to_owned()));
+        }
         assert_eq!(
-            parse_config_plan(&[
-                "config".into(),
-                "set".into(),
-                "api-key".into(),
-                "secret-on-argv".into(),
-            ]),
-            Err(
-                "secret config values must be provided through --from-stdin or --from <reference>"
-                    .to_owned()
-            )
-        );
-        assert_eq!(
-            parse_config_plan(&[
-                "config".into(),
-                "set".into(),
-                "api-key".into(),
-                "--from".into(),
-                "aws-sm://team/env#KEY".into(),
-            ]),
-            Ok(ConfigPlan {
-                action: ConfigAction::Set,
-                key: Some("agent.api_key".to_owned()),
-                value: Some("aws-sm://team/env#KEY".to_owned()),
-                value_from_stdin: false,
-                value_from_reference: true,
-                json: false,
-            })
-        );
-        assert_eq!(
-            parse_config_plan(&[
-                "config".into(),
-                "set".into(),
-                "api-key".into(),
-                "--from-stdin".into(),
-            ]),
-            Ok(ConfigPlan {
-                action: ConfigAction::Set,
-                key: Some("agent.api_key".to_owned()),
-                value: None,
-                value_from_stdin: true,
-                value_from_reference: false,
-                json: false,
-            })
+            plan(&["config", "set", "api-key", "--from-stdin"]),
+            Err("unknown config flag --from-stdin".to_owned())
         );
     }
 
     #[test]
-    // Function rationale: one temp config lifecycle proves
-    // set/get/list masking against the same encrypted local state.
-    fn config_set_get_list_masks_api_key() -> Result<(), ConfigTestError> {
+    // Function rationale: one temp config lifecycle proves set/get/list and
+    // unset of the agent's secret against the same local state.
+    fn the_agent_names_a_set_secret_and_config_never_holds_its_value() -> Result<(), ConfigTestError>
+    {
         let temp = tempfile_dir()?;
         let runx_home = temp.join(".runx");
         let env = BTreeMap::from([(
             "RUNX_HOME".to_owned(),
             runx_home.to_string_lossy().to_string(),
         )]);
-
-        let set_provider = ConfigPlan {
-            action: ConfigAction::Set,
-            key: Some("agent.provider".to_owned()),
-            value: Some("openai".to_owned()),
-            value_from_stdin: false,
-            value_from_reference: false,
-            json: true,
+        let run = |args: &[&str]| -> Result<String, ConfigTestError> {
+            Ok(run_config_command(
+                &plan(args).map_err(io::Error::other)?,
+                &env,
+                &temp,
+            )?)
         };
-        let set_key = ConfigPlan {
-            action: ConfigAction::Set,
-            key: Some("agent.api_key".to_owned()),
-            value: Some("sk-secret-test".to_owned()),
-            value_from_stdin: true,
-            value_from_reference: false,
-            json: true,
-        };
-        run_config_command(&set_provider, &env, &temp)?;
-        let key_output = run_config_command(&set_key, &env, &temp)?;
-        assert!(key_output.contains("\"value\": \"[encrypted]\""));
-        assert!(!key_output.contains("sk-secret-test"));
 
-        let get_output = run_config_command(
-            &ConfigPlan {
-                action: ConfigAction::Get,
-                key: Some("agent.api_key".to_owned()),
-                value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
-                json: false,
-            },
-            &env,
-            &temp,
-        )?;
-        assert!(get_output.contains("agent.api_key"));
-        assert!(get_output.contains("[encrypted]"));
-        assert!(!get_output.contains("sk-secret-test"));
+        assert!(
+            run(&["config", "set", "secret", "anthropic"]).is_err(),
+            "an unset secret is named"
+        );
+        let name = runx_contracts::connector::SecretName::new("anthropic")
+            .ok_or_else(|| io::Error::other("a secret name"))?;
+        runx_runtime::secrets::set_value(&RunxPaths::resolve(&env, &temp), &name, "sk-secret-test")
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        run(&["config", "set", "provider", "anthropic"])?;
+        let set = run(&["config", "set", "secret", "anthropic", "-j"])?;
+        assert!(set.contains("\"value\": \"anthropic\""), "{set}");
 
-        let list_output = run_config_command(
-            &ConfigPlan {
-                action: ConfigAction::List,
-                key: None,
-                value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
-                json: false,
-            },
-            &env,
-            &temp,
-        )?;
-        assert!(list_output.contains("agent.provider"));
-        assert!(list_output.contains("openai"));
-        assert!(list_output.contains("agent.api_key"));
-        assert!(list_output.contains("[encrypted]"));
-        assert!(!list_output.contains("sk-secret-test"));
-
+        let list = run(&["config", "list"])?;
+        assert!(list.contains("agent.secret"), "{list}");
+        assert!(!list.contains("sk-secret-test"), "{list}");
         let config_contents = fs::read_to_string(runx_home.join("config.json"))?;
-        assert!(config_contents.contains("api_key_ref"));
         assert!(!config_contents.contains("sk-secret-test"));
+
+        run(&["config", "unset", "secret"])?;
+        assert!(!run(&["config", "list"])?.contains("agent.secret"));
         fs::remove_dir_all(temp)?;
         Ok(())
     }
@@ -622,6 +472,18 @@ mod tests {
             "RUNX_HOME".to_owned(),
             runx_home.to_string_lossy().into_owned(),
         )]);
+        let set = |key: &str, value: &str| {
+            run_config_command(
+                &ConfigPlan {
+                    action: ConfigAction::Set,
+                    key: Some(key.to_owned()),
+                    value: Some(value.to_owned()),
+                    json: false,
+                },
+                &env,
+                &temp,
+            )
+        };
         for (key, value) in [
             ("agent.provider", "openai"),
             ("agent.model", "fixture-model"),
@@ -631,26 +493,13 @@ mod tests {
                 "http://127.0.0.1:18081/v1/chat/completions",
             ),
         ] {
-            run_config_command(
-                &ConfigPlan {
-                    action: ConfigAction::Set,
-                    key: Some(key.to_owned()),
-                    value: Some(value.to_owned()),
-                    value_from_stdin: false,
-                    value_from_reference: false,
-                    json: false,
-                },
-                &env,
-                &temp,
-            )?;
+            set(key, value)?;
         }
         let list = run_config_command(
             &ConfigPlan {
                 action: ConfigAction::List,
                 key: None,
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json: true,
             },
             &env,
@@ -680,39 +529,14 @@ mod tests {
                 action: ConfigAction::Get,
                 key: Some("agent.auth_mode".to_owned()),
                 value: None,
-                value_from_stdin: false,
-                value_from_reference: false,
                 json: false,
             },
             &env,
             &temp,
         )?;
         assert!(get.contains("bad_mode"));
-        let bad_set = run_config_command(
-            &ConfigPlan {
-                action: ConfigAction::Set,
-                key: Some("agent.auth_mode".to_owned()),
-                value: Some("bad_mode".to_owned()),
-                value_from_stdin: false,
-                value_from_reference: false,
-                json: false,
-            },
-            &env,
-            &temp,
-        );
-        assert!(bad_set.is_err());
-        run_config_command(
-            &ConfigPlan {
-                action: ConfigAction::Set,
-                key: Some("agent.auth_mode".to_owned()),
-                value: Some("local_none".to_owned()),
-                value_from_stdin: false,
-                value_from_reference: false,
-                json: false,
-            },
-            &env,
-            &temp,
-        )?;
+        assert!(set("agent.auth_mode", "bad_mode").is_err());
+        set("agent.auth_mode", "local_none")?;
         fs::remove_dir_all(temp)?;
         Ok(())
     }

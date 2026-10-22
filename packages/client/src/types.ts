@@ -230,6 +230,15 @@ export interface RunxClient {
     /** A project artifact by its reference, confined to the project and checked against its digest. */
     read(reference: ProjectArtifactRefContract, options?: { readonly maxBytes?: number }): Promise<unknown>;
   };
+  readonly secrets: {
+    /**
+     * `runx secret read <name>`: the value of a secret the operator keeps in
+     * runx, for a host that sends it itself, such as a model key. runx reads
+     * it now, sealed in its home or through its secrets manager; the host
+     * keeps it no longer than its use.
+     */
+    read(options: InvocationOptions & { readonly name: string }): Promise<string>;
+  };
   readonly receipts: {
     /**
      * `trust: "home"` (the default) verifies against the selected runx home's

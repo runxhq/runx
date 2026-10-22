@@ -13,6 +13,7 @@ use crate::notarize::NotarizePlan;
 use crate::policy::PolicyPlan;
 use crate::registry::{RegistryAction, RegistryPlan};
 use crate::resume::ResumePlan;
+use crate::secret::SecretPlan;
 use crate::skill::SkillPlan;
 use runx_contracts::validate_registry_version;
 use runx_runtime::registry::parse_registry_ref;
@@ -38,6 +39,7 @@ pub enum RouterAction {
     RunNotarize(NotarizePlan),
     RunRegistry(RegistryPlan),
     RunResume(ResumePlan),
+    RunSecret(SecretPlan),
     RunSkill(Box<SkillPlan>),
     RunTool(ToolPlan),
     PrintHelp,
@@ -196,6 +198,14 @@ fn route_args_with_optional_workspace(
             &args,
             crate::connector::parse_connector_plan(&args),
             RouterAction::RunConnector,
+        );
+    }
+
+    if first_arg_is(&args, "secret") {
+        return route_parse(
+            &args,
+            crate::secret::parse_secret_plan(&args),
+            RouterAction::RunSecret,
         );
     }
 

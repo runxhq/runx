@@ -2,17 +2,18 @@
 //! `runx connector use`, `runx connector list` and `runx connector revoke`.
 //!
 //! Five authority sources exist: an instance confirmed earlier, a local
-//! command session (a signed-in tool such as `gh`), the variable a
-//! credential's declaration delivers it in, a local secret profile, and a
-//! runx Connect grant. Setup composes the confirmations in [`super::setup`];
-//! it never picks between accounts for the operator, and a request it cannot
-//! resolve to one source is refused with the exact forms that would.
+//! session (a signed-in tool such as `gh`, or a browser profile), the
+//! variable a credential's declaration delivers it in, a secret the operator
+//! keeps in runx (`runx secret`), and a runx Connect grant. Setup composes the
+//! confirmations in [`super::setup`]; it never picks between accounts for the
+//! operator, and a request it cannot resolve to one source is refused with
+//! the exact forms that would.
 
 use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use runx_contracts::connector::{CredentialName, EnvName, HostedAuth, LocalAuth, SecretReference};
+use runx_contracts::connector::{CredentialName, EnvName, HostedAuth, LocalAuth, SecretName};
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject};
 use serde_json::Value;
 
@@ -20,9 +21,6 @@ use super::connectors::LoadedConnector;
 use super::instances::{InstanceRecord, Instances};
 use super::operation::hosted::{HostedClient, HostedSession};
 use super::setup;
-use crate::credential_profiles::{
-    CredentialProfileSummary, list_local_credential_profiles, remove_local_credential_profile,
-};
 use crate::hosted_api::{
     ConnectSession, HostedApiEnvironment, HostedConnectAction, HostedConnectStart,
 };
@@ -41,30 +39,27 @@ const MIN_POLL: Duration = Duration::from_millis(250);
 pub enum UseRequest<'a> {
     /// No selector: the one available path.
     Default,
-    /// An instance confirmed earlier, a saved profile, an active grant, or a
-    /// pending Connect session, by its id or name.
+    /// An instance confirmed earlier, an active grant, or a pending Connect
+    /// session, by its id.
     Existing(&'a str),
-    /// The connector's local command session, as signed in now.
+    /// The connector's local session, as signed in now.
     Session,
     /// The connector's `credential`: bound to the variable its declaration
-    /// delivers it in when that is set, else read from the operator and
-    /// stored in `profile`, the connector's own name when none is given.
-    Credential {
-        credential: &'a CredentialName,
-        profile: Option<&'a str>,
-    },
-    /// The connector's `credential`, or its only one, read on every call
-    /// from the secret `reference` names in a secrets manager.
-    Reference {
+    /// delivers it in when that is set, else read from the operator and kept
+    /// as a new secret named after the connector.
+    Credential { credential: &'a CredentialName },
+    /// The connector's `credential`, or its only one, bound to the secret
+    /// `secret` names and read from it on every call.
+    Secret {
         credential: Option<&'a CredentialName>,
-        reference: &'a SecretReference,
+        secret: &'a SecretName,
     },
     /// A new runx Connect grant: delegated, or holding the one credential the
-    /// connector's hosted placement names, read from `from` when given, else
-    /// from its variable when that is set, else from the operator.
+    /// connector's hosted placement names, read from `secret` when given,
+    /// else from its variable when that is set, else from the operator.
     Hosted {
         target: Option<&'a str>,
-        from: Option<&'a SecretReference>,
+        secret: Option<&'a SecretName>,
     },
 }
 
@@ -103,11 +98,11 @@ pub enum UseOutcome {
     },
 }
 
-/// Every authority source the project holds for connectors, by source.
+/// Every authority source the project holds for connectors, by source. The
+/// secrets they name are the home's, which `runx secret list` shows.
 #[derive(Clone, Debug)]
 pub struct AuthoritySources {
     pub instances: Vec<InstanceRecord>,
-    pub profiles: Vec<CredentialProfileSummary>,
     /// The Connect grants the signed-in account holds, or why they could not
     /// be read (an unavailable account is never an empty list).
     pub grants: Result<Vec<HostedProviderGrant>, String>,
@@ -127,7 +122,6 @@ impl AuthoritySources {
 #[derive(Clone, Debug)]
 pub enum Revoked {
     Instance(String),
-    Profile(String),
     Grant(String),
 }
 
@@ -341,87 +335,62 @@ impl<'a> ConnectorSetup<'a> {
                 ),
             }
             .map(selected),
-            UseRequest::Credential {
-                credential,
-                profile,
-            } => self
-                .credential(connector, credential, profile, options)
+            UseRequest::Credential { credential } => self
+                .credential(connector, credential, options)
                 .map(selected),
-            UseRequest::Reference {
-                credential,
-                reference,
-            } => {
+            UseRequest::Secret { credential, secret } => {
                 let credential = match credential {
                     Some(credential) => credential.clone(),
                     None => only_credential(connector)?,
                 };
-                setup::bind_reference(
+                setup::bind_secret(
                     self.instances,
                     connector,
                     &credential,
-                    reference,
+                    secret,
                     &options.scopes,
                     options.parameters.clone(),
                     self.workspace,
                 )
                 .map(selected)
             }
-            UseRequest::Hosted { target, from } => {
-                self.hosted_grant(connector, target, from, options)
+            UseRequest::Hosted { target, secret } => {
+                self.hosted_grant(connector, target, secret, options)
             }
         }
     }
 
-    /// The authority sources the project holds: instances, local profiles,
-    /// and the signed-in account's Connect grants.
+    /// The authority sources the project holds: instances, and the
+    /// signed-in account's Connect grants.
     pub fn sources(&self) -> Result<AuthoritySources, String> {
         Ok(AuthoritySources {
             instances: self.instances.list().map_err(|error| error.to_string())?,
-            profiles: list_local_credential_profiles(self.workspace)
-                .map_err(|error| error.to_string())?,
             grants: self
                 .hosted
                 .list_grants(self.workspace.env(), self.workspace.cwd()),
         })
     }
 
-    /// Remove the one instance, profile or grant `name` names. A profile's
-    /// removal also revokes the instances that hold it, and a grant's those
-    /// that stand for it.
+    /// Remove the one instance or grant `name` names. A grant's removal also
+    /// revokes the instances that stand for it. A secret is removed with
+    /// `runx secret rm`, which is the home's, not a project's.
     pub fn revoke(&self, name: &str) -> Result<Revoked, String> {
-        let instance = self
+        if self
             .instances
             .get(name)
-            .map_err(|error| error.to_string())?;
-        let profile = self.profile(name)?;
-        match (instance, profile) {
-            (Some(_), Some(_)) => Err(format!(
-                "{name} is both an instance id and a credential profile; nothing was revoked"
-            )),
-            (Some(_), None) => {
-                self.instances
-                    .revoke(name)
-                    .map_err(|error| error.to_string())?;
-                Ok(Revoked::Instance(name.to_owned()))
-            }
-            (None, Some(profile)) => {
-                self.revoke_holding(|instance| {
-                    profile_of(instance) == Some(profile.name.as_str())
-                })?;
-                remove_local_credential_profile(self.workspace, &profile.name)
-                    .map_err(|error| error.to_string())?;
-                Ok(Revoked::Profile(profile.name))
-            }
-            (None, None) => {
-                self.session()?
-                    .connect(HostedConnectAction::Revoke { grant_id: name })
-                    .map_err(|error| {
-                        format!("{name} is no instance, profile or grant here: {error}")
-                    })?;
-                self.revoke_holding(|instance| grant_of(instance) == Some(name))?;
-                Ok(Revoked::Grant(name.to_owned()))
-            }
+            .map_err(|error| error.to_string())?
+            .is_some()
+        {
+            self.instances
+                .revoke(name)
+                .map_err(|error| error.to_string())?;
+            return Ok(Revoked::Instance(name.to_owned()));
         }
+        self.session()?
+            .connect(HostedConnectAction::Revoke { grant_id: name })
+            .map_err(|error| format!("{name} is no instance or grant here: {error}"))?;
+        self.revoke_holding(|instance| grant_of(instance) == Some(name))?;
+        Ok(Revoked::Grant(name.to_owned()))
     }
 
     fn default_path(
@@ -459,14 +428,13 @@ impl<'a> ConnectorSetup<'a> {
                     .map(|instance| UseOutcome::Selected(Box::new(instance)))
             }
             [Path::Credential(credential)] => self
-                .credential(connector, credential, None, options)
+                .credential(connector, credential, options)
                 .map(|instance| UseOutcome::Selected(Box::new(instance))),
-            [Path::Profile(name)] => self.existing(connector, name, options),
             [Path::Hosted] => self.use_connector(
                 connector,
                 UseRequest::Hosted {
                     target: None,
-                    from: None,
+                    secret: None,
                 },
                 options,
             ),
@@ -475,12 +443,13 @@ impl<'a> ConnectorSetup<'a> {
     }
 
     /// The paths that confirm a new instance from what is already here: a
-    /// credential's variable, a stored profile, a Connect account. A public
-    /// API is the floor, taken only when no account is available; past it, a
-    /// connector that takes one credential asks for that credential. A
-    /// declared command session is a path that is never taken by default: its
-    /// command comes from the manifest, so it runs only once the operator
-    /// names it, and nothing runs it to find out whether it would work.
+    /// credential's variable, a Connect account. A public API is the floor,
+    /// taken only when no account is available; past it, a connector that
+    /// takes one credential asks for that credential. A secret is never taken
+    /// by its name: the operator names it with `--secret`. A declared command
+    /// session is a path that is never taken by default: its command comes
+    /// from the manifest, so it runs only once the operator names it, and
+    /// nothing runs it to find out whether it would work.
     fn new_paths(&self, connector: &LoadedConnector) -> Result<Vec<Path>, String> {
         let manifest = &connector.manifest;
         let local = manifest
@@ -500,13 +469,6 @@ impl<'a> ConnectorSetup<'a> {
                 };
                 if self.variable(connector, name, variable)?.is_some() {
                     paths.push(Path::Credential(name.clone()));
-                }
-            }
-            for profile in
-                list_local_credential_profiles(self.workspace).map_err(|error| error.to_string())?
-            {
-                if profile.connector == connector.name {
-                    paths.push(Path::Profile(profile.name));
                 }
             }
         }
@@ -542,22 +504,17 @@ impl<'a> ConnectorSetup<'a> {
     }
 
     /// The connector's `credential`, bound to its variable when that is set;
-    /// otherwise read from the operator and stored in `profile`.
+    /// otherwise read from the operator, kept as a new secret named after the
+    /// connector, and bound to that secret. A name already set is refused,
+    /// never taken: the operator binds an existing secret with `--secret`.
     fn credential(
         &self,
         connector: &LoadedConnector,
         credential: &CredentialName,
-        profile: Option<&str>,
         options: &UseOptions,
     ) -> Result<ConnectorInstance, String> {
         let variable = delivered(connector, credential)?;
         if self.variable(connector, credential, variable)?.is_some() {
-            if profile.is_some() {
-                return Err(format!(
-                    "{}'s {credential} credential is read from {variable}, which is set; --profile stores a credential only when its variable is not",
-                    connector.name
-                ));
-            }
             return setup::bind_environment(
                 self.instances,
                 connector,
@@ -567,20 +524,35 @@ impl<'a> ConnectorSetup<'a> {
                 self.workspace,
             );
         }
-        let secret = self.secret(connector, credential)?;
-        setup::set_credential(
+        let name = match connector.manifest.auth.credentials.len() {
+            1 => connector.name.to_string(),
+            _ => format!("{}-{credential}", connector.name),
+        };
+        let name =
+            SecretName::new(name.clone()).ok_or_else(|| format!("{name} cannot name a secret"))?;
+        let paths = self.workspace.paths();
+        if crate::secrets::is_set(paths, &name).map_err(|error| error.to_string())? {
+            return Err(format!(
+                "a secret named {name} is set; bind it with `runx connector use {} --secret {name}`, or set {variable}",
+                connector.name
+            ));
+        }
+        let value = self.secret(connector, credential)?;
+        super::operation::credentials::fields(declared(connector, credential)?, &value)
+            .map_err(|reason| format!("the credential {reason}"))?;
+        crate::secrets::set_value(paths, &name, &value).map_err(|error| error.to_string())?;
+        setup::bind_secret(
             self.instances,
             connector,
-            profile.unwrap_or(connector.name.as_str()),
             credential,
-            &secret,
+            &name,
             &options.scopes,
             options.parameters.clone(),
             self.workspace,
         )
     }
 
-    /// `credential`'s value for a new profile or hosted grant: its variable
+    /// `credential`'s value for a new secret or hosted grant: its variable
     /// when that is set, else what the operator gives.
     fn secret(
         &self,
@@ -652,14 +624,10 @@ impl<'a> ConnectorSetup<'a> {
 
     fn choose_message(&self, connector: &LoadedConnector, paths: &[Path]) -> String {
         let reference = connector.name.as_str();
-        let mut forms = paths
+        let forms = setup_forms(connector)
             .iter()
-            .filter_map(|path| match path {
-                Path::Profile(name) => Some(format!("`runx connector use {reference} {name}`")),
-                _ => None,
-            })
+            .map(SetupForm::quoted)
             .collect::<Vec<_>>();
-        forms.extend(setup_forms(connector).iter().map(SetupForm::quoted));
         let login = match connector.manifest.placements.hosted.is_some()
             && matches!(self.signed_in(), Ok(false))
         {
@@ -683,49 +651,32 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
-    /// The instance, profile, grant or pending Connect session `name` names.
+    /// The instance, grant or pending Connect session `name` names.
     fn existing(
         &self,
         connector: &LoadedConnector,
         name: &str,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
-        let instance = self
+        let Some(record) = self
             .instances
             .get(name)
-            .map_err(|error| error.to_string())?;
-        let profile = self.profile(name)?;
-        match (instance, profile) {
-            (Some(_), Some(_)) => Err(format!(
-                "{name} is both an instance id and a credential profile; nothing was selected"
-            )),
-            (Some(record), None) => {
-                if record.instance.connector != connector.name {
-                    return Err(format!(
-                        "instance {name} belongs to connector {}, not {}",
-                        record.instance.connector, connector.name
-                    ));
-                }
-                fixed(options, &format!("instance {name}"))?;
-                self.instances
-                    .select(name)
-                    .map(|instance| UseOutcome::Selected(Box::new(instance)))
-                    .map_err(|error| error.to_string())
-            }
-            (None, Some(profile)) => setup::confirm_credential_profile(
-                self.instances,
-                connector,
-                &profile.name,
-                &options.scopes,
-                options.parameters.clone(),
-                self.workspace,
-            )
-            .map(|instance| UseOutcome::Selected(Box::new(instance))),
-            (None, None) => {
-                fixed(options, name)?;
-                self.hosted_existing(connector, name, options)
-            }
+            .map_err(|error| error.to_string())?
+        else {
+            fixed(options, name)?;
+            return self.hosted_existing(connector, name, options);
+        };
+        if record.instance.connector != connector.name {
+            return Err(format!(
+                "instance {name} belongs to connector {}, not {}",
+                record.instance.connector, connector.name
+            ));
         }
+        fixed(options, &format!("instance {name}"))?;
+        self.instances
+            .select(name)
+            .map(|instance| UseOutcome::Selected(Box::new(instance)))
+            .map_err(|error| error.to_string())
     }
 
     /// An active grant by id, or a pending Connect session that has since
@@ -758,7 +709,7 @@ impl<'a> ConnectorSetup<'a> {
             .connect(HostedConnectAction::Status { session_id: name })
             .map_err(|error| {
                 format!(
-                    "{name} is no instance, profile, grant or pending Connect session for {}: {error}",
+                    "{name} is no instance, grant or pending Connect session for {}: {error}",
                     connector.name
                 )
             })?;
@@ -769,7 +720,7 @@ impl<'a> ConnectorSetup<'a> {
         &self,
         connector: &LoadedConnector,
         target: Option<&str>,
-        from: Option<&SecretReference>,
+        secret: Option<&SecretName>,
         options: &UseOptions,
     ) -> Result<UseOutcome, String> {
         no_parameters(options, "a hosted grant")?;
@@ -780,15 +731,15 @@ impl<'a> ConnectorSetup<'a> {
             .as_ref()
             .ok_or_else(|| format!("{} has no hosted placement", connector.name))?;
         let credentials = match (hosted.auth, &hosted.credential) {
-            (HostedAuth::Delegated, _) if from.is_some() => {
+            (HostedAuth::Delegated, _) if secret.is_some() => {
                 return Err(format!(
-                    "{} signs in to its provider through Connect; --from seeds only a hosted credential",
+                    "{} signs in to its provider through Connect; --secret seeds only a hosted credential",
                     connector.name
                 ));
             }
             (HostedAuth::Delegated, _) => None,
             (HostedAuth::Credential, Some(name)) => {
-                Some(self.credential_fields(connector, name, from)?)
+                Some(self.credential_fields(connector, name, secret)?)
             }
             (HostedAuth::Credential, None) => {
                 return Err(format!(
@@ -920,27 +871,26 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
+    /// The fields a new hosted grant is sent: a copy of `secret`'s value
+    /// when one is named, read once now, else the credential's value. Connect
+    /// holds the copy; the local secret stays as it is.
     fn credential_fields(
         &self,
         connector: &LoadedConnector,
         name: &CredentialName,
-        from: Option<&SecretReference>,
+        secret: Option<&SecretName>,
     ) -> Result<Value, String> {
         let declaration = declared(connector, name)?;
-        let fields = match from {
-            Some(reference) => {
-                let read = crate::secret_refs::read(
+        let fields = match secret {
+            Some(secret) => {
+                let value = crate::secrets::read(
                     self.workspace.env(),
                     self.workspace.cwd(),
-                    reference,
-                    None,
-                    crate::secret_refs::Purpose::Bind,
-                )?;
-                super::operation::credentials::reference_fields(
-                    declaration,
-                    reference,
-                    &read.value,
-                )?
+                    secret,
+                    crate::secrets::Purpose::Bind,
+                )
+                .map_err(|error| error.to_string())?;
+                super::operation::credentials::secret_fields(declaration, secret, value.expose())?
             }
             None => {
                 super::operation::credentials::fields(declaration, &self.secret(connector, name)?)
@@ -961,13 +911,6 @@ impl<'a> ConnectorSetup<'a> {
             .session(self.workspace.env(), self.workspace.cwd())
     }
 
-    fn profile(&self, name: &str) -> Result<Option<CredentialProfileSummary>, String> {
-        Ok(list_local_credential_profiles(self.workspace)
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .find(|profile| profile.name == name))
-    }
-
     fn revoke_holding(&self, holds: impl Fn(&ConnectorInstance) -> bool) -> Result<(), String> {
         for record in self.instances.list().map_err(|error| error.to_string())? {
             if !record.revoked && holds(&record.instance) {
@@ -986,7 +929,6 @@ enum Path {
     Session,
     /// A credential, from its variable when that is set, else asked for.
     Credential(CredentialName),
-    Profile(String),
     Hosted,
 }
 
@@ -1086,13 +1028,6 @@ fn no_parameters(options: &UseOptions, what: &str) -> Result<(), String> {
         return Ok(());
     }
     Err(format!("{what} takes no --parameter"))
-}
-
-fn profile_of(instance: &ConnectorInstance) -> Option<&str> {
-    match &instance.authority {
-        InstanceAuthority::Credential { profile, .. } => Some(profile.as_str()),
-        _ => None,
-    }
 }
 
 fn grant_of(instance: &ConnectorInstance) -> Option<&str> {

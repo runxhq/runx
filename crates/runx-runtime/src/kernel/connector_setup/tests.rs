@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use runx_contracts::connector::CredentialName;
+use runx_contracts::connector::{CredentialName, SecretName};
 use runx_contracts::{InstanceAuthority, JsonObject};
 use serde_json::{Value, json};
 
@@ -192,7 +192,7 @@ fn a_hosted_grant_binds_once_the_account_holder_authorizes() {
             &chat,
             UseRequest::Hosted {
                 target: None,
-                from: None,
+                secret: None,
             },
             &options(Duration::from_secs(30)),
         )
@@ -236,7 +236,7 @@ fn an_unauthorized_grant_names_the_command_that_finishes_it() -> Result<(), Stri
             &chat,
             UseRequest::Hosted {
                 target: Some("C0123"),
-                from: None,
+                secret: None,
             },
             &options(Duration::ZERO),
         )
@@ -298,7 +298,7 @@ fn a_new_grant_shows_its_link_once_before_it_waits() {
             &chat,
             UseRequest::Hosted {
                 target: None,
-                from: None,
+                secret: None,
             },
             &options(Duration::from_secs(30)),
         )
@@ -330,7 +330,7 @@ fn a_hosted_key_the_environment_and_env_file_disagree_on_never_reaches_connect()
             &compute,
             UseRequest::Hosted {
                 target: None,
-                from: None,
+                secret: None,
             },
             &options(Duration::ZERO),
         )
@@ -428,7 +428,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
             &compute,
             UseRequest::Hosted {
                 target: None,
-                from: None,
+                secret: None,
             },
             &options(Duration::ZERO),
         )
@@ -525,7 +525,7 @@ fn a_failed_connect_session_is_refused_with_its_reason() {
             &chat,
             UseRequest::Hosted {
                 target: None,
-                from: None,
+                secret: None,
             },
             &options(Duration::from_secs(30)),
         )
@@ -578,7 +578,7 @@ fn a_credential_whose_variable_is_set_is_bound_to_the_variable() -> Result<(), S
             .contains("search-fixture-key")
     );
     assert!(
-        crate::credential_profiles::list_local_credential_profiles(&project.workspace)
+        crate::secrets::list(project.workspace.paths())
             .unwrap()
             .is_empty()
     );
@@ -603,13 +603,21 @@ fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() ->
             .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))?,
     )?;
 
-    let InstanceAuthority::Credential { profile, .. } = &instance.authority else {
+    let InstanceAuthority::Secret { secret, .. } = &instance.authority else {
         return Err(format!(
-            "a typed credential is stored: {:?}",
+            "a typed credential is kept as a secret: {:?}",
             instance.authority
         ));
     };
-    assert_eq!(profile.as_str(), "fixture/search");
+    assert_eq!(secret.as_str(), "fixture/search");
+    let value = crate::secrets::read(
+        project.workspace.env(),
+        project.workspace.cwd(),
+        secret,
+        crate::secrets::Purpose::Call,
+    )
+    .map_err(|error| error.to_string())?;
+    assert_eq!(value.expose(), "search-typed-key");
     Ok(())
 }
 
@@ -627,7 +635,7 @@ fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> 
     )?;
 
     assert!(
-        matches!(instance.authority, InstanceAuthority::Credential { .. }),
+        matches!(instance.authority, InstanceAuthority::Secret { .. }),
         "{:?}",
         instance.authority
     );
@@ -678,33 +686,89 @@ fn a_connector_with_several_credentials_names_each_and_its_variable() {
 }
 
 #[test]
-fn a_profile_is_not_stored_for_a_credential_its_variable_holds() {
+fn a_prompted_value_never_takes_a_secret_already_set_by_that_name() {
     let search = fixture_scope().connector("fixture/search").unwrap();
-    let project = Project::with(&[("SEARCH_API_KEY", "search-fixture-key")]);
+    let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);
+    let name = SecretName::new("fixture/search").unwrap();
+    crate::secrets::set_value(project.workspace.paths(), &name, "kept-key").unwrap();
 
     let refused = project
         .setup(&connect)
         .reading_secrets(&never_asked)
-        .use_connector(
-            &search,
-            UseRequest::Credential {
-                credential: &CredentialName::new("api_key").unwrap(),
-                profile: Some("work"),
-            },
-            &options(Duration::ZERO),
-        )
+        .use_connector(&search, UseRequest::Default, &options(Duration::ZERO))
         .err()
         .unwrap();
 
-    assert!(
-        refused.contains("is read from SEARCH_API_KEY, which is set"),
-        "{refused}"
+    assert_eq!(
+        refused,
+        "a secret named fixture/search is set; bind it with `runx connector use fixture/search --secret fixture/search`, or set SEARCH_API_KEY"
     );
 }
 
 #[test]
-fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
+fn a_named_secret_binds_without_asking_or_reading_the_variable() -> Result<(), String> {
+    let search = fixture_scope().connector("fixture/search").unwrap();
+    // The variable is set too: naming a secret never reads it.
+    let project = Project::with(&[("SEARCH_API_KEY", "search-fixture-key")]);
+    let connect = Connect::new(Value::Null, &[]);
+    let name = SecretName::new("search-work").unwrap();
+    crate::secrets::set_value(project.workspace.paths(), &name, "work-key")
+        .map_err(|error| error.to_string())?;
+
+    let instance = selected(
+        project
+            .setup(&connect)
+            .reading_secrets(&never_asked)
+            .use_connector(
+                &search,
+                UseRequest::Secret {
+                    credential: None,
+                    secret: &name,
+                },
+                &options(Duration::ZERO),
+            )?,
+    )?;
+
+    assert!(
+        matches!(&instance.authority, InstanceAuthority::Secret { secret, .. } if *secret == name),
+        "{:?}",
+        instance.authority
+    );
+    assert!(
+        !serde_json::to_string(&instance)
+            .unwrap()
+            .contains("work-key")
+    );
+    Ok(())
+}
+
+/// The secret `name`, pointed at a file holding `contents`, as a secrets
+/// manager would hold it.
+fn reference_secret(
+    project: &Project,
+    held: &std::path::Path,
+    name: &str,
+    contents: &str,
+) -> SecretName {
+    let file = held.join(format!("{name}.json"));
+    std::fs::write(&file, contents).unwrap();
+    let reference =
+        runx_contracts::connector::SecretReference::new(format!("file://{}", file.display()))
+            .unwrap();
+    let name = SecretName::new(name).unwrap();
+    crate::secrets::set_reference(
+        project.workspace.env(),
+        project.workspace.cwd(),
+        &name,
+        &reference,
+    )
+    .unwrap();
+    name
+}
+
+#[test]
+fn a_hosted_credential_is_seeded_from_one_secret_holding_every_field() {
     let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
@@ -714,30 +778,27 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
     connect.statuses.lock().unwrap().push_back(created);
     let project = Project::new();
     let held = tempfile::tempdir().unwrap();
-    let secret = held.path().join("compute.json");
-    std::fs::write(
-        &secret,
-        json!({
+    let name = reference_secret(
+        &project,
+        held.path(),
+        "compute",
+        &json!({
             "region": "us-east-1",
             "account_id": "123456789012",
             "access_key_id": "AKIAFROMVAULT",
             "secret_access_key": "secret-from-vault",
         })
         .to_string(),
-    )
-    .unwrap();
-    let reference =
-        runx_contracts::connector::SecretReference::new(format!("file://{}", secret.display()))
-            .unwrap();
+    );
 
     let outcome = project
         .setup(&connect)
-        .reading_secrets(&|_: &str| Err("asked for what the reference holds".to_owned()))
+        .reading_secrets(&|_: &str| Err("asked for what the secret holds".to_owned()))
         .use_connector(
             &compute,
             UseRequest::Hosted {
                 target: None,
-                from: Some(&reference),
+                secret: Some(&name),
             },
             &options(Duration::ZERO),
         )
@@ -750,11 +811,11 @@ fn a_hosted_credential_is_seeded_from_one_reference_holding_every_field() {
 }
 
 #[test]
-fn a_reference_cannot_seed_a_delegated_sign_in() {
+fn a_secret_cannot_seed_a_delegated_sign_in() {
     let forge = fixture_scope().connector("fixture/forge").unwrap();
     let connect = Connect::new(awaiting_authorization(), &[]);
     let project = Project::new();
-    let reference = runx_contracts::connector::SecretReference::new("aws-sm://team/forge").unwrap();
+    let name = SecretName::new("forge").unwrap();
 
     let refused = project
         .setup(&connect)
@@ -762,7 +823,7 @@ fn a_reference_cannot_seed_a_delegated_sign_in() {
             &forge,
             UseRequest::Hosted {
                 target: None,
-                from: Some(&reference),
+                secret: Some(&name),
             },
             &options(Duration::ZERO),
         )
@@ -770,23 +831,23 @@ fn a_reference_cannot_seed_a_delegated_sign_in() {
         .unwrap();
 
     assert!(
-        refused.contains("--from seeds only a hosted credential"),
+        refused.contains("--secret seeds only a hosted credential"),
         "{refused}"
     );
     assert!(connect.sent("/v1/connect/sessions").is_empty());
 }
 
 #[test]
-fn a_reference_that_cannot_be_read_sends_nothing_to_connect() {
+fn a_secret_that_cannot_be_read_sends_nothing_to_connect() {
     let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
         &[],
     );
     let project = Project::new();
-    let reference =
-        runx_contracts::connector::SecretReference::new("file:///nonexistent/runx/compute.json")
-            .unwrap();
+    let held = tempfile::tempdir().unwrap();
+    let name = reference_secret(&project, held.path(), "compute", "{}");
+    std::fs::remove_file(held.path().join("compute.json")).unwrap();
 
     let refused = project
         .setup(&connect)
@@ -794,7 +855,7 @@ fn a_reference_that_cannot_be_read_sends_nothing_to_connect() {
             &compute,
             UseRequest::Hosted {
                 target: None,
-                from: Some(&reference),
+                secret: Some(&name),
             },
             &options(Duration::ZERO),
         )

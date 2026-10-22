@@ -5,10 +5,14 @@ use serde::Deserialize;
 use super::HOSTED_API_TOKEN_ENV;
 use crate::config::ConfigError;
 use crate::http::RuntimeHttpError;
+use crate::secrets::SealedError;
 
 #[derive(Debug)]
 pub enum HostedApiError {
     Config(ConfigError),
+    /// The token `runx login` sealed in the runx home could not be read or
+    /// written.
+    Sealed(SealedError),
     RuntimeHttp(RuntimeHttpError),
     InvalidBaseUrl(String),
     MissingToken,
@@ -66,6 +70,7 @@ impl fmt::Display for HostedApiError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Config(error) => write!(formatter, "{error}"),
+            Self::Sealed(error) => write!(formatter, "{error}"),
             Self::RuntimeHttp(error) => write!(formatter, "{error}"),
             Self::InvalidBaseUrl(message) => {
                 write!(formatter, "invalid Runx API base URL: {message}")
@@ -105,6 +110,12 @@ impl std::error::Error for HostedApiError {}
 impl From<ConfigError> for HostedApiError {
     fn from(error: ConfigError) -> Self {
         Self::Config(error)
+    }
+}
+
+impl From<SealedError> for HostedApiError {
+    fn from(error: SealedError) -> Self {
+        Self::Sealed(error)
     }
 }
 

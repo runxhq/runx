@@ -10,6 +10,9 @@
 //!   is read through the host, never asserted. It stands only for a hosted
 //!   placement, and a selection of another instance is refused.
 //! - **Selected:** the instance the operator selected for the connector.
+//! - **Environment:** with none selected, the credential whose variable is
+//!   set, bound to that variable exactly as `runx connector use` would bind
+//!   it, derived for the run and never written. Two set at once refuse.
 //! - **Public:** a connector whose only authority is `none` has exactly one
 //!   instance, which needs no setup.
 //!
@@ -17,11 +20,12 @@
 //! revoked refuses, naming itself; work never moves to a sibling instance or
 //! another account.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ConnectorName, InstanceId, Placement, credential_declaration_digest,
+    ConnectorName, CredentialName, EnvName, InstanceId, LocalAuth, Placement,
+    credential_declaration_digest,
 };
 use runx_contracts::connector_instance::ConnectorInstanceSchema;
 use runx_contracts::schema::IsoDateTime;
@@ -78,9 +82,22 @@ pub struct InstanceRecord {
 #[derive(Debug, Error)]
 pub enum InstanceError {
     #[error(
-        "no instance is selected for connector {connector}; `runx connector inspect {connector}` shows how to set one up"
+        "no instance is selected for connector {connector}, and none of its credentials' variables is set; set one, or `runx connector inspect {connector}` shows every way to set it up"
     )]
     NotSelected { connector: ConnectorName },
+    #[error(
+        "connector {connector} has no instance selected and the variables of several of its credentials are set ({variables}); bind the one it runs as with `runx connector use {connector} --credential <name>`"
+    )]
+    SeveralVariables {
+        connector: ConnectorName,
+        variables: String,
+    },
+    #[error("connector {connector} cannot run as {variable}: {reason}")]
+    EnvironmentUnusable {
+        connector: ConnectorName,
+        variable: EnvName,
+        reason: String,
+    },
     #[error("instance {instance_id} does not exist")]
     Missing { instance_id: String },
     #[error("instance {instance_id} was revoked")]
@@ -253,12 +270,18 @@ impl Instances {
         }
     }
 
-    /// Resolve the instance a call on `connector` runs under.
+    /// Resolve the instance a call on `connector` runs under: the one the
+    /// operator selected; with none selected, the credential whose variable
+    /// `env` sets; else its public instance.
     pub(crate) fn resolve(
         &self,
         connector: &LoadedConnector,
+        env: &BTreeMap<String, String>,
     ) -> Result<ConnectorInstance, InstanceError> {
         let Some(instance_id) = self.selected(connector.name.as_str())? else {
+            if let Some(instance) = from_environment(connector, env)? {
+                return Ok(instance);
+            }
             return public(connector).ok_or_else(|| InstanceError::NotSelected {
                 connector: connector.name.clone(),
             });
@@ -375,8 +398,9 @@ pub(crate) fn check_supported(
                 matches!(
                     (&instance.authority, auth),
                     (
-                        InstanceAuthority::Credential { .. }
+                        InstanceAuthority::Secret { .. }
                             | InstanceAuthority::Environment { .. }
+                            | InstanceAuthority::Credential { .. }
                             | InstanceAuthority::Reference { .. },
                         runx_contracts::connector::LocalAuth::Credentials
                     ) | (
@@ -425,23 +449,162 @@ fn public(connector: &LoadedConnector) -> Option<ConnectorInstance> {
         None,
         InstanceAuthority::Public,
     );
-    instance.confirmed_at = IsoDateTime::from("1970-01-01T00:00:00Z".to_owned());
+    instance.confirmed_at = IsoDateTime::from(NEVER_CONFIRMED.to_owned());
     Some(instance)
 }
 
-/// An instance of `connector` as it is loaded now: its operations, and the
-/// declaration of the credential it holds, are pinned. Confirming it again
-/// after the connector changes re-pins them.
-/// The credential an instance delivers to implementations: its stored
-/// profile's, environment variable's or secret reference's, or the one its
-/// command session's token stands in for.
+/// When an instance derived for a run, and never confirmed, says it was.
+const NEVER_CONFIRMED: &str = "1970-01-01T00:00:00Z";
+
+/// The instance a connector with none selected runs under when its local
+/// placement takes credentials and exactly one of its credentials' variables
+/// is set: that variable, bound as `runx connector use` would bind it. A
+/// connector that pins parameters is set up once, with them.
+fn from_environment(
+    connector: &LoadedConnector,
+    env: &BTreeMap<String, String>,
+) -> Result<Option<ConnectorInstance>, InstanceError> {
+    let manifest = &connector.manifest;
+    let takes_credentials = manifest
+        .placements
+        .local
+        .as_ref()
+        .is_some_and(|local| local.auth.contains(&LocalAuth::Credentials));
+    if !takes_credentials || manifest.parameters.is_some() {
+        return Ok(None);
+    }
+    let set = manifest
+        .auth
+        .credentials
+        .iter()
+        .filter_map(|(credential, declaration)| {
+            let variable = declaration.env()?;
+            env.get(variable.as_str())
+                .filter(|value| !value.trim().is_empty())?;
+            Some((credential, variable))
+        })
+        .collect::<Vec<_>>();
+    let (credential, variable) = match set.as_slice() {
+        [] => return Ok(None),
+        [only] => *only,
+        several => {
+            return Err(InstanceError::SeveralVariables {
+                connector: connector.name.clone(),
+                variables: several
+                    .iter()
+                    .map(|(_, variable)| variable.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            });
+        }
+    };
+    let unusable = |reason: String| InstanceError::EnvironmentUnusable {
+        connector: connector.name.clone(),
+        variable: variable.clone(),
+        reason,
+    };
+    let scopes = served_scopes(connector, credential, &[]).map_err(unusable)?;
+    let mut instance =
+        environment_instance(connector, credential, variable.clone(), scopes).map_err(unusable)?;
+    instance.confirmed_at = IsoDateTime::from(NEVER_CONFIRMED.to_owned());
+    Ok(Some(instance))
+}
+
+/// The instance that holds `connector`'s `credential` in `variable`,
+/// granted `scopes`: the variable's name, never its value, read again on
+/// every call.
+pub(crate) fn environment_instance(
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    variable: EnvName,
+    scopes: BTreeSet<String>,
+) -> Result<ConnectorInstance, String> {
+    Ok(pinned(
+        connector,
+        instance_id(&[
+            "environment",
+            connector.name.as_str(),
+            credential.as_str(),
+            variable.as_str(),
+        ])?,
+        Placement::Local,
+        format!(
+            "runx:principal:local-environment:{}:{variable}",
+            connector.manifest.id
+        ),
+        None,
+        InstanceAuthority::Environment {
+            credential: credential.clone(),
+            variable,
+            scopes: scopes.into_iter().map(Into::into).collect(),
+        },
+    ))
+}
+
+/// What the operator grants an instance holding `credential`: the requested
+/// scopes, each served by an operation that takes the credential, or every
+/// such scope when none is requested.
+pub(crate) fn served_scopes(
+    connector: &LoadedConnector,
+    credential: &CredentialName,
+    scopes: &[String],
+) -> Result<BTreeSet<String>, String> {
+    granted_scopes(
+        connector,
+        |operation| operation.credentials.contains(credential),
+        scopes,
+        &format!(
+            "credential {credential} of connector {}",
+            connector.manifest.id
+        ),
+    )
+}
+
+/// The scopes `scopes` grants of the operations `serves` admits: each one
+/// such an operation declares, or all of theirs when none is named.
+pub(crate) fn granted_scopes(
+    connector: &LoadedConnector,
+    serves: impl Fn(&runx_contracts::connector::ConnectorOperation) -> bool,
+    scopes: &[String],
+    what: &str,
+) -> Result<BTreeSet<String>, String> {
+    let servable = connector
+        .manifest
+        .operations
+        .values()
+        .filter(|operation| serves(operation))
+        .flat_map(|operation| {
+            operation
+                .scopes
+                .iter()
+                .map(|scope| scope.as_str().to_owned())
+        })
+        .collect::<BTreeSet<_>>();
+    if let Some(scope) = scopes
+        .iter()
+        .find(|scope| !servable.contains(scope.as_str()))
+    {
+        return Err(format!("{what} serves no operation with scope {scope}"));
+    }
+    Ok(if scopes.is_empty() {
+        servable
+    } else {
+        scopes.iter().cloned().collect()
+    })
+}
+
+/// The credential an instance delivers to implementations: its secret's or
+/// environment variable's, or the one its command session's token stands in
+/// for. A binding recorded before `runx secret` names the credential it
+/// held, and delivers nothing.
 pub(crate) fn delivered_credential<'a>(
     manifest: &'a runx_contracts::connector::ConnectorManifest,
     authority: &'a InstanceAuthority,
 ) -> Option<&'a runx_contracts::connector::CredentialName> {
     match authority {
-        InstanceAuthority::Credential { credential, .. }
+        InstanceAuthority::Secret { credential, .. }
         | InstanceAuthority::Environment { credential, .. }
+        | InstanceAuthority::Credential { credential, .. }
         | InstanceAuthority::Reference { credential, .. } => Some(credential),
         InstanceAuthority::Session {
             session: runx_contracts::connector::SessionKind::Command,
@@ -454,6 +617,9 @@ pub(crate) fn delivered_credential<'a>(
     }
 }
 
+/// An instance of `connector` as it is loaded now: its operations, and the
+/// declaration of the credential it holds, are pinned. Confirming it again
+/// after the connector changes re-pins them.
 pub(crate) fn pinned(
     connector: &LoadedConnector,
     instance_id: InstanceId,

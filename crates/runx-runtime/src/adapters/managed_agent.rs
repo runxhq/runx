@@ -70,13 +70,12 @@ impl ManagedAgent {
             RuntimeError::managed_agent_resolution(step_id.clone(), request_id.clone(), error)
         };
         let Some(config) =
-            crate::config::load_managed_agent_config(&self.env, &self.skill_directory).map_err(
-                |error| {
+            crate::agent_config::load_managed_agent_config(&self.env, &self.skill_directory)
+                .map_err(|error| {
                     fail(ManagedAgentError::sanitized(format!(
                         "managed agent config error: {error}"
                     )))
-                },
-            )?
+                })?
         else {
             return Ok(None);
         };

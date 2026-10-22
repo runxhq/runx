@@ -1,8 +1,8 @@
 //! `runx connector`: the connectors in reach (runtime capabilities, the
 //! plugin's, the project's installed versions), their readiness here, and the
 //! one place their authority is set up (`use`), listed (`list`) and removed
-//! (`revoke`): an instance, a local session, a secret profile or a Connect
-//! grant.
+//! (`revoke`): an instance, a local session, a secret it names or a Connect
+//! grant. The secrets themselves are `runx secret`'s.
 //!
 //! Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 //! workspace's `.runx`). Confirming and selecting one is setup, done once; a
@@ -14,11 +14,10 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName, SecretReference,
+    ConnectorManifest, CredentialName, Implementation, InstanceId, OperationName, SecretName,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, JsonValue, Readiness};
-use runx_runtime::CredentialProfileSummary;
 use runx_runtime::kernel::connector_setup::{
     AuthoritySources, ConnectorSetup, Revoked, UseOptions, UseOutcome, UseRequest, setup_forms,
 };
@@ -43,13 +42,13 @@ pub struct ConnectorPlan {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConnectorAction {
-    /// Every connector in reach, with the instances, profiles and grants
-    /// that hold its authority.
+    /// Every connector in reach, with the instances and grants that hold its
+    /// authority.
     List,
     Inspect {
         connector: String,
     },
-    /// Remove one instance, profile or grant.
+    /// Remove one instance or grant.
     Revoke {
         name: String,
     },
@@ -66,15 +65,14 @@ pub enum ConnectorAction {
 /// The MCP server `import-mcp` reads.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum McpImport {
+    /// A server at `url`, sent the secret `secret` names as its bearer token
+    /// when it needs one.
     StreamableHttp {
         url: String,
-        bearer_stdin: bool,
+        secret: Option<SecretName>,
     },
     /// A stdio server, started with the command line after `--`.
-    Stdio {
-        command: String,
-        args: Vec<String>,
-    },
+    Stdio { command: String, args: Vec<String> },
 }
 
 /// What `runx connector use` sets up.
@@ -82,31 +80,28 @@ pub enum McpImport {
 pub enum UseChoice {
     /// No selector: the one available path.
     Default,
-    /// An instance, profile, grant or pending Connect session, by name.
+    /// An instance, grant or pending Connect session, by its id.
     Existing(String),
     /// The connector's local session, as signed in now.
     Session,
     /// The named credential: its variable when that is set, else asked for
-    /// and stored in a profile.
-    Credential {
-        credential: CredentialName,
-        profile: Option<String>,
-    },
-    /// The named credential, or the connector's only one, read on every call
-    /// from a secrets manager by reference.
-    Reference {
+    /// and kept as a new secret.
+    Credential { credential: CredentialName },
+    /// The named credential, or the connector's only one, bound to a secret
+    /// `runx secret set` keeps.
+    Secret {
         credential: Option<CredentialName>,
-        reference: SecretReference,
+        secret: SecretName,
     },
     /// A new runx Connect grant; the credential its placement names, if any,
-    /// comes from the reference, its variable or is asked for.
+    /// comes from the secret, its variable or is asked for.
     Hosted {
         target: Option<String>,
-        from: Option<SecretReference>,
+        secret: Option<SecretName>,
     },
 }
 
-const USE_USAGE: &str = "runx connector use <connector> [<instance|profile|grant>] [--session | --credential <name> [--profile <name>] | [--credential <name>] --from <reference> | --hosted [--from <reference>] [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
+const USE_USAGE: &str = "runx connector use <connector> [<instance|grant>] [--session | --credential <name> | [--credential <name>] --secret <name> | --hosted [--secret <name>] [--target <locator>]] [--scope <scope>...] [--parameter <name>=<value>...]";
 
 pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> {
     let subcommand = args
@@ -118,11 +113,9 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
     let mut positionals = Vec::new();
     let mut session = false;
     let mut hosted = false;
-    let mut bearer_stdin = false;
     let mut credential = None;
-    let mut profile = None;
     let mut target = None;
-    let mut from = None;
+    let mut secret = None;
     let mut scopes = Vec::new();
     let mut parameters = BTreeMap::new();
     let mut json = false;
@@ -152,21 +145,16 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             "--json" | "-j" if inline.is_none() => json = true,
             "--session" if inline.is_none() => session = true,
             "--hosted" if inline.is_none() => hosted = true,
-            "--bearer-stdin" if inline.is_none() => bearer_stdin = true,
             "--credential" => {
                 value(&mut credential)?;
-                continue;
-            }
-            "--profile" => {
-                value(&mut profile)?;
                 continue;
             }
             "--target" => {
                 value(&mut target)?;
                 continue;
             }
-            "--from" => {
-                value(&mut from)?;
+            "--secret" => {
+                value(&mut secret)?;
                 continue;
             }
             "--parameter" => {
@@ -194,16 +182,19 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
     if stdio.is_some() && subcommand != "import-mcp" {
         return Err(format!("runx connector {subcommand}: unexpected arguments"));
     }
+    let secret = secret
+        .map(|name| {
+            SecretName::new(name.as_str()).ok_or_else(|| format!("{name} is not a secret name"))
+        })
+        .transpose()?;
     let setup_flags = session
         || hosted
         || credential.is_some()
-        || profile.is_some()
         || target.is_some()
-        || from.is_some()
         || !scopes.is_empty()
         || !parameters.is_empty();
     let only_json = |action: ConnectorAction, count: usize| {
-        if positionals.len() != count || setup_flags || bearer_stdin {
+        if positionals.len() != count || setup_flags || secret.is_some() {
             return Err(format!("runx connector {subcommand}: unexpected arguments"));
         }
         Ok(ConnectorPlan { action, json })
@@ -212,7 +203,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
         "list" => only_json(ConnectorAction::List, 0),
         "revoke" => match positionals.as_slice() {
             [name] => only_json(ConnectorAction::Revoke { name: name.clone() }, 1),
-            _ => Err("runx connector revoke requires <instance|profile|grant>".to_owned()),
+            _ => Err("runx connector revoke requires <instance|grant>".to_owned()),
         },
         "inspect" => match positionals.as_slice() {
             [connector] => only_json(
@@ -227,11 +218,11 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
             ([url], false, None) => Ok(ConnectorPlan {
                 action: ConnectorAction::ImportMcp(McpImport::StreamableHttp {
                     url: url.clone(),
-                    bearer_stdin,
+                    secret,
                 }),
                 json,
             }),
-            ([], false, Some(command_line)) if !bearer_stdin => match command_line.split_first() {
+            ([], false, Some(command_line)) if secret.is_none() => match command_line.split_first() {
                 Some((command, args)) => Ok(ConnectorPlan {
                     action: ConnectorAction::ImportMcp(McpImport::Stdio {
                         command: command.clone(),
@@ -242,25 +233,16 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
                 None => Err("runx connector import-mcp -- requires a command".to_owned()),
             },
             _ => Err(
-                "runx connector import-mcp requires <url> [--bearer-stdin] or -- <command> [args...]"
+                "runx connector import-mcp requires <url> [--secret <name>] or -- <command> [args...]"
                     .to_owned(),
             ),
         },
         "use" => {
-            if bearer_stdin {
-                return Err("runx connector use takes no --bearer-stdin".to_owned());
-            }
-            if profile.is_some() && credential.is_none() {
-                return Err("--profile names a new credential's profile; an existing profile is `runx connector use <connector> <profile>`".to_owned());
-            }
             if target.is_some() && !hosted {
                 return Err("--target narrows a new hosted grant; it needs --hosted".to_owned());
             }
             if hosted && credential.is_some() {
                 return Err("--hosted sends the one credential the connector's hosted placement names; --credential chooses a local one".to_owned());
-            }
-            if from.is_some() && profile.is_some() {
-                return Err("--from binds a reference the secrets manager keeps; --profile stores a copy".to_owned());
             }
             let credential = credential
                 .map(|name| {
@@ -268,22 +250,13 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
                         .ok_or_else(|| format!("{name} is not a credential name"))
                 })
                 .transpose()?;
-            // Never echoed: a secret passed by mistake must not reach the
-            // terminal or a log.
-            let from = from
-                .map(|value| {
-                    SecretReference::new(value).ok_or_else(|| {
-                        runx_contracts::connector::SECRET_REFERENCE_EXPECTED.to_owned()
-                    })
-                })
-                .transpose()?;
             let choice = match (positionals.as_slice(), session, hosted) {
-                ([_, existing], false, false) if credential.is_none() && from.is_none() => UseChoice::Existing(existing.clone()),
-                ([_], true, false) if credential.is_none() && from.is_none() => UseChoice::Session,
-                ([_], false, true) if profile.is_none() => UseChoice::Hosted { target, from },
-                ([_], false, false) => match (credential, from) {
-                    (credential, Some(reference)) => UseChoice::Reference { credential, reference },
-                    (Some(credential), None) => UseChoice::Credential { credential, profile },
+                ([_, existing], false, false) if credential.is_none() && secret.is_none() => UseChoice::Existing(existing.clone()),
+                ([_], true, false) if credential.is_none() && secret.is_none() => UseChoice::Session,
+                ([_], false, true) => UseChoice::Hosted { target, secret },
+                ([_], false, false) => match (credential, secret) {
+                    (credential, Some(secret)) => UseChoice::Secret { credential, secret },
+                    (Some(credential), None) => UseChoice::Credential { credential },
                     (None, None) => UseChoice::Default,
                 },
                 _ => return Err(format!("usage: {USE_USAGE}")),
@@ -344,7 +317,6 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 return render_json(&Output::Connectors {
                     connectors,
                     instances: sources.instances.iter().map(InstanceView::from).collect(),
-                    profiles: &sources.profiles,
                     grants: sources.grants.as_ref().ok(),
                     grants_unavailable: sources.grants.as_ref().err(),
                 });
@@ -376,7 +348,6 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
             let revoked = ConnectorSetup::new(&instances, workspace).revoke(name)?;
             let (kind, name) = match &revoked {
                 Revoked::Instance(name) => ("instance", name),
-                Revoked::Profile(name) => ("profile", name),
                 Revoked::Grant(name) => ("grant", name),
             };
             if plan.json {
@@ -398,23 +369,14 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 UseChoice::Default => UseRequest::Default,
                 UseChoice::Existing(name) => UseRequest::Existing(name),
                 UseChoice::Session => UseRequest::Session,
-                UseChoice::Credential {
-                    credential,
-                    profile,
-                } => UseRequest::Credential {
-                    credential,
-                    profile: profile.as_deref(),
-                },
-                UseChoice::Reference {
-                    credential,
-                    reference,
-                } => UseRequest::Reference {
+                UseChoice::Credential { credential } => UseRequest::Credential { credential },
+                UseChoice::Secret { credential, secret } => UseRequest::Secret {
                     credential: credential.as_ref(),
-                    reference,
+                    secret,
                 },
-                UseChoice::Hosted { target, from } => UseRequest::Hosted {
+                UseChoice::Hosted { target, secret } => UseRequest::Hosted {
                     target: target.as_deref(),
-                    from: from.as_ref(),
+                    secret: secret.as_ref(),
                 },
             };
             // A person is shown the link and waited for; a program asking
@@ -469,16 +431,15 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
         }
         ConnectorAction::ImportMcp(server) => {
             let (tools, server) = match server {
-                McpImport::StreamableHttp { url, bearer_stdin } => {
-                    let bearer = match bearer_stdin {
-                        true => Some(crate::cli_io::read_stdin_secret("bearer token")?),
-                        false => None,
-                    };
-                    (
-                        setup::served_mcp_tools(url, bearer.as_deref(), workspace.env())?,
-                        url.clone(),
-                    )
-                }
+                McpImport::StreamableHttp { url, secret } => (
+                    setup::served_mcp_tools(
+                        url,
+                        secret.as_ref(),
+                        workspace.env(),
+                        workspace.cwd(),
+                    )?,
+                    url.clone(),
+                ),
                 McpImport::Stdio { command, args } => (
                     setup::served_stdio_mcp_tools(command, args, workspace.env())?,
                     std::iter::once(command)
@@ -592,8 +553,8 @@ fn inspect_text(
     out
 }
 
-/// Each connector in reach with the instance it uses, then every instance,
-/// the local profiles and the signed-in account's grants.
+/// Each connector in reach with the instance it uses, then every instance
+/// and the signed-in account's grants.
 fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) -> String {
     let mut out = String::new();
     for connector in connectors {
@@ -614,15 +575,6 @@ fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) ->
         out.push_str("instances:\n");
         for record in &sources.instances {
             out.push_str(&format!("  {}", instance_line(record)));
-        }
-    }
-    if !sources.profiles.is_empty() {
-        out.push_str("profiles:\n");
-        for profile in &sources.profiles {
-            out.push_str(&format!(
-                "  {} ({} credential {})\n",
-                profile.name, profile.connector, profile.credential
-            ));
         }
     }
     match &sources.grants {
@@ -652,8 +604,14 @@ fn instance_line(record: &InstanceRecord) -> String {
 
 fn instance_summary(instance: &ConnectorInstance) -> String {
     let source = match &instance.authority {
+        InstanceAuthority::Secret { secret, .. } => format!(" from secret {secret}"),
         InstanceAuthority::Environment { variable, .. } => format!(" from {variable}"),
-        InstanceAuthority::Reference { reference, .. } => format!(" from {reference}"),
+        InstanceAuthority::Credential { profile, .. } => {
+            format!(" from profile {profile}, bound before runx secret")
+        }
+        InstanceAuthority::Reference { reference, .. } => {
+            format!(" from {reference}, bound before runx secret")
+        }
         _ => instance
             .account_ref
             .as_ref()
@@ -676,7 +634,6 @@ enum Output<'a> {
         connectors: Vec<ConnectorSummary<'a>>,
         /// Every instance in the project, each naming its connector.
         instances: Vec<InstanceView<'a>>,
-        profiles: &'a [CredentialProfileSummary],
         #[serde(skip_serializing_if = "Option::is_none")]
         grants: Option<&'a Vec<HostedProviderGrant>>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -810,19 +767,83 @@ mod tests {
     }
 
     #[test]
-    fn import_mcp_takes_one_url_and_reads_its_token_from_stdin_only() {
+    fn a_secret_is_bound_by_name_and_the_flags_it_replaced_are_gone() -> Result<(), String> {
+        let ConnectorAction::Use { choice, .. } = plan(&[
+            "connector",
+            "use",
+            "sentry",
+            "--credential",
+            "token",
+            "--secret",
+            "sentry-work",
+        ])?
+        .action
+        else {
+            return Err("expected connector setup".to_owned());
+        };
+        assert_eq!(
+            choice,
+            UseChoice::Secret {
+                credential: CredentialName::new("token"),
+                secret: SecretName::new("sentry-work").ok_or("a secret name")?,
+            }
+        );
+        let ConnectorAction::Use { choice, .. } = plan(&[
+            "connector",
+            "use",
+            "ausca/inbox",
+            "--hosted",
+            "--secret",
+            "inbox",
+        ])?
+        .action
+        else {
+            return Err("expected connector setup".to_owned());
+        };
+        assert_eq!(
+            choice,
+            UseChoice::Hosted {
+                target: None,
+                secret: SecretName::new("inbox"),
+            }
+        );
+        for removed in [
+            &["connector", "use", "sentry", "--profile", "work"][..],
+            &["connector", "use", "sentry", "--from", "op://a/b/c"][..],
+            &[
+                "connector",
+                "import-mcp",
+                "https://a.example",
+                "--bearer-stdin",
+            ][..],
+        ] {
+            let refused = plan(removed).err().ok_or("a removed flag parsed")?;
+            assert!(
+                refused.starts_with("unknown connector argument"),
+                "{refused}"
+            );
+        }
+        assert!(plan(&["connector", "use", "sentry", "existing", "--secret", "x"]).is_err());
+        assert!(plan(&["connector", "use", "github", "--session", "--secret", "x"]).is_err());
+        assert!(plan(&["connector", "list", "--secret", "x"]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn import_mcp_takes_one_url_and_its_token_from_a_secret_only() {
         assert_eq!(
             plan(&[
                 "connector",
                 "import-mcp",
                 "https://mcp.example.com/mcp",
-                "--bearer-stdin",
+                "--secret",
+                "mcp-example",
                 "-j"
             ]),
             Ok(ConnectorPlan {
                 action: ConnectorAction::ImportMcp(McpImport::StreamableHttp {
                     url: "https://mcp.example.com/mcp".to_owned(),
-                    bearer_stdin: true,
+                    secret: SecretName::new("mcp-example"),
                 }),
                 json: true,
             })
@@ -848,11 +869,9 @@ mod tests {
         );
         assert!(plan(&["connector", "import-mcp", "--"]).is_err());
         assert!(plan(&["connector", "import-mcp", "https://a.example", "--", "npx"]).is_err());
-        assert!(plan(&["connector", "import-mcp", "--bearer-stdin", "--", "npx"]).is_err());
+        assert!(plan(&["connector", "import-mcp", "--secret", "x", "--", "npx"]).is_err());
         assert!(plan(&["connector", "list", "--", "npx"]).is_err());
         assert!(plan(&["connector", "import-mcp"]).is_err());
         assert!(plan(&["connector", "import-mcp", "https://a.example", "--session"]).is_err());
-        assert!(plan(&["connector", "use", "github", "--session", "--bearer-stdin"]).is_err());
-        assert!(plan(&["connector", "list", "--bearer-stdin"]).is_err());
     }
 }

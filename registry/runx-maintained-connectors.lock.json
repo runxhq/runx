@@ -92,8 +92,8 @@
     },
     {
       "ref": "paypal",
-      "version": "sha-d9ab52043f9b",
-      "content_digest": "sha256:d9ab52043f9be38c7917a76b4ce8db10f9ce215003c2b89fe105385592db537f"
+      "version": "sha-f1eab5be609a",
+      "content_digest": "sha256:f1eab5be609a13d08c4e45d782c72c0c60545d4f8efe412ecf9427660b2f1016"
     },
     {
       "ref": "posthog",

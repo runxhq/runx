@@ -57,28 +57,32 @@ fn connector(
     runx(root, &[&["connector"], args].concat(), None)
 }
 
-/// Store a forge token as the `operator` profile, and return the instance
-/// it confirms.
+/// Keep a forge token as the secret `operator`, bind the forge to it, and
+/// return the instance that confirms.
 fn stored_token(root: &Path) -> Result<String, Box<dyn std::error::Error>> {
     fs::create_dir_all(root.join(".runx"))?;
-    let (ok, set) = runx(
+    let (ok, kept) = runx(
+        root,
+        &["secret", "set", "operator"],
+        Some("forge_connector_test_token"),
+    )?;
+    assert!(ok, "{kept}");
+    let (ok, set) = connector(
         root,
         &[
-            "connector",
             "use",
             "fixture/forge",
             "--credential",
             "token",
-            "--profile",
+            "--secret",
             "operator",
         ],
-        Some("forge_connector_test_token"),
     )?;
     assert!(ok, "{set}");
     let instance = set["selected"]["instance_id"]
         .as_str()
-        .ok_or("the credential confirmed no instance")?;
-    assert!(instance.starts_with("credential."), "{set}");
+        .ok_or("the secret confirmed no instance")?;
+    assert!(instance.starts_with("secret."), "{set}");
     Ok(instance.to_owned())
 }
 
@@ -289,57 +293,75 @@ fn hosted_takes_no_credential_name() -> TestResult {
     result
 }
 
-/// A profile name holds one connector's credential: binding another
-/// connector's under it is refused, so the instance pinned to it keeps working.
+/// A connector whose credential variable is set is ready with no setup: the
+/// variable is read as `connector use` would bind it, and nothing is stored.
 #[test]
-fn a_profile_name_is_not_rebound_to_another_connector() -> TestResult {
-    let root = temp_root("runx-connector-profile-held");
-    plugin_with_fixture_connectors(&root, &["fixture/forge", "fixture/tracker"])?;
+fn a_set_credential_variable_needs_no_connector_use() -> TestResult {
+    let root = temp_root("runx-connector-environment");
+    plugin_with_fixture_connectors(&root, &["fixture/search"])?;
     let result = (|| -> TestResult {
-        let (ok, forge) = runx(
-            &root,
-            &[
-                "connector",
-                "use",
-                "fixture/forge",
-                "--credential",
-                "token",
-                "--profile",
-                "shared",
-            ],
-            Some("forge_connector_test_token"),
-        )?;
-        assert!(ok, "{forge}");
-        let (ok, refused) = runx(
-            &root,
-            &[
-                "connector",
-                "use",
-                "fixture/tracker",
-                "--credential",
-                "api_key",
-                "--profile",
-                "shared",
-            ],
-            Some("lin_connector_test_key"),
-        )?;
-        assert!(!ok, "{refused}");
+        let output = unsigned_runx_command_at(&root)
+            .env("PATH", fixture_path(Some(&root.join("bin"))))
+            .env("SEARCH_API_KEY", "search-environment-key")
+            .args(["connector", "inspect", "fixture/search", "--json"])
+            .output()?;
+        assert!(output.status.success());
+        let inspected: serde_json::Value = serde_json::from_slice(&output.stdout)?;
         assert!(
-            refused["error"]["message"]
-                .as_str()
-                .is_some_and(|message| message
-                    .contains("credential profile shared holds fixture/forge's token")),
-            "{refused}"
-        );
-        let (_, inspected) = connector(&root, &["inspect", "fixture/forge"])?;
-        assert!(
-            inspected["readiness"]
-                .as_array()
-                .is_some_and(|operations| operations
-                    .iter()
-                    .any(|operation| operation["ready"] == true)),
+            inspected["readiness"].as_array().is_some_and(|operations| {
+                !operations.is_empty()
+                    && operations.iter().all(|operation| {
+                        operation["ready"] == true
+                            && operation["instance_id"]
+                                .as_str()
+                                .is_some_and(|id| id.starts_with("environment."))
+                    })
+            }),
             "{inspected}"
         );
+        assert!(!inspected.to_string().contains("search-environment-key"));
+        let (_, listed) = connector(&root, &["list"])?;
+        assert_eq!(
+            listed["instances"],
+            serde_json::json!([]),
+            "nothing is stored"
+        );
+        Ok(())
+    })();
+    fs::remove_dir_all(&root)?;
+    result
+}
+
+/// A secret set again serves the instance that names it, without binding
+/// again; a secret removed leaves that instance refusing.
+#[test]
+fn a_secret_set_again_serves_its_binding_and_one_removed_refuses() -> TestResult {
+    let root = temp_root("runx-connector-secret-rotated");
+    plugin_with_fixture_connectors(&root, &["fixture/forge"])?;
+    let result = (|| -> TestResult {
+        let instance = stored_token(&root)?;
+        let ready = |root: &Path| -> Result<bool, Box<dyn std::error::Error>> {
+            let (_, inspected) = connector(root, &["inspect", "fixture/forge"])?;
+            Ok(inspected["readiness"].as_array().is_some_and(|operations| {
+                operations
+                    .iter()
+                    .any(|operation| operation["ready"] == true)
+            }))
+        };
+        assert!(ready(&root)?);
+
+        let (ok, rotated) = runx(&root, &["secret", "set", "operator"], Some("rotated_token"))?;
+        assert!(ok, "{rotated}");
+        let (_, listed) = connector(&root, &["list"])?;
+        assert_eq!(listed["instances"][0]["instance_id"], instance.as_str());
+        assert!(
+            ready(&root)?,
+            "a rotated secret serves without binding again"
+        );
+
+        let (ok, removed) = runx(&root, &["secret", "rm", "operator"], None)?;
+        assert!(ok, "{removed}");
+        assert!(!ready(&root)?, "a removed secret serves nothing");
         Ok(())
     })();
     fs::remove_dir_all(&root)?;
@@ -503,15 +525,7 @@ fn a_plugin_connector_binds_from_inside_its_plugin() -> TestResult {
          \x20   credentials: [token]\n    target:\n      template: \"https://api.acme.test/widgets\"\n",
     )?;
     let result = (|| -> TestResult {
-        let set = [
-            "connector",
-            "use",
-            "acme",
-            "--credential",
-            "token",
-            "--profile",
-            "operator",
-        ];
+        let set = ["connector", "use", "acme", "--credential", "token"];
         let (ok, refused) = runx(&root, &set, Some("acme_token"))?;
         assert!(!ok, "the workspace root is not in the plugin: {refused}");
         let canonical = |path: &Path| path.canonicalize().map(|path| path.display().to_string());
@@ -655,30 +669,40 @@ fn recording_aws(bin: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::E
     Ok(log)
 }
 
-/// A reference binds through the manager's own CLI, with fixed arguments,
-/// and records the reference and the ARN it reached, never the value;
-/// listing and inspecting read nothing.
+/// A secret set from a reference is read through the manager's own CLI, with
+/// fixed arguments, and keeps the reference and the ARN it reached, never the
+/// value; a binding names the secret; listing and inspecting read nothing.
 #[test]
-fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> TestResult {
+fn a_reference_is_read_through_the_managers_cli_and_listing_reads_nothing() -> TestResult {
     let root = temp_root("runx-connector-reference");
     plugin_with_fixture_connectors(&root, &["fixture/refs"])?;
     // The manager lives outside the workspace: one inside it is never run.
     let tools = temp_root("runx-connector-reference-tools");
     let log = recording_aws(&tools.join("bin"))?;
     let path = fixture_path(Some(&tools.join("bin")));
+    let arn = "arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf";
     let result = (|| -> TestResult {
-        let (ok, used) = runx_with_path(
+        let (ok, set) = runx_with_path(
             &root,
             &path,
             &[
-                "connector",
-                "use",
-                "fixture/refs",
+                "secret",
+                "set",
+                "refs",
                 "--from",
                 "aws-sm://team/keys#REFS_API_KEY",
             ],
         )?;
-        assert!(ok, "{used}");
+        assert!(ok, "{set}");
+        assert_eq!(
+            set["secret"],
+            serde_json::json!({
+                "name": "refs",
+                "source": "reference",
+                "reference": "aws-sm://team/keys#REFS_API_KEY",
+                "pinned": arn,
+            })
+        );
         assert_eq!(
             fs::read_to_string(&log)?.lines().collect::<Vec<_>>(),
             [
@@ -688,6 +712,29 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
                 "team/keys",
                 "--output",
                 "json"
+            ]
+        );
+        let (ok, used) = runx_with_path(
+            &root,
+            &path,
+            &["connector", "use", "fixture/refs", "--secret", "refs"],
+        )?;
+        assert!(ok, "{used}");
+        // Binding reads it again, at exactly what setting it pinned.
+        assert_eq!(
+            fs::read_to_string(&log)?
+                .lines()
+                .skip(6)
+                .collect::<Vec<_>>(),
+            [
+                "secretsmanager",
+                "get-secret-value",
+                "--secret-id",
+                arn,
+                "--output",
+                "json",
+                "--region",
+                "eu-west-2"
             ]
         );
         let (_, listed) = runx_with_path(&root, &path, &["connector", "list"])?;
@@ -704,17 +751,17 @@ fn a_reference_binds_through_the_managers_cli_and_listing_reads_nothing() -> Tes
         assert_eq!(
             authority,
             serde_json::json!({
-                "kind": "reference",
+                "kind": "secret",
                 "credential": "api_key",
-                "reference": "aws-sm://team/keys#REFS_API_KEY",
-                "pinned": "arn:aws:secretsmanager:eu-west-2:111122223333:secret:team/keys-AbCdEf",
+                "secret": "refs",
                 "scopes": ["auth.read"],
             })
         );
         runx_with_path(&root, &path, &["connector", "inspect", "fixture/refs"])?;
+        runx_with_path(&root, &path, &["secret", "list"])?;
         assert_eq!(
             fs::read_to_string(&log)?.lines().count(),
-            6,
+            14,
             "listing read the secret"
         );
         assert!(
@@ -737,9 +784,10 @@ fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
     let root = temp_root("runx-connector-reference-refused");
     plugin_with_fixture_connectors(&root, &["fixture/refs"])?;
     let result = (|| -> TestResult {
-        let (ok, refused) = connector(
+        let (ok, refused) = runx(
             &root,
-            &["use", "fixture/refs", "--from", "sk-live-pasted-secret"],
+            &["secret", "set", "refs", "--from", "sk-live-pasted-secret"],
+            None,
         )?;
         assert!(!ok);
         let message = refused["error"]["message"].as_str().unwrap_or_default();
@@ -749,27 +797,6 @@ fn from_refuses_anything_but_a_reference_without_echoing_it() -> TestResult {
         );
         assert!(
             !refused.to_string().contains("sk-live-pasted-secret"),
-            "{refused}"
-        );
-
-        let (ok, refused) = connector(
-            &root,
-            &[
-                "use",
-                "fixture/refs",
-                "--from",
-                "aws-sm://team/keys",
-                "--credential",
-                "api_key",
-                "--profile",
-                "copy",
-            ],
-        )?;
-        assert!(!ok);
-        assert!(
-            refused["error"]["message"]
-                .as_str()
-                .is_some_and(|message| message.contains("--profile stores a copy")),
             "{refused}"
         );
         Ok(())

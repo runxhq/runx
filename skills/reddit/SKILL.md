@@ -315,7 +315,7 @@ URLs, reviewable drafts, unknowns and the next step. Reuse supplied evidence whe
 are appropriate; disclose when it was supplied rather than freshly observed.
 `publish` consumes one exact action, not an entire idea list. `accounts`
 provides bounded discovery; `configure` manages local bindings. The store
-owns durable event operations and concurrency. A connector credential profile
+owns durable event operations and concurrency. A connector credential
 is resolved by that connector's native credential boundary, not this skill.
 Brand-voice and taste-profile may supply approved context; this skill applies it
 to Reddit. General writing may use `ghostwrite`, but Reddit account selection,

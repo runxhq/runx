@@ -5,53 +5,71 @@ use std::process::{Command, Stdio};
 const SECRET: &str = "credential-command-secret-sentinel";
 
 #[test]
-fn connector_use_lists_and_revokes_a_credential_without_exposing_material()
+fn a_secret_is_bound_listed_and_removed_without_exposing_material()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-credential-command");
     let home = root.join("home");
     fs::create_dir_all(root.join(".runx"))?;
     crate::support::plugin_with_fixture_connectors(&root, &["fixture/search", "fixture/forge"])?;
 
-    let mut set = command(&root, &home)?;
-    set.args([
-        "connector",
-        "use",
-        "fixture/search",
-        "--credential",
-        "api_key",
-        "--profile",
-        "account-one",
-        "--json",
-    ]);
-    let set = run_with_stdin(set, SECRET)?;
+    let mut kept = command(&root, &home)?;
+    kept.args(["secret", "set", "account-one", "--json"]);
+    assert_success_without_secret(&run_with_stdin(kept, SECRET)?)?;
+
+    let set = command(&root, &home)?
+        .args([
+            "connector",
+            "use",
+            "fixture/search",
+            "--credential",
+            "api_key",
+            "--secret",
+            "account-one",
+            "--json",
+        ])
+        .output()?;
     assert_success_without_secret(&set)?;
     let set_json = serde_json::from_slice::<serde_json::Value>(&set.stdout)?;
     let instance = &set_json["selected"];
-    assert_eq!(instance["authority"]["profile"], "account-one");
-    assert!(
-        instance["instance_id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("credential.")),
-        "{set_json}"
-    );
-    assert_eq!(instance["authority"]["kind"], "credential");
+    assert_eq!(instance["authority"]["secret"], "account-one");
+    let instance_id = instance["instance_id"]
+        .as_str()
+        .filter(|id| id.starts_with("secret."))
+        .ok_or("a secret binding")?;
+    assert_eq!(instance["authority"]["kind"], "secret");
     assert_eq!(instance["authority"]["credential"], "api_key");
     assert!(instance["credential_declaration_digest"].is_string());
 
     let list = command(&root, &home)?
-        .args(["connector", "list", "--json"])
+        .args(["secret", "list", "--json"])
         .output()?;
     assert_success_without_secret(&list)?;
     let list_json = serde_json::from_slice::<serde_json::Value>(&list.stdout)?;
-    assert_eq!(list_json["profiles"][0]["name"], "account-one");
+    assert_eq!(
+        list_json["secrets"],
+        serde_json::json!([{"name": "account-one", "source": "stored"}])
+    );
 
     let revoke = command(&root, &home)?
-        .args(["connector", "revoke", "account-one", "--json"])
+        .args(["connector", "revoke", instance_id, "--json"])
         .output()?;
     assert_success_without_secret(&revoke)?;
     let revoke_json = serde_json::from_slice::<serde_json::Value>(&revoke.stdout)?;
-    assert_eq!(revoke_json["revoked"], "profile");
-    assert_eq!(revoke_json["name"], "account-one");
+    assert_eq!(revoke_json["revoked"], "instance");
+
+    let removed = command(&root, &home)?
+        .args(["secret", "rm", "account-one", "--json"])
+        .output()?;
+    assert_success_without_secret(&removed)?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&removed.stdout)?["removed"],
+        "account-one"
+    );
+    let gone = command(&root, &home)?
+        .args(["secret", "read", "account-one"])
+        .output()?;
+    assert!(!gone.status.success());
+    assert!(String::from_utf8(gone.stderr)?.contains("no secret is named account-one"));
     Ok(())
 }
 
@@ -411,34 +429,41 @@ fn a_connector_naming_a_tool_it_does_not_ship_is_refused() -> Result<(), Box<dyn
 }
 
 #[test]
-fn secret_config_rejects_argv_and_accepts_stdin_without_plaintext_at_rest()
+fn a_secret_is_never_an_argument_and_never_plaintext_at_rest()
 -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-secret-config-stdin");
+    let root = crate::support::temp_root("runx-secret-stdin");
     let home = root.join("home");
     fs::create_dir_all(&root)?;
 
-    let rejected = command(&root, &home)?
-        .args(["config", "set", "api-key", SECRET, "--json"])
-        .output()?;
-    assert!(!rejected.status.success());
-    assert!(!String::from_utf8(rejected.stdout)?.contains(SECRET));
-    assert!(!String::from_utf8(rejected.stderr)?.contains(SECRET));
+    for argv in [
+        &["secret", "set", "agent", SECRET, "--json"][..],
+        &["config", "set", "api-key", SECRET, "--json"][..],
+    ] {
+        let rejected = command(&root, &home)?.args(argv).output()?;
+        assert!(!rejected.status.success());
+        assert!(!String::from_utf8(rejected.stdout)?.contains(SECRET));
+        assert!(!String::from_utf8(rejected.stderr)?.contains(SECRET));
+    }
 
     let mut set = command(&root, &home)?;
-    set.args(["config", "set", "api-key", "--from-stdin", "--json"]);
-    let set = run_with_stdin(set, SECRET)?;
-    assert_success_without_secret(&set)?;
-    assert!(String::from_utf8(set.stdout)?.contains("[encrypted]"));
-
+    set.args(["secret", "set", "agent", "--json"]);
+    assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
     for entry in walk_files(&home)? {
         assert!(
             !fs::read_to_string(&entry)
                 .unwrap_or_default()
                 .contains(SECRET),
-            "secret config material must not be stored as plaintext in {}",
+            "a secret must not be stored as plaintext in {}",
             entry.display()
         );
     }
+
+    // The one place a value leaves runx on purpose: printed for a program.
+    let read = command(&root, &home)?
+        .args(["secret", "read", "agent"])
+        .output()?;
+    assert!(read.status.success());
+    assert_eq!(String::from_utf8(read.stdout)?, format!("{SECRET}\n"));
     Ok(())
 }
 
@@ -499,9 +524,9 @@ fn walk_files(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, std::io
     Ok(files)
 }
 
-/// The model key can come from a secrets manager: the config keeps the
-/// reference and the ARN it reached, never the key, and a stored key
-/// replaces it.
+/// The model key can be a secret a secrets manager holds: the home keeps the
+/// reference and the ARN it reached, never the key; a stored value and a
+/// reference replace each other, and the agent names the secret throughout.
 #[test]
 fn the_model_key_from_a_reference_keeps_only_the_reference()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -523,16 +548,24 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     fs::set_permissions(&aws_cli, fs::Permissions::from_mode(0o755))?;
     let path = crate::support::fixture_path(Some(&bin));
 
+    let config = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        Ok(serde_json::from_str(&fs::read_to_string(
+            home.join("config.json"),
+        )?)?)
+    };
+
     // A key stored first leaves the home when a reference replaces it.
     let mut stored_first = command(&root, &home)?;
-    stored_first.args(["config", "set", "api-key", "--from-stdin", "--json"]);
+    stored_first.args(["secret", "set", "anthropic", "--json"]);
     assert_success_without_secret(&run_with_stdin(stored_first, "a-key-replaced-later")?)?;
-    let stored_ref =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(home.join("config.json"))?)?
-            ["agent"]["api_key_ref"]
-            .as_str()
-            .ok_or("no stored key")?
-            .to_owned();
+    let named = command(&root, &home)?
+        .args(["config", "set", "agent.secret", "anthropic", "--json"])
+        .output()?;
+    assert_success_without_secret(&named)?;
+    let stored_ref = config()?["secrets"]["anthropic"]["stored"]["material_ref"]
+        .as_str()
+        .ok_or("no stored key")?
+        .to_owned();
     assert!(
         home.join("keys")
             .join(format!("{stored_ref}.json"))
@@ -542,16 +575,16 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     let set = command(&root, &home)?
         .env("PATH", &path)
         .args([
-            "config",
+            "secret",
             "set",
-            "api-key",
+            "anthropic",
             "--from",
             "aws-sm://team/env#ANTHROPIC_API_KEY",
             "--json",
         ])
         .output()?;
     assert_success_without_secret(&set)?;
-    assert!(String::from_utf8(set.stdout)?.contains("from aws-sm://team/env#ANTHROPIC_API_KEY"));
+    assert!(String::from_utf8(set.stdout)?.contains("aws-sm://team/env#ANTHROPIC_API_KEY"));
     for entry in walk_files(&home)? {
         assert!(
             !fs::read_to_string(&entry)
@@ -561,12 +594,14 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
             entry.display()
         );
     }
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(home.join("config.json"))?)?;
     assert_eq!(
-        config["agent"]["api_key_pinned"],
-        "arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf"
+        config()?["secrets"]["anthropic"],
+        serde_json::json!({"reference": {
+            "reference": "aws-sm://team/env#ANTHROPIC_API_KEY",
+            "pinned": "arn:aws:secretsmanager:us-east-1:111122223333:secret:team/env-AbCdEf",
+        }})
     );
+    assert_eq!(config()?["agent"]["secret"], "anthropic");
     assert!(
         !home
             .join("keys")
@@ -576,11 +611,13 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     );
 
     let mut stored = command(&root, &home)?;
-    stored.args(["config", "set", "api-key", "--from-stdin", "--json"]);
+    stored.args(["secret", "set", "anthropic", "--json"]);
     assert_success_without_secret(&run_with_stdin(stored, "a-stored-key")?)?;
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(home.join("config.json"))?)?;
-    assert!(config["agent"].get("api_key_from").is_none(), "{config}");
+    assert!(
+        config()?["secrets"]["anthropic"].get("reference").is_none(),
+        "{}",
+        config()?
+    );
     fs::remove_dir_all(&root)?;
     fs::remove_dir_all(&tools)?;
     Ok(())

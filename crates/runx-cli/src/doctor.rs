@@ -114,17 +114,12 @@ fn managed_agent_config_diagnostic(
                 .as_ref()
                 .and_then(|agent| agent.model.as_deref())
                 .map(str::to_owned),
-            // A stored key or a reference the key is read from.
+            // The secret the agent names as its key.
             config
                 .agent
                 .as_ref()
-                .and_then(|agent| {
-                    agent
-                        .api_key_ref
-                        .as_deref()
-                        .or(agent.api_key_from.as_deref())
-                })
-                .map(str::to_owned),
+                .and_then(|agent| agent.secret.as_ref())
+                .map(|secret| secret.as_str().to_owned()),
             config
                 .agent
                 .as_ref()
@@ -278,7 +273,7 @@ fn managed_agent_config_diagnostic(
                 path: Some("runx config".to_owned()),
                 json_pointer: Some("/agent".to_owned()),
                 contents: Some(
-                    "Keep one model key: unset the variable runx should not read, or store the key you mean with runx config set agent.api_key --from-stdin.".to_owned(),
+                    "Keep one model key: unset the variable runx should not read, or set the secret agent.secret names to the key you mean with runx secret set <name>.".to_owned(),
                 ),
                 patch: None,
                 command: None,
@@ -293,12 +288,12 @@ fn managed_agent_config_diagnostic(
                 path: Some("runx config".to_owned()),
                 json_pointer: Some("/agent".to_owned()),
                 contents: Some(
-                    "Set agent.provider, agent.model, and agent.api_key; or set agent.auth_mode local_none and an exact loopback agent.endpoint_url. Clear a local endpoint and its dialect with runx config unset agent.endpoint_url and runx config unset agent.dialect before switching to a built-in provider. Correct other invalid settings through runx config set."
+                    "Set agent.provider, agent.model, and agent.secret, the secret holding the key; or set agent.auth_mode local_none and an exact loopback agent.endpoint_url. Clear a local endpoint and its dialect with runx config unset agent.endpoint_url and runx config unset agent.dialect before switching to a built-in provider. Correct other invalid settings through runx config set."
                         .to_owned(),
                 ),
                 patch: None,
                 command: Some(
-                    "runx config unset agent.endpoint_url && runx config unset agent.dialect && runx config set agent.auth_mode api_key && runx config set agent.provider anthropic && runx config set agent.model <model> && printf '%s' \"$ANTHROPIC_API_KEY\" | runx config set agent.api_key --from-stdin".to_owned(),
+                    "runx config unset agent.endpoint_url && runx config unset agent.dialect && runx config set agent.auth_mode api_key && runx config set agent.provider anthropic && runx config set agent.model <model> && runx secret set anthropic && runx config set agent.secret anthropic".to_owned(),
                 ),
                 requires_human_review: false,
             }]

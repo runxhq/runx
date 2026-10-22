@@ -182,7 +182,7 @@ fn unauthenticated_environment_does_not_load_stored_credentials()
                 publish_api_token_ref: None,
                 publish_principal_id: None,
             }),
-            credentials: None,
+            ..runx_runtime::RunxConfigFile::default()
         },
     )?;
 

@@ -79,9 +79,10 @@ pub use digest::{
 pub use ids::{
     CONNECTOR_NAME_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorName, CredentialName, DIGEST_PATTERN,
     Digest, ENV_NAME_PATTERN, EnvName, INSTANCE_ID_PATTERN, InstanceId, OPERATION_NAME_MAX_LENGTH,
-    OPERATION_NAME_PATTERN, OperationName, RESERVED_CONNECTOR_SEGMENT, SECRET_REFERENCE_EXPECTED,
-    SECRET_REFERENCE_PATTERN, SECRET_SCHEMES, SecretReference, is_connector_name,
-    is_operation_name, is_publisher_namespace, is_secret_reference,
+    OPERATION_NAME_PATTERN, OperationName, RESERVED_CONNECTOR_SEGMENT, SECRET_NAME_PATTERN,
+    SECRET_REFERENCE_EXPECTED, SECRET_REFERENCE_PATTERN, SECRET_SCHEMES, SecretName,
+    SecretReference, is_connector_name, is_operation_name, is_publisher_namespace,
+    is_secret_reference,
 };
 
 /// An exact connector revision. Acquisition, grant delivery and hosted calls

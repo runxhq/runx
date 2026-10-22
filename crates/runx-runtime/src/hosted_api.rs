@@ -18,7 +18,7 @@ pub use connect::{
 pub use environment::{
     AuthenticatedHostedApiEnvironment, HostedApiCredentialPurpose, HostedApiEnvironment,
     hosted_api_transport, hosted_private_network_allowed, hosted_provider_api_transport,
-    store_authenticated_hosted_environment,
+    load_local_public_api_token, store_authenticated_hosted_environment,
 };
 pub use error::{
     HostedApiError, HostedApiErrorPayload, HostedApiOperationError, parse_hosted_api_error,

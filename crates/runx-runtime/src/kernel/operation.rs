@@ -1078,31 +1078,18 @@ fn prepare(
             Ok(Session::Hosted(session))
         }
         Placement::Local => match &instance.authority {
-            InstanceAuthority::Credential {
-                profile,
-                credential,
-                material_ref,
-                ..
-            } => credentials::deliver(
-                env,
-                cwd,
-                &admitted.connector,
-                &credentials::ProfileBinding {
-                    profile,
-                    credential,
-                    material_ref,
-                },
-            )
-            .map(|secret| Session::Local(Some(secret))),
+            InstanceAuthority::Secret { .. } => {
+                credentials::from_secret(env, cwd, &admitted.connector, instance)
+                    .map(|secret| Session::Local(Some(secret)))
+            }
             InstanceAuthority::Environment {
                 credential,
                 variable,
                 ..
             } => credentials::from_environment(env, &admitted.connector, credential, variable)
                 .map(|secret| Session::Local(Some(secret))),
-            InstanceAuthority::Reference { .. } => {
-                credentials::from_reference(env, cwd, &admitted.connector, instance)
-                    .map(|secret| Session::Local(Some(secret)))
+            InstanceAuthority::Credential { .. } | InstanceAuthority::Reference { .. } => {
+                Err(credentials::bound_before_secrets(instance))
             }
             InstanceAuthority::Session {
                 session: runx_contracts::connector::SessionKind::Command,

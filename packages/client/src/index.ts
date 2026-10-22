@@ -1,7 +1,7 @@
 import path from "node:path";
 import { validateProcessContract, validateProcessListContract, validateProcessOutputContract, validateRunReadContract, validateRunxListReportContract, validateSkillInspectionContract } from "@runxhq/contracts";
 import { readProjectArtifact } from "./artifacts.js";
-import { decodeSkill, parseJson, record } from "./decode.js";
+import { decodeSkill, parseJson, parseValue, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
 import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunAuthority, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
 
@@ -122,6 +122,9 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     },
     artifacts: {
       read: async (reference, options = {}) => await readProjectArtifact(reference, config.projectDir, positive(options.maxBytes ?? maxArtifactBytes, "maxBytes")),
+    },
+    secrets: {
+      read: async (options) => parseValue(await execute(["secret", "read", argument(options.name)], options)),
     },
     receipts: {
       verify: async (options) => {

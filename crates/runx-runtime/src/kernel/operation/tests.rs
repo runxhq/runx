@@ -20,6 +20,29 @@ use crate::effects::{
 use crate::http::{HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse};
 use crate::{Host, RuntimeError};
 
+/// Keep `value` as the secret `name` in `workspace`'s runx home, then bind
+/// `connector`'s `credential` to it and select that instance.
+fn keep_and_bind(
+    connector: &crate::LoadedConnector,
+    name: &str,
+    credential: &str,
+    value: &str,
+    workspace: &crate::services::WorkspaceEnv,
+) {
+    let name = runx_contracts::connector::SecretName::new(name).unwrap();
+    crate::secrets::set_value(workspace.paths(), &name, value).unwrap();
+    crate::kernel::setup::bind_secret(
+        &Instances::new(KernelStore::for_project(workspace.paths()).unwrap()),
+        connector,
+        &runx_contracts::connector::CredentialName::new(credential).unwrap(),
+        &name,
+        &[],
+        JsonObject::new(),
+        workspace,
+    )
+    .unwrap();
+}
+
 const BASE_URL: &str = "https://provider-fixture.runx.invalid";
 const PRINCIPAL_ID: &str = "operator-1";
 const PRINCIPAL_REF: &str = "runx:principal:operator-1";
@@ -426,6 +449,10 @@ impl Fixture {
                 "rxk_test".to_owned(),
             ),
             (
+                crate::paths::RUNX_HOME_ENV.to_owned(),
+                root.path().join("home").to_string_lossy().into_owned(),
+            ),
+            (
                 crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
                 root.path().join("receipts").to_string_lossy().into_owned(),
             ),
@@ -486,32 +513,22 @@ impl Fixture {
         .map(|_| ())
     }
 
-    /// Store `value` as `connector`'s `credential` and select it, as
-    /// `runx connector use --credential` would.
+    /// Keep `value` as the secret `default` and bind `connector`'s
+    /// `credential` to it, as `runx secret set` and `runx connector use
+    /// --secret` would.
     fn set_credential(&self, connector: &str, credential: &str, value: &str) {
         let connector = crate::kernel::connectors::ConnectorScope::at(self.root.path())
             .unwrap()
             .connector(connector)
             .unwrap();
-        let instances = Instances::new(
-            KernelStore::for_project(&crate::paths::RunxPaths::resolve(
-                &self.env,
-                self.root.path(),
-            ))
-            .unwrap(),
-        );
-        crate::kernel::setup::set_credential(
-            &instances,
+        keep_and_bind(
             &connector,
             "default",
-            &runx_contracts::connector::CredentialName::new(credential).unwrap(),
+            credential,
             value,
-            &[],
-            JsonObject::new(),
             &crate::services::WorkspaceEnv::new(self.env.clone(), self.root.path().to_path_buf())
                 .unwrap(),
-        )
-        .unwrap();
+        );
     }
 
     fn admit(
@@ -1771,20 +1788,13 @@ runners:
         .unwrap()
         .connector("probe-mcp")
         .unwrap();
-    crate::kernel::setup::set_credential(
-        &crate::Instances::new(
-            crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, &skill_dir))
-                .unwrap(),
-        ),
+    keep_and_bind(
         &connector,
         "probe",
-        &runx_contracts::connector::CredentialName::new("key").unwrap(),
+        "key",
         "probe-secret",
-        &[],
-        runx_contracts::JsonObject::new(),
         &crate::services::WorkspaceEnv::new(env.clone(), root.path().to_path_buf()).unwrap(),
-    )
-    .unwrap();
+    );
     let effect = OperationEffect::default();
     let read = |name: &str| {
         let inputs: JsonObject =

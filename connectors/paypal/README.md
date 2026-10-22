@@ -7,7 +7,8 @@ HTTP implementation locally or with hosted credential custody.
 
 Bind `paypal` with the selected REST app credential. Locally,
 `PAYPAL_CLIENT_CREDENTIALS` holds a JSON object with `client_id` and
-`client_secret`, or use a credential profile or secret-manager reference. OAuth
+`client_secret`, or bind a secret (`runx secret set`), kept in runx or in a
+secrets manager. OAuth
 tokens remain inside credential custody; they never become skill inputs,
 receipts or graph results. Every operation requires `api_host`: either
 `api-m.paypal.com` or `api-m.sandbox.paypal.com`. The same admitted choice

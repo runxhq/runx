@@ -21,6 +21,15 @@ export function parseJson(result: ProcessResult, exits: readonly number[]): Reco
   } catch (error) { throw new RunxClientError("contract", "Runx did not return a JSON object.", { cause: error }); }
 }
 
+/** The one value a command that prints only a value printed: its stdout, without the newline it ends with. */
+export function parseValue(result: ProcessResult): string {
+  if (result.exitCode !== 0) {
+    const failure = nativeFailure(result);
+    throw new RunxClientError("exit", `Runx exited with code ${result.exitCode}: ${failure.message}`, { code: failure.code });
+  }
+  return result.stdout.endsWith("\n") ? result.stdout.slice(0, -1) : result.stdout;
+}
+
 /** Why runx failed, in its own words: the `--json` failure envelope it wrote, else its stderr. */
 function nativeFailure(result: ProcessResult): { message: string; code?: string } {
   try {

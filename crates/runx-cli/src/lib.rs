@@ -20,6 +20,7 @@ pub mod registry;
 pub mod resume;
 pub mod router;
 pub mod runtime;
+pub mod secret;
 pub mod skill;
 pub mod tool;
 pub mod verify;

@@ -2,7 +2,7 @@
 // boundary so release shims and exit-code handling are visible in one place.
 use std::env;
 use std::ffi::OsString;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -95,6 +95,7 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunConnector(plan) => {
             runx_cli::connector::run_native_connector(plan, workspace)
         }
+        RouterAction::RunSecret(plan) => runx_cli::secret::run_native_secret(plan, workspace),
         RouterAction::RunPolicy(plan) => runx_cli::policy::run_native_policy(plan, workspace),
         RouterAction::RunNotarize(plan) => runx_cli::notarize::run_native_notarize(plan, workspace),
         RouterAction::RunRegistry(plan) => runx_cli::registry::run_native_registry(plan, workspace),
@@ -234,24 +235,9 @@ fn run_native_list(
 }
 
 fn run_native_config(
-    mut plan: runx_cli::config::ConfigPlan,
+    plan: runx_cli::config::ConfigPlan,
     workspace: &runx_runtime::WorkspaceEnv,
 ) -> ExitCode {
-    if plan.value_from_stdin {
-        let mut value = String::new();
-        if let Err(error) = std::io::stdin().read_to_string(&mut value) {
-            let _ignored =
-                write_stderr_line(&format!("runx: failed to read config value: {error}"));
-            return ExitCode::from(1);
-        }
-        let value = value.trim_end_matches(['\r', '\n']);
-        if value.is_empty() {
-            let _ignored =
-                write_stderr_line("runx: secret config value from stdin must not be empty");
-            return ExitCode::from(64);
-        }
-        plan.value = Some(value.to_owned());
-    }
     match runx_cli::config::run_config_command(&plan, workspace.env(), workspace.cwd()) {
         Ok(output) => write_stdout(&output),
         Err(runx_cli::config::ConfigCliError::InvalidArgs(message)) => {

@@ -11,13 +11,13 @@
 
 pub mod adapter;
 mod adapter_pipeline;
+mod agent_config;
 mod agent_contract;
 mod agent_invocation;
 pub mod approval;
 mod bytes;
 mod capability;
 pub mod config;
-pub mod credential_profiles;
 pub mod credentials;
 pub mod doctor;
 mod drivers;
@@ -49,7 +49,7 @@ pub mod process_invocation;
 mod provider_operations;
 pub mod receipts;
 pub mod registry;
-mod secret_refs;
+pub mod secrets;
 mod services;
 mod skill_package;
 mod time;
@@ -75,6 +75,7 @@ pub use adapter::{
     EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,
     SkillAdapter, SkillInvocation,
 };
+pub use agent_config::load_managed_agent_config;
 pub use approval::{ApprovalError, LocalApprovalGateResolver, request_approval};
 pub use capability::{
     CapabilityApproval, CapabilityArtifacts, CapabilityContract, CapabilityDefinition,
@@ -82,17 +83,11 @@ pub use capability::{
 };
 pub use config::{
     ConfigError, ConfigKey, MODEL_PROVIDERS, ManagedAgentAuthMode, ManagedAgentConfig,
-    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxCredentialProfile,
-    RunxCredentialsConfig, RunxPublicConfig, clear_runx_agent_dialect,
-    clear_runx_agent_endpoint_url, load_local_agent_api_key, load_local_credential_secret,
-    load_local_public_api_token, load_managed_agent_config, load_runx_config_file,
-    lookup_runx_config_value, mask_runx_config_file, model_provider, parse_config_key,
-    remove_local_agent_api_key, remove_local_credential_secret, set_runx_agent_api_key_reference,
-    store_local_credential_secret, update_runx_config_value, write_runx_config_file,
-};
-pub use credential_profiles::{
-    CredentialProfileError, CredentialProfileSummary, list_local_credential_profiles,
-    remove_local_credential_profile, set_local_credential_profile,
+    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig,
+    RunxSecretRecord, clear_runx_agent_dialect, clear_runx_agent_endpoint_url,
+    clear_runx_agent_secret, load_runx_config_file, lookup_runx_config_value,
+    mask_runx_config_file, model_provider, parse_config_key, update_runx_config_value,
+    write_runx_config_file,
 };
 pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
@@ -114,8 +109,9 @@ pub use hosted_api::{
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,
     ReceiptNotarization, complete_hosted_login, exchange_hosted_provider_token,
     execute_hosted_connect, hosted_api_transport, hosted_private_network_allowed,
-    hosted_provider_api_transport, notarize_hosted_receipt, parse_hosted_api_error,
-    read_hosted_purchase, start_hosted_login, store_authenticated_hosted_environment,
+    hosted_provider_api_transport, load_local_public_api_token, notarize_hosted_receipt,
+    parse_hosted_api_error, read_hosted_purchase, start_hosted_login,
+    store_authenticated_hosted_environment,
 };
 pub use http::RuntimeHttpError;
 pub use http::{

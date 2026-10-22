@@ -81,22 +81,11 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 grant.target_locator.into_iter().collect(),
             ))
         }
-        InstanceAuthority::Credential {
-            profile,
-            credential,
-            scopes,
-            material_ref,
-        } => {
-            super::operation::credentials::check_profile(
-                request.env,
-                request.cwd,
-                request.connector,
-                &super::operation::credentials::ProfileBinding {
-                    profile,
-                    credential,
-                    material_ref,
-                },
-            )?;
+        // A secret is read before each call, never to admit one; admission
+        // takes only a binding this runx home made, as it stands, to a
+        // secret that is set.
+        InstanceAuthority::Secret { scopes, .. } => {
+            super::operation::credentials::check_secret(request.env, request.cwd, instance)?;
             Ok(capability(
                 instance,
                 request.connector,
@@ -108,6 +97,9 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 Vec::new(),
             ))
         }
+        InstanceAuthority::Credential { .. } | InstanceAuthority::Reference { .. } => Err(
+            super::operation::credentials::bound_before_secrets(instance),
+        ),
         InstanceAuthority::Environment {
             credential,
             variable,
@@ -118,25 +110,6 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 request.connector,
                 credential,
                 variable,
-            )?;
-            Ok(capability(
-                instance,
-                request.connector,
-                None,
-                scopes
-                    .iter()
-                    .map(|scope| scope.as_str().to_owned())
-                    .collect(),
-                Vec::new(),
-            ))
-        }
-        // A secret reference is read before each call, never to admit one;
-        // admission takes only a binding this runx home made, as it stands.
-        InstanceAuthority::Reference { scopes, .. } => {
-            super::operation::credentials::check_reference_proof(
-                request.env,
-                request.cwd,
-                instance,
             )?;
             Ok(capability(
                 instance,

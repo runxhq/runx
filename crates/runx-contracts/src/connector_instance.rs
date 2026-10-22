@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::JsonObject;
 use crate::connector::{
     ConnectorDigestError, ConnectorName, CredentialName, Digest, EnvName, InstanceId,
-    OperationName, Placement, SecretReference, SessionKind, stable_digest,
+    OperationName, Placement, SecretName, SecretReference, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
@@ -98,11 +98,22 @@ struct BindingIdentity<'a> {
 pub enum InstanceAuthority {
     /// A runx Connect grant. Hosted placement only.
     HostedGrant { grant_id: NonEmptyString },
-    /// A local credential profile holding the named connector credential.
-    /// `scopes` is what the operator grants it: the connector's full scope
-    /// set unless narrowed when it was bound. `material_ref` names the stored
-    /// material it was bound to, so a profile replaced since, from this
-    /// workspace or another, no longer serves it.
+    /// The named connector credential, held by the secret the operator keeps
+    /// in runx under `secret` (`runx secret set`): stored in the runx home, or
+    /// read through a secrets manager by reference. Every call reads it again,
+    /// so setting it anew serves without binding again. `proof` is an HMAC
+    /// keyed by the binding operator's runx home over the whole binding, the
+    /// proof left out: a project store can neither name the operator's
+    /// secret nor widen a binding. `scopes` is what the operator grants it.
+    Secret {
+        credential: CredentialName,
+        secret: SecretName,
+        scopes: Vec<NonEmptyString>,
+        proof: NonEmptyString,
+    },
+    /// Recorded before `runx secret`: a credential profile, which a secret of
+    /// the same name has replaced. History still reads it; nothing resolves
+    /// it, and an instance whose binding it is binds again with `Secret`.
     Credential {
         profile: NonEmptyString,
         credential: CredentialName,
@@ -119,16 +130,10 @@ pub enum InstanceAuthority {
         variable: EnvName,
         scopes: Vec<NonEmptyString>,
     },
-    /// The named connector credential, read on every call from a secrets
-    /// manager through that manager's own CLI and the operator's sign-in to
-    /// it. The instance holds the reference, never the value, so a secret
-    /// rotated there serves without binding again. `pinned` is what binding
-    /// proved, the exact resource or server later reads go to (an AWS ARN, a
-    /// Vault address), so a switched profile cannot serve another account's
-    /// secret. `proof` is an HMAC keyed by the binding operator's runx home
-    /// over the connector revision, the reference and its pin: a project
-    /// store cannot supply a reference the operator did not bind. `scopes`
-    /// is what the operator grants it.
+    /// Recorded before `runx secret`: a secrets manager reference bound in
+    /// the instance itself, which a secret holding that reference replaces.
+    /// History still reads it; nothing resolves it, and an instance whose
+    /// binding it is binds again with `Secret`.
     Reference {
         credential: CredentialName,
         reference: SecretReference,
@@ -163,6 +168,7 @@ impl InstanceAuthority {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::HostedGrant { .. } => "hosted_grant",
+            Self::Secret { .. } => "secret",
             Self::Credential { .. } => "credential",
             Self::Environment { .. } => "environment",
             Self::Reference { .. } => "reference",

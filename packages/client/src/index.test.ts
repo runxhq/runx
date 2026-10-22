@@ -124,6 +124,19 @@ describe("native invocation and decoding", () => {
     await client.receipts.verify({ receipt: '{"receipt":"exact"}', trust: "configured" });
     expect(JSON.parse(await readFile(`${capture}.args`, "utf8"))).toEqual(["verify", "--receipt", "-", "--trust", "configured", "--json"]);
   });
+  it("reads a secret's value by its name, and passes runx's refusal on in its words", async () => {
+    const { root, config } = await setup();
+    const capture = path.join(root, "secret.args");
+    await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
+      if (process.argv[4] === 'gemini') process.stdout.write('the-model-key\\n');
+      else { process.stderr.write('runx secret: no secret is named ' + process.argv[4] + '\\n'); process.exitCode = 1; }`);
+    const client = createRunxClient(config);
+    await expect(client.secrets.read({ name: "gemini" })).resolves.toBe("the-model-key");
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["secret", "read", "gemini"]);
+    await expect(client.secrets.read({ name: "unset" })).rejects.toThrow("no secret is named unset");
+    await expect(client.secrets.read({ name: "--help" })).rejects.toThrow("positional");
+  });
   it("reads a connector's exact registry package and refuses another shape", async () => {
     const { root, config } = await setup();
     const capture = path.join(root, "connector.args");

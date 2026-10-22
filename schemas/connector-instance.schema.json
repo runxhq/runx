@@ -36,6 +36,44 @@
               "type": "string"
             },
             "kind": {
+              "const": "secret",
+              "type": "string"
+            },
+            "proof": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "scopes": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "secret": {
+              "maxLength": 256,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f]([^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "credential",
+            "secret",
+            "scopes",
+            "proof"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "credential": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "kind": {
               "const": "credential",
               "type": "string"
             },

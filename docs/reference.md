@@ -106,7 +106,8 @@ runx skill ./skills/skill-build design -i objective="build github review skill"
 runx harness ./examples/hello-graph/harness.yaml
 runx config set agent.provider openai
 runx config set agent.model gpt-6-sol
-printf '%s' "$OPENAI_API_KEY" | runx config set agent.api_key --from-stdin
+runx secret set openai
+runx config set agent.secret openai
 ```
 
 `runx resume` continues a paused run from its run record. A host reads a run

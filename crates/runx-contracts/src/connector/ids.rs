@@ -33,6 +33,9 @@ pub const SECRET_REFERENCE_PATTERN: &str =
     r"^(op|aws-sm|aws-ps|vault|keychain|file)://[^\s#](([^\s#]| )*[^\s#])?(#[^\s#]+)?$";
 /// What a refusal of a value that is not a reference names.
 pub const SECRET_REFERENCE_EXPECTED: &str = "--from takes a secret reference: op://, aws-sm://, aws-ps://, vault://, keychain:// or file://";
+/// A name the operator gives a secret: anything printable, with no space at
+/// either end and no control character.
+pub const SECRET_NAME_PATTERN: &str = r"^[^\s\x00-\x1f\x7f]([^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$";
 
 /// Whether `value` is a connector name: a namespace, or a namespace and one
 /// surface, neither of them `versions`.
@@ -97,6 +100,13 @@ fn is_env_name(value: &str) -> bool {
         && bytes
             .iter()
             .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_')
+}
+
+fn is_secret_name(value: &str) -> bool {
+    value.len() <= 256
+        && !value.is_empty()
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
 }
 
 fn is_instance_id(value: &str) -> bool {
@@ -271,6 +281,16 @@ identifier!(
     1024,
     is_secret_reference,
     "secret reference"
+);
+identifier!(
+    /// The name of a secret the operator keeps in runx (`runx secret set`):
+    /// what a binding, the managed agent and a host name it by. Never the
+    /// secret itself.
+    SecretName,
+    SECRET_NAME_PATTERN,
+    256,
+    is_secret_name,
+    "secret name"
 );
 identifier!(
     /// A connector instance id.

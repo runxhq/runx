@@ -761,7 +761,8 @@ fn project(
 
 /// The instance a call runs under outside a purchase's hold: the grant the
 /// run's host states for the connector, else the operator's selection, else
-/// the connector's public instance. Admission and readiness both resolve here.
+/// the credential whose variable is set, else the connector's public
+/// instance. Admission and readiness both resolve here.
 fn standing_instance(
     context: Context<'_>,
     connector: &LoadedConnector,
@@ -776,7 +777,7 @@ fn standing_instance(
             context.env,
             context.cwd,
         ),
-        None => context.instances.resolve(connector),
+        None => context.instances.resolve(connector, context.env),
     }
 }
 

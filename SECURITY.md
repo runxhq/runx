@@ -5,24 +5,26 @@
 runx keeps local execution state and receipts on your machine. It makes no
 telemetry call. Network access occurs only through an explicit surface: registry
 fetch/publish, a declared network-capable skill adapter, an opted-in hosted
-connector, or a secrets manager CLI reading a reference the operator bound. The
+connector, or a secrets manager CLI reading a reference the operator set. The
 receipt crate itself has no network access by design.
 
 Connectors declare the credentials they accept and the variable each is read
 from; operators bind an account to a connector as an instance, from that
-variable, a secrets manager reference, a stored profile, a signed-in local
-session, or a runx Connect grant. An instance bound to a variable records its
-name, never its value; one bound to a reference records the reference and the
-resource it was pinned to, never the value, and a proof keyed by the operator's
-runx home over the whole binding, so a project store cannot supply or widen
-one; runx reads it through the
-manager's own CLI, found outside the workspace, with fixed arguments, only for
-a reference the operator bound with `--from`, in the runx home and with the
-environment runx was started with, so a workspace `.env` never signs a manager
-in, configures it or chooses what it trusts. A secret
-given to `runx connector use` is read without echo at a terminal or from stdin,
-never from argv; encrypted local material is never written to manifests, argv,
-receipts, or resume checkpoints. A connector's sign-in command comes from its
+variable, a secret kept with `runx secret`, a signed-in local session, or a
+runx Connect grant. An instance bound to a variable records its name, never its
+value; one bound to a secret records the secret's name, never its value, and a
+proof keyed by the operator's runx home over the whole binding, so a project
+store cannot name the operator's secret or widen a binding. A secret is sealed
+in the runx home or held by a secrets manager at a reference the operator set
+with `runx secret set --from`; runx reads that through the manager's own CLI,
+found outside the workspace, with fixed arguments, in the runx home and with
+the environment runx was started with, so a workspace `.env` never signs a
+manager in, configures it or chooses what it trusts. A secret's value is read
+without echo at a terminal or from stdin, never from argv; sealed material is
+never written to manifests, argv, receipts, or resume checkpoints, and only
+`runx secret read` prints a value, when the operator runs it. A program the
+operator runs, a skill's process tool included, can read what the operator can;
+runx does not sandbox it. A connector's sign-in command comes from its
 manifest, which can come from the project, so setup never runs it to look:
 binding it takes `--session`, and calls through that binding run it again for
 a token. Where two sources supply one

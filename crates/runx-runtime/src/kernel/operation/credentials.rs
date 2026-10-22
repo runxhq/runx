@@ -1,25 +1,22 @@
-//! Local connector credentials: a named secret in the operator's credential
-//! profiles, or the variable the connector's declaration delivers it in,
+//! Local connector credentials: the secret an instance names (`runx
+//! secret`), or the variable the connector's declaration delivers it in,
 //! bound to a connector credential by an instance.
 //!
-//! A credential with one field is stored and delivered as that field's
-//! value; a credential with several is stored and delivered as a JSON object
-//! of its fields. The declaration fixes the field names, so a profile or a
-//! variable that does not hold them is refused at binding and again at
-//! delivery.
+//! A credential with one field is delivered as that field's value; a
+//! credential with several as a JSON object of its fields. The declaration
+//! fixes the field names, so a secret or a variable that does not hold them
+//! is refused at binding and again at delivery.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::kernel::connectors::LoadedConnector;
-use runx_contracts::JsonValue;
-use runx_contracts::connector::credential_declaration_digest;
 use runx_contracts::connector::{
-    ConnectorManifest, CredentialDeclaration, CredentialName, EnvName,
+    ConnectorManifest, CredentialDeclaration, CredentialName, EnvName, SecretName,
 };
+use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonValue};
 
-use crate::config::{load_local_credential_secret, load_runx_config_file};
 use crate::credentials::{SecretString, SecretTaint};
 use crate::paths::RunxPaths;
 
@@ -75,37 +72,6 @@ impl CredentialSecret {
     }
 }
 
-/// The profile exists, was stored for this connector, and still holds the
-/// material the instance was bound to.
-pub(crate) fn check_profile(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    connector: &LoadedConnector,
-    binding: &ProfileBinding<'_>,
-) -> Result<(), String> {
-    declaration(&connector.manifest, binding.credential)?;
-    stored_profile(env, cwd, connector, binding).map(|_| ())
-}
-
-/// Load and check the secret an instance's credential delivers.
-pub(crate) fn deliver(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    connector: &LoadedConnector,
-    binding: &ProfileBinding<'_>,
-) -> Result<CredentialSecret, String> {
-    let declaration = declaration(&connector.manifest, binding.credential)?;
-    let (paths, stored) = stored_profile(env, cwd, connector, binding)?;
-    let profile = binding.profile;
-    let value = SecretString::new(
-        load_local_credential_secret(&paths, &stored.secret_ref)
-            .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?,
-    );
-    let fields = fields(declaration, value.expose())
-        .map_err(|reason| format!("credential profile {profile} {reason}"))?;
-    Ok(CredentialSecret::new(binding.credential.clone(), fields))
-}
-
 /// Refuse `variable` when the environment and the workspace `.env` set it to
 /// different values: either could be another account, and runx never picks
 /// one. Every read of a connector credential's variable goes through here.
@@ -147,9 +113,9 @@ pub(crate) fn from_environment(
                 connector.name
             )
         })?;
-    if crate::secret_refs::looks_like_reference(value) {
+    if crate::secrets::reference::looks_like_reference(value) {
         return Err(format!(
-            "{variable} holds a reference to a secret, not the secret; bind the reference with `runx connector use {} --from <reference>`, or run under the tool that resolves it",
+            "{variable} holds a reference to a secret, not the secret; set a secret to it with `runx secret set <name> --from <reference>` and bind that with `runx connector use {} --secret <name>`, or run under the tool that resolves it",
             connector.name
         ));
     }
@@ -159,17 +125,17 @@ pub(crate) fn from_environment(
 
 /// Stands in for the proof while the proof is made: it covers the whole
 /// binding except itself.
-const UNPROVEN: &str = "unproven";
+pub(crate) const UNPROVEN: &str = "unproven";
 
-/// The proof a reference instance carries: an HMAC, keyed by this runx home,
+/// The proof a secret binding carries: an HMAC, keyed by this runx home,
 /// over the whole binding as its binding digest sees it (connector revision,
-/// placement, principal, reference, pin, scopes, parameters, operations),
-/// with the proof itself left out. Only a home that bound it can make it, so
-/// a project store cannot supply or widen one.
-pub(crate) fn reference_proof(
+/// placement, principal, secret, scopes, parameters, operations), with the
+/// proof itself left out. Only a home that bound it can make it, so a
+/// project store can neither name the operator's secret nor widen a binding.
+pub(crate) fn binding_proof(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    instance: &runx_contracts::ConnectorInstance,
+    instance: &ConnectorInstance,
 ) -> Result<String, String> {
     // A home the project could supply would let it supply the key too.
     if ["RUNX_HOME", "HOME", "USERPROFILE"]
@@ -177,154 +143,112 @@ pub(crate) fn reference_proof(
         .all(|name| env.get(*name).is_none_or(|value| value.trim().is_empty()))
     {
         return Err(
-            "secret references need a runx home the operator owns; set RUNX_HOME or HOME"
+            "a secret binding needs a runx home the operator owns; set RUNX_HOME or HOME"
                 .to_owned(),
         );
     }
     let mut covered = instance.clone();
-    let runx_contracts::InstanceAuthority::Reference { proof, .. } = &mut covered.authority else {
-        return Err(format!(
-            "{} is not a reference binding",
-            instance.instance_id
-        ));
+    let InstanceAuthority::Secret { proof, .. } = &mut covered.authority else {
+        return Err(format!("{} binds no secret", instance.instance_id));
     };
     *proof = runx_contracts::schema::NonEmptyString::new(UNPROVEN).ok_or("an empty proof")?;
     let digest = covered
         .binding_digest()
         .map_err(|error| error.to_string())?;
-    crate::config::local_binding_proof(
+    crate::secrets::prove(
         &RunxPaths::resolve(env, cwd),
-        format!("runx.reference_binding.v1:{digest}").as_bytes(),
+        format!("runx.secret_binding.v1:{digest}").as_bytes(),
     )
     .map_err(|error| error.to_string())
 }
 
-/// Whether this runx home made `instance`'s reference binding, exactly as it
-/// stands. Checked at admission and again before every read.
-pub(crate) fn check_reference_proof(
+/// Whether this runx home made `instance`'s secret binding, exactly as it
+/// stands, and the secret it names is set. Admission checks this and reads
+/// no value; every call checks it again before it reads one.
+pub(crate) fn check_secret(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    instance: &runx_contracts::ConnectorInstance,
+    instance: &ConnectorInstance,
 ) -> Result<(), String> {
-    let runx_contracts::InstanceAuthority::Reference {
-        reference, proof, ..
-    } = &instance.authority
-    else {
+    let InstanceAuthority::Secret { secret, proof, .. } = &instance.authority else {
         return Ok(());
     };
-    if reference_proof(env, cwd, instance)? == proof.as_str() {
-        return Ok(());
+    let connector = &instance.connector;
+    if binding_proof(env, cwd, instance)? != proof.as_str() {
+        return Err(format!(
+            "{connector} names the secret {secret} through a binding this runx home did not make, or that changed since; bind it with `runx connector use {connector} --secret {secret}`"
+        ));
     }
-    Err(format!(
-        "{} reads {reference} through a binding this runx home did not make, or that changed since; bind it with `runx connector use {} --from {reference}`",
-        instance.connector, instance.connector
-    ))
+    if !crate::secrets::is_set(&RunxPaths::resolve(env, cwd), secret)
+        .map_err(|error| error.to_string())?
+    {
+        return Err(format!(
+            "{connector} names the secret {secret}, which is not set; set it with `runx secret set {secret}`"
+        ));
+    }
+    Ok(())
 }
 
-/// The credential a reference instance holds, read now from its secrets
-/// manager at what binding pinned, once its proof shows this runx home bound
-/// it as it stands. Nothing is kept: every call reads again.
-pub(crate) fn from_reference(
+/// The credential a secret instance holds, read now, once its proof shows
+/// this runx home bound it as it stands. Nothing is kept: every call reads
+/// again, so a secret set anew serves from the next call.
+pub(crate) fn from_secret(
     env: &BTreeMap<String, String>,
     cwd: &Path,
     connector: &LoadedConnector,
-    instance: &runx_contracts::ConnectorInstance,
+    instance: &ConnectorInstance,
 ) -> Result<CredentialSecret, String> {
-    check_reference_proof(env, cwd, instance)?;
-    let runx_contracts::InstanceAuthority::Reference {
-        credential,
-        reference,
-        pinned,
-        ..
+    check_secret(env, cwd, instance)?;
+    let InstanceAuthority::Secret {
+        credential, secret, ..
     } = &instance.authority
     else {
-        return Err(format!(
-            "{} is not a reference binding",
-            instance.instance_id
-        ));
+        return Err(format!("{} binds no secret", instance.instance_id));
     };
     let declaration = declaration(&connector.manifest, credential)?;
-    let read = crate::secret_refs::read(
-        env,
-        cwd,
-        reference,
-        pinned.as_ref().map(|pinned| pinned.as_str()),
-        crate::secret_refs::Purpose::Call,
-    )?;
-    let fields = reference_fields(declaration, reference, &read.value)?;
+    let value = crate::secrets::read(env, cwd, secret, crate::secrets::Purpose::Call)
+        .map_err(|error| error.to_string())?;
+    let fields = secret_fields(declaration, secret, value.expose())?;
     Ok(CredentialSecret::new(credential.clone(), fields))
 }
 
-pub(crate) const UNPROVEN_REFERENCE: &str = UNPROVEN;
-
-/// What an instance's credential authority names: the profile, the
-/// connector credential it holds, and the stored material it was bound to.
-pub(crate) struct ProfileBinding<'a> {
-    pub profile: &'a str,
-    pub credential: &'a CredentialName,
-    pub material_ref: &'a str,
-}
-
-fn stored_profile(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-    connector: &LoadedConnector,
-    binding: &ProfileBinding<'_>,
-) -> Result<(RunxPaths, crate::config::RunxCredentialProfile), String> {
-    let profile = binding.profile;
-    let paths = RunxPaths::resolve(env, cwd);
-    let config = load_runx_config_file(&paths.config_file()).map_err(|error| error.to_string())?;
-    let stored = config
-        .credentials
-        .unwrap_or_default()
-        .profiles
-        .remove(profile)
-        .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.name || stored.credential != binding.credential.as_str() {
-        return Err(format!(
-            "credential profile {profile} holds {}'s {} credential, not {}'s {}",
-            stored.connector, stored.credential, connector.name, binding.credential
-        ));
-    }
-    let declaration = declaration(&connector.manifest, binding.credential)?;
-    if stored.credential_declaration_digest
-        != credential_declaration_digest(declaration).map_err(|error| error.to_string())?
-    {
-        return Err(format!(
-            "credential profile {profile} was stored for a different credential declaration; set it again"
-        ));
-    }
-    // The profile was set again since this instance was bound, here or in
-    // another workspace: it may now hold another account.
-    if stored.secret_ref != binding.material_ref {
-        return Err(format!(
-            "credential profile {profile} was replaced after {} was bound to it; bind it again here with `runx connector use {} {profile}`",
-            connector.name, connector.name
-        ));
-    }
-    Ok((paths, stored))
-}
-
-/// The stored value as the declaration's fields.
-/// The fields a secret read through `reference` fills. A whole JSON object
-/// bound to a one-field credential that names that field is a missing
-/// `#field`, refused rather than sent whole as the key.
-pub(crate) fn reference_fields(
+/// The fields the secret `secret`'s `value` fills. A whole JSON object
+/// holding a one-field credential's field is where a manager keeps that
+/// field, refused rather than sent whole as the key.
+pub(crate) fn secret_fields(
     declaration: &CredentialDeclaration,
-    reference: &runx_contracts::connector::SecretReference,
+    secret: &SecretName,
     value: &str,
 ) -> Result<BTreeMap<String, String>, String> {
-    if let ([only], None) = (declaration.fields.as_slice(), reference.field())
+    if let [only] = declaration.fields.as_slice()
         && serde_json::from_str::<serde_json::Value>(value)
             .ok()
             .is_some_and(|value| value.get(only.name.as_str()).is_some())
     {
         return Err(format!(
-            "{reference} holds a JSON object with {name}; bind {reference}#{name}",
+            "the secret {secret} holds a JSON object with {name}; set it to that field alone, or to a reference ending #{name}",
             name = only.name
         ));
     }
-    fields(declaration, value).map_err(|reason| format!("{reference} {reason}"))
+    fields(declaration, value).map_err(|reason| format!("the secret {secret} {reason}"))
+}
+
+/// The refusal of a binding recorded before `runx secret`, naming the
+/// command that binds it again.
+pub(crate) fn bound_before_secrets(instance: &ConnectorInstance) -> String {
+    let connector = &instance.connector;
+    match &instance.authority {
+        InstanceAuthority::Credential { profile, .. } => format!(
+            "{connector} was bound to the credential profile {profile} before `runx secret`, which keeps it as the secret {profile}; bind it again: `runx connector use {connector} --secret {profile}`"
+        ),
+        InstanceAuthority::Reference { reference, .. } => format!(
+            "{connector} was bound to {reference} before `runx secret`; set a secret to it and bind that: `runx secret set <name> --from {reference}`, then `runx connector use {connector} --secret <name>`"
+        ),
+        authority => format!(
+            "{connector}'s {} binding was not recorded before `runx secret`",
+            authority.kind()
+        ),
+    }
 }
 
 pub(crate) fn fields(
@@ -394,74 +318,70 @@ mod tests {
     }
 
     use runx_contracts::InstanceAuthority;
-    use runx_contracts::connector::CredentialName;
+    use runx_contracts::connector::{CredentialName, SecretName};
+    use runx_contracts::schema::NonEmptyString;
 
-    use super::{ProfileBinding, deliver};
+    /// An instance of fixture/search bound to the secret `exa`, with the
+    /// proof the home at `env` makes for it.
+    fn bound_to_exa(
+        connector: &crate::LoadedConnector,
+        env: &BTreeMap<String, String>,
+        cwd: &std::path::Path,
+    ) -> runx_contracts::ConnectorInstance {
+        let mut instance = crate::kernel::instances::pinned(
+            connector,
+            runx_contracts::connector::InstanceId::new("secret.exa").unwrap(),
+            runx_contracts::connector::Placement::Local,
+            "runx:principal:local-secret:exa".to_owned(),
+            None,
+            InstanceAuthority::Secret {
+                credential: CredentialName::new("api_key").unwrap(),
+                secret: SecretName::new("exa").unwrap(),
+                scopes: vec![NonEmptyString::new("search.read").unwrap()],
+                proof: NonEmptyString::new(super::UNPROVEN).unwrap(),
+            },
+        );
+        let made = super::binding_proof(env, cwd, &instance).unwrap();
+        if let InstanceAuthority::Secret { proof, .. } = &mut instance.authority {
+            *proof = NonEmptyString::new(made).unwrap();
+        }
+        instance
+    }
 
     #[test]
-    fn a_reference_this_home_bound_is_read_on_every_call_and_a_planted_one_never() {
-        use runx_contracts::schema::NonEmptyString;
+    fn a_secret_this_home_bound_is_read_on_every_call_and_a_planted_one_never() {
         let connector = crate::kernel::connectors::fixture_scope()
             .connector("fixture/search")
             .unwrap();
-        let held = tempfile::tempdir().unwrap();
-        let secret = held.path().join("exa.key");
-        std::fs::write(&secret, "key-from-the-manager\n").unwrap();
-        let reference =
-            runx_contracts::connector::SecretReference::new(format!("file://{}", secret.display()))
-                .unwrap();
         let home_env = |home: &std::path::Path| {
             BTreeMap::from([("RUNX_HOME".to_owned(), home.display().to_string())])
         };
-        let unproven = || {
-            crate::kernel::instances::pinned(
-                &connector,
-                runx_contracts::connector::InstanceId::new("reference.exa").unwrap(),
-                runx_contracts::connector::Placement::Local,
-                "runx:principal:local-reference:exa".to_owned(),
-                None,
-                InstanceAuthority::Reference {
-                    credential: CredentialName::new("api_key").unwrap(),
-                    reference: reference.clone(),
-                    pinned: None,
-                    proof: NonEmptyString::new(super::UNPROVEN_REFERENCE).unwrap(),
-                    scopes: vec![NonEmptyString::new("search.read").unwrap()],
-                },
-            )
-        };
-        let proven = |env: &BTreeMap<String, String>, cwd: &std::path::Path| {
-            let mut instance = unproven();
-            let made = super::reference_proof(env, cwd, &instance).unwrap();
-            if let InstanceAuthority::Reference { proof, .. } = &mut instance.authority {
-                *proof = NonEmptyString::new(made).unwrap();
-            }
-            instance
-        };
         let home = tempfile::tempdir().unwrap();
         let env = home_env(home.path());
+        let paths = crate::RunxPaths::resolve(&env, home.path());
+        let exa = SecretName::new("exa").unwrap();
+        crate::secrets::set_value(&paths, &exa, "first-key").unwrap();
         let call = |instance: &runx_contracts::ConnectorInstance| {
-            super::from_reference(&env, home.path(), &connector, instance)
+            super::from_secret(&env, home.path(), &connector, instance)
         };
-        let bound = proven(&env, home.path());
-        assert_eq!(
-            call(&bound).unwrap().field("api_key").unwrap(),
-            "key-from-the-manager"
-        );
-        // A secret rotated in the manager serves without binding again.
-        std::fs::write(&secret, "rotated\n").unwrap();
+        let bound = bound_to_exa(&connector, &env, home.path());
+        assert_eq!(call(&bound).unwrap().field("api_key").unwrap(), "first-key");
+        // A secret set again serves every binding that names it, without
+        // binding again.
+        crate::secrets::set_value(&paths, &exa, "rotated").unwrap();
         assert_eq!(call(&bound).unwrap().field("api_key").unwrap(), "rotated");
 
         // A project store carrying a binding another home made is refused.
         let other = tempfile::tempdir().unwrap();
-        let planted = proven(&home_env(other.path()), other.path());
+        let planted = bound_to_exa(&connector, &home_env(other.path()), other.path());
+        let refused = call(&planted).unwrap_err();
         assert!(
-            call(&planted)
-                .unwrap_err()
-                .contains("through a binding this runx home did not make")
+            refused.contains("through a binding this runx home did not make"),
+            "{refused}"
         );
         // So is this home's binding with its grant widened in the store.
         let mut widened = bound.clone();
-        if let InstanceAuthority::Reference { scopes, .. } = &mut widened.authority {
+        if let InstanceAuthority::Secret { scopes, .. } = &mut widened.authority {
             scopes.push(NonEmptyString::new("crawl.write").unwrap());
         }
         assert!(
@@ -471,22 +391,81 @@ mod tests {
         );
         // With no home the operator owns, there is no key to prove with.
         assert!(
-            super::reference_proof(&BTreeMap::new(), home.path(), &unproven())
+            super::binding_proof(&BTreeMap::new(), home.path(), &bound)
                 .unwrap_err()
-                .contains("need a runx home the operator owns")
+                .contains("needs a runx home the operator owns")
         );
 
-        // A whole JSON object for a one-field credential is a missing #field.
-        std::fs::write(&secret, r#"{"api_key":"inside"}"#).unwrap();
+        // A whole JSON object for a one-field credential is refused.
+        crate::secrets::set_value(&paths, &exa, r#"{"api_key":"inside"}"#).unwrap();
         assert!(
             call(&bound)
                 .unwrap_err()
-                .contains("holds a JSON object with api_key; bind file://")
+                .contains("holds a JSON object with api_key")
         );
 
+        // A secret removed since refuses before anything is read.
+        crate::secrets::remove(&paths, &exa).unwrap();
+        let removed = super::check_secret(&env, home.path(), &bound).unwrap_err();
+        assert!(removed.contains("which is not set"), "{removed}");
+    }
+
+    #[test]
+    fn a_secret_held_by_a_manager_is_read_there_on_every_call() {
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/search")
+            .unwrap();
+        let held = tempfile::tempdir().unwrap();
+        let file = held.path().join("exa.key");
+        std::fs::write(&file, "key-from-the-manager\n").unwrap();
+        let reference =
+            runx_contracts::connector::SecretReference::new(format!("file://{}", file.display()))
+                .unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let env = BTreeMap::from([("RUNX_HOME".to_owned(), home.path().display().to_string())]);
+        crate::secrets::set_reference(
+            &env,
+            home.path(),
+            &SecretName::new("exa").unwrap(),
+            &reference,
+        )
+        .unwrap();
+        let bound = bound_to_exa(&connector, &env, home.path());
+        let call = || super::from_secret(&env, home.path(), &connector, &bound);
+        assert_eq!(
+            call().unwrap().field("api_key").unwrap(),
+            "key-from-the-manager"
+        );
+        // A secret rotated in the manager serves without setting it again.
+        std::fs::write(&file, "rotated\n").unwrap();
+        assert_eq!(call().unwrap().field("api_key").unwrap(), "rotated");
         // A failed read at call time refuses the call.
-        std::fs::remove_file(&secret).unwrap();
-        assert!(call(&bound).unwrap_err().contains("cannot be read"));
+        std::fs::remove_file(&file).unwrap();
+        assert!(call().unwrap_err().contains("cannot be read"));
+    }
+
+    #[test]
+    fn a_binding_made_before_secrets_names_the_command_that_binds_it_again() {
+        let connector = crate::kernel::connectors::fixture_scope()
+            .connector("fixture/forum")
+            .unwrap();
+        let instance = crate::kernel::instances::pinned(
+            &connector,
+            runx_contracts::connector::InstanceId::new("credential.forum").unwrap(),
+            runx_contracts::connector::Placement::Local,
+            "runx:principal:local-credential:fixture/forum:forum".to_owned(),
+            None,
+            InstanceAuthority::Credential {
+                profile: NonEmptyString::new("forum").unwrap(),
+                credential: CredentialName::new("api_key").unwrap(),
+                scopes: Vec::new(),
+                material_ref: NonEmptyString::new("local_credential_1").unwrap(),
+            },
+        );
+        assert_eq!(
+            super::bound_before_secrets(&instance),
+            "fixture/forum was bound to the credential profile forum before `runx secret`, which keeps it as the secret forum; bind it again: `runx connector use fixture/forum --secret forum`"
+        );
     }
 
     #[test]
@@ -541,64 +520,5 @@ mod tests {
             refused,
             "SEARCH_API_KEY is set in the environment and in the workspace .env with different values; unset one so fixture/search reads one api_key"
         );
-    }
-
-    /// Two workspaces share one runx home. Binding a profile name in the
-    /// second must not move the first workspace's instance to its account.
-    #[test]
-    fn a_profile_replaced_elsewhere_no_longer_serves_the_first_binding() {
-        let root = tempfile::tempdir().unwrap();
-        let connector = crate::kernel::connectors::fixture_scope()
-            .connector("fixture/forum")
-            .unwrap();
-        let credential = CredentialName::new("api_key").unwrap();
-        let bind = |workspace: &str, secret: &str| {
-            let env = BTreeMap::from([
-                (
-                    "RUNX_HOME".to_owned(),
-                    root.path().join("home").to_string_lossy().into_owned(),
-                ),
-                (
-                    crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
-                    root.path().join(workspace).to_string_lossy().into_owned(),
-                ),
-            ]);
-            let instance = crate::kernel::setup::set_credential(
-                &crate::Instances::new(
-                    crate::KernelStore::for_project(&crate::paths::RunxPaths::resolve(
-                        &env,
-                        root.path(),
-                    ))
-                    .unwrap(),
-                ),
-                &connector,
-                "fixture/forum",
-                &credential,
-                secret,
-                &[],
-                runx_contracts::JsonObject::new(),
-                &crate::services::WorkspaceEnv::new(env.clone(), root.path().to_path_buf())
-                    .unwrap(),
-            )
-            .unwrap();
-            let material_ref = match instance.authority {
-                InstanceAuthority::Credential { material_ref, .. } => Some(material_ref),
-                _ => None,
-            };
-            (env, material_ref.expect("a credential binding"))
-        };
-        let (first, first_ref) = bind("a", "first-account-key");
-        let binding = ProfileBinding {
-            profile: "fixture/forum",
-            credential: &credential,
-            material_ref: first_ref.as_str(),
-        };
-        let secret = deliver(&first, root.path(), &connector, &binding).unwrap();
-        assert_eq!(secret.field("api_key").unwrap(), "first-account-key");
-
-        let (_, second_ref) = bind("b", "second-account-key");
-        let refused = deliver(&first, root.path(), &connector, &binding).unwrap_err();
-        assert!(refused.contains("was replaced"), "{refused}");
-        assert_ne!(first_ref, second_ref);
     }
 }

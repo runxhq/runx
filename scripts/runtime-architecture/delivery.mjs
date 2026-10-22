@@ -20,7 +20,7 @@ export function checkCliCommandOwnership(findings) {
 
   const catalogPath = path.join(workspaceRoot, "crates/runx-cli/src/command_spec/catalog.rs");
   const catalog = existsSync(catalogPath) ? readFileSync(catalogPath, "utf8") : "";
-  if (!/ROOT_COMMAND_SPEC/u.test(catalog) || !/--bearer-stdin/u.test(catalog)) {
+  if (!/ROOT_COMMAND_SPEC/u.test(catalog) || !/--secret name/u.test(catalog)) {
     findings.push(`${relative(catalogPath)} must own root help and the complete native option catalog`);
   }
 

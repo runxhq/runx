@@ -180,7 +180,7 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
     }
     let mut set_key = runx_command();
     let mut child = set_key
-        .args(["config", "set", "agent.api_key", "--from-stdin"])
+        .args(["secret", "set", "anthropic"])
         .env("RUNX_HOME", &home)
         .stdin(std::process::Stdio::piped())
         .spawn()?;
@@ -190,6 +190,14 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
         .ok_or("missing stdin")?
         .write_all(b"fixture-secret")?;
     assert!(child.wait()?.success());
+    assert!(
+        runx_command()
+            .args(["config", "set", "agent.secret", "anthropic"])
+            .env("RUNX_HOME", &home)
+            .output()?
+            .status
+            .success()
+    );
 
     let config_env =
         BTreeMap::from([("RUNX_HOME".to_owned(), home.to_string_lossy().into_owned())]);

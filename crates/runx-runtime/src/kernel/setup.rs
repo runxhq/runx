@@ -1,8 +1,8 @@
 //! Confirming instances: the setup half of [`super::instances`].
 //!
-//! Setup reads an authority source once (a signed-in tool's token, a stored
-//! credential profile, a credential's environment variable, a runx Connect
-//! grant), pins what it found in an
+//! Setup reads an authority source once (a signed-in tool's token, a secret
+//! the operator keeps in runx, a credential's environment variable, a runx
+//! Connect grant), pins what it found in an
 //! instance and selects that instance as its connector's default. Admission
 //! reads the same source again on every call and refuses when it no longer
 //! matches the pin.
@@ -12,17 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::Instant;
 
-use runx_contracts::connector::credential_declaration_digest;
-use runx_contracts::connector::{
-    CredentialName, LocalAuth, Placement, SecretReference, SessionKind,
-};
+use runx_contracts::connector::{CredentialName, LocalAuth, Placement, SecretName, SessionKind};
+use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_prefixed};
 
 use super::connectors::LoadedConnector;
-use super::instances::{Instances, check_supported, pinned};
+use super::instances::{Instances, check_supported, granted_scopes, pinned, served_scopes};
 use super::operation::{ToolRunner, credentials, hosted::HostedClient};
-use crate::config::{load_local_credential_secret, load_runx_config_file};
-use crate::credential_profiles::set_local_credential_profile;
 use crate::services::WorkspaceEnv;
 
 /// Confirm the connector's local session as signed in now, and select it.
@@ -197,42 +193,60 @@ pub(crate) fn confirm_session_over(
     confirm(instances, connector, instance)
 }
 
-/// Store `secret` in a local profile as the connector credential it is,
-/// then confirm and select the instance that holds it. `scopes` narrows the
-/// grant; empty means every scope the credential can serve.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn set_credential(
+/// Bind the connector's `credential` to the secret named `secret`, and
+/// select that instance. The secret is read now to check it against the
+/// declaration; the instance records its name and the proof this runx home
+/// makes for the binding, never the value, and every call reads it again.
+/// `scopes` narrows the grant; empty means every scope the credential can
+/// serve.
+pub(crate) fn bind_secret(
     instances: &Instances,
     connector: &LoadedConnector,
-    profile: &str,
     credential: &CredentialName,
-    secret: &str,
+    secret: &SecretName,
     scopes: &[String],
     parameters: JsonObject,
     workspace: &WorkspaceEnv,
 ) -> Result<ConnectorInstance, String> {
     let parameters = instance_parameters(connector, parameters)?;
     let declaration = credential_declaration(connector, credential)?;
-    credentials::fields(declaration, secret).map_err(|reason| format!("the secret {reason}"))?;
-    let scopes = credential_scopes(connector, credential, scopes)?;
-    let material_ref = set_local_credential_profile(
-        workspace,
-        profile,
-        &connector.name,
-        &credential_declaration_digest(declaration).map_err(|error| error.to_string())?,
-        credential.as_str(),
+    let value = crate::secrets::read(
+        workspace.env(),
+        workspace.cwd(),
         secret,
+        crate::secrets::Purpose::Bind,
     )
     .map_err(|error| error.to_string())?;
-    confirm_credential_instance(
-        instances,
+    credentials::secret_fields(declaration, secret, value.expose())?;
+    let scopes = credential_scopes(connector, credential, scopes)?;
+    let mut instance = pinned(
         connector,
-        profile,
-        credential,
-        scopes,
-        material_ref,
-        parameters,
-    )
+        super::instances::instance_id(&[
+            "secret",
+            connector.name.as_str(),
+            credential.as_str(),
+            secret.as_str(),
+        ])?,
+        Placement::Local,
+        format!(
+            "runx:principal:local-secret:{}:{secret}",
+            connector.manifest.id
+        ),
+        None,
+        InstanceAuthority::Secret {
+            credential: credential.clone(),
+            secret: secret.clone(),
+            scopes: scopes.into_iter().map(Into::into).collect(),
+            proof: NonEmptyString::new(credentials::UNPROVEN).ok_or("an empty proof")?,
+        },
+    );
+    instance.parameters = parameters;
+    // The proof covers the binding as it is confirmed, parameters included.
+    let proof = credentials::binding_proof(workspace.env(), workspace.cwd(), &instance)?;
+    if let InstanceAuthority::Secret { proof: held, .. } = &mut instance.authority {
+        *held = NonEmptyString::new(proof).ok_or("an empty proof")?;
+    }
+    confirm(instances, connector, instance)
 }
 
 /// Bind the connector's `credential` to the variable its declaration
@@ -260,137 +274,10 @@ pub(crate) fn bind_environment(
         })?;
     credentials::from_environment(workspace.env(), connector, credential, &variable)?;
     let scopes = credential_scopes(connector, credential, scopes)?;
-    let mut instance = pinned(
-        connector,
-        super::instances::instance_id(&[
-            "environment",
-            connector.name.as_str(),
-            credential.as_str(),
-            variable.as_str(),
-        ])?,
-        Placement::Local,
-        format!(
-            "runx:principal:local-environment:{}:{variable}",
-            connector.manifest.id
-        ),
-        None,
-        InstanceAuthority::Environment {
-            credential: credential.clone(),
-            variable,
-            scopes: scopes.into_iter().map(Into::into).collect(),
-        },
-    );
+    let mut instance =
+        super::instances::environment_instance(connector, credential, variable, scopes)?;
     instance.parameters = parameters;
     confirm(instances, connector, instance)
-}
-
-/// Bind the connector's `credential` to a secret a secrets manager holds. The
-/// secret is read now, through the manager's CLI and the operator's sign-in,
-/// to prove access and to check it against the declaration; the instance
-/// records the reference and what the read reached, never the value. Every
-/// call reads it again, at what binding pinned.
-pub(crate) fn bind_reference(
-    instances: &Instances,
-    connector: &LoadedConnector,
-    credential: &CredentialName,
-    reference: &SecretReference,
-    scopes: &[String],
-    parameters: JsonObject,
-    workspace: &WorkspaceEnv,
-) -> Result<ConnectorInstance, String> {
-    let parameters = instance_parameters(connector, parameters)?;
-    let declaration = credential_declaration(connector, credential)?;
-    let read = crate::secret_refs::read(
-        workspace.env(),
-        workspace.cwd(),
-        reference,
-        None,
-        crate::secret_refs::Purpose::Bind,
-    )?;
-    credentials::reference_fields(declaration, reference, &read.value)?;
-    let scopes = credential_scopes(connector, credential, scopes)?;
-    let mut instance = pinned(
-        connector,
-        super::instances::instance_id(&[
-            "reference",
-            connector.name.as_str(),
-            credential.as_str(),
-            reference.as_str(),
-        ])?,
-        Placement::Local,
-        format!(
-            "runx:principal:local-reference:{}:{reference}",
-            connector.manifest.id
-        ),
-        None,
-        InstanceAuthority::Reference {
-            credential: credential.clone(),
-            reference: reference.clone(),
-            pinned: read
-                .pinned
-                .and_then(runx_contracts::schema::NonEmptyString::new),
-            proof: runx_contracts::schema::NonEmptyString::new(credentials::UNPROVEN_REFERENCE)
-                .ok_or("an empty proof")?,
-            scopes: scopes.into_iter().map(Into::into).collect(),
-        },
-    );
-    instance.parameters = parameters;
-    // The proof covers the binding as it is confirmed, parameters included.
-    let proof = credentials::reference_proof(workspace.env(), workspace.cwd(), &instance)?;
-    if let InstanceAuthority::Reference { proof: held, .. } = &mut instance.authority {
-        *held = runx_contracts::schema::NonEmptyString::new(proof).ok_or("an empty proof")?;
-    }
-    confirm(instances, connector, instance)
-}
-
-/// Bind an already stored local credential profile to this connector. The
-/// material is checked before an instance is selected, and its reference is
-/// pinned so replacing the profile invalidates later calls.
-pub(crate) fn confirm_credential_profile(
-    instances: &Instances,
-    connector: &LoadedConnector,
-    profile: &str,
-    scopes: &[String],
-    parameters: JsonObject,
-    workspace: &WorkspaceEnv,
-) -> Result<ConnectorInstance, String> {
-    let parameters = instance_parameters(connector, parameters)?;
-    let config = load_runx_config_file(&workspace.paths().config_file())
-        .map_err(|error| error.to_string())?;
-    let stored = config
-        .credentials
-        .and_then(|credentials| credentials.profiles.get(profile).cloned())
-        .ok_or_else(|| format!("credential profile {profile} is not configured"))?;
-    if stored.connector != connector.name {
-        return Err(format!(
-            "credential profile {profile} belongs to {}, not {}",
-            stored.connector, connector.name
-        ));
-    }
-    let credential = CredentialName::new(stored.credential.clone())
-        .ok_or_else(|| format!("credential profile {profile} has an invalid credential name"))?;
-    let declaration = credential_declaration(connector, &credential)?;
-    if stored.credential_declaration_digest
-        != credential_declaration_digest(declaration).map_err(|error| error.to_string())?
-    {
-        return Err(format!(
-            "credential profile {profile} was stored for a different credential declaration; set it again"
-        ));
-    }
-    let scopes = credential_scopes(connector, &credential, scopes)?;
-    let secret = load_local_credential_secret(workspace.paths(), &stored.secret_ref)
-        .map_err(|error| format!("credential profile {profile} cannot be read: {error}"))?;
-    credentials::fields(declaration, &secret)
-        .map_err(|reason| format!("credential profile {profile} {reason}"))?;
-    confirm_credential_instance(
-        instances,
-        connector,
-        profile,
-        &credential,
-        scopes,
-        stored.secret_ref,
-        parameters,
-    )
 }
 
 /// Confirm an instance that holds no authority, with the parameters it
@@ -504,25 +391,6 @@ fn credential_scopes(
     served_scopes(connector, credential, scopes)
 }
 
-/// What the operator grants an instance holding `credential`: the requested
-/// scopes, each served by an operation that takes the credential, or every
-/// such scope when none is requested.
-fn served_scopes(
-    connector: &LoadedConnector,
-    credential: &CredentialName,
-    scopes: &[String],
-) -> Result<BTreeSet<String>, String> {
-    granted_scopes(
-        connector,
-        |operation| operation.credentials.contains(credential),
-        scopes,
-        &format!(
-            "credential {credential} of connector {}",
-            connector.manifest.id
-        ),
-    )
-}
-
 /// What a session that exports no token serves: the operations its
 /// connector's installed tools run.
 fn tool_scopes(
@@ -541,66 +409,6 @@ fn tool_scopes(
         scopes,
         session,
     )
-}
-
-/// The scopes `scopes` grants of the operations `serves` admits: each one
-/// such an operation declares, or all of theirs when none is named.
-fn granted_scopes(
-    connector: &LoadedConnector,
-    serves: impl Fn(&runx_contracts::connector::ConnectorOperation) -> bool,
-    scopes: &[String],
-    what: &str,
-) -> Result<BTreeSet<String>, String> {
-    let servable = connector
-        .manifest
-        .operations
-        .values()
-        .filter(|operation| serves(operation))
-        .flat_map(|operation| {
-            operation
-                .scopes
-                .iter()
-                .map(|scope| scope.as_str().to_owned())
-        })
-        .collect::<BTreeSet<_>>();
-    if let Some(scope) = scopes
-        .iter()
-        .find(|scope| !servable.contains(scope.as_str()))
-    {
-        return Err(format!("{what} serves no operation with scope {scope}"));
-    }
-    Ok(if scopes.is_empty() {
-        servable
-    } else {
-        scopes.iter().cloned().collect()
-    })
-}
-
-fn confirm_credential_instance(
-    instances: &Instances,
-    connector: &LoadedConnector,
-    profile: &str,
-    credential: &CredentialName,
-    scopes: BTreeSet<String>,
-    material_ref: String,
-    parameters: JsonObject,
-) -> Result<ConnectorInstance, String> {
-    let manifest = &connector.manifest;
-    let mut instance = pinned(
-        connector,
-        super::instances::instance_id(&["credential", connector.name.as_str(), profile])?,
-        Placement::Local,
-        format!("runx:principal:local-credential:{}:{profile}", manifest.id),
-        None,
-        InstanceAuthority::Credential {
-            profile: profile.to_owned().into(),
-            credential: credential.clone(),
-            scopes: scopes.into_iter().map(Into::into).collect(),
-            material_ref: material_ref.into(),
-        },
-    );
-    instance.parameters = parameters;
-    confirm(instances, connector, instance)
 }
 
 /// Confirm an active runx Connect grant for the connector, and select it,
@@ -687,25 +495,37 @@ pub struct ServedTool {
 }
 
 /// The tools the MCP server at `url` serves, read through the guarded
-/// transport, for an author to pin in a connector manifest.
+/// transport, for an author to pin in a connector manifest; with the secret
+/// `bearer` names presented as its bearer token, read once now.
 #[cfg(feature = "mcp")]
 pub fn served_mcp_tools(
     url: &str,
-    bearer: Option<&str>,
+    bearer: Option<&SecretName>,
     env: &BTreeMap<String, String>,
+    cwd: &Path,
 ) -> Result<Vec<ServedTool>, String> {
+    let bearer = bearer
+        .map(|name| crate::secrets::read(env, cwd, name, crate::secrets::Purpose::Bind))
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let transport = crate::http::ReqwestHttpTransport::for_provider_operation(
         crate::hosted_private_network_allowed(false, env),
     )
     .map_err(|error| error.to_string())?;
-    Ok(crate::drivers::mcp::served_tools(&transport, url, bearer)?
-        .into_iter()
-        .map(|(name, tool_digest, definition)| ServedTool {
-            name,
-            tool_digest,
-            definition,
-        })
-        .collect())
+    Ok(crate::drivers::mcp::served_tools(
+        &transport,
+        url,
+        bearer
+            .as_ref()
+            .map(crate::credentials::SecretString::expose),
+    )?
+    .into_iter()
+    .map(|(name, tool_digest, definition)| ServedTool {
+        name,
+        tool_digest,
+        definition,
+    })
+    .collect())
 }
 
 /// The tools the stdio MCP server `command args` serves, started in the

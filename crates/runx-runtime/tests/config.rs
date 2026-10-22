@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+use runx_contracts::connector::{SecretName, SecretReference};
 use runx_runtime::{
     ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect,
-    RunxAgentConfig, RunxConfigFile, RunxPaths, SecretString, load_local_agent_api_key,
+    RunxAgentConfig, RunxConfigFile, RunxPaths, RunxSecretRecord, SecretString,
     load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, update_runx_config_value, write_runx_config_file,
+    mask_runx_config_file, secrets, update_runx_config_value, write_runx_config_file,
 };
 use tempfile::tempdir;
 
@@ -46,42 +47,48 @@ fn config_home_path_uses_the_admitted_environment_snapshot()
 }
 
 #[test]
-fn config_round_trips_an_encrypted_agent_key() -> Result<(), Box<dyn std::error::Error>> {
+fn a_secret_is_sealed_in_the_home_and_the_agent_names_it() -> Result<(), Box<dyn std::error::Error>>
+{
     let secret = "sk-test-secret";
-    let api_key_ref = |config: &RunxConfigFile| {
-        config
-            .agent
-            .as_ref()
-            .and_then(|agent| agent.api_key_ref.clone())
-    };
     let temp = tempdir()?;
-    let config_dir = temp.path();
-    let paths = home_at(config_dir);
-    let config = update_runx_config_value(
-        RunxConfigFile::default(),
-        ConfigKey::AgentApiKey,
-        secret,
-        &paths,
-    )?;
-    let stored_ref = api_key_ref(&config).ok_or("missing secret ref")?;
+    let home = temp.path();
+    let config = agent_key(home, RunxConfigFile::default(), secret)?;
 
-    assert!(stored_ref.starts_with("local_agent_key_"));
-    assert_eq!(load_local_agent_api_key(&paths, &stored_ref)?, secret);
+    let Some(RunxSecretRecord::Stored { material_ref }) = config.secrets.get(&name("agent")?)
+    else {
+        return Err("the secret is sealed in the home".into());
+    };
+    assert!(material_ref.starts_with("local_secret_"));
     assert_eq!(
-        lookup_runx_config_value(&config, ConfigKey::AgentApiKey),
-        Some("[encrypted]".to_owned())
+        secrets::reveal(&home_env(home), home, &name("agent")?)?,
+        secret
     );
     assert_eq!(
-        api_key_ref(&mask_runx_config_file(&config)),
-        Some("[encrypted]".to_owned())
+        lookup_runx_config_value(&config, ConfigKey::AgentSecret),
+        Some("agent".to_owned())
     );
-    let config_json = serde_json::to_string(&config)?;
-    assert!(!config_json.contains(secret));
-    let key_file = config_dir.join("keys").join(format!("{stored_ref}.json"));
-    assert!(config_dir.join("keys/local-config-secret").exists());
+    assert_eq!(
+        mask_runx_config_file(&config).secrets.get(&name("agent")?),
+        Some(&RunxSecretRecord::Stored {
+            material_ref: "[encrypted]".to_owned()
+        })
+    );
+    let written = fs::read_to_string(home.join("config.json"))?;
+    assert!(!written.contains(secret));
+    let key_file = home.join("keys").join(format!("{material_ref}.json"));
     assert!(key_file.exists());
-    assert_private_file(&config_dir.join("keys/local-config-secret"))?;
+    assert_private_file(&home.join("keys/local-config-secret"))?;
     assert_private_file(&key_file)?;
+
+    // A secret's value is never empty, and the agent names only a set one.
+    assert!(matches!(
+        secrets::set_value(&home_at(home), &name("blank")?, "   "),
+        Err(secrets::SecretError::Empty)
+    ));
+    assert!(matches!(
+        update_runx_config_value(config, ConfigKey::AgentSecret, "unset"),
+        Err(ConfigError::UnknownSecret { .. })
+    ));
     Ok(())
 }
 
@@ -93,11 +100,9 @@ fn config_loads_and_writes_supported_keys_only() -> Result<(), Box<dyn std::erro
         agent: Some(RunxAgentConfig {
             provider: Some("openai".to_owned()),
             model: Some("gpt-test".to_owned()),
-            api_key_ref: None,
             ..RunxAgentConfig::default()
         }),
-        public: None,
-        credentials: None,
+        ..RunxConfigFile::default()
     };
     write_runx_config_file(&config_path, &config)?;
     assert_private_file(&config_path)?;
@@ -147,8 +152,7 @@ fn config_loads_missing_and_rejects_malformed_or_non_object_json()
 }
 
 #[test]
-fn config_reports_corrupt_local_agent_key_with_stable_prefix()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_corrupt_sealed_secret_is_reported_with_its_file() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let keys_dir = temp.path().join("keys");
     fs::create_dir_all(&keys_dir)?;
@@ -160,7 +164,7 @@ fn config_reports_corrupt_local_agent_key_with_stable_prefix()
     }
     for (name, contents) in [
         ("local-config-secret", "test-secret"),
-        ("local_agent_key_corrupt.json", "{not-json"),
+        ("local_secret_corrupt.json", "{not-json"),
     ] {
         let path = keys_dir.join(name);
         fs::write(&path, contents)?;
@@ -170,17 +174,25 @@ fn config_reports_corrupt_local_agent_key_with_stable_prefix()
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
         }
     }
+    write_runx_config_file(
+        &temp.path().join("config.json"),
+        &RunxConfigFile {
+            secrets: BTreeMap::from([(
+                name("agent")?,
+                RunxSecretRecord::Stored {
+                    material_ref: "local_secret_corrupt".to_owned(),
+                },
+            )]),
+            ..RunxConfigFile::default()
+        },
+    )?;
 
-    let error = match load_local_agent_api_key(&home_at(temp.path()), "local_agent_key_corrupt") {
-        Ok(_) => return Err("corrupt key should fail".into()),
-        Err(error) => error,
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("runx local agent key corrupted or unreadable at")
-    );
-    assert!(error.to_string().contains("local_agent_key_corrupt.json"));
+    let error = secrets::reveal(&home_env(temp.path()), temp.path(), &name("agent")?)
+        .err()
+        .ok_or("a corrupt secret should fail")?
+        .to_string();
+    assert!(error.contains("is corrupted or unreadable"), "{error}");
+    assert!(error.contains("local_secret_corrupt.json"), "{error}");
     Ok(())
 }
 
@@ -206,23 +218,19 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         })
     );
 
-    let local_config = update_runx_config_value(
+    agent_key(
+        temp.path(),
         RunxConfigFile {
             agent: Some(RunxAgentConfig {
                 provider: Some("anthropic".to_owned()),
                 model: Some("claude-test".to_owned()),
-                api_key_ref: None,
                 ..RunxAgentConfig::default()
             }),
-            public: None,
-            credentials: None,
+            ..RunxConfigFile::default()
         },
-        ConfigKey::AgentApiKey,
         "local-secret",
-        &home_at(temp.path()),
     )?;
-    write_runx_config_file(&temp.path().join("config.json"), &local_config)?;
-    let local_env = env_map([("RUNX_HOME", temp.path().to_str().unwrap_or_default())]);
+    let local_env = home_env(temp.path());
     assert_eq!(
         load_managed_agent_config(&local_env, temp.path())?,
         Some(ManagedAgentConfig {
@@ -235,7 +243,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         })
     );
 
-    // The provider's variable and the stored key are two places for one
+    // The provider's variable and the agent's secret are two places for one
     // key: when they differ runx keeps neither.
     let differing = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
@@ -246,7 +254,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         .ok_or("two differing keys were accepted")?;
     assert_eq!(
         refused.to_string(),
-        "the model key is set by ANTHROPIC_API_KEY and the stored key with different values; keep one"
+        "the model key is set by ANTHROPIC_API_KEY and the secret agent with different values; keep one"
     );
     let agreeing = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
@@ -257,41 +265,37 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         Some(SecretString::new("local-secret"))
     );
 
-    // A blank stored key is no key: the environment's is the one source.
-    let blank_home = tempdir()?;
-    let blank_config = update_runx_config_value(
-        RunxConfigFile::default(),
-        ConfigKey::AgentApiKey,
-        "   ",
-        &home_at(blank_home.path()),
-    )?;
-    write_runx_config_file(&blank_home.path().join("config.json"), &blank_config)?;
-    let over_blank = env_map([
-        ("RUNX_HOME", blank_home.path().to_str().unwrap_or_default()),
+    // A secret that cannot be read cannot be shown to agree: refused, even
+    // with a key in the environment.
+    let unreadable_home = tempdir()?;
+    let mut unreadable = RunxConfigFile {
+        secrets: BTreeMap::from([(
+            name("agent")?,
+            RunxSecretRecord::Stored {
+                material_ref: "local_secret_missing".to_owned(),
+            },
+        )]),
+        ..RunxConfigFile::default()
+    };
+    unreadable.agent = Some(RunxAgentConfig {
+        secret: Some(name("agent")?),
+        ..RunxAgentConfig::default()
+    });
+    write_runx_config_file(&unreadable_home.path().join("config.json"), &unreadable)?;
+    let over_unreadable = env_map([
+        (
+            "RUNX_HOME",
+            unreadable_home.path().to_str().unwrap_or_default(),
+        ),
         ("RUNX_AGENT_PROVIDER", "anthropic"),
         ("RUNX_AGENT_MODEL", "claude-env"),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
-    assert_eq!(
-        load_managed_agent_config(&over_blank, blank_home.path())?
-            .and_then(|config| config.api_key),
-        Some(SecretString::new("anthropic-env-secret"))
-    );
-
-    // A stored key that cannot be read cannot be shown to agree: refused,
-    // even with a key in the environment.
-    let mut unreadable = blank_config.clone();
-    if let Some(agent) = unreadable.agent.as_mut() {
-        agent.api_key_ref = Some("local_agent_key_missing".to_owned());
-    }
-    write_runx_config_file(&blank_home.path().join("config.json"), &unreadable)?;
-    assert!(
-        load_managed_agent_config(&over_blank, blank_home.path())
-            .err()
-            .ok_or("an unreadable stored key was ignored")?
-            .to_string()
-            .contains("runx local agent key corrupted or unreadable at")
-    );
+    let refused = load_managed_agent_config(&over_unreadable, unreadable_home.path())
+        .err()
+        .ok_or("an unreadable secret was ignored")?
+        .to_string();
+    assert!(refused.contains("is corrupted or unreadable"), "{refused}");
 
     let keyless_home = tempdir()?;
     let provider_env = env_map([
@@ -401,22 +405,18 @@ fn providers_are_profiles_and_any_other_names_its_dialect_and_endpoint()
 #[test]
 fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let local_config = update_runx_config_value(
+    agent_key(
+        temp.path(),
         RunxConfigFile {
             agent: Some(RunxAgentConfig {
                 provider: Some("anthropic".to_owned()),
                 model: Some("claude-file".to_owned()),
-                api_key_ref: None,
                 ..RunxAgentConfig::default()
             }),
-            public: None,
-            credentials: None,
+            ..RunxConfigFile::default()
         },
-        ConfigKey::AgentApiKey,
         "local-secret",
-        &home_at(temp.path()),
     )?;
-    write_runx_config_file(&temp.path().join("config.json"), &local_config)?;
     let runx_home = temp.path().to_str().unwrap_or_default();
 
     let blank_provider = env_map([
@@ -452,14 +452,14 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         ("RUNX_AGENT_API_KEY", ""),
         ("ANTHROPIC_API_KEY", "provider-secret"),
     ]);
-    // A blank variable is no key; the provider's own variable and the stored
-    // key are then two that differ.
+    // A blank variable is no key; the provider's own variable and the
+    // agent's secret are then two that differ.
     assert_eq!(
         load_managed_agent_config(&blank_generic_key, temp.path())
             .err()
             .ok_or("two differing keys were accepted")?
             .to_string(),
-        "the model key is set by ANTHROPIC_API_KEY and the stored key with different values; keep one"
+        "the model key is set by ANTHROPIC_API_KEY and the secret agent with different values; keep one"
     );
     Ok(())
 }
@@ -482,7 +482,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         ..RunxConfigFile::default()
     };
     write_runx_config_file(&config_path, &config)?;
-    let env = env_map([("RUNX_HOME", temp.path().to_str().unwrap_or_default())]);
+    let env = home_env(temp.path());
     assert_eq!(
         load_managed_agent_config(&env, temp.path())?,
         Some(ManagedAgentConfig {
@@ -495,13 +495,8 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         })
     );
 
-    let with_stored_key = update_runx_config_value(
-        config.clone(),
-        ConfigKey::AgentApiKey,
-        "stored-api-key",
-        &home_at(temp.path()),
-    )?;
-    write_runx_config_file(&config_path, &with_stored_key)?;
+    // The keyless mode reads no key, whatever secret the agent names.
+    agent_key(temp.path(), config.clone(), "stored-api-key")?;
     let local_override = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
         ("RUNX_AGENT_AUTH_MODE", "local_none"),
@@ -548,23 +543,13 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         })
     ));
     assert!(matches!(
-        update_runx_config_value(
-            invalid.clone(),
-            ConfigKey::AgentAuthMode,
-            "typo",
-            &home_at(temp.path())
-        ),
+        update_runx_config_value(invalid.clone(), ConfigKey::AgentAuthMode, "typo"),
         Err(ConfigError::InvalidAgentSetting {
             key: "agent.auth_mode",
             ..
         })
     ));
-    let repaired = update_runx_config_value(
-        invalid,
-        ConfigKey::AgentAuthMode,
-        "local_none",
-        &home_at(temp.path()),
-    )?;
+    let repaired = update_runx_config_value(invalid, ConfigKey::AgentAuthMode, "local_none")?;
     write_runx_config_file(&config_path, &repaired)?;
     assert!(load_managed_agent_config(&env, temp.path())?.is_some());
 
@@ -594,47 +579,24 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     Ok(())
 }
 
-fn home_at(home: &Path) -> RunxPaths {
-    RunxPaths::resolve(
-        &env_map([("RUNX_HOME", home.to_str().unwrap_or_default())]),
-        home,
-    )
-}
-
-fn env_map<const N: usize>(entries: [(&str, &str); N]) -> BTreeMap<String, String> {
-    entries
-        .into_iter()
-        .map(|(key, value)| (key.to_owned(), value.to_owned()))
-        .collect()
-}
-
-#[cfg(unix)]
-fn assert_private_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let mode = fs::metadata(path)?.permissions().mode() & 0o777;
-    assert_eq!(mode, 0o600, "{} mode was {mode:o}", path.display());
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn assert_private_file(_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
-}
-
 #[test]
-fn a_model_key_reference_is_one_source_among_the_others() -> Result<(), Box<dyn std::error::Error>>
-{
+fn a_model_key_held_by_a_manager_is_one_source_among_the_others()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let held = temp.path().join("anthropic.key");
     fs::write(&held, "key-from-the-manager\n")?;
     let reference = format!("file://{}", held.display());
     let home = temp.path().to_str().unwrap_or_default();
-    let config = runx_runtime::set_runx_agent_api_key_reference(
-        RunxConfigFile::default(),
-        &reference,
-        &env_map([("RUNX_HOME", home)]),
+    secrets::set_reference(
+        &home_env(temp.path()),
         temp.path(),
+        &name("agent")?,
+        &SecretReference::new(reference.clone()).ok_or("a reference")?,
+    )?;
+    let config = update_runx_config_value(
+        load_runx_config_file(&temp.path().join("config.json"))?,
+        ConfigKey::AgentSecret,
+        "agent",
     )?;
     write_runx_config_file(&temp.path().join("config.json"), &config)?;
     let with = |key: &str| {
@@ -660,9 +622,7 @@ fn a_model_key_reference_is_one_source_among_the_others() -> Result<(), Box<dyn 
             .err()
             .ok_or("two differing keys were accepted")?
             .to_string(),
-        format!(
-            "the model key is set by ANTHROPIC_API_KEY and {reference} with different values; keep one"
-        )
+        "the model key is set by ANTHROPIC_API_KEY and the secret agent with different values; keep one"
     );
     fs::remove_file(&held)?;
     assert!(
@@ -696,5 +656,57 @@ fn a_model_key_variable_holding_a_reference_is_refused_not_sent()
             .contains("ANTHROPIC_API_KEY holds a reference to a secret, not the key"),
         "{refused}"
     );
+    Ok(())
+}
+
+/// Write `config` to the home at `home`, keep `value` as the secret `agent`
+/// there, and name it as the managed agent's key.
+fn agent_key(
+    home: &Path,
+    config: RunxConfigFile,
+    value: &str,
+) -> Result<RunxConfigFile, Box<dyn std::error::Error>> {
+    let paths = home_at(home);
+    write_runx_config_file(&paths.config_file(), &config)?;
+    secrets::set_value(&paths, &name("agent")?, value)?;
+    let config = update_runx_config_value(
+        load_runx_config_file(&paths.config_file())?,
+        ConfigKey::AgentSecret,
+        "agent",
+    )?;
+    write_runx_config_file(&paths.config_file(), &config)?;
+    Ok(config)
+}
+
+fn name(value: &str) -> Result<SecretName, Box<dyn std::error::Error>> {
+    Ok(SecretName::new(value).ok_or("a secret name")?)
+}
+
+fn home_env(home: &Path) -> BTreeMap<String, String> {
+    env_map([("RUNX_HOME", home.to_str().unwrap_or_default())])
+}
+
+fn home_at(home: &Path) -> RunxPaths {
+    RunxPaths::resolve(&home_env(home), home)
+}
+
+fn env_map<const N: usize>(entries: [(&str, &str); N]) -> BTreeMap<String, String> {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect()
+}
+
+#[cfg(unix)]
+fn assert_private_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = fs::metadata(path)?.permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "{} mode was {mode:o}", path.display());
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn assert_private_file(_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }

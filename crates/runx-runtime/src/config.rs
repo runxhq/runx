@@ -1,22 +1,18 @@
-// Module rationale: local config, encrypted local key
-// storage, managed-agent overlay, and profile resolution are one unit.
+// Module rationale: the runx home's config file is one unit: its format, its
+// one-time upgrades and the settings it holds. Secret values live in
+// `secrets`, which names them in this file's `secrets` section.
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use aes_gcm::Aes256Gcm;
-use aes_gcm::aead::{Aead, Generate, KeyInit, Nonce};
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use runx_contracts::JsonValue;
+use runx_contracts::connector::{SecretName, SecretReference};
 use runx_contracts::schema::NonEmptyString;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use serde_json::Value;
 use thiserror::Error;
 
 use crate::credentials::SecretString;
-use crate::paths::RunxPaths;
 use crate::private_file::{self, PrivateFileFault};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,26 +22,24 @@ pub struct RunxConfigFile {
     pub agent: Option<RunxAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public: Option<RunxPublicConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub credentials: Option<RunxCredentialsConfig>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RunxCredentialsConfig {
+    /// The secrets the operator keeps in runx, by name (`runx secret`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub profiles: BTreeMap<String, RunxCredentialProfile>,
+    pub secrets: BTreeMap<SecretName, RunxSecretRecord>,
 }
 
-/// A stored secret: which connector credential it holds, and where the
-/// encrypted material is.
+/// Where a secret's one value is.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RunxCredentialProfile {
-    pub connector: runx_contracts::connector::ConnectorName,
-    pub credential_declaration_digest: runx_contracts::connector::Digest,
-    pub credential: String,
-    pub secret_ref: String,
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum RunxSecretRecord {
+    /// Sealed in this home under `material_ref`.
+    Stored { material_ref: String },
+    /// In a secrets manager at `reference`, read through its CLI on every
+    /// use and only where setting it pinned (an AWS ARN, a Vault address).
+    Reference {
+        reference: SecretReference,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pinned: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,16 +52,9 @@ pub struct RunxAgentConfig {
     pub dialect: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// The secret holding the model key (`runx config set agent.secret`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_key_ref: Option<String>,
-    /// A secret reference the key is read from on every run, set by
-    /// `runx config set api-key --from`; it replaces a stored key.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_key_from: Option<String>,
-    /// What reading `api_key_from` reached when it was set (an AWS ARN, a
-    /// Vault address); later reads go only there.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_key_pinned: Option<String>,
+    pub secret: Option<SecretName>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,7 +86,7 @@ pub enum ConfigKey {
     AgentProvider,
     AgentDialect,
     AgentModel,
-    AgentApiKey,
+    AgentSecret,
     AgentEndpointUrl,
     AgentAuthMode,
 }
@@ -204,7 +191,7 @@ impl ManagedAgentAuthMode {
     }
 }
 
-fn validate_agent_endpoint_syntax(value: &str) -> Result<(), ConfigError> {
+pub(crate) fn validate_agent_endpoint_syntax(value: &str) -> Result<(), ConfigError> {
     let url = url::Url::parse(value).map_err(|_| ConfigError::InvalidAgentSetting {
         key: "agent.endpoint_url",
         message: "expected an absolute HTTP or HTTPS URL",
@@ -239,14 +226,12 @@ pub enum ConfigError {
         key: &'static str,
         message: &'static str,
     },
-    #[error("runx local agent key corrupted or unreadable at {path}{suffix}")]
-    LocalAgentKeyCorrupt { path: PathBuf, suffix: String },
+    #[error("no secret is named {name}; set it with `runx secret set {name}`")]
+    UnknownSecret { name: String },
     #[error("the model key is set {sources} with different values; keep one")]
     ConflictingAgentKeys { sources: String },
     #[error("model key: {message}")]
     AgentKeyRead { message: String },
-    #[error("config crypto failed: {0}")]
-    Crypto(String),
     #[error("{path} {fault}")]
     PrivateFile {
         path: PathBuf,
@@ -268,7 +253,7 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
         "agent.provider" => Ok(ConfigKey::AgentProvider),
         "agent.dialect" => Ok(ConfigKey::AgentDialect),
         "agent.model" => Ok(ConfigKey::AgentModel),
-        "agent.api_key" => Ok(ConfigKey::AgentApiKey),
+        "agent.secret" => Ok(ConfigKey::AgentSecret),
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
         "agent.auth_mode" => Ok(ConfigKey::AgentAuthMode),
         _ => Err(ConfigError::UnsupportedKey {
@@ -277,6 +262,8 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
     }
 }
 
+/// The home's config file, upgraded first when it was written in an earlier
+/// shape.
 pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, ConfigError> {
     let contents = match fs::read_to_string(config_path) {
         Ok(contents) => contents,
@@ -285,20 +272,109 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
         }
         Err(error) => return Err(ConfigError::Io(error)),
     };
-    let value =
-        serde_json::from_str::<JsonValue>(&contents).map_err(|error| ConfigError::InvalidJson {
+    let mut value =
+        serde_json::from_str::<Value>(&contents).map_err(|error| ConfigError::InvalidJson {
             path: config_path.to_path_buf(),
             message: error.to_string(),
         })?;
-    if value.as_object().is_none() {
+    let Some(object) = value.as_object_mut() else {
         return Err(ConfigError::NonObjectJson {
             path: config_path.to_path_buf(),
         });
+    };
+    let upgraded = upgrade_to_secrets(object, config_path)?;
+    let config: RunxConfigFile =
+        serde_json::from_value(value).map_err(|error| ConfigError::InvalidConfig {
+            path: config_path.to_path_buf(),
+            message: error.to_string(),
+        })?;
+    if upgraded {
+        write_runx_config_file(config_path, &config)?;
     }
-    serde_json::from_str(&contents).map_err(|error| ConfigError::InvalidConfig {
-        path: config_path.to_path_buf(),
-        message: error.to_string(),
-    })
+    Ok(config)
+}
+
+/// The home file before `runx secret`: connector credential profiles, each
+/// a sealed file, and the managed agent's own key.
+#[derive(Deserialize)]
+struct LegacyCredentials {
+    #[serde(default)]
+    profiles: BTreeMap<String, LegacyProfile>,
+}
+
+#[derive(Deserialize)]
+struct LegacyProfile {
+    secret_ref: String,
+}
+
+/// Reshape a home file written before `runx secret`. Each credential profile
+/// becomes the secret of its name over the same sealed file. The managed
+/// agent's own key, stored or its reference and pin, becomes the secret
+/// `agent`, or the first `agent-<n>` no profile holds, and `agent.secret`
+/// names it. Nothing is read or sealed again: only records move, so the
+/// upgrade gives the same file however often it runs. `false` when the file
+/// has nothing to reshape.
+fn upgrade_to_secrets(
+    config: &mut serde_json::Map<String, Value>,
+    path: &Path,
+) -> Result<bool, ConfigError> {
+    let invalid = |message: String| ConfigError::InvalidConfig {
+        path: path.to_path_buf(),
+        message,
+    };
+    let profiles = config
+        .remove("credentials")
+        .map(serde_json::from_value::<LegacyCredentials>)
+        .transpose()
+        .map_err(|error| invalid(format!("credentials: {error}")))?;
+    let mut key = BTreeMap::new();
+    if let Some(agent) = config.get_mut("agent").and_then(Value::as_object_mut) {
+        for field in ["api_key_ref", "api_key_from", "api_key_pinned"] {
+            if let Some(value) = agent.remove(field) {
+                key.insert(field, value);
+            }
+        }
+    }
+    if profiles.is_none() && key.is_empty() {
+        return Ok(false);
+    }
+    let text = |field: &str| {
+        key.get(field)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    let agent_key = match (text("api_key_from"), text("api_key_ref")) {
+        (Some(reference), _) => Some(serde_json::json!({
+            "reference": {"reference": reference, "pinned": text("api_key_pinned")}
+        })),
+        (None, Some(material_ref)) => {
+            Some(serde_json::json!({"stored": {"material_ref": material_ref}}))
+        }
+        (None, None) => None,
+    };
+    let secrets = config
+        .entry("secrets")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()))
+        .as_object_mut()
+        .ok_or_else(|| invalid("secrets is not an object".to_owned()))?;
+    for (name, profile) in profiles.map(|held| held.profiles).unwrap_or_default() {
+        secrets.insert(
+            name,
+            serde_json::json!({"stored": {"material_ref": profile.secret_ref}}),
+        );
+    }
+    if let Some(record) = agent_key {
+        let name = std::iter::once("agent".to_owned())
+            .chain((2..=secrets.len() + 1).map(|n| format!("agent-{n}")))
+            .find(|name| !secrets.contains_key(name))
+            .ok_or_else(|| invalid("no free name for the agent's key".to_owned()))?;
+        secrets.insert(name.clone(), record);
+        if let Some(agent) = config.get_mut("agent").and_then(Value::as_object_mut) {
+            agent.insert("secret".to_owned(), Value::String(name));
+        }
+    }
+    Ok(true)
 }
 
 pub fn write_runx_config_file(
@@ -321,7 +397,6 @@ pub fn update_runx_config_value(
     mut config: RunxConfigFile,
     key: ConfigKey,
     value: &str,
-    paths: &RunxPaths,
 ) -> Result<RunxConfigFile, ConfigError> {
     match key {
         ConfigKey::AgentProvider => {
@@ -343,12 +418,18 @@ pub fn update_runx_config_value(
             agent.model = Some(value.to_owned());
             config.agent = Some(agent);
         }
-        ConfigKey::AgentApiKey => {
+        ConfigKey::AgentSecret => {
+            let name = SecretName::new(value).ok_or(ConfigError::InvalidAgentSetting {
+                key: "agent.secret",
+                message: "is not a secret name",
+            })?;
+            if !config.secrets.contains_key(&name) {
+                return Err(ConfigError::UnknownSecret {
+                    name: name.into_string(),
+                });
+            }
             let mut agent = config.agent.unwrap_or_default();
-            agent.api_key_ref = Some(store_local_agent_api_key(paths, value)?);
-            // One place holds the key: a stored key replaces a reference.
-            agent.api_key_from = None;
-            agent.api_key_pinned = None;
+            agent.secret = Some(name);
             config.agent = Some(agent);
         }
         ConfigKey::AgentEndpointUrl => {
@@ -381,62 +462,32 @@ pub fn clear_runx_agent_dialect(mut config: RunxConfigFile) -> RunxConfigFile {
     config
 }
 
+/// The managed agent no longer names a secret; the secret itself stays.
+pub fn clear_runx_agent_secret(mut config: RunxConfigFile) -> RunxConfigFile {
+    if let Some(agent) = config.agent.as_mut() {
+        agent.secret = None;
+    }
+    config
+}
+
 pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Option<String> {
     match key {
         ConfigKey::AgentProvider => config.agent.as_ref()?.provider.clone(),
         ConfigKey::AgentDialect => config.agent.as_ref()?.dialect.clone(),
         ConfigKey::AgentModel => config.agent.as_ref()?.model.clone(),
+        ConfigKey::AgentSecret => config
+            .agent
+            .as_ref()?
+            .secret
+            .as_ref()
+            .map(|name| name.as_str().to_owned()),
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
-        ConfigKey::AgentApiKey => {
-            let agent = config.agent.as_ref()?;
-            match &agent.api_key_from {
-                Some(reference) => Some(format!("from {reference}")),
-                None => agent.api_key_ref.as_ref().map(|_| "[encrypted]".to_owned()),
-            }
-        }
     }
-}
-
-/// Point the model key at a secret a secrets manager holds. It is read once
-/// now, to prove access and to pin what it reached; the config keeps the
-/// reference, never the value, and every run reads it again. A stored key is
-/// dropped: one place holds the key.
-pub fn set_runx_agent_api_key_reference(
-    mut config: RunxConfigFile,
-    reference: &str,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<RunxConfigFile, ConfigError> {
-    let reference = runx_contracts::connector::SecretReference::new(reference).ok_or(
-        ConfigError::InvalidAgentSetting {
-            key: "agent.api_key",
-            message: runx_contracts::connector::SECRET_REFERENCE_EXPECTED,
-        },
-    )?;
-    let read = crate::secret_refs::read(
-        env,
-        cwd,
-        &reference,
-        None,
-        crate::secret_refs::Purpose::Bind,
-    )
-    .map_err(|message| ConfigError::AgentKeyRead { message })?;
-    let mut agent = config.agent.unwrap_or_default();
-    agent.api_key_ref = None;
-    agent.api_key_from = Some(reference.into_string());
-    agent.api_key_pinned = read.pinned;
-    config.agent = Some(agent);
-    Ok(config)
 }
 
 pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
     let mut masked = config.clone();
-    if let Some(agent) = masked.agent.as_mut()
-        && agent.api_key_ref.is_some()
-    {
-        agent.api_key_ref = Some("[encrypted]".to_owned());
-    }
     if let Some(public) = masked.public.as_mut()
         && public.api_token_ref.is_some()
     {
@@ -447,456 +498,16 @@ pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
     {
         public.publish_api_token_ref = Some("[encrypted]".to_owned());
     }
-    if let Some(credentials) = masked.credentials.as_mut() {
-        for profile in credentials.profiles.values_mut() {
-            profile.secret_ref = "[encrypted]".to_owned();
+    for record in masked.secrets.values_mut() {
+        if let RunxSecretRecord::Stored { material_ref } = record {
+            *material_ref = "[encrypted]".to_owned();
         }
     }
     masked
 }
 
-pub fn load_local_agent_api_key(paths: &RunxPaths, key_ref: &str) -> Result<String, ConfigError> {
-    load_local_config_secret_value(paths, key_ref)
-}
-
-pub fn load_local_public_api_token(
-    paths: &RunxPaths,
-    token_ref: &str,
-) -> Result<String, ConfigError> {
-    load_local_config_secret_value(paths, token_ref)
-}
-
-pub fn store_local_credential_secret(
-    paths: &RunxPaths,
-    value: &str,
-) -> Result<String, ConfigError> {
-    store_local_config_secret_value(paths, value, "local_credential")
-}
-
-pub fn load_local_credential_secret(
-    paths: &RunxPaths,
-    secret_ref: &str,
-) -> Result<String, ConfigError> {
-    load_local_config_secret_value(paths, secret_ref)
-}
-
-/// Remove a stored model key's material, once nothing names it.
-pub fn remove_local_agent_api_key(paths: &RunxPaths, key_ref: &str) -> Result<(), ConfigError> {
-    remove_local_credential_secret(paths, key_ref)
-}
-
-pub fn remove_local_credential_secret(
-    paths: &RunxPaths,
-    secret_ref: &str,
-) -> Result<(), ConfigError> {
-    let path = paths.keys().join(format!("{secret_ref}.json"));
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ConfigError::Io(error)),
-    }
-}
-
-fn load_local_config_secret_value(paths: &RunxPaths, key_ref: &str) -> Result<String, ConfigError> {
-    let key_path = paths.keys().join(format!("{key_ref}.json"));
-    let payload = load_key_payload(&key_path)?;
-    if payload.alg != "aes-256-gcm" {
-        return Err(config_key_read_error(&key_path, None));
-    }
-    let secret = load_or_create_local_config_secret(&paths.keys())?;
-    let key = Sha256::digest(secret.as_bytes());
-    let cipher =
-        Aes256Gcm::new_from_slice(&key).map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    let nonce_bytes = decode_key_part(&key_path, &payload.iv)?;
-    let ciphertext = decode_key_part(&key_path, &payload.ciphertext)?;
-    let auth_tag = decode_key_part(&key_path, &payload.auth_tag)?;
-    let mut sealed = ciphertext;
-    sealed.extend(auth_tag);
-    let nonce = config_nonce(&key_path, &nonce_bytes)?;
-    let plaintext = cipher
-        .decrypt(&nonce, sealed.as_ref())
-        .map_err(|error| config_key_read_error(&key_path, Some(error.to_string())))?;
-    String::from_utf8(plaintext)
-        .map_err(|error| config_key_read_error(&key_path, Some(error.to_string())))
-}
-
-pub fn load_managed_agent_config(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<Option<ManagedAgentConfig>, ConfigError> {
-    let paths = RunxPaths::resolve(env, cwd);
-    let config = load_runx_config_file(&paths.config_file())?;
-    let auth_mode = env
-        .get("RUNX_AGENT_AUTH_MODE")
-        .or_else(|| {
-            config
-                .agent
-                .as_ref()
-                .and_then(|agent| agent.auth_mode.as_ref())
-        })
-        .map_or(Ok(ManagedAgentAuthMode::ApiKey), |value| {
-            ManagedAgentAuthMode::parse(value)
-        })?;
-    let endpoint_url = env
-        .get("RUNX_AGENT_ENDPOINT_URL")
-        .or_else(|| {
-            config
-                .agent
-                .as_ref()
-                .and_then(|agent| agent.endpoint_url.as_ref())
-        })
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty());
-    if let Some(endpoint) = endpoint_url.as_deref() {
-        validate_agent_endpoint_syntax(endpoint)?;
-    }
-    let provider = env
-        .get("RUNX_AGENT_PROVIDER")
-        .or_else(|| {
-            config
-                .agent
-                .as_ref()
-                .and_then(|agent| agent.provider.as_ref())
-        })
-        .and_then(|value| normalize_managed_agent_provider(value));
-    let Some(provider) = provider else {
-        if auth_mode == ManagedAgentAuthMode::LocalNone {
-            return Err(ConfigError::InvalidAgentSetting {
-                key: "agent.provider",
-                message: "local_none requires a provider",
-            });
-        }
-        return Ok(None);
-    };
-    let profile = model_provider(provider.as_str());
-    let dialect = match env.get("RUNX_AGENT_DIALECT").or_else(|| {
-        config
-            .agent
-            .as_ref()
-            .and_then(|agent| agent.dialect.as_ref())
-    }) {
-        Some(value) => ModelDialect::parse(value).ok_or(ConfigError::InvalidAgentSetting {
-            key: "agent.dialect",
-            message: "expected chat_completions, anthropic_messages or openai_responses",
-        })?,
-        None => profile
-            .map(|profile| profile.dialect)
-            .ok_or(ConfigError::InvalidAgentSetting {
-                key: "agent.dialect",
-                message: "a provider runx has no profile for needs a dialect and an endpoint",
-            })?,
-    };
-    if profile.is_some_and(|profile| profile.dialect != dialect) {
-        return Err(ConfigError::InvalidAgentSetting {
-            key: "agent.dialect",
-            message: "differs from the dialect the provider speaks",
-        });
-    }
-    let model = env
-        .get("RUNX_AGENT_MODEL")
-        .or_else(|| config.agent.as_ref().and_then(|agent| agent.model.as_ref()))
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty())
-        // runx names no model of its own: which models a provider still
-        // serves is the provider's to say.
-        .ok_or(ConfigError::InvalidAgentSetting {
-            key: "agent.model",
-            message: "a provider needs a model; set RUNX_AGENT_MODEL or run `runx config set model <name>`",
-        })?;
-    // Every place the key can come from, and the one value they hold: two
-    // that differ could be two accounts, and runx never picks one.
-    let mut keys = Vec::new();
-    for name in std::iter::once("RUNX_AGENT_API_KEY").chain(profile.map(|profile| profile.key_env))
-    {
-        if crate::services::env_file_differs(env, name) {
-            return Err(ConfigError::ConflictingAgentKeys {
-                sources: format!("in the environment and in the workspace .env as {name}"),
-            });
-        }
-        if let Some(value) = env
-            .get(name)
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-        {
-            if crate::secret_refs::looks_like_reference(value) {
-                return Err(ConfigError::AgentKeyRead {
-                    message: format!(
-                        "{name} holds a reference to a secret, not the key; set it with `runx config set api-key --from <reference>`, or run under the tool that resolves it"
-                    ),
-                });
-            }
-            keys.push((name.to_owned(), value.to_owned()));
-        }
-    }
-    if auth_mode == ManagedAgentAuthMode::ApiKey
-        && let Some(key_ref) = config
-            .agent
-            .as_ref()
-            .and_then(|agent| agent.api_key_ref.as_ref())
-            .filter(|value| !value.is_empty())
-    {
-        // A blank stored key is no key, as a blank variable is.
-        let stored = load_local_agent_api_key(&paths, key_ref)?.trim().to_owned();
-        if !stored.is_empty() {
-            keys.push(("the stored key".to_owned(), stored));
-        }
-    }
-    if auth_mode == ManagedAgentAuthMode::ApiKey
-        && let Some(agent) = config.agent.as_ref()
-        && let Some(reference) = agent.api_key_from.as_ref()
-    {
-        let reference = runx_contracts::connector::SecretReference::new(reference.as_str()).ok_or(
-            ConfigError::InvalidAgentSetting {
-                key: "agent.api_key_from",
-                message: "is not a secret reference",
-            },
-        )?;
-        let read = crate::secret_refs::read(
-            env,
-            cwd,
-            &reference,
-            agent.api_key_pinned.as_deref(),
-            crate::secret_refs::Purpose::Call,
-        )
-        .map_err(|message| ConfigError::AgentKeyRead { message })?;
-        keys.push((reference.into_string(), read.value.trim().to_owned()));
-    }
-    let api_key = match keys.as_slice() {
-        [] => String::new(),
-        [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => first.clone(),
-        several => {
-            return Err(ConfigError::ConflictingAgentKeys {
-                sources: format!(
-                    "by {}",
-                    several
-                        .iter()
-                        .map(|(source, _)| source.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" and ")
-                ),
-            });
-        }
-    };
-    match auth_mode {
-        ManagedAgentAuthMode::ApiKey => {
-            if endpoint_url
-                .as_deref()
-                .is_some_and(|endpoint| !endpoint.starts_with("https://"))
-            {
-                return Err(ConfigError::InvalidAgentSetting {
-                    key: "agent.endpoint_url",
-                    message: "api_key endpoints require HTTPS",
-                });
-            }
-            if api_key.is_empty() {
-                return Ok(None);
-            }
-        }
-        ManagedAgentAuthMode::LocalNone => {
-            if dialect != ModelDialect::ChatCompletions || !api_key.is_empty() {
-                return Err(ConfigError::InvalidAgentSetting {
-                    key: "agent.auth_mode",
-                    message: "local_none requires the chat_completions dialect and no API key",
-                });
-            }
-            let Some(endpoint) = endpoint_url.as_deref() else {
-                return Err(ConfigError::InvalidAgentSetting {
-                    key: "agent.endpoint_url",
-                    message: "local_none requires an explicit loopback endpoint",
-                });
-            };
-            crate::http::validate_exact_loopback_agent_endpoint(endpoint).map_err(|_| {
-                ConfigError::InvalidAgentSetting {
-                    key: "agent.endpoint_url",
-                    message: "local_none requires a literal loopback chat-completions URL",
-                }
-            })?;
-        }
-    }
-    let endpoint_url = endpoint_url
-        .or_else(|| profile.map(|profile| profile.endpoint.to_owned()))
-        .ok_or(ConfigError::InvalidAgentSetting {
-            key: "agent.endpoint_url",
-            message: "a provider runx has no profile for needs a dialect and an endpoint",
-        })?;
-    Ok(Some(ManagedAgentConfig {
-        provider,
-        dialect,
-        model,
-        api_key: (!api_key.is_empty()).then(|| SecretString::new(api_key)),
-        endpoint_url,
-        auth_mode,
-    }))
-}
-
-#[derive(Deserialize)]
-struct LocalConfigSecretPayload {
-    alg: String,
-    iv: String,
-    ciphertext: String,
-    auth_tag: String,
-}
-
-#[derive(Serialize)]
-struct StoredLocalConfigSecretPayload<'a> {
-    #[serde(rename = "ref")]
-    key_ref: &'a str,
-    alg: &'static str,
-    iv: String,
-    ciphertext: String,
-    auth_tag: String,
-}
-
-type ConfigNonce = Nonce<Aes256Gcm>;
-
-fn config_nonce(key_path: &Path, nonce_bytes: &[u8]) -> Result<ConfigNonce, ConfigError> {
-    ConfigNonce::try_from(nonce_bytes).map_err(|_| {
-        config_key_read_error(
-            key_path,
-            Some(format!(
-                "expected 12-byte aes-256-gcm nonce, found {} bytes",
-                nonce_bytes.len()
-            )),
-        )
-    })
-}
-
-fn random_config_nonce() -> Result<ConfigNonce, ConfigError> {
-    ConfigNonce::try_generate().map_err(|error| ConfigError::Crypto(error.to_string()))
-}
-
-fn random_config_secret_bytes() -> Result<[u8; 32], ConfigError> {
-    <[u8; 32]>::try_generate().map_err(|error| ConfigError::Crypto(error.to_string()))
-}
-
-fn store_local_agent_api_key(paths: &RunxPaths, api_key: &str) -> Result<String, ConfigError> {
-    store_local_config_secret_value(paths, api_key, "local_agent_key")
-}
-
-pub(crate) fn store_local_public_api_token(
-    paths: &RunxPaths,
-    api_token: &str,
-) -> Result<String, ConfigError> {
-    store_local_config_secret_value(paths, api_token, "local_public_api_token")
-}
-
-fn store_local_config_secret_value(
-    paths: &RunxPaths,
-    value: &str,
-    ref_prefix: &str,
-) -> Result<String, ConfigError> {
-    let key_dir = paths.keys();
-    let secret = load_or_create_local_config_secret(&key_dir)?;
-    let key = Sha256::digest(secret.as_bytes());
-    let cipher =
-        Aes256Gcm::new_from_slice(&key).map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    let nonce = random_config_nonce()?;
-    let mut sealed = cipher
-        .encrypt(&nonce, value.as_bytes())
-        .map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    let auth_tag = sealed.split_off(sealed.len().saturating_sub(16));
-    let key_ref = format!(
-        "{ref_prefix}_{}",
-        hex_prefix(
-            &Sha256::digest([nonce.as_slice(), sealed.as_slice()].concat()),
-            24
-        )
-    );
-    let payload = StoredLocalConfigSecretPayload {
-        key_ref: &key_ref,
-        alg: "aes-256-gcm",
-        iv: URL_SAFE_NO_PAD.encode(nonce),
-        ciphertext: URL_SAFE_NO_PAD.encode(sealed),
-        auth_tag: URL_SAFE_NO_PAD.encode(auth_tag),
-    };
-    let contents = serde_json::to_string_pretty(&payload)
-        .map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    let key_path = key_dir.join(format!("{key_ref}.json"));
-    private_file::replace_private(&key_path, format!("{contents}\n").as_bytes())
-        .map_err(private(&key_path))?;
-    Ok(key_ref)
-}
-
-/// An HMAC, keyed by this home's config secret, over `message`: proof that
-/// this home made a binding, which a project store cannot forge.
-pub(crate) fn local_binding_proof(
-    paths: &RunxPaths,
-    message: &[u8],
-) -> Result<String, ConfigError> {
-    use hmac::{Hmac, KeyInit, Mac};
-    let secret = load_or_create_local_config_secret(&paths.keys())?;
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-        .map_err(|error| ConfigError::Crypto(error.to_string()))?;
-    mac.update(message);
-    Ok(format!(
-        "hmac-sha256:{}",
-        mac.finalize()
-            .into_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    ))
-}
-
-/// A sealed config value or its secret is a few hundred bytes.
-const MAX_CONFIG_SECRET_BYTES: u64 = 64 * 1024;
-
-/// The home's config secret, created once in its private key directory. Two
-/// processes creating it at once keep the first one written.
-fn load_or_create_local_config_secret(key_dir: &Path) -> Result<String, ConfigError> {
-    private_file::ensure_private_directory(key_dir).map_err(private(key_dir))?;
-    let key_path = key_dir.join("local-config-secret");
-    if let Some(secret) = read_config_secret(&key_path)? {
-        return Ok(secret);
-    }
-    let secret = URL_SAFE_NO_PAD.encode(random_config_secret_bytes()?);
-    if private_file::create_private_new(&key_path, secret.as_bytes()).map_err(private(&key_path))? {
-        return Ok(secret);
-    }
-    read_config_secret(&key_path)?.ok_or_else(|| config_key_read_error(&key_path, None))
-}
-
-fn read_config_secret(key_path: &Path) -> Result<Option<String>, ConfigError> {
-    private_file::read_private(key_path, MAX_CONFIG_SECRET_BYTES)
-        .map_err(private(key_path))?
-        .map(|bytes| {
-            String::from_utf8(bytes)
-                .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))
-        })
-        .transpose()
-}
-
-fn load_key_payload(key_path: &Path) -> Result<LocalConfigSecretPayload, ConfigError> {
-    let contents = private_file::read_private(key_path, MAX_CONFIG_SECRET_BYTES)
-        .map_err(private(key_path))?
-        .ok_or_else(|| config_key_read_error(key_path, Some("it does not exist".to_owned())))?;
-    serde_json::from_slice(&contents)
-        .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))
-}
-
-fn decode_key_part(key_path: &Path, value: &str) -> Result<Vec<u8>, ConfigError> {
-    URL_SAFE_NO_PAD
-        .decode(value)
-        .map_err(|error| config_key_read_error(key_path, Some(error.to_string())))
-}
-
-fn config_key_read_error(path: &Path, cause: Option<String>) -> ConfigError {
-    ConfigError::LocalAgentKeyCorrupt {
-        path: path.to_path_buf(),
-        suffix: cause.map_or_else(String::new, |message| format!(": {message}")),
-    }
-}
-
-fn normalize_managed_agent_provider(value: &str) -> Option<NonEmptyString> {
+pub(crate) fn normalize_managed_agent_provider(value: &str) -> Option<NonEmptyString> {
     NonEmptyString::new(value.trim().to_lowercase())
-}
-
-fn hex_prefix(bytes: &[u8], len: usize) -> String {
-    let mut value = String::new();
-    for byte in bytes {
-        value.push_str(&format!("{byte:02x}"));
-    }
-    value.chars().take(len).collect()
 }
 
 #[cfg(test)]
@@ -919,6 +530,86 @@ mod tests {
         assert!(
             error.to_string().contains("is not a runx config"),
             "{error}"
+        );
+        Ok(())
+    }
+
+    /// A home from before `runx secret` keeps every value: its profiles and
+    /// the agent's key become secrets over the same sealed files.
+    #[test]
+    fn a_home_written_before_secrets_is_upgraded_once_and_keeps_every_value()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let home = tempfile::tempdir()?;
+        let path = home.path().join("config.json");
+        fs::write(
+            &path,
+            r#"{
+              "agent": {"provider": "anthropic", "model": "m", "api_key_ref": "local_agent_key_1"},
+              "credentials": {"profiles": {
+                "agent": {"connector": "x", "credential_declaration_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "credential": "token", "secret_ref": "local_credential_2"},
+                "github": {"connector": "github", "credential_declaration_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "credential": "token", "secret_ref": "local_credential_3"}
+              }}
+            }"#,
+        )?;
+
+        let config = load_runx_config_file(&path)?;
+
+        let stored = |material_ref: &str| RunxSecretRecord::Stored {
+            material_ref: material_ref.to_owned(),
+        };
+        let named = |name: &str| SecretName::new(name).ok_or("a secret name");
+        assert_eq!(
+            config.secrets.get(&named("github")?),
+            Some(&stored("local_credential_3"))
+        );
+        assert_eq!(
+            config.secrets.get(&named("agent")?),
+            Some(&stored("local_credential_2"))
+        );
+        assert_eq!(
+            config.secrets.get(&named("agent-2")?),
+            Some(&stored("local_agent_key_1"))
+        );
+        assert_eq!(
+            config
+                .agent
+                .as_ref()
+                .and_then(|agent| agent.secret.as_ref()),
+            Some(&named("agent-2")?)
+        );
+        let written = fs::read_to_string(&path)?;
+        assert!(
+            !written.contains("credentials") && !written.contains("api_key_ref"),
+            "{written}"
+        );
+        assert_eq!(
+            load_runx_config_file(&path)?,
+            config,
+            "upgraded once, read as it is after"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_agent_reference_becomes_a_secret_with_its_pin() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let home = tempfile::tempdir()?;
+        let path = home.path().join("config.json");
+        fs::write(
+            &path,
+            r#"{"agent": {"api_key_from": "aws-sm://team/env#KEY", "api_key_pinned": "arn:aws:secretsmanager:eu-west-2:1:secret:team/env-Ab"}}"#,
+        )?;
+
+        let config = load_runx_config_file(&path)?;
+
+        assert_eq!(
+            config
+                .secrets
+                .get(&SecretName::new("agent").ok_or("a secret name")?),
+            Some(&RunxSecretRecord::Reference {
+                reference: SecretReference::new("aws-sm://team/env#KEY").ok_or("a reference")?,
+                pinned: Some("arn:aws:secretsmanager:eu-west-2:1:secret:team/env-Ab".to_owned()),
+            })
         );
         Ok(())
     }

@@ -26,11 +26,11 @@ const READ_TIMEOUT: Duration = Duration::from_secs(60);
 /// The most of a manager's error a refusal quotes to the operator binding.
 const MAX_ERROR_CHARS: usize = 300;
 
-/// Why a reference is read. Binding is the operator at a terminal, shown the
+/// Why a secret is read. Binding it is the operator at a terminal, shown a
 /// manager's own message; a call is recorded, so its refusal carries only
 /// what is recognized as safe to keep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Purpose {
+pub enum Purpose {
     Bind,
     Call,
 }
@@ -83,7 +83,7 @@ pub(crate) fn read(
         && matches!(reference.scheme(), "op" | "aws-sm" | "aws-ps" | "vault")
     {
         return Err(format!(
-            "{reference} was bound without a pin; bind it again with --from"
+            "{reference} was set without a pin; set its secret again with `runx secret set <name> --from {reference}`"
         ));
     }
     let env = crate::services::process_environment(env);
@@ -465,7 +465,7 @@ impl Manager<'_> {
                 ),
                 Purpose::Bind => format!("{reference} could not be read ({})", outcome.status),
                 Purpose::Call => format!(
-                    "{reference} could not be read ({program}: {}); bind it again with --from to see the manager's message",
+                    "{reference} could not be read ({program}: {}); set its secret again with `runx secret set <name> --from {reference}` to see the manager's message",
                     recognized(&said).unwrap_or_else(|| outcome.status.to_string())
                 ),
             });
@@ -884,7 +884,7 @@ mod tests {
             let refused = read(&env, &m.workspace, &reference(value)?, None, Purpose::Call)
                 .err()
                 .ok_or("an unpinned call was read")?;
-            assert!(refused.contains("was bound without a pin"), "{refused}");
+            assert!(refused.contains("was set without a pin"), "{refused}");
         }
         assert!(!m.bin.join("aws.argv").exists() && !m.bin.join("vault.argv").exists());
         Ok(())
@@ -1431,7 +1431,7 @@ mod tests {
         )
         .err()
         .ok_or("an unpinned call was read")?;
-        assert!(refused.contains("was bound without a pin"), "{refused}");
+        assert!(refused.contains("was set without a pin"), "{refused}");
         assert!(!m.bin.join("op.argv").exists(), "op ran");
         Ok(())
     }

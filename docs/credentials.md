@@ -140,30 +140,39 @@ and the operation's implementation digest in the receipt includes it.
 
 ## Binding an account
 
-An instance binds a connector to one account, and `runx connector use` is the
-one place it is made. Six sources can back it:
+An instance binds a connector to one account. A connector whose credential's
+variable is set needs none made: with no instance selected, a run is bound
+to that variable exactly as `runx connector use` would bind it, and nothing
+is stored. Two of a connector's credentials set at once could be two
+accounts, so that run refuses and names both, and `--credential` picks one;
+a connector that pins parameters is set up once with them. Otherwise `runx
+connector use` is the one place an instance is made. Six sources can back it:
 
 ```bash
 # The credential's variable, as the connector declares it, set in the
-# environment or the workspace .env. The instance records the variable's
-# name, never its value; every call reads it again, so a rotated key needs
-# no new binding.
+# environment or the workspace .env. No secret and no setup: a run reads it
+# on every call, so a rotated key needs nothing. `use` records the same
+# binding when you want it selected and listed.
 export EXA_API_KEY=...
-runx connector use exa
+runx skill ...                 # exa runs as EXA_API_KEY
+runx connector use exa         # the same binding, selected and listed
 
-# A secret a secrets manager keeps, read through the manager's own CLI and
-# your sign-in to it before every call. The instance records the reference
-# and where the read landed, never the value (see Secrets managers and CI).
-runx connector use exa --from "aws-sm://team/keys#EXA_API_KEY"
+# A secret you keep in runx (see Secrets), sealed in the runx home or read
+# through a secrets manager. The instance records the secret's name, never
+# its value; every call reads it again.
+runx secret set exa --from "aws-sm://team/keys#EXA_API_KEY"
+runx connector use exa --secret exa
 
-# A secret you give: with its variable unset, use asks for it without
-# echoing on a terminal, or reads it from stdin when piped. It is stored as
-# a profile, named after the connector unless --profile names it.
-runx connector use twitter --credential user --profile work
+# A value you give: with its variable unset, use asks for it without echoing
+# on a terminal, or reads it from stdin when piped, and keeps it as a secret
+# named after the connector (`<connector>-<credential>` for a connector of
+# several credentials). A secret already set under that name is never taken:
+# bind it with --secret.
+runx connector use twitter --credential user
 
-# An instance, profile or grant confirmed earlier, by its id or name. It
-# serves what it was confirmed for; --scope narrows only a new one.
-runx connector use twitter work
+# An instance or grant confirmed earlier, by its id. It serves what it was
+# confirmed for; --scope narrows only a new one.
+runx connector use twitter secret.4f2a...
 
 # The account a local CLI is signed in to (for example `gh auth token`),
 # serving every scope its credential serves, or only those --scope names.
@@ -179,16 +188,16 @@ runx connector use github --hosted --scope repo.read --target acme/app
 ```
 
 With nothing named, `runx connector use <connector>` takes the one available
-path: an instance it already has, a credential whose variable is set, a stored
-profile or a Connect grant. A connector that takes one credential and finds
-none of these asks for that credential; one whose credential can only be held
-by Connect opens its grant once you are signed in. When there are several paths, it refuses with the
-exact form of each. It never picks between accounts for you. An instance bound
-to a variable acts as whichever account the variable holds: changing its value
+path: an instance it already has, a credential whose variable is set, or a
+Connect grant. A connector that takes one credential and finds none of these
+asks for that credential; one whose credential can only be held by Connect
+opens its grant once you are signed in. When there are several paths, it
+refuses with the exact form of each. It never picks between accounts for you,
+and never takes a secret by its name: `--secret` names it. An instance bound to
+a variable or a secret acts as whichever account it holds: changing its value
 changes the account, as rotating a key does. `--credential <name>` picks among
-a connector's credentials; a credential whose variable is set is always bound
-to that variable, so `--profile` stores a secret only when the variable is
-unset.
+a connector's credentials; without `--secret`, a credential whose variable is
+set is bound to that variable.
 
 A connector that declares a sign-in command is never set up without a choice.
 Its manifest can come from the project, so runx neither runs the command to
@@ -210,21 +219,28 @@ and connector digests it was confirmed for; a changed
 connector needs its instance confirmed again.
 
 `runx connector use` checks a credential against the declaration's `kind`
-and `fields` before it binds it, whether it comes from the variable or is
-given, and selects the instance as the connector's. `--scope` narrows what the instance may do, and `--parameter` pins a
-value the connector's requests take. A run uses the selected instance and never
-falls back to another instance or account.
-`runx connector revoke <name>` removes one instance, one profile (and the
-instances that hold it) or one grant (and the instances that stand for it).
-Prior receipts are kept.
+and `fields` before it binds it, whether it comes from the variable, a secret
+or is given, and selects the instance as the connector's. `--scope` narrows
+what the instance may do, and `--parameter` pins a value the connector's
+requests take. A run uses the selected instance and never falls back to
+another instance or account. `runx connector revoke <id>` removes one instance
+or one grant (and the instances that stand for it); a secret is removed with
+`runx secret rm`. Prior receipts are kept.
 
-An instance pins what it was confirmed for: the stored material or the
-variable, where the credential may be sent, what each operation means, and,
-for a plugin's connector, that plugin. When any of these changes (the profile
-is set again elsewhere, the connector's credential declaration or an
-operation changes, or another plugin ships a connector with the same id) the
-run refuses until the account is bound again. An instance bound to a variable
-refuses a run in which the variable is not set.
+An instance pins what it was confirmed for: the variable or the secret's
+name, where the credential may be sent, what each operation means, and, for a
+plugin's connector, that plugin. When any of these changes (the connector's
+credential declaration or an operation changes, or another plugin ships a
+connector with the same id) the run refuses until the account is bound again.
+An instance bound to a variable refuses a run in which the variable is not
+set, and one bound to a secret refuses once the secret is removed. A secret
+set again serves its instances from their next call, without binding again.
+
+An instance bound to a credential profile or a secret reference before `runx
+secret` existed refuses with the command that binds it again. Each profile
+became the secret of its name when the runx home was first read, so that
+command is `runx connector use <connector> --secret <profile>`; a reference is
+set as a secret first, with `runx secret set <name> --from <reference>`.
 
 Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind
@@ -245,11 +261,13 @@ See every authority source, or remove one, without exposing material:
 
 ```bash
 runx connector list --json
-runx connector revoke twitter
+runx connector revoke secret.4f2a...
+runx secret list
 ```
 
-`list` shows each connector in reach with the instance it uses, then every
-instance, the local profiles and the signed-in account's Connect grants.
+`connector list` shows each connector in reach with the instance it uses, then
+every instance and the signed-in account's Connect grants; `secret list` shows
+the secrets the instances name.
 
 ## Readiness
 
@@ -276,25 +294,61 @@ or receipt signing, nor supply authority a host admits.
 The snapshot supplies a runner's declared `environment.required` and
 `environment.optional` names: ordinary, non-secret configuration. It also
 holds the variables connector credentials are read from, and those reach an
-operation only through an instance that `runx connector use` bound. A runner
+operation only through an instance: the one `runx connector use` bound, or,
+with none selected, the variable's own binding. A runner
 that declares a variable any connector in its reach holds a credential in is
 refused before it starts, so a skill's declared environment never carries a
 connector's credential. That closes the declared route only: a process tool
 is a trusted program on the operator's machine and can read what the operator
 can, a workspace `.env` included.
 
+## Secrets
+
+`runx secret` is the one place a secret is kept: by name, in the runx home.
+A connector binding, the managed agent and a program you run each name it,
+and none of them holds its value.
+
+```bash
+runx secret set github                 # asks without echo, or reads stdin
+runx secret set exa --from "op://Private/Exa API/credential"
+runx secret list                       # names and where each value is
+runx secret read gemini                # prints the value, for a program
+runx secret rm github
+```
+
+`set` takes the value from a prompt that does not echo it, or from stdin when
+piped, never from an argument; or, with `--from`, a reference to where a
+secrets manager keeps it (see Secrets managers and CI). Setting a secret again
+serves everything that names it from its next call: rotation is one command,
+in `runx mcp` too. A secret acts as the account its value holds, as a variable
+does. `rm` removes it; whatever still names it, in any project or the agent's
+config, refuses until it is set again. `read` prints the value, as `gh auth
+token` and `op read` print theirs, for a host that sends it itself, such as
+Fieldwork's model keys through `@runxhq/client`'s `secrets.read`.
+
+A variable set in the environment or the workspace `.env` needs no secret and
+no setup: a connector whose credential it holds runs as it with no instance
+selected, reading it on every call, and the managed agent reads its
+provider's variable. Keep a key in a secret when it should live in one place
+you rotate, or in a secrets manager.
+
 ## Storage and threat model
 
-Profiles are recorded under the Runx home (`RUNX_HOME`, else `~/.runx`).
-Metadata lives in `config.json`; material is encrypted in private local key
-files, and the key that encrypts it is a private file in the same home.
+Secrets are recorded under the Runx home (`RUNX_HOME`, else `~/.runx`). Their
+names live in `config.json`; a stored value is sealed in a private local key
+file, and the key that seals it is a private file in the same home. A
+referenced value never touches the home.
 
 This protects against accidental disclosure through config output, repository
 files, command history, logs, and receipts. It does not protect against a
 process running as you, and it is not a substitute for an OS account boundary
-or a secrets manager: to keep a key out of the Runx home entirely, inject it
-through the environment (see below). Do not commit `.env`, Runx key files, or
-credential material.
+or a secrets manager. A project's files can never choose, bind, read or
+configure a secret: a binding carries a proof only your runx home can make,
+and a manager's CLI never sees what a workspace `.env` sets. A program you run
+is another matter. A skill's process tool runs as you, with `HOME` and `PATH`,
+so it can read what you can, the runx home, `~/.aws` and `gh auth token`
+included; only an OS sandbox around process tools would change that. Do not
+commit `.env`, Runx key files, or credential material.
 
 Secrets never appear in:
 
@@ -304,27 +358,25 @@ Secrets never appear in:
 - receipts or captured stdout/stderr;
 - pause checkpoints or resume answers.
 
-A replaced profile has a new material reference. Its previous binding is refused
-until the profile is explicitly reconfirmed in that workspace. Reconfirmation
-does not authorize a paused or in-flight operation to change its pinned binding;
-normal admission and recovery checks still apply.
+Only `runx secret read` prints one, when you ask it to.
 
 ## Secrets managers and CI
 
 runx reads a secret from where you already keep it. A reference names the
-manager and where the secret is; runx keeps the reference, never the value:
+manager and where the secret is; the runx home keeps the reference and what
+reading it pinned, never the value:
 
 ```bash
-runx connector use exa --from "op://Private/Exa API/credential"
-runx connector use exa --from "aws-sm://team/keys#EXA_API_KEY"
-runx connector use exa --from "aws-ps:///team/exa-api-key"
-runx connector use exa --from "vault://secret/team/exa#key"
-runx connector use exa --from "keychain://exa/work"
-runx connector use exa --from "file:///run/secrets/exa_api_key"
-runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
+runx secret set exa --from "op://Private/Exa API/credential"
+runx secret set exa --from "aws-sm://team/keys#EXA_API_KEY"
+runx secret set exa --from "aws-ps:///team/exa-api-key"
+runx secret set exa --from "vault://secret/team/exa#key"
+runx secret set exa --from "keychain://exa/work"
+runx secret set exa --from "file:///run/secrets/exa_api_key"
+runx secret set anthropic --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 ```
 
-| Reference | Read with | Pinned at bind |
+| Reference | Read with | Pinned when set |
 | --- | --- | --- |
 | `op://<vault>/<item>[/<section>]/<field>[#field]` | `op read`, 1Password's CLI | the 1Password account (`OP_ACCOUNT`, else `op`'s default) |
 | `aws-sm://<name or ARN>[#field]` | `aws secretsmanager get-secret-value` | the secret's ARN (account and region) |
@@ -351,45 +403,48 @@ runx config set api-key --from "aws-sm://team/env#ANTHROPIC_API_KEY"
 - With the 1Password app's CLI integration, 1Password asks you to approve each
   new terminal session. A runx started without a terminal, as an agent host
   starts it, is asked on each run.
-- Binding reads once, checks the value against the connector's declaration,
-  and pins where it landed. Every call reads again, at exactly that resource
-  or server, so a rotated secret needs no new binding and a switched profile
-  cannot serve another account's secret. Nothing is cached, so a `runx mcp`
-  session never serves an expired value.
+- Setting the secret reads it once and pins where it landed; binding it reads
+  it again and checks the value against the connector's declaration. Every
+  call reads again, at exactly that resource or server, so a rotated secret
+  needs no new binding and a switched profile cannot serve another account's
+  secret. Nothing is cached, so a `runx mcp` session never serves an expired
+  value.
 - `#field` selects one field of a JSON secret. A JSON secret without `#field`
   fills a credential of several fields (aws's region, account and keys).
-- A failed read refuses. Binding quotes the manager's own message to you; a
-  call, whose refusal is recorded, keeps only a form from a fixed list (an AWS
-  error code such as `AccessDeniedException`, a Vault HTTP status, a 1Password
-  form such as `isn't an item`), never the manager's words.
-  `connector list` prints the reference; `list` and `inspect` read nothing.
-- runx writes nothing to a manager. Only the operator binds a reference:
-  `--from` on the command line. The instance carries a proof made with your
-  runx home's key over the whole binding (connector revision, reference, pin,
-  scopes, parameters); a project store that names a reference you did not
-  bind, or widens one you did, is refused at admission, before anything is
-  read. References therefore need a runx home you own: `RUNX_HOME` or `HOME`. A variable or `.env` value that holds a reference
-  (`op://...`, `aws-sm://...`), for a connector or the model key, is refused
-  rather than sent to a provider as a key.
-- `--hosted --from <reference>` seeds a Connect credential grant from the
-  manager; Connect then holds it (custody moves to Cloud).
+- A failed read refuses. Setting or binding the secret quotes the manager's
+  own message to you; a call, whose refusal is recorded, keeps only a form
+  from a fixed list (an AWS error code such as `AccessDeniedException`, a
+  Vault HTTP status, a 1Password form such as `isn't an item`), never the
+  manager's words. `secret list` prints the reference and its pin; `secret
+  list`, `connector list` and `connector inspect` read nothing.
+- runx writes nothing to a manager. Only you set a reference: `runx secret
+  set --from` on the command line. An instance names the secret and carries a
+  proof made with your runx home's key over the whole binding (connector
+  revision, secret, scopes, parameters); a project store that names a secret
+  you did not bind, or widens a binding you made, is refused at admission,
+  before anything is read. A secret binding therefore needs a runx home you
+  own: `RUNX_HOME` or `HOME`. A variable or `.env` value that holds a
+  reference (`op://...`, `aws-sm://...`), for a connector or the model key, is
+  refused rather than sent to a provider as a key.
+- `--hosted --secret <name>` seeds a Connect credential grant from the secret.
+  Connect keeps its own copy: the secret stays as it is here, and setting it
+  again later does not change Connect's.
 
-Platforms that inject variables still work through the environment binding:
-GitHub Actions secrets, ECS and Kubernetes environment, `op run`, `doppler
-run`. A fresh CI runner has no instances, so a job binds its source before it
-runs anything, by reference or by variable:
+Platforms that inject variables work through the environment binding with no
+setup: GitHub Actions secrets, ECS and Kubernetes environment, `op run`,
+`doppler run`. A fresh CI runner has no instances, so each connector runs as
+its credential's variable:
 
 ```yaml
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 steps:
-  - run: runx connector use github --credential token
   - run: runx skill ...
 ```
 
 An injected variable is read from the environment `runx mcp` started with, so
-it is not refreshed during the session; a reference is read again on every
-call. Runx runs no OAuth client of its own: refresh belongs to the tool you are
+it is not refreshed during the session; a secret is read again on every call.
+Runx runs no OAuth client of its own: refresh belongs to the tool you are
 signed in to, through `--session`, or to Connect.
 
 ## Hosted provider grants
@@ -398,8 +453,8 @@ A Connect grant keeps provider material in Cloud. An operation on the hosted
 placement sends the call to runx Connect, which renders the connector's own
 declared request for it and presents the grant's token; it renders nothing a
 manifest does not declare. `runx connector use <connector> --hosted` opens a
-grant (sending the key its hosted placement names, from that key's variable
-or asked for, when the placement takes your own), `runx connector use
+grant (sending the key its hosted placement names, from `--secret`, that
+key's variable or asked for, when the placement takes your own), `runx connector use
 <connector> <grant-id>` makes an active grant an
 instance, `runx connector list` shows the account's grants, and
 `runx connector revoke <grant-id>` removes one. Delegated OAuth uses the
@@ -425,18 +480,18 @@ repository, message, post, charge, or other resource.
 
 ## Model keys and the runx account
 
-The managed agent's model key uses the same stdin rule:
+The managed agent's model key is a secret the agent names, or a variable:
 
 ```bash
-printf '%s' "$ANTHROPIC_API_KEY" |
-  runx config set agent.api_key --from-stdin
+runx secret set anthropic
+runx config set agent.secret anthropic
 ```
 
 The key comes from `RUNX_AGENT_API_KEY`, the provider's own variable
-(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`), the stored key, or
-a reference set with `runx config set api-key --from <reference>`, read on
-every run. When more than one is set and they differ, runx refuses and names
-them.
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`), or the secret
+`agent.secret` names, read on every run; `runx config unset agent.secret`
+stops naming it. When more than one is set and they differ, runx refuses and
+names them.
 
 A runx account credential is stored by `runx login`, bound to its principal and
 API; `RUNX_PUBLIC_API_TOKEN` supplies one to a single process. When both are

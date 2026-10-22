@@ -669,8 +669,6 @@ fn routes_config_to_native_plan() {
             action: ConfigAction::Set,
             key: Some("agent.model".to_owned()),
             value: Some("gpt-test".to_owned()),
-            value_from_stdin: false,
-            value_from_reference: false,
             json: true,
         })
     );
