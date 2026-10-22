@@ -99,6 +99,26 @@ fn the_workspace_is_the_nearest_marked_directory() -> std::io::Result<()> {
     Ok(())
 }
 
+/// The filesystem root is no one's workspace: a machine's `/skills` marks no
+/// project above an unmarked directory, and from the root itself the user's
+/// home stands in, so nothing is written beside the root.
+#[test]
+fn the_filesystem_root_is_no_ones_workspace() {
+    let root = Path::new("/");
+    assert!(
+        super::find_workspace(Path::new("/definitely/not/a/project"))
+            .is_none_or(|found| found != root)
+    );
+    let from_root = RunxPaths::resolve(&env(&[("HOME", "/home/u")]), root);
+    assert_eq!(from_root.workspace(), Path::new("/home/u"));
+    assert_eq!(from_root.project(), Path::new("/home/u/.runx"));
+    let unmarked = RunxPaths::resolve(
+        &env(&[("HOME", "/home/u")]),
+        Path::new("/definitely/not/a/project"),
+    );
+    assert_eq!(unmarked.workspace(), Path::new("/definitely/not/a/project"));
+}
+
 #[test]
 fn an_otherwise_unmarked_plugin_is_its_own_workspace() -> std::io::Result<()> {
     // Only where nothing else marks a project does the plugin, the nearest

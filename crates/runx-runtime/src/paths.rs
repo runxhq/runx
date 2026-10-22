@@ -5,7 +5,9 @@
 //!   keys, install state and registry caches;
 //! - the workspace (`RUNX_CWD`, else the nearest directory holding `.git`,
 //!   `skills/` or `pnpm-workspace.yaml`, else the nearest holding
-//!   `connectors/`, else the working directory) holds the project's files;
+//!   `connectors/`, else the working directory) holds the project's files.
+//!   The filesystem root is no one's workspace: a `/skills` a machine holds
+//!   marks nothing, and from the root itself the user's home stands in;
 //! - the project directory (`RUNX_PROJECT_DIR`, else `<workspace>/.runx`)
 //!   holds the project's runx state: the skills and connectors runx added,
 //!   the kernel store, receipts, authoring records, harness runs and scratch.
@@ -45,7 +47,15 @@ impl RunxPaths {
     pub fn resolve(env: &BTreeMap<String, String>, cwd: &Path) -> Self {
         let cwd = lexical_normalize(cwd);
         let workspace = env_path(env, RUNX_CWD_ENV).map_or_else(
-            || find_workspace(&cwd).unwrap_or_else(|| cwd.clone()),
+            || {
+                find_workspace(&cwd).unwrap_or_else(|| {
+                    if is_root(&cwd) {
+                        user_home(env, &cwd)
+                    } else {
+                        cwd.clone()
+                    }
+                })
+            },
             |path| lexical_normalize(&cwd.join(path)),
         );
         let within = |path: &Path| lexical_normalize(&workspace.join(path));
@@ -314,19 +324,20 @@ fn env_path<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a Path
 /// plugin `start` lies in (the nearest ancestor holding `connectors/`) is the
 /// project, so the project's connectors are the plugin's.
 fn find_workspace(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
+    let candidates = || start.ancestors().filter(|dir| !is_root(dir));
+    candidates()
         .find(|dir| {
             dir.join(".git").exists()
                 || dir.join("pnpm-workspace.yaml").exists()
                 || dir.join("skills").is_dir()
         })
-        .or_else(|| {
-            start
-                .ancestors()
-                .find(|dir| dir.join("connectors").is_dir())
-        })
+        .or_else(|| candidates().find(|dir| dir.join("connectors").is_dir()))
         .map(Path::to_path_buf)
+}
+
+/// The filesystem root, which is no one's workspace.
+fn is_root(dir: &Path) -> bool {
+    dir.parent().is_none()
 }
 
 /// The user's home, else the workspace, so every directory of one workspace
