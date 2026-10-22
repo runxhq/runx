@@ -70,6 +70,7 @@ runx verify <receipt-id>
 ```
 
 ```text
+receipt dir: <your RUNX_RECEIPT_DIR>
 tree sha256:<receipt-id> (2 receipts): ok
 verification: ok
 ```
@@ -77,7 +78,8 @@ verification: ok
 With `--json` the verdict reports `"valid": true`. A receipt whose digest,
 content address or signature does not check out is reported `INVALID`, and one
 signed by a key this home does not trust is reported `UNTRUSTED`; both fail the
-command.
+command. What a receipt records, and what a valid one does and does not
+establish, is in [What a receipt proves](../README.md#what-a-receipt-proves).
 
 ## Production Receipt Signing
 
