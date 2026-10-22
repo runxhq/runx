@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -12,6 +12,9 @@ import {
   registrySignedManifestPayload,
   type UnsignedRegistryManifest,
 } from "@runxhq/contracts";
+
+/** The label each skill is published under in a test's local registry. */
+const VERSION = "1.0.0";
 
 /** One bounded source packet, as the research skill's default runner takes it. */
 const SOURCE_PACKETS = JSON.stringify([{
@@ -32,16 +35,15 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const runxMaintainedLock = await runxMaintainedSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/research/SKILL.md"),
         profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: runxMaintainedLock.version,
+        version: VERSION,
         env,
       });
-      const skillRef = `acme/research@${runxMaintainedLock.version}`;
+      const skillRef = `acme/research@${VERSION}`;
 
       const first = runNativeSkill(env, [
         skillRef,
@@ -55,7 +57,7 @@ describe("registry skill native fetch", () => {
       ]);
       const firstJson = parseJsonOutput(first, 2);
       expect((firstJson as { status?: string }).status).toBe("needs_agent");
-      const firstPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/research");
+      const firstPath = findAddedSkillPath(path.join(projectDir, ".runx", "added-skills"), "acme/research");
       expect((await stat(path.join(firstPath, "SKILL.md"))).isFile()).toBe(true);
       expect((await stat(path.join(firstPath, "run.yaml"))).isFile()).toBe(true);
 
@@ -86,18 +88,17 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const runxMaintainedLock = await runxMaintainedSkillLock("runx/research");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/research/SKILL.md"),
         profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: runxMaintainedLock.version,
+        version: VERSION,
         env,
       });
 
       const result = runNativeSkill(env, [
-        `acme/research@${runxMaintainedLock.version}`,
+        `acme/research@${VERSION}`,
         "--registry",
         registryDir,
         "--digest",
@@ -130,34 +131,27 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await runxMaintainedSkillLock("runx/team-delegate");
       publishLocalRegistrySkill({
         registryDir,
-        subject: path.resolve("skills/team-delegate/SKILL.md"),
-        profile: path.resolve("skills/team-delegate/run.yaml"),
+        subject: path.resolve("skills/research/SKILL.md"),
+        profile: path.resolve("skills/research/run.yaml"),
         owner: "acme",
-        version: lockEntry.version,
+        version: VERSION,
         env,
       });
 
       const result = runNativeSkill(env, [
         "inspect",
-        `acme/team-delegate@${lockEntry.version}`,
+        `acme/research@${VERSION}`,
         "--registry",
         registryDir,
         "--json",
       ]);
       const output = parseJsonOutput(result, 0);
       expect((output as { status?: string }).status).toBe("ok");
-      const skillPath = findAddedSkillPath(path.join(projectDir, "skills"), "acme/team-delegate");
-      for (const stage of ["plan", "reduce"]) {
-        expect(
-          (await stat(
-            path.join(skillPath, "graph", stage, "run.yaml"),
-          )).isFile(),
-          stage,
-        ).toBe(true);
-      }
+      // Inspecting is not using: the package is read into the home's inspection cache (N6).
+      const skillPath = findAddedSkillPath(path.join(globalHomeDir, "inspected"), "acme/research");
+      expect((await stat(path.join(skillPath, "graph", "analyze", "run.yaml"))).isFile()).toBe(true);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -172,20 +166,19 @@ describe("registry skill native fetch", () => {
     try {
       await mkdir(projectDir, { recursive: true });
       const registryDir = path.join(tempDir, "registry");
-      const lockEntry = await runxMaintainedSkillLock("runx/github");
       publishLocalRegistrySkill({
         registryDir,
         subject: path.resolve("skills/github/SKILL.md"),
         profile: path.resolve("skills/github/run.yaml"),
         owner: "acme",
-        version: lockEntry.version,
+        version: VERSION,
         env,
       });
 
       // The cursor runner plans locally and persists through the store's own
       // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
-        `acme/github@${lockEntry.version}`,
+        `acme/github@${VERSION}`,
         "plan_and_append_cursor",
         "--registry",
         registryDir,
@@ -237,25 +230,6 @@ function testEnv(projectDir: string, globalHomeDir: string): NodeJS.ProcessEnv {
   delete env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64;
   delete env.RUNX_REGISTRY_MANIFEST_TRUST_OWNER;
   return env;
-}
-
-async function runxMaintainedSkillLock(skillId: string): Promise<{
-  readonly skill_id: string;
-  readonly version: string;
-  readonly digest: string;
-}> {
-  const runxMaintainedLock = JSON.parse(
-    await readFile(path.resolve("skills/runx-maintained.lock.json"), "utf8"),
-  ) as ReadonlyArray<{
-    readonly skill_id: string;
-    readonly version: string;
-    readonly digest: string;
-  }>;
-  const entry = runxMaintainedLock.find((candidate) => candidate.skill_id === skillId);
-  if (!entry) {
-    throw new Error(`Missing ${skillId} entry in runx-maintained.lock.json.`);
-  }
-  return entry;
 }
 
 function runNativeSkill(env: NodeJS.ProcessEnv, args: readonly string[]): {

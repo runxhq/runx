@@ -7,7 +7,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import { repositorySkills } from "./lib/skills.mjs";
+
+const root =path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runx = path.resolve(process.env.RUNX_BIN ?? path.join(root, "crates", "target", "debug", "runx"));
 const codexHome = path.resolve(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"));
 const installRoot = path.join(codexHome, "skills");
@@ -17,11 +19,9 @@ const failures = [];
 if (!existsSync(runx)) fail(`runx binary is missing: ${runx}`);
 if (!existsSync(installRoot)) fail(`Codex skill directory is missing: ${installRoot}`);
 
-const lock = JSON.parse(readFileSync(path.join(root, "skills", "runx-maintained.lock.json"), "utf8"));
-const publicNames = lock
-  .filter((entry) => entry.catalog_visibility === "public")
-  .map((entry) => entry.skill_id.split("/").at(-1))
-  .sort();
+const publicNames = repositorySkills(root, { ...process.env, RUNX_RUST_CLI_BIN: runx })
+  .filter((skill) => skill.visibility === "public")
+  .map((skill) => skill.name);
 const expectedManaged = [...publicNames, "runx"].sort();
 const installedManaged = readdirSync(installRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())

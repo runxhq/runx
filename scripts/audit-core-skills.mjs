@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { validateRunnerManifestYaml } from "./lib/native-parser.mjs";
+import { repositorySkills } from "./lib/skills.mjs";
 import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 const schema = "runx.core_skill_operator_value_audit.v1";
@@ -53,16 +54,16 @@ try {
 function buildReport(options) {
   nativeProcessCount = 0;
   const runx = resolveRunxBinary(options.runxBin);
-  const maintained = readRunxMaintainedLock(options.skills);
+  const maintained = repositorySkills(root);
   const review = readProductReview(options.skills);
   const catalog = readNativeCatalog(runx, options.skills);
   const toolCatalog = readNativeToolCatalog(runx);
   const unknown = [...(options.skills ?? [])].filter(
-    (name) => !maintained.some((record) => runxMaintainedName(record) === name),
+    (name) => !maintained.some((record) => record.name === name),
   );
   if (unknown.length > 0) throw new Error(`--skills names skills that are not runx-maintained: ${unknown.join(", ")}`);
   const audited = options.skills
-    ? maintained.filter((record) => options.skills.has(runxMaintainedName(record)))
+    ? maintained.filter((record) => options.skills.has(record.name))
     : maintained;
   const findings = validateCoverage({ maintained: audited, review, catalog, selected: options.skills });
   const entries = [];
@@ -70,7 +71,7 @@ function buildReport(options) {
   let semanticDiagnosticCount = 0;
 
   for (const record of audited) {
-    const name = runxMaintainedName(record);
+    const { name } = record;
     const decision = review.get(name);
     const catalogItem = catalog.get(name);
     const inspection = inspectSkill(runx, name);
@@ -99,7 +100,7 @@ function buildReport(options) {
     );
     const manualPath = path.join(root, "skills", name, "SKILL.md");
     let manualSource = readFileSync(manualPath, "utf8");
-    if (options.writeComposes && record.catalog_visibility === "public") {
+    if (options.writeComposes && record.visibility === "public") {
       const rewritten = rewriteComposesSection(
         manualSource,
         expectedCompositionRefs(runnerInspections),
@@ -122,8 +123,8 @@ function buildReport(options) {
       `${inspection.catalog?.visibility ?? "<missing>"}/${inspection.catalog?.role ?? "<missing>"}`;
     entries.push({
       skill: name,
-      visibility: record.catalog_visibility,
-      role: record.catalog_role ?? null,
+      visibility: record.visibility,
+      role: record.role ?? null,
       claimed_catalog_role: decision?.catalog_role ?? null,
       canonical_catalog_role: canonicalCatalogRole,
       claimed_execution: decision?.execution ?? null,
@@ -159,7 +160,7 @@ function buildReport(options) {
     );
   }
   entries.sort((left, right) => left.skill.localeCompare(right.skill));
-  const publicCount = audited.filter((entry) => entry.catalog_visibility === "public").length;
+  const publicCount = audited.filter((entry) => entry.visibility === "public").length;
   const internalCount = audited.length - publicCount;
   const decisions = countBy(entries, (entry) => entry.decision);
   const archetypes = countBy(entries, (entry) => entry.archetype);
@@ -181,26 +182,6 @@ function buildReport(options) {
     findings: findings.sort(),
     entries,
   };
-}
-
-function readRunxMaintainedLock(selected) {
-  const value = JSON.parse(readFileSync(path.join(root, "skills", "runx-maintained.lock.json"), "utf8"));
-  if (!Array.isArray(value)) throw new Error("skills/runx-maintained.lock.json must be an array");
-  const entries = selected
-    ? value.filter((record) => typeof record?.skill_id === "string" && selected.has(record.skill_id.split("/").at(-1)))
-    : value;
-  return [...entries].sort((left, right) => runxMaintainedName(left).localeCompare(runxMaintainedName(right)));
-}
-
-function runxMaintainedName(record) {
-  if (typeof record?.skill_id !== "string") {
-    throw new Error(`invalid runx-maintained skill record: ${JSON.stringify(record)}`);
-  }
-  const parts = record.skill_id.split("/");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new Error(`invalid runx-maintained skill record: ${JSON.stringify(record)}`);
-  }
-  return parts[1];
 }
 
 function readProductReview(selected) {
@@ -327,24 +308,21 @@ function inspectSkill(runx, name) {
 
 function validateCoverage({ maintained, review, catalog, selected }) {
   const findings = [];
-  const runxMaintainedNames = new Set();
-  for (const record of maintained) {
-    const name = runxMaintainedName(record);
-    if (runxMaintainedNames.has(name)) findings.push(`${name}: duplicate runx-maintained lock entry`);
-    runxMaintainedNames.add(name);
-    if (!["internal", "public"].includes(record.catalog_visibility)) {
-      findings.push(`${name}: unsupported visibility ${record.catalog_visibility ?? "<missing>"}`);
+  const runxMaintainedNames = new Set(maintained.map((record) => record.name));
+  for (const { name, visibility, role } of maintained) {
+    if (!["internal", "public"].includes(visibility)) {
+      findings.push(`${name}: unsupported visibility ${visibility}`);
     }
     const claimed = review.get(name)?.catalog_role;
-    const locked = `${record.catalog_visibility}/${record.catalog_role ?? "<missing>"}`;
-    if (claimed !== undefined && claimed !== locked) {
-      findings.push(`${name}: review catalog role ${claimed} does not match lock ${locked}`);
+    const declared = `${visibility}/${role ?? "<missing>"}`;
+    if (claimed !== undefined && claimed !== declared) {
+      findings.push(`${name}: review catalog role ${claimed} does not match its run.yaml ${declared}`);
     }
   }
 
   for (const [name, decision] of review) {
     if (selected && !selected.has(name)) continue;
-    if (!runxMaintainedNames.has(name)) findings.push(`${name}: review row is not in the runx-maintained lock`);
+    if (!runxMaintainedNames.has(name)) findings.push(`${name}: review row names no skill in skills/`);
     if (!allowedArchetypes.has(decision.archetype)) {
       findings.push(`${name}: unsupported archetype ${decision.archetype}`);
     }
@@ -361,7 +339,7 @@ function validateCoverage({ maintained, review, catalog, selected }) {
   }
   for (const name of catalog.keys()) {
     if (selected && !selected.has(name)) continue;
-    if (!runxMaintainedNames.has(name)) findings.push(`${name}: top-level native catalog entry is unlocked`);
+    if (!runxMaintainedNames.has(name)) findings.push(`${name}: top-level native catalog entry has no skill in skills/`);
   }
   return findings;
 }
@@ -374,18 +352,6 @@ function validateInspectionClaims({
   runnerInspections,
 }) {
   const findings = [];
-  const nativeVisibility = inspection.catalog?.visibility;
-  const nativeRole = inspection.catalog?.role;
-  if (nativeVisibility !== record.catalog_visibility) {
-    findings.push(
-      `${name}: native visibility ${nativeVisibility ?? "<missing>"} does not match lock ${record.catalog_visibility}`,
-    );
-  }
-  if (nativeRole !== record.catalog_role) {
-    findings.push(
-      `${name}: native role ${nativeRole ?? "<missing>"} does not match lock ${record.catalog_role ?? "<missing>"}`,
-    );
-  }
   findings.push(...validateOperatorJourneys(name, record, inspection));
   findings.push(...validatePublicInvocationReadiness(name, record, inspection, runnerInspections));
   const closure = inspection.execution_closure;
@@ -418,7 +384,7 @@ function validateInspectionClaims({
 }
 
 function validatePublicInvocationReadiness(name, record, inspection, runnerInspections) {
-  if (record.catalog_visibility !== "public") return [];
+  if (record.visibility !== "public") return [];
   const findings = [];
   const readiness = inspection.semantic_report?.readiness;
   if (readiness?.evaluated !== true) {
@@ -444,7 +410,7 @@ function validatePublicInvocationReadiness(name, record, inspection, runnerInspe
 }
 
 function validateOperatorJourneys(name, record, inspection) {
-  if (record.catalog_visibility !== "public") return [];
+  if (record.visibility !== "public") return [];
   const findings = [];
   const journeys = inspection.operator_journeys;
   if (!Array.isArray(journeys)) {
@@ -553,7 +519,7 @@ function validatePublicManual({
   runnerInspections,
   source,
 }) {
-  if (record.catalog_visibility !== "public") return [];
+  if (record.visibility !== "public") return [];
   const findings = [];
   const body = source.replace(/^---[\s\S]*?---\s*/u, "").trim();
   const taskContract = /^#{2,6}\s+Agent task contracts?\s*$/imu.exec(body);
@@ -774,15 +740,11 @@ function runSelfTests() {
   const review = parseReviewTable(table);
   assert(review.size === 1, "review parser must return one row");
   assert(review.get("alpha")?.rationale === "Useful | governed.", "escaped pipes must survive");
-  const maintained = [{
-    skill_id: "runx/alpha",
-    catalog_visibility: "public",
-    catalog_role: "canonical",
-  }];
+  const maintained = [{ name: "alpha", visibility: "public", role: "canonical" }];
   const catalog = new Map([["alpha", { name: "alpha" }]]);
   assert(
     validateCoverage({ maintained, review, catalog }).length === 0,
-    "matching native, lock, and review evidence must pass",
+    "matching native, run.yaml and review evidence must pass",
   );
   const missing = validateCoverage({ maintained, review: new Map(), catalog });
   assert(missing.includes("alpha: missing product review row"), "missing review rows must fail");
@@ -791,7 +753,7 @@ function runSelfTests() {
   ]);
   assert(
     validateCoverage({ maintained, review: wrongRole, catalog }).some((finding) =>
-      finding.includes("review catalog role public/branded does not match lock public/canonical")
+      finding.includes("review catalog role public/branded does not match its run.yaml public/canonical")
     ),
     "catalog-role drift must fail",
   );

@@ -65,19 +65,6 @@ describe("runx-maintained skill catalog", () => {
     }
   });
 
-  it("keeps the public official catalog limited to implemented catalog skills", async () => {
-    const publicSkills = runxMaintainedSkillPackages().filter((skillName) => catalogVisibility(skillName) === "public");
-    const entries = JSON.parse(
-      await readFile(path.resolve("skills", "runx-maintained.lock.json"), "utf8"),
-    ) as ReadonlyArray<{ readonly skill_id: string; readonly catalog_visibility?: string }>;
-    const publicLockSkills = entries
-      .filter((entry) => entry.catalog_visibility === "public")
-      .map((entry) => entry.skill_id.split("/").at(-1)!)
-      .sort();
-
-    expect(publicLockSkills).toEqual(publicSkills);
-  });
-
   it("keeps static agent instructions exclusively in SKILL.md", () => {
     for (const manifestPath of skillManifestPaths(path.resolve("skills"))) {
       const manifest = validateRunnerManifestYaml(readFileSync(manifestPath, "utf8")).raw.document;

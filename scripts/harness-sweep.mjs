@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -13,6 +14,7 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import { bundledCoreSkills } from "./classify-ci-changes.mjs";
+import { repositorySkills } from "./lib/skills.mjs";
 
 const schema = "runx.inline_harness_sweep.v1";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -46,7 +48,11 @@ async function runSweep(options) {
   const started = performance.now();
   const runxBin = resolveRunxBinary(options);
   const admitted = options.skills ? new Set([...bundledCoreSkills(), ...options.skills]) : null;
-  const skills = selectSkills(runxMaintainedSkills(admitted), options.skills);
+  const skills = selectSkills(
+    repositorySkills(repoRoot, { ...process.env, RUNX_RUST_CLI_BIN: runxBin })
+      .filter((skill) => !admitted || admitted.has(skill.name)),
+    options.skills,
+  );
   const allowed = new Set(options.allowed);
   const scratchRoot = path.join(repoRoot, ".runx", "harness-sweep");
   mkdirSync(scratchRoot, { recursive: true });
@@ -600,30 +606,6 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-function runxMaintainedSkills(admitted) {
-  const lockPath = path.join(repoRoot, "skills", "runx-maintained.lock.json");
-  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
-  if (!Array.isArray(lock)) {
-    throw new Error("runx-maintained skills lock is not an array");
-  }
-  return lock
-    .filter((entry) => !admitted || (typeof entry?.skill_id === "string" && admitted.has(entry.skill_id.split("/").at(-1))))
-    .map((entry) => {
-      const parts = typeof entry?.skill_id === "string" ? entry.skill_id.split("/") : [];
-      if (parts.length !== 2 || !parts[0] || !parts[1]) {
-        throw new Error(`invalid runx-maintained skill entry: ${JSON.stringify(entry)}`);
-      }
-      if (!["internal", "public"].includes(entry.catalog_visibility)) {
-        throw new Error(`invalid runx-maintained skill visibility: ${JSON.stringify(entry)}`);
-      }
-      return {
-        name: parts[1],
-        visibility: entry.catalog_visibility,
-      };
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-}
-
 function harnessEnv(runxBin, tempRoot, workspaceDir) {
   const runxHome = path.join(tempRoot, "runx-home");
   mkdirSync(runxHome, { recursive: true });
@@ -641,10 +623,13 @@ function harnessEnv(runxBin, tempRoot, workspaceDir) {
 }
 
 function harnessToolRoots() {
+  const skillsRoot = path.join(repoRoot, "skills");
   return [
     path.join(repoRoot, "tools"),
-    ...runxMaintainedSkills()
-      .map((skill) => path.join(repoRoot, "skills", skill.name, "tools"))
+    ...readdirSync(skillsRoot)
+      .filter((name) => existsSync(path.join(skillsRoot, name, "SKILL.md")))
+      .sort()
+      .map((name) => path.join(skillsRoot, name, "tools"))
       .filter(existsSync),
   ].join(path.delimiter);
 }
