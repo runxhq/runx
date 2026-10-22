@@ -4,11 +4,13 @@ use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::KeyPair;
 use runx_contracts::{sha256_hex, sha256_prefixed};
+use runx_runtime::registry::resolve::{LocalRegistrySourceKind, RegistryTarget, install_skill_ref};
 use runx_runtime::registry::{
-    InstallCandidate, InstallError, InstallLocalSkillOptions, RegistryManifestSignature,
-    RegistryManifestSigner, RegistryManifestSourceAuthority, RegistryManifestTrustEnvError,
-    RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
-    TrustedRegistryManifestKey, install_local_skill, skill_content_digest,
+    FileRegistryStore, IngestSkillOptions, InstallCandidate, InstallError,
+    InstallLocalSkillOptions, PutVersionOptions, RegistryManifestSignature, RegistryManifestSigner,
+    RegistryManifestSourceAuthority, RegistryManifestTrustEnvError, RegistryPackageFile,
+    RegistrySignedManifest, RegistrySkillVersion, RegistrySubject, RegistrySubjectKind, TrustTier,
+    TrustedRegistryManifestKey, ingest_skill_markdown, install_local_skill, skill_content_digest,
     trusted_registry_manifest_keys_from_env,
 };
 use tempfile::tempdir;
@@ -37,6 +39,182 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(install.digest, skill_digest());
     assert!(install.destination.exists());
     Ok(())
+}
+
+/// A published package this runx does not read is refused as unreadable,
+/// never as tampering, and leaves nothing in the project.
+#[test]
+fn a_package_this_runx_does_not_read_leaves_nothing() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let mut candidate = install_candidate()?;
+    candidate.profile_document = Some(
+        include_str!("../../../fixtures/registry/install/echo-run.yaml").replace(
+            "    default: true\n",
+            "    default: true\n    colour: red\n",
+        ),
+    );
+    candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
+    let skills = temp.path().join("skills");
+
+    let error = install_local_skill(&candidate, &options(temp.path())?)
+        .err()
+        .ok_or("an unreadable package installed")?;
+
+    assert!(
+        matches!(&error, InstallError::Unreadable { reason, .. } if reason.contains("colour")),
+        "{error}"
+    );
+    assert!(!skills.exists() || std::fs::read_dir(&skills)?.next().is_none());
+    Ok(())
+}
+
+/// A connector the package carries is read before the package is placed: a
+/// version whose connector this runx does not read leaves no files, no
+/// staging directory and no connector behind.
+#[test]
+fn a_carried_connector_this_runx_does_not_read_leaves_nothing()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let mut candidate = install_candidate()?;
+    candidate.package_files = unreadable_connector_files();
+    candidate.package_digest = Some(package_digest(&candidate.package_files)?);
+    candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
+
+    let error = install_local_skill(&candidate, &options(temp.path())?)
+        .err()
+        .ok_or("a package carrying an unreadable connector installed")?;
+
+    assert!(
+        matches!(
+            &error,
+            InstallError::Unreadable { reason, .. }
+                if reason.starts_with("connectors/acme/records/connector.yaml: ")
+        ),
+        "{error}"
+    );
+    let versions = temp.path().join("skills/acme/echo");
+    assert!(!versions.exists() || std::fs::read_dir(&versions)?.next().is_none());
+    assert!(!temp.path().join("connectors").exists());
+    Ok(())
+}
+
+/// A name without a version installs the newest version this runx reads and
+/// names the newer one it does not; that version, asked for by name, refuses.
+#[test]
+fn a_bare_name_installs_the_newest_version_this_runx_reads()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let registry = temp.path().join("registry");
+    let store = FileRegistryStore::new(&registry);
+    let readable = ingest_skill_markdown(
+        &store,
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        IngestSkillOptions {
+            owner: Some("acme".to_owned()),
+            version: Some("1.0.0".to_owned()),
+            created_at: Some("2026-10-01T00:00:00.000Z".to_owned()),
+            profile_document: Some(
+                include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
+            ),
+            ..IngestSkillOptions::default()
+        },
+    )?;
+    let package_files = unreadable_connector_files();
+    store.put_version(
+        RegistrySkillVersion {
+            version: "2.0.0".to_owned(),
+            package_digest: Some(package_digest(&package_files)?),
+            package_files,
+            created_at: "2026-10-02T00:00:00.000Z".to_owned(),
+            updated_at: "2026-10-02T00:00:00.000Z".to_owned(),
+            ..readable
+        },
+        PutVersionOptions { upsert: false },
+    )?;
+    let target = RegistryTarget::Local {
+        registry_path: registry,
+        registry_url: None,
+        source_kind: LocalRegistrySourceKind::Local,
+    };
+    let options = options(temp.path())?;
+    let env = BTreeMap::new();
+
+    let installed = install_skill_ref(
+        "acme/echo",
+        None,
+        target.clone(),
+        &env,
+        temp.path(),
+        |candidate| install_local_skill(candidate, &options),
+    )?
+    .ok_or("the registry publishes acme/echo")?;
+
+    assert_eq!(installed.installed.version.as_deref(), Some("1.0.0"));
+    let unread = installed
+        .newest_unread
+        .ok_or("the newest version was read")?;
+    assert_eq!(unread.version, "2.0.0");
+    assert!(
+        unread
+            .reason
+            .starts_with("connectors/acme/records/connector.yaml: "),
+        "{}",
+        unread.reason
+    );
+    assert!(!temp.path().join("skills/acme/echo/2.0.0").exists());
+
+    let named = install_skill_ref(
+        "acme/echo",
+        Some("2.0.0"),
+        target,
+        &env,
+        temp.path(),
+        |candidate| install_local_skill(candidate, &options),
+    )
+    .err()
+    .ok_or("a version this runx does not read installed when named")?;
+    assert!(
+        named
+            .into_message()
+            .contains("does not read acme/echo@2.0.0")
+    );
+    Ok(())
+}
+
+/// A bundle carrying a connector whose manifest has a field this runx does
+/// not read; the digests are placeholders, since the manifest never loads.
+fn unreadable_connector_files() -> Vec<RegistryPackageFile> {
+    let placeholder = format!("sha256:{}", "0".repeat(64));
+    vec![
+        RegistryPackageFile {
+            path: "connectors/acme/records/connector.yaml".to_owned(),
+            content: "schema: runx.connector.v1\nid: acme/records\nname: Records\ndescription: Records.\ncolour: red\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations: {}\n".to_owned(),
+        },
+        RegistryPackageFile {
+            path: "runx.package.json".to_owned(),
+            content: serde_json::json!({
+                "schema": "runx.registry.package_bundle.v1",
+                "dependencies": [],
+                "connectors": [{
+                    "from": ".",
+                    "connector": "acme/records",
+                    "manifest_digest": placeholder,
+                    "connector_digest": placeholder,
+                }],
+            })
+            .to_string(),
+        },
+    ]
+}
+
+fn options(root: &std::path::Path) -> Result<InstallLocalSkillOptions, Box<dyn std::error::Error>> {
+    Ok(InstallLocalSkillOptions {
+        destination_root: root.join("skills"),
+        connectors_root: root.join("connectors"),
+        install_records: root.join(".runx").join("installs"),
+        expected_digest: None,
+        trusted_manifest_keys: trusted_manifest_keys()?,
+    })
 }
 
 #[test]

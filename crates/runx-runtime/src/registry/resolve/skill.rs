@@ -8,7 +8,8 @@ use runx_contracts::sha256_prefixed;
 
 use super::{RegistryTarget, ResolveError, registry_source_description, resolve_registry_target};
 use crate::registry::{
-    InstallCandidate, InstallLocalSkillOptions, parse_registry_ref, split_skill_id,
+    InstallCandidate, InstallError, InstallLocalSkillOptions, UnreadVersion, parse_registry_ref,
+    split_skill_id,
 };
 
 #[derive(Clone, Copy)]
@@ -102,6 +103,9 @@ pub struct ResolvedSkillRef {
     pub paid_listing: Option<PaidSkillListing>,
     pub hosted_registry_url: Option<String>,
     pub runnable_path: PathBuf,
+    /// The newest published version, when this runx does not read it and
+    /// resolved an older one in its place.
+    pub newest_unread: Option<UnreadVersion>,
 }
 
 /// A graph nests skills at most this deep; deeper is a cycle, not a graph.
@@ -359,17 +363,6 @@ fn resolve_registry_skill(
     };
     let source_fingerprint = registry_source_fingerprint(&target);
     let source_authority = target.manifest_source_authority();
-    let (mut candidate, acquisition) =
-        super::install_candidate(skill_id, version, target, env, cwd)?.ok_or_else(|| {
-            RegistryResolveError::NotHeld(format!(
-                "registry skill not found: {requested} in {source_description}"
-            ))
-        })?;
-    let paid_listing = acquisition
-        .as_ref()
-        .and_then(|acquired| acquired.paid_listing.clone());
-    canonicalize_candidate_ref(&mut candidate);
-    let identity = registry_identity(&candidate)?;
     // A fetched skill is added to the project's added skills, once per
     // version, like any other; one read for inspection, to the home's cache.
     let paths = crate::RunxPaths::resolve(env, cwd);
@@ -388,23 +381,37 @@ fn resolve_registry_skill(
             )
         }
     };
-    let install = crate::registry::install_local_skill(
-        &candidate,
-        &InstallLocalSkillOptions {
-            destination_root,
-            connectors_root,
-            install_records,
-            expected_digest: options.expected_digest.map(ToOwned::to_owned),
-            trusted_manifest_keys: super::trusted_manifest_keys_for_source(
-                env,
-                candidate
-                    .manifest_source_authority
-                    .clone()
-                    .unwrap_or(source_authority),
-            )?,
-        },
-    )
-    .map_err(ResolveError::from)?;
+    let install_options = InstallLocalSkillOptions {
+        destination_root,
+        connectors_root,
+        install_records,
+        expected_digest: options.expected_digest.map(ToOwned::to_owned),
+        trusted_manifest_keys: super::trusted_manifest_keys_for_source(env, source_authority)?,
+    };
+    let super::Installed {
+        package: (candidate, acquisition),
+        installed: (identity, install),
+        newest_unread,
+    } = super::install_skill_ref(skill_id, version, target, env, cwd, |candidate| {
+        let mut candidate = candidate.clone();
+        canonicalize_candidate_ref(&mut candidate);
+        // A registry ref runs only what its registry signed, before anything
+        // is written.
+        let identity = registry_identity(&candidate)
+            .map_err(|_| InstallError::UnsignedManifest(candidate.r#ref.clone()))?;
+        Ok((
+            identity,
+            crate::registry::install_local_skill(&candidate, &install_options)?,
+        ))
+    })?
+    .ok_or_else(|| {
+        RegistryResolveError::NotHeld(format!(
+            "registry skill not found: {requested} in {source_description}"
+        ))
+    })?;
+    let paid_listing = acquisition
+        .as_ref()
+        .and_then(|acquired| acquired.paid_listing.clone());
     let runnable_path = install
         .destination
         .parent()
@@ -436,6 +443,7 @@ fn resolve_registry_skill(
         paid_listing,
         hosted_registry_url,
         runnable_path,
+        newest_unread,
     })
 }
 
@@ -504,6 +512,7 @@ fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRe
         paid_listing: None,
         hosted_registry_url: None,
         runnable_path,
+        newest_unread: None,
     }
 }
 

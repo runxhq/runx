@@ -5,8 +5,8 @@ use runx_contracts::connector::ConnectorName;
 
 use super::connector_install::RegistryConnectorVersion;
 use super::payload::{
-    parse_acquire, parse_connector, parse_connector_package, parse_connector_search, parse_read,
-    parse_record, parse_search,
+    VersionPage, parse_acquire, parse_connector, parse_connector_package, parse_connector_search,
+    parse_read, parse_record, parse_search, parse_versions,
 };
 use super::types::{
     AcquiredRegistrySkill, RegistryConnectorDetail, RegistryConnectorSearchResult,
@@ -259,6 +259,33 @@ impl<T: Transport> RegistryClient<T> {
         self.get(&route, parse_connector_package)
     }
 
+    /// One page of the versions the registry publishes of `skill_id`, newest
+    /// first, from `cursor`; none when it publishes no such skill.
+    pub fn skill_versions(
+        &self,
+        skill_id: &str,
+        cursor: Option<&str>,
+    ) -> Result<Option<VersionPage>, RegistryClientError> {
+        let (owner, name) = validated_skill_id(skill_id)?;
+        let route = format!(
+            "/v1/skills/{}/{}/versions",
+            encode_segment(owner),
+            encode_segment(name)
+        );
+        self.get(&paged(&route, cursor), parse_versions)
+    }
+
+    /// One page of the versions the registry publishes of connector `name`,
+    /// newest first, from `cursor`; none when it publishes no such connector.
+    pub fn connector_versions(
+        &self,
+        name: &ConnectorName,
+        cursor: Option<&str>,
+    ) -> Result<Option<VersionPage>, RegistryClientError> {
+        let route = format!("{}/versions", connector_route(name));
+        self.get(&paged(&route, cursor), parse_versions)
+    }
+
     fn get<V>(
         &self,
         route: &str,
@@ -353,6 +380,13 @@ fn encode_segment(value: &str) -> String {
         }
     }
     output
+}
+
+fn paged(route: &str, cursor: Option<&str>) -> String {
+    cursor.map_or_else(
+        || route.to_owned(),
+        |cursor| format!("{route}?cursor={}", encode_segment(cursor)),
+    )
 }
 
 fn route_path(path: &str, query: Option<&str>) -> String {

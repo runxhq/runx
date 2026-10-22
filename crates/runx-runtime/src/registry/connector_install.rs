@@ -26,8 +26,9 @@ use super::trust_anchor::{
 };
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
+    UnreadVersion,
 };
-use crate::kernel::connectors::load_installed;
+use crate::kernel::connectors::{ConnectorRegistryError, load_installed};
 
 /// One published connector version as the registry serves it for install.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,10 +67,25 @@ pub struct InstalledRegistryConnector {
     pub connector_digest: Digest,
     pub trust_tier: TrustTier,
     pub destination: PathBuf,
+    /// The newest published version, when this runx does not read it and
+    /// installed this one in its place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_unread: Option<UnreadVersion>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectorInstallError {
+    /// The package is intact, but this runx does not read its manifest or a
+    /// tool it declares: the version is another runx's to run.
+    #[error(
+        "runx {} does not read connector {name}@{version}: {reason}",
+        crate::EXECUTION_RUNTIME_RELEASE
+    )]
+    Unreadable {
+        name: ConnectorName,
+        version: String,
+        reason: String,
+    },
     #[error("connector {name}: version {version:?} is not a registry version label")]
     InvalidVersion {
         name: ConnectorName,
@@ -358,8 +374,18 @@ fn load(
     let connector_ref = &published.name;
     // An installed version, not a source tree: a later runx/* version may
     // differ from the copy embedded in this binary.
-    let connector = load_installed(directory)
-        .map_err(|error| invalid_package(connector_ref, error.to_string()))?;
+    let connector =
+        load_installed(directory).map_err(|error| ConnectorInstallError::Unreadable {
+            name: connector_ref.clone(),
+            version: published.version.clone(),
+            reason: match error {
+                ConnectorRegistryError::InvalidManifest { path, message } => format!(
+                    "{}: {message}",
+                    path.strip_prefix(directory).unwrap_or(&path).display()
+                ),
+                other => other.to_string(),
+            },
+        })?;
     if connector.name != *connector_ref {
         return Err(invalid_package(
             connector_ref,
@@ -397,6 +423,7 @@ fn installed(
         connector_digest: loaded.connector_digest,
         trust_tier: published.trust_tier,
         destination: destination.to_path_buf(),
+        newest_unread: None,
     }
 }
 

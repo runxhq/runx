@@ -24,6 +24,7 @@ use super::trust_anchor::{
 };
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
+    UnreadVersion,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,18 +78,21 @@ pub struct InstallLocalSkillResult {
     pub profile_digest: Option<String>,
     pub runner_names: Vec<String>,
     pub trust_tier: Option<TrustTier>,
+    /// The newest published version, when this runx does not read it and
+    /// installed this one in its place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_unread: Option<UnreadVersion>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum InstallError {
-    #[error("{0}")]
-    Package(#[from] runx_parser::SkillPackageError),
-    #[error("{0}")]
-    Parser(#[from] runx_parser::SkillInstallError),
-    #[error("{0}")]
-    Manifest(#[from] runx_parser::ValidationError),
-    #[error("{0}")]
-    ManifestParse(#[from] runx_parser::ParseError),
+    /// The package is intact, but this runx does not read its documents or a
+    /// connector it carries: the version is another runx's to run.
+    #[error(
+        "runx {} does not read {ref_name}: {reason}",
+        crate::EXECUTION_RUNTIME_RELEASE
+    )]
+    Unreadable { ref_name: String, reason: String },
     #[error("digest mismatch for {ref_name}: expected {expected}, received {actual}")]
     DigestMismatch {
         ref_name: String,
@@ -185,25 +189,17 @@ fn install_skill(
 ) -> Result<InstallLocalSkillResult, InstallError> {
     let validated = validate_install_candidate(candidate, options, allow_unsigned)?;
     let paths = install_paths(candidate, options, &validated.install.skill.name);
-    let write_plan = prepare_install_write_plan(
+    let status = place_package(
         &paths,
-        &validated.install.markdown,
-        candidate.profile_document.as_deref(),
-        &candidate.package_files,
-        &candidate.r#ref,
-    )?;
-    commit_install_write_plan(
-        &paths,
-        &write_plan,
-        &validated.install.markdown,
-        candidate.profile_document.as_deref(),
-        &candidate.package_files,
+        &PackageDocuments {
+            markdown: &validated.install.markdown,
+            profile_document: candidate.profile_document.as_deref(),
+            package_files: &candidate.package_files,
+            ref_name: &exact_ref(candidate),
+        },
     )?;
     let record = trust_tier.map(|trust_tier| InstallRecord {
-        reference: match (&candidate.skill_id, &candidate.version) {
-            (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
-            _ => candidate.r#ref.clone(),
-        },
+        reference: exact_ref(candidate),
         trust_tier,
     });
     if let Some(record) = &record {
@@ -224,14 +220,7 @@ fn install_skill(
     )?;
 
     Ok(InstallLocalSkillResult {
-        status: if write_plan.writes_skill
-            || write_plan.writes_runner_manifest
-            || write_plan.package_files.iter().any(|file| file.write)
-        {
-            InstallStatus::Installed
-        } else {
-            InstallStatus::Unchanged
-        },
+        status,
         destination: paths.destination,
         skill_name: validated.install.skill.name,
         source: validated.install.origin.source,
@@ -242,7 +231,16 @@ fn install_skill(
         profile_digest: validated.profile_digest,
         runner_names: validated.runner_names,
         trust_tier: candidate.trust_tier,
+        newest_unread: None,
     })
+}
+
+/// `<skill>@<version>` for a registry's package, the ref it came by otherwise.
+fn exact_ref(candidate: &InstallCandidate) -> String {
+    match (&candidate.skill_id, &candidate.version) {
+        (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
+        _ => candidate.r#ref.clone(),
+    }
 }
 
 /// Adds every connector the installed package at `package_root` carries to
@@ -316,6 +314,116 @@ struct PackageFileWritePlan {
     write: bool,
 }
 
+impl InstallWritePlan {
+    fn status(&self) -> InstallStatus {
+        if self.writes_skill
+            || self.writes_runner_manifest
+            || self.package_files.iter().any(|file| file.write)
+        {
+            InstallStatus::Installed
+        } else {
+            InstallStatus::Unchanged
+        }
+    }
+}
+
+/// The documents a validated candidate installs.
+#[derive(Clone, Copy)]
+struct PackageDocuments<'a> {
+    markdown: &'a str,
+    profile_document: Option<&'a str>,
+    package_files: &'a [RegistryPackageFile],
+    ref_name: &'a str,
+}
+
+/// Puts the package at `paths`. A new version is written beside its
+/// destination and moved into place only once every connector it carries
+/// reads, so a version this runx does not read leaves nothing behind. An
+/// existing version must already hold these files; any it lacks are written.
+fn place_package(
+    paths: &InstallPaths,
+    documents: &PackageDocuments<'_>,
+) -> Result<InstallStatus, InstallError> {
+    if !paths.package_root.exists() {
+        // Every path is checked, and a conflicting copy found, before a write.
+        prepare_install_write_plan(paths, documents)?;
+        if stage_new_version(paths, documents)? {
+            return Ok(InstallStatus::Installed);
+        }
+    }
+    let plan = prepare_install_write_plan(paths, documents)?;
+    commit_install_write_plan(paths, &plan, documents)?;
+    read_carried_connectors(documents.ref_name, &paths.package_root)?;
+    Ok(plan.status())
+}
+
+/// Writes a new version into a staging directory beside its destination and
+/// renames it into place once it reads; false when another install placed
+/// the version first.
+fn stage_new_version(
+    paths: &InstallPaths,
+    documents: &PackageDocuments<'_>,
+) -> Result<bool, InstallError> {
+    let Some(versions) = paths.package_root.parent() else {
+        return Err(InstallError::Io {
+            path: paths.package_root.clone(),
+            source: io::Error::new(io::ErrorKind::InvalidInput, "package root has no parent"),
+        });
+    };
+    fs::create_dir_all(versions).map_err(|source| InstallError::Io {
+        path: versions.to_path_buf(),
+        source,
+    })?;
+    let root = versions.join(format!(".staging-{}", unique_suffix()));
+    let staged = InstallPaths {
+        destination: root.join("SKILL.md"),
+        runner_manifest_path: paths
+            .runner_manifest_path
+            .as_ref()
+            .map(|_| root.join(runx_parser::PROFILE_FILE)),
+        package_root: root,
+    };
+    let placed = prepare_install_write_plan(&staged, documents)
+        .and_then(|plan| commit_install_write_plan(&staged, &plan, documents))
+        .and_then(|()| read_carried_connectors(documents.ref_name, &staged.package_root))
+        .and_then(
+            |()| match fs::rename(&staged.package_root, &paths.package_root) {
+                Ok(()) => Ok(true),
+                Err(_) if paths.package_root.exists() => Ok(false),
+                Err(source) => Err(InstallError::Io {
+                    path: paths.package_root.clone(),
+                    source,
+                }),
+            },
+        );
+    if staged.package_root.exists() {
+        let _ignored = fs::remove_dir_all(&staged.package_root);
+    }
+    placed
+}
+
+/// Reads every connector the package at `root` carries, as a run of it will.
+fn read_carried_connectors(ref_name: &str, root: &Path) -> Result<(), InstallError> {
+    crate::kernel::connectors::ConnectorScope::at(root)
+        .map(|_| ())
+        .map_err(|error| InstallError::Unreadable {
+            ref_name: ref_name.to_owned(),
+            reason: match error {
+                crate::kernel::connectors::ConnectorRegistryError::InvalidManifest {
+                    path,
+                    message,
+                } => {
+                    let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+                    format!(
+                        "{}: {message}",
+                        path.strip_prefix(&root).unwrap_or(&path).display()
+                    )
+                }
+                other => other.to_string(),
+            },
+        })
+}
+
 fn validate_install_candidate(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
@@ -324,13 +432,21 @@ fn validate_install_candidate(
     let actual_digest = verify_signed_manifest_anchor(candidate, options, allow_unsigned_local)?;
     let profile_digest = validate_candidate_profile_digest(candidate, allow_unsigned_local)?;
     validate_candidate_package_digest(candidate)?;
+    // The bytes are the ones published; what remains is whether this runx
+    // reads them.
+    let unreadable = |reason: String| InstallError::Unreadable {
+        ref_name: exact_ref(candidate),
+        reason,
+    };
     let origin = install_origin(candidate, &actual_digest, profile_digest.as_deref());
-    let install = validate_skill_install(&candidate.markdown, origin)?;
+    let install = validate_skill_install(&candidate.markdown, origin)
+        .map_err(|error| unreadable(error.to_string()))?;
     let package = validate_registry_skill_package(
         &candidate.markdown,
         candidate.profile_document.as_deref(),
         &candidate.package_files,
-    )?;
+    )
+    .map_err(|error| unreadable(error.to_string()))?;
     let runner_names = validate_install_binding_manifest(
         &install.skill.name,
         package.root_manifest(),
@@ -648,11 +764,14 @@ fn install_paths(
 // files before writing so package, profile, and lock updates remain atomic.
 fn prepare_install_write_plan(
     paths: &InstallPaths,
-    markdown: &str,
-    profile_document: Option<&str>,
-    package_files: &[RegistryPackageFile],
-    ref_name: &str,
+    documents: &PackageDocuments<'_>,
 ) -> Result<InstallWritePlan, InstallError> {
+    let PackageDocuments {
+        markdown,
+        profile_document,
+        package_files,
+        ref_name,
+    } = *documents;
     let existing = read_optional(&paths.destination)?;
     let existing_runner_manifest = match &paths.runner_manifest_path {
         Some(path) => read_optional(path)?,
@@ -710,10 +829,14 @@ fn prepare_install_write_plan(
 fn commit_install_write_plan(
     paths: &InstallPaths,
     write_plan: &InstallWritePlan,
-    markdown: &str,
-    profile_document: Option<&str>,
-    package_files: &[RegistryPackageFile],
+    documents: &PackageDocuments<'_>,
 ) -> Result<(), InstallError> {
+    let PackageDocuments {
+        markdown,
+        profile_document,
+        package_files,
+        ..
+    } = *documents;
     debug_assert_eq!(write_plan.package_files.len(), package_files.len());
     fs::create_dir_all(&paths.package_root).map_err(|source| InstallError::Io {
         path: paths.package_root.clone(),

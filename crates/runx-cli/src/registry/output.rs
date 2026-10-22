@@ -138,11 +138,12 @@ pub(super) fn render_install(
     install: &runx_runtime::registry::InstallLocalSkillResult,
     signed_manifest: Option<&runx_runtime::registry::RegistrySignedManifest>,
 ) -> String {
+    let skill = install.skill_id.as_deref().unwrap_or(&install.skill_name);
     format!(
-        "\n  registry install {registry_ref}\n  source           {source}\n  status           {}\n  skill            {}\n  version          {}\n  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
+        "\n  registry install {registry_ref}\n  source           {source}\n  status           {}\n  skill            {skill}\n  version          {}\n{}  digest           {}\n  trust            {}\n  signed           {}\n  destination      {}\n  next             {}\n\n",
         install_status_label(&install.status),
-        install.skill_id.as_deref().unwrap_or(&install.skill_name),
         install.version.as_deref().unwrap_or("unknown"),
+        newest_unread_line(skill, install.newest_unread.as_ref()),
         digest_label(&install.digest),
         install
             .trust_tier
@@ -183,15 +184,29 @@ pub(super) fn render_connector_install(
     install: &runx_runtime::registry::InstalledRegistryConnector,
 ) -> String {
     format!(
-        "\n  registry install {}@{}\n  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
+        "\n  registry install {}@{}\n{}  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
         install.name,
         install.version,
+        newest_unread_line(install.name.as_str(), install.newest_unread.as_ref()),
         install_status_label(&install.status),
         install.content_digest,
         install.manifest_digest,
         trust_tier_label(&install.trust_tier),
         install.destination.display(),
     )
+}
+
+/// The line naming the newest version this runx stepped past, when it did.
+fn newest_unread_line(
+    subject: &str,
+    unread: Option<&runx_runtime::registry::UnreadVersion>,
+) -> String {
+    unread.map_or_else(String::new, |unread| {
+        format!(
+            "  newest           {subject}@{} is not read by this runx: {}\n",
+            unread.version, unread.reason
+        )
+    })
 }
 
 fn signed_manifest_label(

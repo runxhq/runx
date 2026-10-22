@@ -64,6 +64,28 @@ struct ConnectorPackageEnvelope {
     package: RegistryConnectorVersion,
 }
 
+#[derive(Deserialize)]
+struct VersionsEnvelope {
+    #[serde(rename = "status")]
+    _status: SuccessStatus,
+    versions: Vec<ListedVersion>,
+    has_more: bool,
+    next_cursor: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ListedVersion {
+    version: String,
+}
+
+/// One page of the versions a registry publishes under a name, newest first,
+/// and the cursor of the next when there is one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct VersionPage {
+    pub versions: Vec<String>,
+    pub next_cursor: Option<String>,
+}
+
 /// Only whether a served package was withdrawn, read before its contract.
 #[derive(Deserialize)]
 struct WithdrawnProbe {
@@ -121,6 +143,25 @@ pub(crate) fn parse_connector_search(
     body: &str,
 ) -> Result<Vec<RegistryConnectorSearchResult>, RegistryClientError> {
     decode::<ConnectorSearchEnvelope>(route, body).map(|envelope| envelope.connectors)
+}
+
+pub(crate) fn parse_versions(route: &str, body: &str) -> Result<VersionPage, RegistryClientError> {
+    let envelope = decode::<VersionsEnvelope>(route, body)?;
+    if envelope.has_more != envelope.next_cursor.is_some() {
+        return Err(RegistryClientError::Contract {
+            route: route.to_owned(),
+            field_path: "$.next_cursor".to_owned(),
+            message: "a page has a next cursor exactly when it has more".to_owned(),
+        });
+    }
+    Ok(VersionPage {
+        versions: envelope
+            .versions
+            .into_iter()
+            .map(|listed| listed.version)
+            .collect(),
+        next_cursor: envelope.next_cursor,
+    })
 }
 
 pub(crate) fn parse_connector_package(

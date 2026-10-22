@@ -62,6 +62,50 @@ impl Transport for &MockTransport {
 }
 
 #[test]
+fn version_listings_page_by_cursor_and_hold_to_their_contract()
+-> Result<(), Box<dyn std::error::Error>> {
+    let page = json!({
+        "status": "success",
+        "versions": [{"version": "sha-222222222222"}, {"version": "sha-111111111111"}],
+        "has_more": true,
+        "next_cursor": "a b",
+    });
+    let transport = MockTransport::with(page);
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    let listed = client
+        .skill_versions("acme/echo", Some("first"))?
+        .ok_or("the registry lists acme/echo")?;
+    assert_eq!(listed.versions, ["sha-222222222222", "sha-111111111111"]);
+    assert_eq!(listed.next_cursor.as_deref(), Some("a b"));
+    assert_eq!(
+        transport.requests()[0].url,
+        "https://registry.example/v1/skills/acme/echo/versions?cursor=first"
+    );
+
+    let connector = runx_contracts::connector::ConnectorName::new("google/calendar")
+        .ok_or("a connector name")?;
+    let transport = MockTransport::with(json!({
+        "status": "success",
+        "versions": [],
+        "has_more": true,
+    }));
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    assert!(matches!(
+        client.connector_versions(&connector, Some("a b")),
+        Err(RegistryClientError::Contract { field_path, .. }) if field_path == "$.next_cursor"
+    ));
+    assert_eq!(
+        transport.requests()[0].url,
+        "https://registry.example/v1/connectors/google/calendar/versions?cursor=a%20b"
+    );
+
+    let transport = MockTransport::with_status(404, json!({"code": "connector_not_found"}));
+    let client = RegistryClient::with_transport("https://registry.example", &transport)?;
+    assert_eq!(client.connector_versions(&connector, None)?, None);
+    Ok(())
+}
+
+#[test]
 fn search_builds_url_and_parses_trust_tier() -> Result<(), Box<dyn std::error::Error>> {
     let transport = MockTransport::with(search_success_fixture()?);
     let client = RegistryClient::with_transport("https://registry.example/", &transport)?;

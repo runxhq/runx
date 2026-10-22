@@ -944,7 +944,11 @@ to the core skills this release carries, which are added under
 package runs by its `owner/name[@version]` ref, optionally with `--registry`
 and `--digest`, unless your own copy at `skills/<owner>/<name>/` answers it;
 only a trusted, signed registry package is added to the project, at
-`.runx/added-skills/<owner>/<name>/<version>/`.
+`.runx/added-skills/<owner>/<name>/<version>/`. A ref without a version takes
+the newest version this runx reads: when the registry's current version needs
+another runx, the newest older version this one reads is used instead, and the
+output's `newest_unread` names the version passed over and why. A version named
+outright is used as named, or refused when this runx does not read it.
 
 Agent graphs can also demand-load skills as context instead of executing them.
 Reference reusable judgement, operating procedure, or capability skills from an

@@ -583,6 +583,13 @@ fn entry_provenance(resolved: &ResolvedSkillRef) -> Option<JsonObject> {
         "registry_key_id",
         resolved.registry_key_id.as_ref(),
     );
+    if let Some(unread) = resolved
+        .newest_unread
+        .as_ref()
+        .and_then(|unread| JsonValue::from_serialize(unread).ok())
+    {
+        provenance.insert("newest_unread".to_owned(), unread);
+    }
     if matches!(
         resolved.trust_state.as_ref(),
         Some(RegistryTrustState::Trusted)

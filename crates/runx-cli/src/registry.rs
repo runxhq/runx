@@ -9,13 +9,13 @@ use runx_contracts::connector::ConnectorName;
 use runx_runtime::ConfigError;
 use runx_runtime::WorkspaceEnv;
 use runx_runtime::registry::resolve::{
-    RegistryTarget, ResolveError, install_candidate, registry_client, resolve_registry_target,
-    trusted_manifest_keys_for_source,
+    Installed, RegistryTarget, ResolveError, install_skill_ref, registry_client,
+    resolve_registry_target, trusted_manifest_keys_for_source,
 };
 use runx_runtime::registry::{
-    FileRegistryStore, IngestSkillOptions, InstallLocalSkillOptions, PublishSkillMarkdownOptions,
-    RegistryPublishPackageRequest, TrustTier, install_local_skill, materialize_publish_closure,
-    prepare_registry_publish_package, publish_skill_markdown,
+    FileRegistryStore, IngestSkillOptions, InstallLocalSkillOptions, InstallLocalSkillResult,
+    PublishSkillMarkdownOptions, RegistryPublishPackageRequest, TrustTier, install_local_skill,
+    materialize_publish_closure, prepare_registry_publish_package, publish_skill_markdown,
 };
 
 mod connector;
@@ -235,8 +235,26 @@ fn run_install(
     let source = target.label();
     let source_authority = target.manifest_source_authority();
     let fallback = target.clone();
-    let Some((candidate, acquisition)) =
-        install_candidate(&plan.subject, plan.version.as_deref(), target, env, cwd)?
+    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
+    let options = InstallLocalSkillOptions {
+        destination_root: paths.added_skills(),
+        connectors_root: paths.added_connectors(),
+        install_records: paths.install_records(),
+        expected_digest: plan.expected_digest.clone(),
+        trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority)?,
+    };
+    let Some(Installed {
+        package: (candidate, acquisition),
+        installed: install,
+        newest_unread,
+    }) = install_skill_ref(
+        &plan.subject,
+        plan.version.as_deref(),
+        target,
+        env,
+        cwd,
+        |candidate| install_local_skill(candidate, &options),
+    )?
     else {
         return match (fallback, ConnectorName::new(&plan.subject)) {
             // No skill is published under the name; a connector may be.
@@ -251,16 +269,10 @@ fn run_install(
             }
         };
     };
-    let install = install_local_skill(
-        &candidate,
-        &InstallLocalSkillOptions {
-            destination_root: runx_runtime::RunxPaths::resolve(env, cwd).added_skills(),
-            connectors_root: runx_runtime::RunxPaths::resolve(env, cwd).added_connectors(),
-            install_records: runx_runtime::RunxPaths::resolve(env, cwd).install_records(),
-            expected_digest: plan.expected_digest.clone(),
-            trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority)?,
-        },
-    )?;
+    let install = InstallLocalSkillResult {
+        newest_unread,
+        ..install
+    };
     let requested = plan.requested_ref();
     let human = output::render_install(
         source,
@@ -471,7 +483,7 @@ impl From<ConfigError> for RegistryCliError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use runx_runtime::registry::{InstallLocalSkillResult, InstallStatus, TrustTier};
+    use runx_runtime::registry::{InstallStatus, UnreadVersion};
 
     #[test]
     fn registry_install_render_shows_direct_skill_run_command() {
@@ -490,11 +502,43 @@ mod tests {
                 profile_digest: None,
                 runner_names: Vec::new(),
                 trust_tier: Some(TrustTier::Community),
+                newest_unread: None,
             },
             None,
         );
 
         assert!(rendered.contains("next             runx skill acme/echo@1.2.3"));
+        assert!(!rendered.contains("newest"));
+    }
+
+    #[test]
+    fn registry_install_render_names_the_newest_version_it_does_not_read() {
+        let rendered = output::render_install(
+            "remote",
+            "acme/echo",
+            &InstallLocalSkillResult {
+                status: InstallStatus::Installed,
+                destination: PathBuf::from("/tmp/runx/skills/acme/echo/SKILL.md"),
+                skill_name: "echo".to_owned(),
+                source: "runx-registry".to_owned(),
+                source_label: "runx registry".to_owned(),
+                skill_id: Some("acme/echo".to_owned()),
+                version: Some("1.2.3".to_owned()),
+                digest: "sha256:abc".to_owned(),
+                profile_digest: None,
+                runner_names: Vec::new(),
+                trust_tier: Some(TrustTier::Community),
+                newest_unread: Some(UnreadVersion {
+                    version: "2.0.0".to_owned(),
+                    reason: "run.yaml: runners.echo.colour is not supported".to_owned(),
+                }),
+            },
+            None,
+        );
+
+        assert!(rendered.contains(
+            "newest           acme/echo@2.0.0 is not read by this runx: run.yaml: runners.echo.colour is not supported"
+        ));
     }
 
     #[test]

@@ -41,6 +41,15 @@ pub use runx_contracts::{
     RegistrySubjectKind,
 };
 
+/// The newest version a registry publishes under a name, when this runx does
+/// not read it and took an older one in its place.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnreadVersion {
+    pub version: String,
+    /// Why this runx does not read it.
+    pub reason: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryPackageFile {
     pub path: String,

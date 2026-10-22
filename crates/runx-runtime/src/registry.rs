@@ -42,6 +42,7 @@ pub use local::{
 pub use package_metadata::{
     RegistryConnectorMetadata, RegistryHarnessCaseMetadata, RegistryPackageMetadata,
 };
+pub use payload::VersionPage;
 pub use publish::{
     HostedAdminSkillPublishRequest, HostedConnectorPublishRequest, HostedConnectorPublishResult,
     HostedSkillPublishRequest, HostedSkillPublishResult, RegistryPublishError,
@@ -76,5 +77,5 @@ pub use types::{
     RegistryManifestSigner, RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher,
     RegistrySearchResult, RegistrySignedManifest, RegistrySkill, RegistrySkillDetail,
     RegistrySkillResolution, RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject,
-    RegistrySubjectKind, TrustSignal, TrustTier,
+    RegistrySubjectKind, TrustSignal, TrustTier, UnreadVersion,
 };

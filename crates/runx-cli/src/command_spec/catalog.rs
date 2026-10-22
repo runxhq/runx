@@ -329,7 +329,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         notes: &[
             "Each verb takes a skill or a connector. `package` and `publish` read the kind from the path: connector.yaml, or a directory holding one, is a connector; SKILL.md or its directory is a skill.",
-            "`install` adds what is published under the name to the project. A skill carries the connectors it binds, so a name published as both adds the skill; a connector alone adds the connector, for building your own skill on it. A name and version always name one package. Running a skill with `runx skill <ref>` fetches it the same way, so most work needs no install.",
+            "`install` adds what is published under the name to the project. A skill carries the connectors it binds, so a name published as both adds the skill; a connector alone adds the connector, for building your own skill on it. A name and version always name one package. A name alone takes the newest version this runx reads: when a newer one needs another runx, it is named beside what was installed. Running a skill with `runx skill <ref>` fetches it the same way, so most work needs no install.",
             "Connectors are published to, searched in and installed from a hosted registry, each into the publisher its ref names.",
         ],
         options: &[

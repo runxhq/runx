@@ -93,13 +93,16 @@ The command shape is deliberate:
 | Execute a local or registry skill | `runx skill <path-or-ref>` |
 
 Running a registry ref fetches it, so most work needs no install.
-`runx registry install` adds a package without running it.
+`runx registry install` adds a package without running it. A ref without a
+version takes the newest version your runx reads; when the current version
+needs a newer runx, the output names it and the newest version yours reads
+runs instead.
 
-Every package a project runs lives beside its source, under
-`skills/<owner>/<name>/<version>/`: a registry skill when it is first run or
-installed, the registry skills a graph names, and a bundled runx skill the
-first time the project uses it (`runx new` uses `runx/skill-build`). Commit
-them or ignore them as you would any other dependency.
+Every package a project runs is added under
+`.runx/added-skills/<owner>/<name>/<version>/`: a registry skill when it is
+first run or installed, the registry skills a graph names, and a bundled runx
+skill the first time the project uses it (`runx new` uses `runx/skill-build`).
+Commit them or ignore them as you would any other dependency.
 
 ## Operator-first package contract
 
