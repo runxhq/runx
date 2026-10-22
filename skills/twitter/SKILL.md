@@ -26,7 +26,7 @@ name missing evidence as a blocker.
 
 ## What this skill does
 
-Five runners:
+Seven runners:
 
 - `read`: collect account evidence from the live API through the `twitter`
   connector. Queries: `snapshot`, `posts`, `mentions`, `search`, `following`,
@@ -68,36 +68,120 @@ Five runners:
   act's outcome as it lands and stops sending at a rate limit, so a monotonic
   cursor, not an accumulated id list, is enough to resume safely.
 
-### Resume and the execution ledger
+### Durable operation memory and continuation
 
-`execute` is stateless per turn; the state lives in a store stream keyed
-by the immutable plan digest. The latest `twitter.execution.progress.v1` event
-contains only the X account id the batch ran as, `next_act_index`,
-`total_act_count`, an optional in-progress thread segment cursor, and a bounded
-summary of the last batch. Its size is constant whether the plan has completed
-two acts or two thousand.
+The skill remembers an operation in its bound `store`, local to the workspace
+by default. It saves the exact plan once under its native digest, separately
+from the compact execution progress stream. The saved plan preserves the
+objective, account principal, exact content and targets, rationale, evidence
+references and any applied context bindings. Progress preserves the pinned
+account id, next act, partial thread cursor, cumulative processed, succeeded and failed act counts, a bounded last failure
+evidence reference, the last batch summary and structured stop advice. No host opens the store database, reconstructs
+completed ids or calculates plan hashes.
 
-Each batch first reads the bound account. It runs only when that account is
-the plan's principal (`account:@handle`, any letter case) and, once the ledger
-has pinned an account id, the same account every earlier batch ran as;
-otherwise the run fails before anything is sent. The approval shows the
-verified `@handle` and account id.
+On the first `execute`, supply `plan_json` and its native `plan_digest` from
+`plan` or `select`. A valid plan is saved before the effect approval; saving it
+is not approval. On later calls, omit `plan_json` and supply only the digest.
+The skill reads its own progress, selects the next batch and derives the
+expected stream version and canonical retry key. The logical store defaults to
+`local://twitter`; pass `data_source_ref` when the operation uses another
+binding, and keep using that same workspace and store.
 
-The driver reads only the latest ledger event (`read_events`, `limit: 1`) and
-its stream version. It calls `execute` with that `expected_version` and the
-canonical key `twitter:<plan_digest>:v<expected_version+1>`. The runner performs
-the same tail read itself and refuses stale or misbound inputs before approval
-or provider work. After a committed batch, the driver repeats with the new
-version until `next_act_index == total_act_count`. It never scans history or
-folds completed ids. An invalid plan, digest mismatch, stale cursor, or already
-complete plan produces a sealed refusal/no-op receipt but does not append a
-fake state transition.
+- `status` reads one plan and its progress without contacting X. It returns the
+  objective, principal, current cursor, partial thread, last batch, next batch
+  summary, cumulative outcome counts, failure evidence, structured `stop`,
+  `retry_at`, and compact `next_input` for `execute`. It never returns
+  an approval or claims a proposed batch has run. `needs_plan` means this store
+  has no saved plan: provide the original exact plan once, rather than
+  inventing it or resetting a progress stream.
+- `recent` lists a bounded page of prior execution summaries and plan digests.
+  It does not scan history or return every post. A plan saved at an approval
+  pause has no completed batch yet; find that paused invocation through native
+  run history and resume its run id.
 
-Threads use one extra bounded cursor: each segment is its own batch, and
-progress records the next segment plus the confirmed reply id until the last
-one posts, so a resumed thread never reposts a confirmed segment. The operator binds
-`data_source_ref` to durable local SQLite or another store the `store`
-connector reaches; the skill never opens the database directly.
+Each execution reads the bound account. It runs only when that account matches
+the plan's principal (`account:@handle`, case insensitive) and, once progress
+has pinned an account id, that same account. The exact approval identifies the
+verified handle, account id, target and payload. Another available account is
+never a fallback.
+
+A native invocation and a multi-batch plan have different identities. If the
+invocation pauses, continue **that run id** through `runx resume`; do not start
+another run to escape an approval. If a call is interrupted or its outcome is
+unknown, read native history and reconcile that same invocation first. Runx
+owns in-flight custody and whether an effect may be retried. Only after a batch
+is sealed and its result understood should another `execute` start the next
+batch. A saved plan, status, receipt or supplied approval reference is context,
+never new authority. Relay only actual operator decisions bound to the exact
+native request.
+
+Threads advance one segment per batch. The saved cursor contains the next
+segment and confirmed reply id, so continuation does not repost earlier
+segments. The cursor counts processed acts. Only provider-confirmed successful acts
+increment `counts.succeeded`; settled refusals increment `counts.failed`. A
+partially published thread is not a completed act. Failures remain visible
+across later batches through cumulative counts and a bounded `last_failure`
+containing the act, reason and native evidence reference. At the end, execution
+returns `completed_with_failures` and status returns `complete_with_failures`
+when any terminal act failed. Detailed outcomes remain in native evidence. A refused plan, digest mismatch or already-complete plan does not
+append a fake progress event.
+
+`stop.action` distinguishes `wait`, `review` and `reconcile`. A known rate
+reset gives `waiting` status and a conditional `next_input`: the host must
+wait until `retry_at` before using it. Unknown retry timing or account,
+authentication and billing problems require review and expose no automatic
+next input. An unsettled or ambiguous outcome asks for native reconciliation;
+never start a replacement publish invocation to escape it. After resolving a
+review stop, an operator may explicitly invoke execute again under a fresh
+exact native approval. `retry_at` is the provider's reported reset, not proof the account will be
+ready then. Wait until that time before another attempt, or stop for the
+operator when retry timing is unknown. Inspect native failure evidence for
+calls that fail before a settled batch result. Do not loop on permission,
+billing, account restrictions or unknown acknowledgement. The host owns
+scheduling and may choose a stricter cadence or spending cap. A CLI host can
+return the wait to its operator; Fieldwork can persist a wakeup on its Work.
+The skill contains no sleeping process, scheduler or personal memory service.
+
+### Direct CLI use
+
+Use the installed CLI's inspection for exact input contracts. Select the
+workspace and connector once, then use the same workspace for continuation:
+
+```sh
+runx connector use twitter --credential user
+runx connector use store
+runx skill ./skills/twitter read -i query=snapshot --json
+runx skill ./skills/twitter recent --json
+runx skill ./skills/twitter status -i plan_digest=<native-plan-digest> --json
+runx skill ./skills/twitter execute -i plan_digest=<native-plan-digest> --json
+```
+
+For the first execution, `--inputs <file-or-stdin>` carries the original plan
+and native digest; subsequent executions use the compact `next_input` from
+status. Local paths above illustrate a checkout; installed registry refs and
+other compatible hosts use the same runner contracts. Paths, run ids and
+artifact references come from runx, never guessed filesystem layouts.
+
+The operating sequence is evidence → grounded plan or deterministic selection
+→ exact native approval → bounded execution → status or native recovery.
+Codex supplies judgment and relays the person's decisions. It needs no X HTTP,
+SQL, batching, canonical hashing or private operator scripts. Fieldwork owns
+ongoing goals, brand/taste context, longer-lived memory and future wakeups;
+the same skill and native evidence work from either host.
+
+### Connector implementations
+
+The skill targets typed X operations, not an HTTP library or browser driver.
+An API implementation and an X-specific browser implementation can implement
+the same operations if they preserve account binding, exact payload semantics,
+bounded outcomes, idempotency/custody requirements and truthful finality. A
+generic browser connector alone does not implement `post.create` or
+`users.follow`: its X-specific implementation must translate those operations
+and verify their results. Bind an implementation explicitly; do not silently
+switch transport or account after a failure. Missing operations are readiness
+failures, not permission to fall back to ad hoc browser or HTTP code. The
+current packaged connector uses the X API; this skill change does not supply
+or claim a working browser implementation.
 
 Each runner emits exactly one packet for its lane: typed evidence with
 provenance and a content digest, a curated or bulk act plan bound by digest, or
@@ -200,15 +284,15 @@ For the `plan` runner, build `twitter_plan` this way:
   remains paged. Do not claim an oversized users bulk plan was evaluated.
 - **Rate limit during execute:** nothing more is sent; the acts before it are
   settled and the packet reports `next_act_index`, `remaining_count`, and the
-  reset time. After the reset, read the latest ledger version and invoke the
-  next canonical batch; do not reconstruct ids.
+  reset time. After the reset, inspect `status` and invoke its compact next input;
+  the skill reads and verifies the latest stream version itself.
 - **One act refused:** a refused act is recorded as `failed` with the
   provider's reason and the cursor moves past it. Unfollowing a deactivated
   account is already the state the act asked for, so it counts as done.
 - **Plan digest mismatch on execute:** the apply step refuses and executes
   nothing. A refusal is receipt evidence, not a fake ledger transition.
-- **Stale stream version or batch key:** refusal before the approval/provider
-  boundary. Re-read the one-event ledger tail and derive the canonical key.
+- **Concurrent or interrupted work:** reconcile the native run first. The skill
+  derives its stream version and batch key; a host must not invent either.
 - **Partially posted thread:** resume from the ledger's `active_thread` cursor;
   never restart the thread from its first confirmed segment.
 - **Approval missing or denied:** the execute graph stops at the gate.
@@ -238,12 +322,13 @@ For the `plan` runner, build `twitter_plan` this way:
   `plan_digest`, `blockers[]`. The `twitter_plan` is what a driver hands to
   `execute`, and `plan_digest` is bound so the approved and executed bytes are
   provably identical.
-- `twitter.execution.v1`: `decision` (`executed`, `partial`, `stopped`,
+- `twitter.execution.v1`: `decision` (`executed`, `completed_with_failures`, `partial`, `stopped`,
   `refused`, `noop`), `plan_digest`, `principal`, `results[]` (`act_id`, `kind`,
   `consequence`, `status`, `provider_ref`, `detail`) for the current bounded
   batch, `next_act_index`, `total_act_count`, `remaining_count`, optional
-  `active_thread`, `rate`, `blockers[]`, and `success_checkpoint`. A ready batch
-  also carries the compact `twitter.execution.progress.v1` ledger delta.
+  `active_thread`, cumulative `counts`, `last_failure`, structured `stop`, `rate`, `blockers[]`, and `success_checkpoint`. A ready batch
+  also carries the compact `twitter.execution.progress.v1` ledger delta, with
+  the reported rate/reset information needed by the next host.
 
 ## Worked example
 
@@ -274,11 +359,13 @@ confirmed.
   `is_retweet`, `text_prefix`, `text_contains`, `max_likes`, `max_reposts`,
   `before_year`, `after_year`; users take `non_mutual` or `user_ids`),
   `archive_base`, `max_acts`.
-- `execute`: `plan_json` and `plan_digest` (required), `data_source_ref`
-  (required), `expected_version` (required), `idempotency_key` (required),
-  `max_acts` (acts per batch, hard-capped at 50). `idempotency_key` must be exactly
-  `twitter:<plan_digest>:v<expected_version+1>`; the runner independently
-  verifies both values against the durable one-event tail before execution.
+- `execute`: `plan_digest` (required), optional `plan_json` on the first call,
+  `data_source_ref` (default `local://twitter`) and `max_acts` (1–50). Native
+  digest verification precedes saving the plan or provider effects. Version,
+  retry identity and next batch are derived inside the skill.
+- `status`: `plan_digest` (required), optional `data_source_ref` and `max_acts`.
+- `recent`: optional `data_source_ref`, `limit` (1–100, default 5) and page
+  `cursor`. Only execution summaries are listed.
 
 ## Credentials and cost
 

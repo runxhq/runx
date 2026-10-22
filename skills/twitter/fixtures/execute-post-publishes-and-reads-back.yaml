@@ -3,7 +3,7 @@ kind: skill
 target: ..
 runner: execute
 operator_journeys:
-  - mode: composed
+  - mode: standalone
     confusors: [message-send, moltbook]
     request: Run the next batch of this approved posting plan.
     expected_outcome: Publish the next post alone under its own approval, confirm it by reading it back, and advance the cursor past it.
@@ -27,8 +27,7 @@ inputs:
     gates: { human_approval_required: true, approval_ref: approval:granted }
   plan_digest: sha256:535eb9bd5b96982a210ce5d1ce304f23b510b08560975b9688728f6cb0309abd
   data_source_ref: tenant://twitter/sqlite-post
-  expected_version: 0
-  idempotency_key: twitter:sha256:535eb9bd5b96982a210ce5d1ce304f23b510b08560975b9688728f6cb0309abd:v1
+
 caller:
   http_exchanges:
     - request:
@@ -60,7 +59,7 @@ caller:
     "request": true
 expect:
   status: sealed
-  steps: [ledger, digest, prepare, self, bind, request, apply, persist]
+  steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
   step_outputs:
     request:
       subset:
@@ -86,6 +85,6 @@ expect:
               account_id: "42"
               decision: partial
               next_act_index: 1
-              batch: { start_act_index: 0, selected_act_count: 1, completed_act_count: 1, failed: false, rate_limited: false }
+              batch: { start_act_index: 0, selected_act_count: 1, processed_act_count: 1, succeeded_act_count: 1, failed_act_count: 0, rate_limited: false }
   receipt: { schema: runx.receipt.v1, state: sealed }
 metadata: { public_skill: twitter, source_case: execute-post-confirmed, source: skills-fixture }

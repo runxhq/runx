@@ -61,7 +61,5 @@ function prepare(acts: Record<string, unknown>[], principal = "account:@example"
     plan_digest: DIGEST,
     digest_result: { digest: DIGEST },
     execution_ledger: { after_version: 0, events: [] },
-    expected_version: 0,
-    idempotency_key: `twitter:${DIGEST}:v1`,
   }).twitter_execution_plan;
 }

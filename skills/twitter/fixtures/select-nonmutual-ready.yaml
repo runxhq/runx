@@ -13,7 +13,12 @@ inputs:
     non_mutual: true
 expect:
   status: sealed
-  steps: [prepare, read-users, select-users, digest-users, finalize-users]
+  steps:
+  - prepare
+  - read-users
+  - select-users
+  - digest-users
+  - finalize-users
   step_outputs:
     finalize-users:
       subset:
@@ -24,13 +29,21 @@ expect:
             scanned: 3
             twitter_plan:
               acts:
-                - act_id: act-unf-111
-                  kind: unfollow
-                - act_id: act-unf-333
-                  kind: unfollow
+              - act_id: act-unf-111
+                kind: unfollow
+              - act_id: act-unf-333
+                kind: unfollow
   receipt:
     schema: runx.receipt.v1
 metadata:
   public_skill: twitter
   source_case: select-nonmutual-ready
   source: skills-fixture
+operator_journeys:
+- mode: standalone
+  confusors:
+  - message-send
+  - moltbook
+  request: Select the reviewed non-mutual X accounts from supplied archives.
+  expected_outcome: Return the exact deterministic unfollow plan without changing
+    the account.

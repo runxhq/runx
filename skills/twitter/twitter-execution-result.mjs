@@ -34,24 +34,41 @@ export function finalizeExecution(inputs) {
     : actKind(batch.kind)?.publish
       ? published(plan, batch, operation)
       : repeated(plan, batch, record(operation.result));
+  const processed = state.nextActIndex - state.startActIndex;
+  const succeeded = state.results.slice(0, processed).filter((item) => item.status === "done").length;
+  const failed = processed - succeeded;
+  const counts = {
+    processed: plan.counts.processed + processed,
+    succeeded: plan.counts.succeeded + succeeded,
+    failed: plan.counts.failed + failed,
+  };
+  const failure = state.results.slice(0, processed).findLast((item) => item.status === "failed");
+  const lastFailure = failure ? {
+    act_id: failure.act_id,
+    reason: failure.detail,
+    evidence_ref: text(operation.readback_ref),
+  } : plan.last_failure;
   const decision = state.nextActIndex === state.totalActCount
-    ? "executed"
-    : state.rateLimited
+    ? counts.failed > 0 ? "completed_with_failures" : "executed"
+    : state.stop
       ? "stopped"
       : "partial";
   const remainingCount = Math.max(0, state.totalActCount - state.nextActIndex);
-  const completed = state.nextActIndex - state.startActIndex;
   return {
     twitter_execution: executionPacket(plan, decision, {
       results: state.results,
       next_act_index: state.nextActIndex,
       remaining_count: remainingCount,
       active_thread: state.activeThread,
-      ledger_delta: progressEvent(plan, decision, state, array(batch.acts).length, text(inputs.account_id)),
+      counts,
+      last_failure: lastFailure,
+      stop: state.stop,
+      ledger_delta: progressEvent(plan, decision, state, array(batch.acts).length, text(inputs.account_id), counts, lastFailure, { processed, succeeded, failed }),
       rate: state.rate,
       success_checkpoint: {
-        milestone: decision === "executed" ? "plan_fully_executed" : "plan_partially_executed",
-        description: `${completed} acts completed in this batch, ${remainingCount} remaining`,
+        milestone: decision === "executed" ? "plan_fully_executed"
+          : decision === "completed_with_failures" ? "plan_completed_with_failures" : "plan_partially_executed",
+        description: `${processed} acts processed in this batch: ${succeeded} succeeded, ${failed} failed; ${remainingCount} remaining`,
       },
     }),
   };
@@ -63,11 +80,11 @@ function baseState(plan) {
     startActIndex,
     nextActIndex: startActIndex,
     totalActCount: nonNegativeInteger(plan.total_act_count) ?? 0,
-    activeThread: null,
+    activeThread: activeThread(plan.active_thread),
     results: [],
-    failed: false,
     rateLimited: false,
     rate: rate(),
+    stop: null,
   };
 }
 
@@ -75,7 +92,13 @@ function baseState(plan) {
 function published(plan, batch, operation) {
   const state = baseState(plan);
   const act = record(batch.acts[0]);
-  state.results.push(result(act, "done", postId(operation), null));
+  const id = postId(operation);
+  if (!id) {
+    state.stop = stop("missing_post_id", "The published post has no confirmed X id; reconcile the native invocation before continuing.", "reconcile");
+    state.results.push(result(act, "failed", null, state.stop.reason));
+    return state;
+  }
+  state.results.push(result(act, "done", id, null));
   state.nextActIndex += 1;
   return state;
 }
@@ -91,7 +114,7 @@ function publishedSegment(plan, batch, operation) {
   if (!id) {
     // The next segment replies to this one, so without its id the thread
     // cannot go on; it stops here for the operator to look.
-    state.failed = true;
+    state.stop = stop("missing_post_id", "The thread segment has no confirmed X id; reconcile the native invocation before continuing.", "reconcile");
     state.results.push(result(act, "failed", null, `segment ${posted + 1} of ${count} was confirmed without a post id`));
     return state;
   }
@@ -104,6 +127,7 @@ function publishedSegment(plan, batch, operation) {
     };
   } else {
     state.nextActIndex += 1;
+    state.activeThread = null;
   }
   return state;
 }
@@ -121,12 +145,11 @@ function repeated(plan, batch, operationResult) {
     if (outcome.status === "applied") {
       const reached = reachedState(act.kind, outcome.acknowledgement);
       if (reached === null) {
-        state.failed = true;
+        state.stop = stop("unknown_resulting_state", "The provider's answer did not state the resulting state; review the native evidence before retrying.", "review");
         state.results.push(result(act, "failed", act.target, "the provider's answer did not state the resulting state"));
         break;
       }
       if (reached === false) {
-        state.failed = true;
         state.results.push(result(act, "failed", act.target, "the provider reported that the requested state was not reached"));
       } else {
         state.results.push(result(act, "done", act.target, null));
@@ -139,17 +162,19 @@ function repeated(plan, batch, operationResult) {
       if (alreadySatisfied(act.kind, detail)) {
         state.results.push(result(act, "done", act.target, "Target account is inactive; the requested not-following state is already satisfied."));
       } else {
-        state.failed = true;
         state.results.push(result(act, "failed", act.target, detail));
       }
       state.nextActIndex += 1;
       continue;
     }
     if (outcome.status === "refused") {
-      state.failed = true;
       state.rateLimited = outcome.code === "rate_limited";
       state.rate = rate(outcome);
+      state.stop = stop(text(outcome.code) || "provider_refused", providerDetail(outcome), state.rateLimited && state.rate.reset_at ? "wait" : "review", state.rate.reset_at);
       state.results.push(result(act, "failed", act.target, providerDetail(outcome)));
+    } else {
+      state.stop = stop("missing_outcome", "The batch has no settled outcome for the next act; reconcile the native invocation.", "reconcile");
+      state.results.push(result(act, "failed", act.target, state.stop.reason));
     }
     break;
   }
@@ -174,10 +199,15 @@ function providerDetail(outcome) {
 }
 
 function postId(operation) {
-  return text(record(record(operation.result).post).id) || text(operation.operation_id) || null;
+  const id = text(record(record(operation.result).post).id);
+  return /^[0-9]{1,19}$/.test(id) ? id : null;
 }
 
-function progressEvent(plan, decision, state, selectedCount, accountId) {
+function stop(code, reason, action, retryAt = null) {
+  return { code, reason, action, retry_at: retryAt };
+}
+
+function progressEvent(plan, decision, state, selectedCount, accountId, counts, lastFailure, batchCounts) {
   return {
     schema: "twitter.execution.progress.v1",
     type: "twitter.execution.progress",
@@ -187,11 +217,15 @@ function progressEvent(plan, decision, state, selectedCount, accountId) {
     next_act_index: state.nextActIndex,
     total_act_count: state.totalActCount,
     active_thread: state.activeThread,
+    counts,
+    last_failure: lastFailure,
+    stop: state.stop,
     batch: {
       start_act_index: state.startActIndex,
       selected_act_count: selectedCount,
-      completed_act_count: state.nextActIndex - state.startActIndex,
-      failed: state.failed,
+      processed_act_count: batchCounts.processed,
+      succeeded_act_count: batchCounts.succeeded,
+      failed_act_count: batchCounts.failed,
       rate_limited: state.rateLimited,
     },
   };
@@ -206,12 +240,15 @@ function executionPacket(plan, decision, overrides = {}) {
     total_act_count: nonNegativeInteger(plan.total_act_count) ?? 0,
     remaining_count: nonNegativeInteger(plan.remaining_count) ?? 0,
     active_thread: activeThread(plan.active_thread),
+    counts: plan.counts,
+    last_failure: plan.last_failure,
+    stop: plan.stop,
     results: [],
     ledger_delta: null,
     rate: rate(),
     blockers: array(plan.blockers),
     success_checkpoint: {
-      milestone: decision === "noop" ? "plan_fully_executed" : "plan_refused",
+      milestone: decision === "noop" ? (plan.counts.failed > 0 ? "plan_completed_with_failures" : "plan_fully_executed") : "plan_refused",
       description: decision === "noop"
         ? "The durable cursor is already at the end of the plan."
         : "The execution contract was refused before provider work.",

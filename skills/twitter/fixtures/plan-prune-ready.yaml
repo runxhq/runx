@@ -3,56 +3,67 @@ kind: skill
 target: ..
 runner: plan
 inputs:
-  objective: Delete my zero-engagement posts from before 2019 and unfollow one inactive account.
+  objective: Delete my zero-engagement posts from before 2019 and unfollow one inactive
+    account.
   principal: account:@example
   evidence_json:
     source: archive
     query:
       kind: posts
     items:
-      - id: "1001"
-        text: trying out this new framework, seems ok
-        created_at: Mon Apr 03 14:00:00 +0000 2017
-        metrics: { likes: 0, reposts: 0 }
-      - id: "1002"
-        text: "hot take: tabs vs spaces does not matter"
-        created_at: Tue Jun 12 09:30:00 +0000 2018
-        metrics: { likes: 0, reposts: 0 }
+    - id: '1001'
+      text: trying out this new framework, seems ok
+      created_at: Mon Apr 03 14:00:00 +0000 2017
+      metrics:
+        likes: 0
+        reposts: 0
+    - id: '1002'
+      text: 'hot take: tabs vs spaces does not matter'
+      created_at: Tue Jun 12 09:30:00 +0000 2018
+      metrics:
+        likes: 0
+        reposts: 0
     item_count: 2
-  operator_policy: Keep anything with likes or reposts. Unfollow user id 555001 (confirmed inactive).
+  operator_policy: Keep anything with likes or reposts. Unfollow user id 555001 (confirmed
+    inactive).
 caller:
   answers:
     draft:
       twitter_plan:
         decision: ready
-        objective: Delete my zero-engagement posts from before 2019 and unfollow one inactive account.
+        objective: Delete my zero-engagement posts from before 2019 and unfollow one
+          inactive account.
         principal: account:@example
         acts:
-          - act_id: act-001
-            kind: delete_post
-            params: { post_id: "1001" }
-            consequence: live_mutation
-            rationale: Zero engagement, posted 2017, matches the prune criteria.
-          - act_id: act-002
-            kind: delete_post
-            params: { post_id: "1002" }
-            consequence: live_mutation
-            rationale: Zero engagement, posted 2018, matches the prune criteria.
-          - act_id: act-003
-            kind: unfollow
-            params: { target_user_id: "555001" }
-            consequence: live_mutation
-            rationale: Operator-confirmed inactive account.
+        - act_id: act-001
+          kind: delete_post
+          params:
+            post_id: '1001'
+          consequence: live_mutation
+          rationale: Zero engagement, posted 2017, matches the prune criteria.
+        - act_id: act-002
+          kind: delete_post
+          params:
+            post_id: '1002'
+          consequence: live_mutation
+          rationale: Zero engagement, posted 2018, matches the prune criteria.
+        - act_id: act-003
+          kind: unfollow
+          params:
+            target_user_id: '555001'
+          consequence: live_mutation
+          rationale: Operator-confirmed inactive account.
         gates:
           human_approval_required: true
           approval_ref: approval:pending
         evidence_refs:
-          - archive:posts
+        - archive:posts
         open_questions: []
         blockers: []
         success_checkpoint:
           milestone: plan_ready_for_approval
-          description: Three grounded live mutations await explicit approval before execution.
+          description: Three grounded live mutations await explicit approval before
+            execution.
 expect:
   status: sealed
   receipt:
@@ -61,3 +72,10 @@ metadata:
   public_skill: twitter
   source_case: plan-prune-ready
   source: skills-fixture
+operator_journeys:
+- mode: standalone
+  confusors:
+  - message-send
+  - moltbook
+  request: Prepare an exact X cleanup plan from supplied post evidence.
+  expected_outcome: Return a digest-bound typed deletion plan without executing it.

@@ -1,0 +1,19 @@
+name: recent-empty-workspace
+kind: skill
+target: ..
+runner: recent
+operator_journeys:
+  - mode: standalone
+    request: Show the recent X work in this workspace.
+    expected_outcome: Return an empty bounded page, without X calls or guessed account work.
+inputs:
+  data_source_ref: local://twitter-recent-proof
+expect:
+  status: sealed
+  step_outputs:
+    recent:
+      subset:
+        twitter_recent:
+          data_source_ref: local://twitter-recent-proof
+          items: []
+          next_cursor: null

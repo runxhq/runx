@@ -17,11 +17,27 @@ harness:
     - fixtures/data/archive-following.js
     - fixtures/data/archive-tweets.js
     - fixtures/support/composed.graph
+    - fixtures/support/continuation.graph
+    - fixtures/support/failure-continuation.graph
+    - fixtures/support/account-stop.graph
   cases: []
+
+input_definitions:
+  execution_store:
+    type: string
+    required: false
+    default: local://twitter
+    description: Logical store for saved X plans and execution progress; bind its store connector in this workspace.
+  batch_limit:
+    type: integer
+    required: false
+    default: 50
+    description: Maximum acts in a batch; the skill selects one published act, one thread segment, or up to this many same-kind account acts.
+    schema: { minimum: 1, maximum: 50 }
 
 connectors:
   store:
-    operations: [events.append, events.read]
+    operations: [events.append, events.read, heads.list]
   twitter:
     operations: [account.snapshot, account.posts.read, account.mentions.read, account.following.read, account.followers.read, posts.read, mentions.read, following.read, followers.read, posts.search, post.create, post.reply, post.quote, posts.delete, users.unfollow, users.follow, users.mute, users.block, posts.like, posts.repost]
 runners:
@@ -623,8 +639,8 @@ runners:
     inputs:
       plan_json:
         type: object
-        required: true
-        description: The twitter.plan.v1 object to execute.
+        required: false
+        description: Exact plan for the first call; omitted on subsequent calls because the skill saves it by its native digest.
         schema:
           required: [decision, principal, acts, gates]
           additionalProperties: false
@@ -677,24 +693,9 @@ runners:
         required: true
         description: Expected canonical digest of plan_json; a mismatch is a hard failure.
       max_acts:
-        type: integer
-        required: false
-        default: 50
-        description: Acts one batch may take; a batch is one published act or a run of up to 50 acts of one kind.
-        schema: { minimum: 1, maximum: 50 }
+        definition: batch_limit
       data_source_ref:
-        type: string
-        required: true
-        description: Logical data source holding the execution ledger; the operator binds it to durable local SQLite.
-      expected_version:
-        type: integer
-        required: true
-        description: Current durable stream version. The runner independently reads and verifies it before any provider call.
-        schema: { minimum: 0 }
-      idempotency_key:
-        type: string
-        required: true
-        description: Canonical retry key twitter:<plan_digest>:v<expected_version+1>; mismatches fail before approval.
+        definition: execution_store
     examples:
       - plan_json:
           decision: refused
@@ -710,12 +711,27 @@ runners:
         plan_digest: sha256:25cd0a74139936a7cad4124f4ef510f7b16aaaa49abced92f39f4fc5c7cfbfc6
         max_acts: 50
         data_source_ref: tenant://twitter/refused-plan
-        expected_version: 0
-        idempotency_key: twitter:sha256:25cd0a74139936a7cad4124f4ef510f7b16aaaa49abced92f39f4fc5c7cfbfc6:v1
     result_from: [apply, apply_noop, persist]
     steps:
+      - id: saved
+        operation: store/events.read
+        result_fields: [after_version, events]
+        input:
+          data_source_ref: "$input.data_source_ref"
+          resource: twitter_plans
+          aggregate_id: "$input.plan_digest"
+          limit: 1
+      - id: resolve
+        inputs:
+          plan_json: "$input.plan_json"
+          plan_digest: "$input.plan_digest"
+          saved_plan: $steps.saved.provider_operation.result
+        tool: { module: twitter-memory.mjs, export: resolvePlan }
+        outputs:
+          resolved_plan: object
       - id: ledger
         operation: store/events.read
+        result_fields: [after_version, events]
         input:
           data_source_ref: "$input.data_source_ref"
           resource: twitter_execution
@@ -724,19 +740,30 @@ runners:
       - id: digest
         tool: data.digest
         inputs:
-          value: "$input.plan_json"
+          value: $steps.resolve.resolved_plan.plan
       - id: prepare
         inputs:
-          plan_json: "$input.plan_json"
+          plan_json: $steps.resolve.resolved_plan.plan
           plan_digest: "$input.plan_digest"
-          expected_version: "$input.expected_version"
-          idempotency_key: "$input.idempotency_key"
+          remember_plan: $steps.resolve.resolved_plan.remember
           max_acts: "$input.max_acts"
           digest_result: $steps.digest.digest_result
           execution_ledger: $steps.ledger.provider_operation.result
         tool: { module: twitter-execution.mjs, export: prepareExecution }
         outputs:
           twitter_execution_plan: object
+      - id: remember
+        when:
+          value: $steps.prepare.twitter_execution_plan.remember_plan
+          equals: true
+        operation: store/events.append
+        idempotency_key: $steps.prepare.twitter_execution_plan.saved_plan_key
+        input:
+          data_source_ref: "$input.data_source_ref"
+          resource: twitter_plans
+          aggregate_id: "$input.plan_digest"
+          expected_version: 0
+          event: $steps.prepare.twitter_execution_plan.saved_plan_event
       - id: self
         when:
           value: $steps.prepare.twitter_execution_plan.decision
@@ -759,7 +786,7 @@ runners:
           value: $steps.prepare.twitter_execution_plan.decision
           equals: ready
         operation: twitter
-        idempotency_key: "$input.idempotency_key"
+        idempotency_key: $steps.prepare.twitter_execution_plan.idempotency_key
         operation_name: $steps.bind.twitter_call.operation
         input: $steps.bind.twitter_call.input
         approval: $steps.bind.twitter_call.approval
@@ -778,15 +805,40 @@ runners:
           twitter_execution:
             type: object
             schema:
-              required: [decision, plan_digest, principal, next_act_index, total_act_count, remaining_count, active_thread, results, ledger_delta, rate, blockers, success_checkpoint]
+              required: [decision, plan_digest, principal, next_act_index, total_act_count, remaining_count, active_thread, counts, last_failure, stop, results, ledger_delta, rate, blockers, success_checkpoint]
               additionalProperties: false
               properties:
-                decision: { type: string, enum: [executed, partial, stopped, refused, noop] }
+                decision: { type: string, enum: [executed, completed_with_failures, partial, stopped, refused, noop] }
                 plan_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
                 principal: { type: [string, 'null'], maxLength: 1000 }
                 next_act_index: { type: integer, minimum: 0 }
                 total_act_count: { type: integer, minimum: 0 }
                 remaining_count: { type: integer, minimum: 0 }
+                counts:
+                  type: [object, 'null']
+                  required: [processed, succeeded, failed]
+                  additionalProperties: false
+                  properties:
+                    processed: { type: integer, minimum: 0 }
+                    succeeded: { type: integer, minimum: 0 }
+                    failed: { type: integer, minimum: 0 }
+                last_failure:
+                  type: [object, 'null']
+                  required: [act_id, reason, evidence_ref]
+                  additionalProperties: false
+                  properties:
+                    act_id: { type: string, minLength: 1, maxLength: 1000 }
+                    reason: { type: string, minLength: 1, maxLength: 4000 }
+                    evidence_ref: { type: string, minLength: 1, maxLength: 4000 }
+                stop:
+                  type: [object, 'null']
+                  required: [code, reason, action, retry_at]
+                  additionalProperties: false
+                  properties:
+                    code: { type: string, minLength: 1, maxLength: 256 }
+                    reason: { type: string, minLength: 1, maxLength: 4000 }
+                    action: { type: string, enum: [wait, review, reconcile] }
+                    retry_at: { type: [string, 'null'], maxLength: 64 }
                 active_thread:
                   type: [object, 'null']
                   required: [act_index, next_segment_index, in_reply_to]
@@ -811,26 +863,96 @@ runners:
                       detail: { type: [string, 'null'], maxLength: 4000 }
                 ledger_delta:
                   type: [object, 'null']
-                  required: [schema, type, plan_digest, account_id, decision, next_act_index, total_act_count, active_thread, batch]
+                  required: [schema, type, plan_digest, account_id, decision, next_act_index, total_act_count, active_thread, counts, last_failure, stop, batch]
                   additionalProperties: false
                   properties:
                     schema: { const: twitter.execution.progress.v1 }
                     type: { const: twitter.execution.progress }
                     plan_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
                     account_id: { type: string, pattern: '^[0-9]{1,19}$' }
-                    decision: { type: string, enum: [executed, partial, stopped] }
+                    decision: { type: string, enum: [executed, completed_with_failures, partial, stopped] }
                     next_act_index: { type: integer, minimum: 0 }
                     total_act_count: { type: integer, minimum: 0 }
                     active_thread: { type: [object, 'null'], maxProperties: 3 }
+                    counts:
+                      type: [object, 'null']
+                      required:
+                      - processed
+                      - succeeded
+                      - failed
+                      additionalProperties: false
+                      properties:
+                        processed:
+                          type: integer
+                          minimum: 0
+                        succeeded:
+                          type: integer
+                          minimum: 0
+                        failed:
+                          type: integer
+                          minimum: 0
+                    last_failure:
+                      type:
+                      - object
+                      - 'null'
+                      required:
+                      - act_id
+                      - reason
+                      - evidence_ref
+                      additionalProperties: false
+                      properties:
+                        act_id:
+                          type: string
+                          minLength: 1
+                          maxLength: 1000
+                        reason:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        evidence_ref:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                    stop:
+                      type:
+                      - object
+                      - 'null'
+                      required:
+                      - code
+                      - reason
+                      - action
+                      - retry_at
+                      additionalProperties: false
+                      properties:
+                        code:
+                          type: string
+                          minLength: 1
+                          maxLength: 256
+                        reason:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        action:
+                          type: string
+                          enum:
+                          - wait
+                          - review
+                          - reconcile
+                        retry_at:
+                          type:
+                          - string
+                          - 'null'
+                          maxLength: 64
                     batch:
                       type: object
-                      required: [start_act_index, selected_act_count, completed_act_count, failed, rate_limited]
+                      required: [start_act_index, selected_act_count, processed_act_count, succeeded_act_count, failed_act_count, rate_limited]
                       additionalProperties: false
                       properties:
                         start_act_index: { type: integer, minimum: 0 }
                         selected_act_count: { type: integer, minimum: 0, maximum: 50 }
-                        completed_act_count: { type: integer, minimum: 0, maximum: 50 }
-                        failed: { type: boolean }
+                        processed_act_count: { type: integer, minimum: 0, maximum: 50 }
+                        succeeded_act_count: { type: integer, minimum: 0, maximum: 50 }
+                        failed_act_count: { type: integer, minimum: 0, maximum: 50 }
                         rate_limited: { type: boolean }
                 rate:
                   type: object
@@ -846,7 +968,7 @@ runners:
                   required: [milestone, description]
                   additionalProperties: false
                   properties:
-                    milestone: { type: string, enum: [plan_fully_executed, plan_partially_executed, plan_refused] }
+                    milestone: { type: string, enum: [plan_fully_executed, plan_completed_with_failures, plan_partially_executed, plan_refused] }
                     description: { type: string, minLength: 1, maxLength: 4000 }
         artifacts:
           named_emits:
@@ -879,3 +1001,330 @@ runners:
           aggregate_id: $steps.prepare.twitter_execution_plan.plan_digest
           expected_version: $steps.prepare.twitter_execution_plan.expected_version
           event: $steps.apply.twitter_execution.ledger_delta
+
+  status:
+    description: Read one saved plan and its durable progress, proposed next batch and provider retry time without calling X or granting approval.
+    inputs:
+      plan_digest:
+        type: string
+        required: true
+        description: Native digest of the saved plan, obtained from plan, select, execute or recent.
+        schema: { pattern: '^sha256:[0-9a-f]{64}$' }
+      data_source_ref:
+        definition: execution_store
+      max_acts:
+        definition: batch_limit
+    examples:
+      - plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    result_from: [status]
+    steps:
+      - id: saved
+        operation: store/events.read
+        result_fields: [after_version, events]
+        input:
+          data_source_ref: "$input.data_source_ref"
+          resource: twitter_plans
+          aggregate_id: "$input.plan_digest"
+          limit: 1
+      - id: resolve
+        inputs:
+          plan_json: null
+          plan_digest: "$input.plan_digest"
+          saved_plan: $steps.saved.provider_operation.result
+        tool: { module: twitter-memory.mjs, export: resolvePlan }
+        outputs:
+          resolved_plan: object
+      - id: ledger
+        operation: store/events.read
+        result_fields: [after_version, events]
+        input:
+          data_source_ref: "$input.data_source_ref"
+          resource: twitter_execution
+          aggregate_id: "$input.plan_digest"
+          limit: 1
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.resolve.resolved_plan.plan
+      - id: prepare
+        inputs:
+          plan_json: $steps.resolve.resolved_plan.plan
+          plan_digest: "$input.plan_digest"
+          remember_plan: $steps.resolve.resolved_plan.remember
+          max_acts: "$input.max_acts"
+          digest_result: $steps.digest.digest_result
+          execution_ledger: $steps.ledger.provider_operation.result
+        tool: { module: twitter-execution.mjs, export: prepareExecution }
+        outputs:
+          twitter_execution_plan: object
+      - id: status
+        inputs:
+          execution_plan: $steps.prepare.twitter_execution_plan
+          plan: $steps.resolve.resolved_plan.plan
+          execution_ledger: $steps.ledger.provider_operation.result
+          plan_digest: "$input.plan_digest"
+          data_source_ref: "$input.data_source_ref"
+          max_acts: "$input.max_acts"
+        tool: { module: twitter-memory.mjs, export: executionStatus }
+        outputs:
+          twitter_status:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, data_source_ref, plan_digest, objective, principal, next_act_index, total_act_count, remaining_count, thread_reply_to, counts, last_failure, last_batch, stop, retry_at, next_batch, next_input, blockers]
+              properties:
+                decision: { type: string, enum: [needs_plan, ready, complete, complete_with_failures, refused, waiting, stopped] }
+                data_source_ref: { type: string }
+                plan_digest: { type: string }
+                objective: { type: [string, 'null'] }
+                principal: { type: [string, 'null'] }
+                next_act_index: { type: [integer, 'null'], minimum: 0 }
+                total_act_count: { type: [integer, 'null'], minimum: 0 }
+                remaining_count: { type: [integer, 'null'], minimum: 0 }
+                thread_reply_to: { type: [string, 'null'] }
+                counts:
+                  type: [object, 'null']
+                  required:
+                  - processed
+                  - succeeded
+                  - failed
+                  additionalProperties: false
+                  properties:
+                    processed:
+                      type: integer
+                      minimum: 0
+                    succeeded:
+                      type: integer
+                      minimum: 0
+                    failed:
+                      type: integer
+                      minimum: 0
+                last_failure:
+                  type:
+                  - object
+                  - 'null'
+                  required:
+                  - act_id
+                  - reason
+                  - evidence_ref
+                  additionalProperties: false
+                  properties:
+                    act_id:
+                      type: string
+                      minLength: 1
+                      maxLength: 1000
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                    evidence_ref:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                last_batch:
+                  anyOf:
+                  - type: object
+                    required:
+                    - start_act_index
+                    - selected_act_count
+                    - processed_act_count
+                    - succeeded_act_count
+                    - failed_act_count
+                    - rate_limited
+                    additionalProperties: false
+                    properties:
+                      start_act_index:
+                        type: integer
+                        minimum: 0
+                      selected_act_count:
+                        type: integer
+                        minimum: 0
+                        maximum: 50
+                      processed_act_count:
+                        type: integer
+                        minimum: 0
+                        maximum: 50
+                      succeeded_act_count:
+                        type: integer
+                        minimum: 0
+                        maximum: 50
+                      failed_act_count:
+                        type: integer
+                        minimum: 0
+                        maximum: 50
+                      rate_limited:
+                        type: boolean
+                  - type: 'null'
+                stop:
+                  type:
+                  - object
+                  - 'null'
+                  required:
+                  - code
+                  - reason
+                  - action
+                  - retry_at
+                  additionalProperties: false
+                  properties:
+                    code:
+                      type: string
+                      minLength: 1
+                      maxLength: 256
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                    action:
+                      type: string
+                      enum:
+                      - wait
+                      - review
+                      - reconcile
+                    retry_at:
+                      type:
+                      - string
+                      - 'null'
+                      maxLength: 64
+                retry_at: { type: [string, 'null'] }
+                next_batch:
+                  type: [object, 'null']
+                  additionalProperties: false
+                  required: [kind, act_ids, thread_segment_index, thread_segment_count]
+                  properties:
+                    kind: { type: string }
+                    act_ids: { type: array, maxItems: 50, items: { type: string } }
+                    thread_segment_index: { type: [integer, 'null'], minimum: 0 }
+                    thread_segment_count: { type: [integer, 'null'], minimum: 1 }
+                next_input:
+                  type: [object, 'null']
+                  additionalProperties: false
+                  required: [plan_digest, data_source_ref, max_acts]
+                  properties:
+                    plan_digest: { type: string }
+                    data_source_ref: { type: string }
+                    max_acts: { type: integer, minimum: 1, maximum: 50 }
+                blockers: { type: array, maxItems: 250, items: { type: string } }
+
+  recent:
+    description: List a bounded page of execution summaries from this workspace so another host can find the plan digest to inspect and continue.
+    inputs:
+      data_source_ref:
+        definition: execution_store
+      limit:
+        type: integer
+        required: false
+        default: 5
+        description: Number of recent execution streams to return.
+        schema: { minimum: 1, maximum: 100 }
+      cursor:
+        type: string
+        required: false
+        description: Page cursor returned by the previous recent call.
+    examples:
+      - limit: 5
+    result_from: [recent]
+    steps:
+      - id: heads
+        operation: store/heads.list
+        input:
+          data_source_ref: "$input.data_source_ref"
+          resource: twitter_execution
+          limit: "$input.limit"
+          cursor: "$input.cursor"
+      - id: recent
+        inputs:
+          heads: $steps.heads.provider_operation.result
+          data_source_ref: "$input.data_source_ref"
+        tool: { module: twitter-memory.mjs, export: recentExecutions }
+        outputs:
+          twitter_recent:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [data_source_ref, items, next_cursor]
+              properties:
+                data_source_ref: { type: string }
+                items:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [plan_digest, account_id, decision, next_act_index, total_act_count, counts, last_failure, stop, retry_at]
+                    properties:
+                      plan_digest: { type: string }
+                      account_id: { type: [string, 'null'] }
+                      decision: { type: string }
+                      next_act_index: { type: integer, minimum: 0 }
+                      total_act_count: { type: integer, minimum: 0 }
+                      counts:
+                        type: [object, 'null']
+                        required:
+                        - processed
+                        - succeeded
+                        - failed
+                        additionalProperties: false
+                        properties:
+                          processed:
+                            type: integer
+                            minimum: 0
+                          succeeded:
+                            type: integer
+                            minimum: 0
+                          failed:
+                            type: integer
+                            minimum: 0
+                      last_failure:
+                        type:
+                        - object
+                        - 'null'
+                        required:
+                        - act_id
+                        - reason
+                        - evidence_ref
+                        additionalProperties: false
+                        properties:
+                          act_id:
+                            type: string
+                            minLength: 1
+                            maxLength: 1000
+                          reason:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          evidence_ref:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                      stop:
+                        type:
+                        - object
+                        - 'null'
+                        required:
+                        - code
+                        - reason
+                        - action
+                        - retry_at
+                        additionalProperties: false
+                        properties:
+                          code:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                          reason:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          action:
+                            type: string
+                            enum:
+                            - wait
+                            - review
+                            - reconcile
+                          retry_at:
+                            type:
+                            - string
+                            - 'null'
+                            maxLength: 64
+                      retry_at: { type: [string, 'null'] }
+                next_cursor: { type: [string, 'null'] }

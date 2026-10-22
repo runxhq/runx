@@ -19,8 +19,7 @@ steps:
           approval_ref: approval:granted
       plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
       data_source_ref: tenant://twitter/sqlite-mismatch
-      expected_version: 0
-      idempotency_key: twitter:sha256:0000000000000000000000000000000000000000000000000000000000000000:v1
+
   - id: digest
     tool: data.digest
     inputs:

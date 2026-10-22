@@ -1,0 +1,68 @@
+name: account-refusal-requires-review
+kind: graph
+target: support/account-stop.graph
+operator_journeys:
+- mode: composed
+  request: Inspect continuation after the provider rejects the account credential.
+  expected_outcome: Return a review stop, zero processed acts and no automatic next
+    input.
+  prior_evidence:
+  - The reviewed exact two-post plan and native outcomes.
+  must_not_repeat:
+  - Do not retry an account refusal or count an unsent act as failed terminal work.
+setup:
+  credentials:
+  - twitter
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+caller:
+  http_exchanges:
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: DELETE
+      url: https://api.x.com/2/tweets/7001
+      body: none
+    response:
+      status: 401
+      headers:
+        content-type: application/json
+      body: '{"title":"Unauthorized","detail":"The user credential is no longer valid."}'
+  approvals:
+    batch1#request: true
+expect:
+  status: sealed
+  step_outputs:
+    batch1:
+      subset:
+        twitter_execution:
+          data:
+            decision: stopped
+            counts:
+              processed: 0
+              succeeded: 0
+              failed: 0
+            stop:
+              action: review
+              code: unauthorized
+            last_failure: null
+    status1:
+      subset:
+        twitter_status:
+          decision: stopped
+          counts:
+            processed: 0
+            succeeded: 0
+            failed: 0
+          next_input: null
+          stop:
+            action: review
+            code: unauthorized
+          last_failure: null

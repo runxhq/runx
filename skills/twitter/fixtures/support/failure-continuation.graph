@@ -1,0 +1,65 @@
+name: twitter-failure-continuation
+steps:
+- id: digest
+  tool: data.digest
+  inputs:
+    value: &id001
+      decision: ready
+      objective: Delete two reviewed obsolete posts; keep failures visible.
+      principal: account:@example
+      acts:
+      - act_id: act-delete-1
+        kind: delete_post
+        params:
+          post_id: '7001'
+        consequence: live_mutation
+        rationale: Reviewed obsolete post.
+      - act_id: act-delete-2
+        kind: delete_post
+        params:
+          post_id: '7002'
+        consequence: live_mutation
+        rationale: Reviewed obsolete post.
+      gates:
+        human_approval_required: true
+        approval_ref: null
+- id: batch1
+  skill: ../..
+  runner: execute
+  inputs:
+    plan_digest: $steps.digest.digest_result.digest
+    data_source_ref: local://twitter-failure-proof
+    max_acts: 1
+    plan_json: *id001
+- id: status1
+  skill: ../..
+  runner: status
+  inputs:
+    plan_digest: $steps.digest.digest_result.digest
+    data_source_ref: local://twitter-failure-proof
+    max_acts: 1
+- id: batch2
+  skill: ../..
+  runner: execute
+  inputs:
+    plan_digest: $steps.digest.digest_result.digest
+    data_source_ref: local://twitter-failure-proof
+    max_acts: 1
+- id: status2
+  skill: ../..
+  runner: status
+  inputs:
+    plan_digest: $steps.digest.digest_result.digest
+    data_source_ref: local://twitter-failure-proof
+    max_acts: 1
+- id: recent
+  skill: ../..
+  runner: recent
+  inputs:
+    data_source_ref: local://twitter-failure-proof
+- id: complete
+  skill: ../..
+  runner: execute
+  inputs:
+    plan_digest: $steps.digest.digest_result.digest
+    data_source_ref: local://twitter-failure-proof

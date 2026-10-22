@@ -1,0 +1,25 @@
+name: status-missing-plan-does-not-contact-x
+kind: skill
+target: ..
+runner: status
+operator_journeys:
+  - mode: standalone
+    request: Inspect progress for this saved X plan.
+    expected_outcome: Explain that this store has no saved plan and provide the exact recovery step without an X call.
+inputs:
+  plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+expect:
+  status: sealed
+  steps:
+  - saved
+  - resolve
+  - ledger
+  - digest
+  - prepare
+  - status
+  step_outputs:
+    status:
+      subset:
+        twitter_status:
+          decision: needs_plan
+          next_input: null

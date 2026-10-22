@@ -18,11 +18,10 @@ inputs:
       approval_ref: approval:granted
   plan_digest: sha256:25cd0a74139936a7cad4124f4ef510f7b16aaaa49abced92f39f4fc5c7cfbfc6
   data_source_ref: tenant://twitter/refused-plan
-  expected_version: 0
-  idempotency_key: twitter:sha256:25cd0a74139936a7cad4124f4ef510f7b16aaaa49abced92f39f4fc5c7cfbfc6:v1
+
 expect:
   status: sealed
-  steps: [ledger, digest, prepare, apply_noop]
+  steps: [saved, resolve, ledger, digest, prepare, apply_noop]
   step_outputs:
     apply_noop:
       subset:

@@ -20,17 +20,10 @@ export function prepareExecution(inputs) {
   const acts = array(plan.acts);
   const blockers = validatePlan(plan, acts, digest, text(inputs.plan_digest));
   const progress = readProgress(record(inputs.execution_ledger), digest, acts, blockers);
-  const expectedVersion = nonNegativeInteger(inputs.expected_version);
+  const expectedVersion = progress.version;
   const idempotencyKey = expectedVersion === null
     ? ""
     : batchIdempotencyKey(digest, expectedVersion);
-  validateBatchBinding(
-    inputs,
-    expectedVersion,
-    progress.version,
-    idempotencyKey,
-    blockers,
-  );
   const base = executionPlanBase(
     plan,
     acts.length,
@@ -42,12 +35,20 @@ export function prepareExecution(inputs) {
   if (blockers.length > 0) {
     return { twitter_execution_plan: { ...base, decision: "refused", blockers } };
   }
+  const remembered = {
+    ...base,
+    remember_plan: inputs.remember_plan === true,
+    ...(inputs.remember_plan === true ? {
+      saved_plan_event: { type: "twitter.plan", plan_digest: digest, plan },
+      saved_plan_key: `twitter:plan:${digest}`,
+    } : {}),
+  };
   if (progress.nextActIndex === acts.length) {
-    return { twitter_execution_plan: { ...base, decision: "noop" } };
+    return { twitter_execution_plan: { ...remembered, decision: "noop" } };
   }
   return {
     twitter_execution_plan: {
-      ...base,
+      ...remembered,
       decision: "ready",
       batch: selectBatch(acts, progress, executionActLimit(inputs.max_acts)),
     },
@@ -91,27 +92,6 @@ function principalHandle(principal) {
   return match ? match[1] : null;
 }
 
-function validateBatchBinding(
-  inputs,
-  expectedVersion,
-  durableVersion,
-  canonicalIdempotencyKey,
-  blockers,
-) {
-  if (expectedVersion === null) {
-    blockers.push("expected_version must be a non-negative safe integer");
-  } else if (expectedVersion !== durableVersion) {
-    blockers.push(
-      `expected_version ${expectedVersion} does not match durable version ${durableVersion}`,
-    );
-  }
-  if (text(inputs.idempotency_key) !== canonicalIdempotencyKey) {
-    blockers.push(
-      `idempotency_key must equal ${canonicalIdempotencyKey || "the canonical batch key"}`,
-    );
-  }
-}
-
 function executionPlanBase(
   plan,
   totalActCount,
@@ -132,7 +112,11 @@ function executionPlanBase(
     total_act_count: totalActCount,
     remaining_count: Math.max(0, totalActCount - progress.nextActIndex),
     active_thread: progress.activeThread,
+    counts: progress.counts,
+    last_failure: progress.lastFailure,
+    stop: progress.stop,
     batch: null,
+    remember_plan: false,
     blockers: [],
   };
 }
@@ -140,7 +124,10 @@ function executionPlanBase(
 function readProgress(ledger, planDigest, acts, blockers) {
   const version = nonNegativeInteger(ledger.after_version);
   const events = array(ledger.events);
-  const empty = { version: version ?? 0, nextActIndex: 0, activeThread: null, accountId: null };
+  const empty = {
+    version: version ?? 0, nextActIndex: 0, activeThread: null, accountId: null,
+    counts: { processed: 0, succeeded: 0, failed: 0 }, lastFailure: null, stop: null,
+  };
   if (version === null) {
     blockers.push("execution ledger omitted a valid after_version");
     return empty;
@@ -158,6 +145,12 @@ function readProgress(ledger, planDigest, acts, blockers) {
   const nextActIndex = nonNegativeInteger(event.next_act_index);
   const totalActCount = nonNegativeInteger(event.total_act_count);
   const currentThread = activeThread(event.active_thread);
+  const counts = record(event.counts);
+  const validCounts = ![counts.processed, counts.succeeded, counts.failed].some((value) => nonNegativeInteger(value) === null)
+    && counts.processed === nextActIndex && counts.succeeded + counts.failed === counts.processed;
+  if (!validCounts) {
+    blockers.push("execution progress requires consistent processed, succeeded and failed counts; reconcile the stream from its native receipts before continuing");
+  }
   // Events from before the account was pinned carry none.
   const accountId = event.account_id === undefined || event.account_id === null
     ? null
@@ -186,6 +179,9 @@ function readProgress(ledger, planDigest, acts, blockers) {
     nextActIndex: nextActIndex ?? 0,
     activeThread: currentThread,
     accountId: accountId || null,
+    counts: validCounts ? counts : null,
+    lastFailure: event.last_failure ?? null,
+    stop: event.stop ?? null,
   };
 }
 
@@ -205,6 +201,9 @@ function validateActiveThread(current, acts, nextActIndex, blockers) {
 }
 
 function validatePlan(value, acts, canonicalDigest, suppliedDigest) {
+  if (Object.keys(value).length === 0) {
+    return ["No saved X plan is available in this store. Supply the original exact plan and its native digest to execute once."];
+  }
   const errors = [];
   if (!suppliedDigest) {
     errors.push("plan_digest is required; refusing unbound content");

@@ -1,0 +1,23 @@
+name: execute-missing-plan-refuses-without-x
+kind: skill
+target: ..
+runner: execute
+inputs:
+  plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+expect:
+  status: sealed
+  steps:
+  - saved
+  - resolve
+  - ledger
+  - digest
+  - prepare
+  - apply_noop
+  step_outputs:
+    apply_noop:
+      subset:
+        twitter_execution:
+          data:
+            decision: refused
+            blockers:
+              - No saved X plan is available in this store. Supply the original exact plan and its native digest to execute once.

@@ -12,7 +12,11 @@ inputs:
     rt_of: BetaList
 expect:
   status: sealed
-  steps: [prepare, select-posts, digest-posts, finalize-posts]
+  steps:
+  - prepare
+  - select-posts
+  - digest-posts
+  - finalize-posts
   step_outputs:
     finalize-posts:
       subset:
@@ -23,13 +27,20 @@ expect:
             scanned: 5
             twitter_plan:
               acts:
-                - act_id: act-del-2001
-                  kind: delete_post
-                - act_id: act-del-2002
-                  kind: delete_post
+              - act_id: act-del-2001
+                kind: delete_post
+              - act_id: act-del-2002
+                kind: delete_post
   receipt:
     schema: runx.receipt.v1
 metadata:
   public_skill: twitter
   source_case: select-retweets-ready
   source: skills-fixture
+operator_journeys:
+- mode: standalone
+  confusors:
+  - message-send
+  - moltbook
+  request: Select matching reposts from my X archive.
+  expected_outcome: Return the deterministic matching act plan and its native digest.

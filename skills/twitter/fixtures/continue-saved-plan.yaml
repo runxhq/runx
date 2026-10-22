@@ -1,0 +1,184 @@
+name: saved-plan-continues-thread-follow-and-unfollow
+kind: graph
+target: support/continuation.graph
+operator_journeys:
+- mode: composed
+  confusors:
+  - message-send
+  - moltbook
+  request: Continue this approved update and account work across separate bounded runs.
+  expected_outcome: Save the exact plan once, continue a partial thread without reposting it, then follow and unfollow with exact approvals, ending
+    in a read-only complete status.
+  prior_evidence:
+  - The exact plan, native digest, saved account and confirmed partial thread.
+  must_not_repeat:
+  - Do not resend the first thread segment or supply the full plan after the first batch.
+  - Do not ask the host to construct provider calls, progress versions or idempotency keys.
+setup:
+  credentials:
+  - twitter
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+caller:
+  http_exchanges:
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: POST
+      url: https://api.x.com/2/tweets
+      body:
+        json:
+          text: First part.
+    response:
+      status: 201
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"6001","text":"First part."}}'
+  - request:
+      method: GET
+      url: https://api.x.com/2/tweets/6001
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"6001","text":"First part."}}'
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: POST
+      url: https://api.x.com/2/tweets
+      body:
+        json:
+          text: Second part.
+          reply:
+            in_reply_to_tweet_id: '6001'
+    response:
+      status: 201
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"6002","text":"Second part."}}'
+  - request:
+      method: GET
+      url: https://api.x.com/2/tweets/6002
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"6002","text":"Second part."}}'
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: POST
+      url: https://api.x.com/2/users/42/following
+      body:
+        json:
+          target_user_id: '3001'
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"following":true,"pending_follow":false}}'
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: DELETE
+      url: https://api.x.com/2/users/42/following/3002
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"following":false}}'
+  approvals:
+    batch1#request: true
+    batch2#request: true
+    batch3#request: true
+    batch4#request: true
+expect:
+  status: sealed
+  steps:
+  - digest
+  - batch1
+  - status1
+  - batch2
+  - status2
+  - batch3
+  - status3
+  - batch4
+  - status4
+  - recent
+  - complete
+  step_outputs:
+    status1:
+      subset:
+        twitter_status:
+          decision: ready
+          next_act_index: 0
+          remaining_count: 3
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+          thread_reply_to: '6001'
+          next_batch:
+            kind: thread
+            thread_segment_index: 1
+            thread_segment_count: 2
+    status2:
+      subset:
+        twitter_status:
+          decision: ready
+          next_act_index: 1
+          remaining_count: 2
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+    status3:
+      subset:
+        twitter_status:
+          decision: ready
+          next_act_index: 2
+          remaining_count: 1
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+    status4:
+      subset:
+        twitter_status:
+          decision: complete
+          next_act_index: 3
+          remaining_count: 0
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+    complete:
+      subset:
+        twitter_execution:
+          data:
+            decision: noop
+            next_act_index: 3
