@@ -1,0 +1,28 @@
+name: reddit-admission
+owner: runx
+steps:
+- id: configure
+  skill: ../..
+  runner: configure
+  inputs:
+    account_id: example_builder
+    config:
+      voice:
+        casing: lowercase
+        principles:
+        - answer the actual question; no closing punchline
+        examples: []
+    expected_version: 0
+- id: publish
+  skill: ../..
+  runner: publish
+  inputs:
+    account_id: example_builder
+    action:
+      kind: comment
+      subreddit: learnprogramming
+      target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+      title: ''
+      body: try [this](https://example.com)
+      allow_bare_urls: false
+      target_author: ''

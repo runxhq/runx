@@ -1,180 +1,490 @@
 schema: runx.connector.v1
 id: reddit
 name: Reddit
-description: Read Reddit through a named account's signed-in browser session.
+description: Read and operate Reddit through a named account's signed-in browser session.
 category: communication
 runtime_capability: false
 auth:
   session:
     kind: host_browser
+    process:
+      tool: reddit.brave
+      runtime_scopes:
+      - fs:write
+parameters:
+  type: object
+  required:
+  - account
+  - profile_ref
+  additionalProperties: false
+  properties:
+    account:
+      type: string
+      pattern: ^[a-z0-9_-]{3,20}$
+    profile_ref:
+      type: string
+      pattern: ^[A-Za-z0-9_.:-]{1,100}$
 placements:
   local:
-    auth: [session]
+    auth:
+    - session
 operations:
-  tabs.list:
-    description: List the Reddit tabs open in normal browser windows.
-    verb: read
-    scopes: ["host:browser:read"]
-    target:
-      template: "https://www.reddit.com"
-    input_schema:
-      type: object
-      required: [operation]
-      additionalProperties: false
-      properties:
-        operation: {const: tabs}
-    result_fields: [tabs]
-    implementation:
-      process:
-        tool: reddit.brave
-        runtime_scopes: ["fs:write"]
-  tab.bind:
-    description: Bind one browser tab to an account after checking the signed-in username.
-    verb: read
-    scopes: ["host:browser:read"]
-    target:
-      template: {"$argument": "/account"}
-    input_schema:
-      type: object
-      required: [operation, account, window_id, tab_id, profile_ref]
-      additionalProperties: false
-      properties:
-        operation: {const: bind}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-        window_id: {type: string, pattern: '^[0-9]+$'}
-        tab_id: {type: string, pattern: '^[0-9]+$'}
-        profile_ref: {type: string, pattern: '^[A-Za-z0-9_.:-]{1,100}$'}
-    result_fields: [account_id, observed_at, status, url, profile_ref]
-    implementation:
-      process:
-        tool: reddit.brave
-        runtime_scopes: ["fs:write"]
   account.inspect:
     description: Confirm the bound tab is signed in as the account and read its page state.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account]
+      required:
+      - operation
+      - account
       additionalProperties: false
       properties:
-        operation: {const: inspect}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-    result_fields: [account_id, observed_at, status, page, profile_ref]
+        operation:
+          const: inspect
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - page
+    - profile_ref
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   page.navigate:
     description: Load one community or user page in the account's bound tab.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account, url]
+      required:
+      - operation
+      - account
+      - url
       additionalProperties: false
       properties:
-        operation: {const: navigate}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-        url: {type: string, pattern: '^https://www\.reddit\.com/'}
-    result_fields: [account_id, observed_at, status, page]
+        operation:
+          const: navigate
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+        url:
+          type: string
+          pattern: ^https://(?:www|old)\.reddit\.com/
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - page
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   feed.read:
     description: Read up to twelve rendered post cards from the bound tab.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account]
+      required:
+      - operation
+      - account
       additionalProperties: false
       properties:
-        operation: {const: feed}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-    result_fields: [account_id, observed_at, status, url, posts]
+        operation:
+          const: feed
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - url
+    - posts
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   rules.read:
     description: Read the rendered community rules from the bound tab.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account]
+      required:
+      - operation
+      - account
       additionalProperties: false
       properties:
-        operation: {const: rules}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-    result_fields: [account_id, observed_at, status, url, rules]
+        operation:
+          const: rules
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - url
+    - rules
+    - text
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   thread.read:
     description: Read the rendered post and up to thirty top-level replies from the bound tab.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account]
+      required:
+      - operation
+      - account
       additionalProperties: false
       properties:
-        operation: {const: thread}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-    result_fields: [account_id, observed_at, status, url, post, loadedComments, replies]
+        operation:
+          const: thread
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - url
+    - post
+    - loadedComments
+    - replies
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   composer.read:
     description: Read the comment composer state from the bound tab.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account]
+      required:
+      - operation
+      - account
       additionalProperties: false
       properties:
-        operation: {const: composer}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-    result_fields: [account_id, observed_at, status, url, postId, editorPresent, editorTextLength, submitPresent, submitDisabled, locked]
+        operation:
+          const: composer
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - url
+    - postId
+    - editorPresent
+    - editorTextLength
+    - submitPresent
+    - submitDisabled
+    - locked
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
   comment.readback:
     description: Check that a comment permalink shows the account as author and the exact approved body.
     verb: read
-    scopes: ["host:browser:read"]
+    scopes:
+    - host:browser:read
     target:
-      template: {"$argument": "/account"}
+      template:
+        $argument: /account
     input_schema:
       type: object
-      required: [operation, account, url, body_file]
+      required:
+      - operation
+      - account
+      - url
+      - body_file
       additionalProperties: false
       properties:
-        operation: {const: comment-readback}
-        account: {type: string, pattern: '^[A-Za-z0-9_-]{3,20}$'}
-        url: {type: string, pattern: '^https://www\.reddit\.com/'}
-        body_file: {type: string}
-    result_fields: [account_id, observed_at, status, url, author, body]
+        operation:
+          const: comment-readback
+        account:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{3,20}$
+        url:
+          type: string
+          pattern: ^https://(?:www|old)\.reddit\.com/
+        body_file:
+          type: string
+    result_fields:
+    - account_id
+    - observed_at
+    - status
+    - url
+    - author
+    - body
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes: ["fs:write"]
+        runtime_scopes:
+        - fs:write
+  comment.create:
+    description: Submit one exact plain-text comment and independently read its permalink.
+    verb: write
+    scopes:
+    - host:browser:read
+    - host:browser:write
+    approval: required
+    target:
+      template:
+        $argument: /target_url
+    input_schema:
+      type: object
+      required:
+      - operation
+      - account
+      - target_url
+      - body
+      additionalProperties: false
+      properties:
+        operation:
+          const: comment-create
+        account:
+          type: string
+          pattern: ^[a-z0-9_-]{3,20}$
+        target_url:
+          type: string
+          maxLength: 2048
+          pattern: ^https://(?:www|old)\.reddit\.com/r/
+        body:
+          type: string
+          minLength: 1
+          maxLength: 10000
+    result_fields:
+    - account_id
+    - parent_url
+    - permalink
+    - title
+    - body
+    - visibility
+    implementation:
+      process:
+        tool: reddit.brave
+        runtime_scopes:
+        - fs:write
+        readback:
+          matches:
+          - expected:
+              source: argument
+              path: account
+            observed: account_id
+          - expected:
+              source: argument
+              path: target_url
+            observed: parent_url
+          - expected:
+              source: argument
+              path: body
+            observed: body
+          - expected:
+              source: acknowledgement
+              path: permalink
+            observed: permalink
+          - expected:
+              source: literal
+              value: visible_to_account
+            observed: visibility
+  post.create:
+    description: Submit one exact text post and independently read its permalink.
+    verb: write
+    scopes:
+    - host:browser:read
+    - host:browser:write
+    approval: required
+    target:
+      template:
+        $argument: /target_url
+    input_schema:
+      type: object
+      required:
+      - operation
+      - account
+      - target_url
+      - title
+      - body
+      additionalProperties: false
+      properties:
+        operation:
+          const: post-create
+        account:
+          type: string
+          pattern: ^[a-z0-9_-]{3,20}$
+        target_url:
+          type: string
+          maxLength: 2048
+          pattern: ^https://(?:www|old)\.reddit\.com/r/
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        body:
+          type: string
+          minLength: 1
+          maxLength: 10000
+    result_fields:
+    - account_id
+    - parent_url
+    - permalink
+    - title
+    - body
+    - visibility
+    implementation:
+      process:
+        tool: reddit.brave
+        runtime_scopes:
+        - fs:write
+        readback:
+          matches:
+          - expected:
+              source: argument
+              path: account
+            observed: account_id
+          - expected:
+              source: argument
+              path: target_url
+            observed: parent_url
+          - expected:
+              source: argument
+              path: title
+            observed: title
+          - expected:
+              source: argument
+              path: body
+            observed: body
+          - expected:
+              source: acknowledgement
+              path: permalink
+            observed: permalink
+          - expected:
+              source: literal
+              value: visible_to_account
+            observed: visibility
+  vote.upvote:
+    description: Ensure one exact target is upvoted without toggling an existing upvote.
+    verb: write
+    scopes:
+    - host:browser:read
+    - host:browser:write
+    approval: required
+    guarantees:
+      provider_idempotency: inherent
+    target:
+      template:
+        $argument: /target_url
+    input_schema:
+      type: object
+      required:
+      - operation
+      - account
+      - target_url
+      - body
+      - target_author
+      additionalProperties: false
+      properties:
+        operation:
+          const: upvote
+        account:
+          type: string
+          pattern: ^[a-z0-9_-]{3,20}$
+        target_url:
+          type: string
+          maxLength: 2048
+          pattern: ^https://(?:www|old)\.reddit\.com/r/
+        body:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        target_author:
+          type: string
+          pattern: ^[a-z0-9_-]{3,20}$
+    result_fields:
+    - account_id
+    - parent_url
+    - permalink
+    - title
+    - body
+    - visibility
+    - target_author
+    - vote_state
+    implementation:
+      process:
+        tool: reddit.brave
+        runtime_scopes:
+        - fs:write
+        readback:
+          matches:
+          - expected:
+              source: argument
+              path: account
+            observed: account_id
+          - expected:
+              source: argument
+              path: target_url
+            observed: parent_url
+          - expected:
+              source: argument
+              path: body
+            observed: body
+          - expected:
+              source: argument
+              path: target_author
+            observed: target_author
+          - expected:
+              source: acknowledgement
+              path: permalink
+            observed: permalink
+          - expected:
+              source: literal
+              value: visible_to_account
+            observed: visibility
+          - expected:
+              source: literal
+              value: up
+            observed: vote_state

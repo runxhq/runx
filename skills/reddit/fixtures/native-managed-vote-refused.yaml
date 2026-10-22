@@ -1,0 +1,11 @@
+name: reddit-managed-account-vote-refused
+kind: graph
+target: support/managed-vote.graph
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    vote:
+      subset:
+        result:
+          status: refused

@@ -1,0 +1,11 @@
+name: reddit-markdown-refused
+kind: graph
+target: support/admission.graph
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    publish:
+      subset:
+        result:
+          status: refused

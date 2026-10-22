@@ -1,30 +1,23 @@
 name: reddit-target-discovery
 owner: runx
 steps:
-  - id: configure
-    skill: ../..
-    runner: configure
-    inputs:
-      account_id: example_builder
-      config:
-        expected_username: example_builder
-        browser_app: brave
-        driver: macos_applescript
-        profile_ref: reddit-builder
-        binding_ref: brave:builder-tab
-        credential_profile_ref: ''
-        background_only: true
-        login_method: google_oauth
-        login_credential_profile_ref: ''
-        voice:
-          casing: lowercase
-          principles: [answer the actual question; no closing punchline]
-          examples: []
-      expected_version: 0
-  - id: research
-    skill: ../..
-    runner: reddit
-    inputs:
-      account_id: example_builder
-      objective: Compare communities for one genuine debugging question and current threads for a useful reply; draft only.
-      prior_evidence: []
+- id: configure
+  skill: ../..
+  runner: configure
+  inputs:
+    account_id: example_builder
+    config:
+      voice:
+        casing: lowercase
+        principles:
+        - answer the actual question; no closing punchline
+        examples: []
+    expected_version: 0
+- id: research
+  skill: ../..
+  runner: reddit
+  inputs:
+    account_id: example_builder
+    objective: Compare communities for one genuine debugging question and current threads for a useful reply; draft
+      only.
+    prior_evidence: []

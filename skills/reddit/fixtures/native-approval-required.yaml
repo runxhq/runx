@@ -1,0 +1,26 @@
+name: reddit-native-approval-required
+kind: graph
+target: support/publish.graph
+setup:
+  sessions:
+  - reddit
+  parameters:
+    reddit:
+      account: example_builder
+      profile_ref: reddit-builder
+inputs: {}
+expect:
+  status: policy_denied
+caller:
+  approvals:
+    publish#request: false
+  process_calls:
+  - tool: reddit.brave
+    arguments:
+      operation: session
+      parameters:
+        account: example_builder
+        profile_ref: reddit-builder
+    result:
+      id: example_builder
+      login: example_builder

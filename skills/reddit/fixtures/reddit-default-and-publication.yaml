@@ -1,8 +1,16 @@
-name: reddit-default-and-publication
+name: reddit-default-drafts-without-submitting
 kind: graph
 target: support/session.graph
 inputs:
-  action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
+  action:
+    kind: comment
+    subreddit: learnprogramming
+    target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+    title: ''
+    body: does the error happen before the request reaches the server? the network tab should show whether it was
+      sent.
+    allow_bare_urls: false
+    target_author: ''
 caller:
   answers:
     research:
@@ -13,62 +21,64 @@ caller:
         - intent: comment
           decision: selected
           subreddit: learnprogramming
-          target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/'
+          target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
           observed_at: '2026-09-30T03:00:00Z'
           rule_status: allowed
           account_eligibility: eligible
           activity_samples:
-          - {source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', age_label: 'recent fixture thread', score_label: unknown, reply_count_label: unknown}
+          - source_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+            observed_at: '2026-09-30T03:00:00Z'
+            age_label: recent fixture thread
+            score_label: unknown
+            reply_count_label: unknown
           contribution_gap: The author has not identified whether the request reached the server.
           rationale: A direct answer can suggest a network-tab check.
           risk: Synthetic fixture evidence; browser rules and eligibility require live recheck.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/comments/abc123/example/']
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         observations:
-        - {source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', summary: The author is debugging a request and wants to know whether it reached the server.}
+        - source_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+          observed_at: '2026-09-30T03:00:00Z'
+          summary: The author is debugging a request and wants to know whether it reached the server.
         drafts:
-        - action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does the error happen before the request reaches the server? the network tab should show whether it was sent.', allow_bare_urls: false, target_author: ''}
+        - action:
+            kind: comment
+            subreddit: learnprogramming
+            target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+            title: ''
+            body: does the error happen before the request reaches the server? the network tab should show whether
+              it was sent.
+            allow_bare_urls: false
+            target_author: ''
           why_useful: Suggests a concrete debugging observation.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/comments/abc123/example/']
-        unknowns: [No live Reddit page was accessed in this offline fixture.]
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+        unknowns:
+        - No live Reddit page was accessed in this offline fixture.
         next_step: Review the draft before any publication.
         effect_status: not_submitted
-    submit:
-      observation:
-        status: published
-        username: example_builder
-        profile_ref: reddit-builder
-        subreddit: learnprogramming
-        parent_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
-        permalink: https://www.reddit.com/r/learnprogramming/comments/abc123/example/def456/
-        title: ''
-        body: does the error happen before the request reaches the server? the network tab should show whether it was sent.
-        visibility: visible
-        observed_at: '2026-09-30T03:02:00Z'
-        evidence_refs: ['fixture:browser-readback']
-        affirmative_no_submit: false
-        reason: Offline supplied browser observation; not live provider evidence.
-        target_author: ''
-        vote_state: unknown
-        effect_attempted: true
-  approvals: {"publish#reddit.publish": true}
 expect:
   status: sealed
   step_outputs:
-    publish:
-      subset:
-        result: {status: published_host_observed, evidence_level: host_observed}
     research:
       subset:
-        research: {effect_status: not_submitted, account_id: example_builder}
+        research:
+          effect_status: not_submitted
+          account_id: example_builder
 operator_journeys:
 - mode: standalone
   exercises_runner: reddit
-  confusors: [twitter, ghostwrite]
+  confusors:
+  - twitter
+  - ghostwrite
   request: Read a named Reddit account and draft a useful answer before submitting one reviewed comment.
-  expected_outcome: The default returns account-specific drafts without submission; only the separate approved runner records host-observed publication.
+  expected_outcome: Return account-specific drafts and evidence without publishing or voting.
 - mode: composed
   exercises_runner: reddit
   request: Draft from existing thread evidence and account voice.
-  expected_outcome: Reuse supplied context and keep external effects separate.
-  prior_evidence: [The prior_evidence thread summary and source URL supplied to the default runner.]
-  must_not_repeat: [Do not browse to reacquire this supplied fixture evidence., Do not submit from the default runner.]
+  expected_outcome: Return account-specific drafts and evidence without publishing or voting.
+  prior_evidence:
+  - The prior_evidence thread summary and source URL supplied to the default runner.
+  must_not_repeat:
+  - Do not browse to reacquire this supplied fixture evidence.
+  - Do not submit from the default runner.

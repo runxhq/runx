@@ -1,0 +1,53 @@
+name: reddit-native-inspect
+kind: skill
+target: ..
+setup:
+  sessions:
+  - reddit
+  parameters:
+    reddit:
+      account: example_builder
+      profile_ref: reddit-builder
+inputs:
+  account_id: example_builder
+  operation: inspect
+expect:
+  status: sealed
+  step_outputs:
+    request:
+      subset:
+        provider_operation:
+          data:
+            provider: reddit
+            operation: account.inspect
+            result:
+              account_id: example_builder
+caller:
+  process_calls:
+  - tool: reddit.brave
+    arguments:
+      operation: session
+      parameters:
+        account: example_builder
+        profile_ref: reddit-builder
+    result:
+      id: example_builder
+      login: example_builder
+  - tool: reddit.brave
+    arguments:
+      operation: inspect
+      account: example_builder
+      session_account: example_builder
+      parameters:
+        account: example_builder
+        profile_ref: reddit-builder
+    result:
+      account_id: example_builder
+      profile_ref: reddit-builder
+      observed_at: '2026-10-21T00:00:00Z'
+      status: observed
+      page:
+        url: https://www.reddit.com/r/programming/
+        ready: complete
+        loggedIn: true
+runner: read

@@ -2,19 +2,102 @@
   "schema": "runx.tool.manifest.v1",
   "name": "reddit.brave",
   "version": "0.1.0",
-  "description": "Read a named Reddit session through a fixed, account-bound Brave operator on macOS.",
+  "description": "Fixed background Brave reads, exact plain-text Reddit submission, upvotes and independent readback.",
   "source": {
     "command": "python3",
-    "args": ["./brave.py"]
+    "args": [
+      "-B",
+      "./brave.py"
+    ]
   },
   "inputs": {
-    "operation": {"type": "string", "required": true, "description": "One fixed operator command: tabs, bind, inspect, navigate, feed, rules, thread, composer, or comment-readback."},
-    "account": {"type": "string", "required": false, "description": "Configured lowercase Reddit account id."},
-    "window_id": {"type": "string", "required": false, "description": "Bound Brave window id for bind."},
-    "tab_id": {"type": "string", "required": false, "description": "Bound Brave tab id for bind."},
-    "profile_ref": {"type": "string", "required": false, "description": "Configured non-secret browser profile label for bind."},
-    "url": {"type": "string", "required": false, "description": "Exact Reddit navigation or comment permalink URL."},
-    "body_file": {"type": "string", "required": false, "description": "UTF-8 file containing the exact approved body for comment readback."}
+    "operation": {
+      "type": "string",
+      "required": true,
+      "description": "Fixed read command, comment-create, post-create or upvote."
+    },
+    "account": {
+      "type": "string",
+      "required": false,
+      "description": "Configured lowercase Reddit account id."
+    },
+    "window_id": {
+      "type": "string",
+      "required": false,
+      "description": "Bound Brave window id for bind."
+    },
+    "tab_id": {
+      "type": "string",
+      "required": false,
+      "description": "Bound Brave tab id for bind."
+    },
+    "profile_ref": {
+      "type": "string",
+      "required": false,
+      "description": "Configured non-secret browser profile label for bind."
+    },
+    "url": {
+      "type": "string",
+      "required": false,
+      "description": "Exact Reddit navigation or comment permalink URL."
+    },
+    "body_file": {
+      "type": "string",
+      "required": false,
+      "description": "UTF-8 file containing the exact approved body for comment readback."
+    },
+    "phase": {
+      "type": "string",
+      "required": false,
+      "description": "Native process phase: perform or readback."
+    },
+    "acknowledgement": {
+      "type": "json",
+      "required": false,
+      "description": "Native recorded acknowledgement; used only for independent readback."
+    },
+    "target_url": {
+      "type": "string",
+      "required": false,
+      "description": "Exact approved Reddit parent or submit URL."
+    },
+    "title": {
+      "type": "string",
+      "required": false,
+      "description": "Exact approved post title; empty for comments."
+    },
+    "body": {
+      "type": "string",
+      "required": false,
+      "description": "Exact approved plain text, or observed vote target text."
+    },
+    "target_author": {
+      "type": "string",
+      "required": false,
+      "description": "Exact lowercase author of an upvote target."
+    },
+    "parameters": {
+      "type": "json",
+      "required": false,
+      "description": "Instance parameters supplied by native session confirmation."
+    },
+    "session_account": {
+      "type": "string",
+      "required": false,
+      "description": "The account pinned and injected by native browser-session admission."
+    },
+    "browser_pid": {
+      "type": "string",
+      "required": false,
+      "description": "Exact running Brave process id for binding; never infer an instance from bundle ID."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "required": false,
+      "description": "Native provider key injected for perform/readback; never a caller field."
+    }
   },
-  "scopes": ["fs:write", "host:browser:read"]
+  "scopes": [
+    "fs:write"
+  ]
 }

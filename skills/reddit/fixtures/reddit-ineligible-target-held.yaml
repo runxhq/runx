@@ -8,56 +8,94 @@ caller:
         status: drafted
         account_id: example_builder
         observations:
-        - {source_url: 'https://www.reddit.com/r/learnprogramming/new/', observed_at: '2026-09-30T03:00:00Z', summary: Synthetic sample of recent request-debugging questions with substantive replies.}
-        - {source_url: 'https://www.reddit.com/r/programming/new/', observed_at: '2026-09-30T03:00:00Z', summary: Synthetic community sample and rules show support questions are not a fit.}
-        - {source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', summary: Synthetic fresh thread has an unanswered network-debugging point.}
+        - source_url: https://www.reddit.com/r/learnprogramming/new/
+          observed_at: '2026-09-30T03:00:00Z'
+          summary: Synthetic sample of recent request-debugging questions with substantive replies.
+        - source_url: https://www.reddit.com/r/programming/new/
+          observed_at: '2026-09-30T03:00:00Z'
+          summary: Synthetic community sample and rules show support questions are not a fit.
+        - source_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+          observed_at: '2026-09-30T03:00:00Z'
+          summary: Synthetic fresh thread has an unanswered network-debugging point.
         target_candidates:
         - intent: post
           decision: selected
           subreddit: learnprogramming
-          target_url: 'https://www.reddit.com/r/learnprogramming/submit'
+          target_url: https://www.reddit.com/r/learnprogramming/submit
           observed_at: '2026-09-30T03:00:00Z'
           rule_status: allowed
           account_eligibility: ineligible
           activity_samples:
-          - {source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', age_label: '2 hours', score_label: '8', reply_count_label: '6'}
-          contribution_gap: A concrete question about finding where a request failed is not duplicated in the synthetic sample.
+          - source_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+            observed_at: '2026-09-30T03:00:00Z'
+            age_label: 2 hours
+            score_label: '8'
+            reply_count_label: '6'
+          contribution_gap: A concrete question about finding where a request failed is not duplicated in the synthetic
+            sample.
           rationale: Comparable troubleshooting threads have substantive replies and the topic fits the community.
           risk: Synthetic fixture only; live rules and account eligibility need recheck before publication.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/new/', 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/']
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/new/
+          - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         - intent: post
           decision: rejected
           subreddit: programming
-          target_url: 'https://www.reddit.com/r/programming/submit'
+          target_url: https://www.reddit.com/r/programming/submit
           observed_at: '2026-09-30T03:00:00Z'
           rule_status: disallowed
           account_eligibility: unknown
           activity_samples: []
-          contribution_gap: The question is specific, but this community does not accept support requests in the synthetic rules.
+          contribution_gap: The question is specific, but this community does not accept support requests in the
+            synthetic rules.
           rationale: Rules mismatch; do not post here merely for a larger audience.
           risk: Posting here would be off topic.
-          source_urls: ['https://www.reddit.com/r/programming/new/']
+          source_urls:
+          - https://www.reddit.com/r/programming/new/
         - intent: comment
           decision: selected
           subreddit: learnprogramming
-          target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/'
+          target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
           observed_at: '2026-09-30T03:00:00Z'
           rule_status: allowed
           account_eligibility: eligible
           activity_samples:
-          - {source_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', observed_at: '2026-09-30T03:00:00Z', age_label: '2 hours', score_label: '8', reply_count_label: '6'}
+          - source_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+            observed_at: '2026-09-30T03:00:00Z'
+            age_label: 2 hours
+            score_label: '8'
+            reply_count_label: '6'
           contribution_gap: No reply asks whether the request appeared in the browser network tab.
           rationale: The reply would answer a concrete unresolved debugging question.
           risk: The thread may receive the same answer before submission; reread it first.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/comments/abc123/example/']
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         drafts:
-        - action: {kind: post, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/submit', title: 'how can i tell if a request reached my server?', body: 'the browser reports a failed request, but i cannot tell whether it reached my server. what should i check first in the network tab and server logs?', allow_bare_urls: false, target_author: ''}
+        - action:
+            kind: post
+            subreddit: learnprogramming
+            target_url: https://www.reddit.com/r/learnprogramming/submit
+            title: how can i tell if a request reached my server?
+            body: the browser reports a failed request, but i cannot tell whether it reached my server. what should
+              i check first in the network tab and server logs?
+            allow_bare_urls: false
+            target_author: ''
           why_useful: One specific reproducible question for a community where this type of help is welcome.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/new/']
-        - action: {kind: comment, subreddit: learnprogramming, target_url: 'https://www.reddit.com/r/learnprogramming/comments/abc123/example/', title: '', body: 'does it appear in the network tab? that should tell you whether the browser actually sent it.', allow_bare_urls: false, target_author: ''}
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/new/
+        - action:
+            kind: comment
+            subreddit: learnprogramming
+            target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+            title: ''
+            body: does it appear in the network tab? that should tell you whether the browser actually sent it.
+            allow_bare_urls: false
+            target_author: ''
           why_useful: Adds a concrete check missing from the current replies.
-          source_urls: ['https://www.reddit.com/r/learnprogramming/comments/abc123/example/']
-        unknowns: [All Reddit pages and metrics in this fixture are synthetic; live research is still required.]
+          source_urls:
+          - https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+        unknowns:
+        - All Reddit pages and metrics in this fixture are synthetic; live research is still required.
         next_step: Review one exact action and recheck the target before using the approval-bound publish runner.
         effect_status: not_submitted
 expect:
@@ -65,5 +103,8 @@ expect:
   step_outputs:
     research:
       subset:
-        research: {status: held, drafts: []}
-        target_review: {admitted: false}
+        research:
+          status: held
+          drafts: []
+        target_review:
+          admitted: false

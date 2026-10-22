@@ -31,7 +31,8 @@ caller:
             age_label: 2 hours
             score_label: '8'
             reply_count_label: '6'
-          contribution_gap: A concrete question about finding where a request failed is not duplicated in the synthetic sample.
+          contribution_gap: A concrete question about finding where a request failed is not duplicated in the synthetic
+            sample.
           rationale: Comparable troubleshooting threads have substantive replies and the topic fits the community.
           risk: Synthetic fixture only; live rules and account eligibility need recheck before publication.
           source_urls:
@@ -45,7 +46,8 @@ caller:
           rule_status: disallowed
           account_eligibility: unknown
           activity_samples: []
-          contribution_gap: The question is specific, but this community does not accept support requests in the synthetic rules.
+          contribution_gap: The question is specific, but this community does not accept support requests in the
+            synthetic rules.
           rationale: Rules mismatch; do not post here merely for a larger audience.
           risk: Posting here would be off topic.
           source_urls:
@@ -74,8 +76,8 @@ caller:
             subreddit: learnprogramming
             target_url: https://www.reddit.com/r/learnprogramming/submit
             title: how can i tell if a request reached my server?
-            body: the browser reports a failed request, but i cannot tell whether it reached my server. what should i check first in the network
-              tab and server logs?
+            body: the browser reports a failed request, but i cannot tell whether it reached my server. what should
+              i check first in the network tab and server logs?
             allow_bare_urls: false
             target_author: ''
           why_useful: One specific reproducible question for a community where this type of help is welcome.

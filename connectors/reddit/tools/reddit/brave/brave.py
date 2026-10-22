@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Bound, read-only Brave adapter for the Runx Reddit skill.
+"""Fixed, account-bound Brave operations for the Reddit connector.
 
-This host tool never accepts caller-supplied JavaScript and never submits a
-Reddit form. It reads only the selected account tab through Brave Apple Events.
+Native Runx owns approval and effect custody. This tool accepts data, never
+caller-supplied JavaScript, and never activates the browser.
 """
 
 import argparse
@@ -23,61 +23,54 @@ ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
 ID_RE = re.compile(r"^[0-9]+$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 
-PAGE_JS = "JSON.stringify({url:location.href,title:document.title,ready:document.readyState,loggedIn:document.querySelector('shreddit-app')?.getAttribute('user-logged-in')==='true'})"
+PAGE_JS = "JSON.stringify({url:location.href,title:document.title,ready:document.readyState,classicUsername:document.querySelector('.user a[href*=\"/user/\"]')?.textContent||'',loggedIn:document.querySelector('shreddit-app')?.getAttribute('user-logged-in')==='true'})"
 OPEN_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');if(!b)return JSON.stringify({error:'unsupported_identity_control'});const opened=b.getAttribute('aria-expanded')!=='true';if(opened)b.click();return JSON.stringify({openedByTool:opened})})()"
 READ_IDENTITY_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');const a=Array.from(document.querySelectorAll('#user-drawer-content a[href^=\"/user/\"]')).filter(x=>x.textContent.includes('View Profile'));return JSON.stringify({open:b?.getAttribute('aria-expanded')==='true',profiles:a.map(x=>x.getAttribute('href'))})})()"
 CLOSE_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');if(b?.getAttribute('aria-expanded')==='true')b.click();return JSON.stringify({closed:true})})()"
 FEED_JS = "JSON.stringify({url:location.href,posts:Array.from(document.querySelectorAll('shreddit-post')).slice(0,12).map(e=>({title:e.getAttribute('post-title'),score:e.getAttribute('score'),comments:e.getAttribute('comment-count'),created:e.getAttribute('created-timestamp'),permalink:e.getAttribute('permalink'),type:e.getAttribute('post-type'),author:e.getAttribute('author')}))})"
-RULES_JS = "JSON.stringify({url:location.href,rules:(function(){const headings=Array.from(document.querySelectorAll('h2')).filter(e=>/^Rule [0-9]+:/.test(e.textContent.trim()));return Array.from(document.querySelectorAll('[id^=\"rule-\"]')).slice(0,20).map((e,i)=>({title:headings[i]?.textContent.trim()||'',body:e.textContent.trim().slice(0,1600)}))})()})"
+RULES_JS = """JSON.stringify((function(){
+  if (!/^\/(?:r\/[A-Za-z0-9_]+\/about\/rules|mod\/[A-Za-z0-9_]+\/rules)\/?$/.test(location.pathname)) return {error:'not_rules_page'};
+  const headings=Array.from(document.querySelectorAll('h2')).filter(e=>/^Rule [0-9]+:/.test(e.textContent.trim()));
+  const rules=Array.from(document.querySelectorAll('[id^="rule-"]')).slice(0,20).map((e,i)=>({title:headings[i]?.textContent.trim()||'',body:e.textContent.trim().slice(0,1600)}));
+  return {url:location.href,rules,text:(document.querySelector('main')||document.body).innerText.slice(0,12000)};
+})())"""
 THREAD_JS = "JSON.stringify((function(){const p=document.querySelector('shreddit-post');if(!p)return {error:'post_not_rendered'};const c=Array.from(document.querySelectorAll('shreddit-comment'));const body=Array.from(p.querySelectorAll('[slot=\"text-body\"],[slot=\"content\"]')).map(e=>e.textContent.trim()).find(Boolean)||'';return {url:location.href,post:{title:p.getAttribute('post-title'),score:p.getAttribute('score'),comments:p.getAttribute('comment-count'),created:p.getAttribute('created-timestamp'),permalink:p.getAttribute('permalink'),type:p.getAttribute('post-type'),author:p.getAttribute('author'),body:body.slice(0,2400)},loadedComments:c.length,replies:c.filter(e=>e.getAttribute('depth')==='0').slice(0,30).map(e=>({author:e.getAttribute('author'),id:e.getAttribute('thingid'),score:e.getAttribute('score'),body:(e.querySelector('[slot=\"comment\"]')?.textContent||'').trim().slice(0,1500)}))}})())"
-COMPOSER_JS = "JSON.stringify((function(){const p=document.querySelector('shreddit-post');const e=document.querySelector('shreddit-composer [contenteditable=\"true\"][name=\"body\"]');const b=document.querySelector('#comment-composer-submit-button');return {url:location.href,postId:p?.id||null,editorPresent:!!e,editorTextLength:e?.innerText.length||0,submitPresent:!!b,submitDisabled:b?.disabled===true,locked:!!document.querySelector('[data-post-locked=\"true\"]')}})())"
+COMPOSER_JS = """JSON.stringify((function(){
+  const p=document.querySelector('shreddit-post, .thing.link');
+  const e=document.querySelector('.commentarea > form.usertext textarea[name="text"], .commentarea form#commentform textarea[name="body"], shreddit-composer [contenteditable="true"][name="body"]');
+  const b=e?.closest('form')?.querySelector('button[type="submit"],input[type="submit"]')||document.querySelector('#comment-composer-submit-button');
+  return {url:location.href,postId:p?.getAttribute('data-fullname')||p?.id||null,editorPresent:!!e,editorTextLength:(e?.value??e?.innerText??'').length,submitPresent:!!b,submitDisabled:b?.disabled===true,locked:!!document.querySelector('[data-post-locked="true"],.locked-infobar')};
+})())"""
 
 
 class BrowserStop(Exception):
     pass
 
 
-def apple_string(value):
-    return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '').replace('\n', '\\n') + '"'
+class EffectUnknown(BrowserStop):
+    pass
 
 
-def osa(source):
+def bridge(operation, **fields):
     try:
-        result = subprocess.run(["osascript", "-e", source], capture_output=True, text=True, timeout=15, check=False)
+        result = subprocess.run(["swift", str(Path(__file__).with_name("bridge.swift")),
+                                 json.dumps({"operation": operation, **fields})],
+                                capture_output=True, text=True, timeout=25, check=False)
     except subprocess.TimeoutExpired as error:
         raise BrowserStop("apple_event_timeout") from error
     if result.returncode:
-        if "brave_not_running" in result.stderr:
-            raise BrowserStop("brave_not_running")
-        raise BrowserStop("apple_event_failed: " + result.stderr.strip()[:220])
-    return result.stdout.strip()
-
-
-def tab_source(window_id, tab_id, action):
-    if not ID_RE.fullmatch(window_id) or not ID_RE.fullmatch(tab_id):
-        raise BrowserStop("invalid_binding_ids")
-    return ('if not (running of application id "com.brave.Browser") then error "brave_not_running"\n'
-            'tell application id "com.brave.Browser"\n'
-            f'  set w to first window whose id is "{window_id}"\n'
-            '  if mode of w is not "normal" then error "not_normal_window"\n'
-            '  set t to missing value\n'
-            '  repeat with tabIndex from 1 to count of tabs of w\n'
-            '    set candidate to tab tabIndex of w\n'
-            f'    if id of candidate is "{tab_id}" then\n'
-            '      set t to candidate\n'
-            '      exit repeat\n'
-            '    end if\n'
-            '  end repeat\n'
-            '  if t is missing value then error "missing_bound_tab"\n'
-            f'  {action}\nend tell')
+        raise BrowserStop("browser_bridge_failed")
+    try:
+        value = json.loads(result.stdout)
+    except ValueError as error:
+        raise BrowserStop("invalid_browser_result") from error
+    if isinstance(value, dict) and value.get("error"):
+        raise BrowserStop(value["error"])
+    return value
 
 
 def execute(binding, js):
-    raw = osa(tab_source(binding["window_id"], binding["tab_id"], "return execute t javascript " + apple_string(js)))
-    try:
-        return json.loads(raw)
-    except ValueError as error:
-        raise BrowserStop("invalid_browser_result") from error
+    return bridge("execute", binding=binding, javascript=js)
 
 
 def read_bindings():
@@ -119,7 +112,7 @@ def expected_file_body(value):
 
 
 def ensure_brave_running():
-    if osa('return running of application id "com.brave.Browser"') != "true":
+    if not bridge("running")["running"]:
         raise BrowserStop("brave_not_running")
 
 
@@ -131,11 +124,11 @@ def ensure_account(value):
 
 def ensure_reddit_url(value, for_identity=False):
     parsed = urlsplit(value)
-    if parsed.scheme != "https" or parsed.hostname != "www.reddit.com" or parsed.username or parsed.password or parsed.port:
+    if parsed.scheme != "https" or parsed.hostname not in {"www.reddit.com", "old.reddit.com"} or parsed.username or parsed.password or parsed.port:
         raise BrowserStop("non_reddit_url")
     if for_identity:
         return value
-    if not re.fullmatch(r"/(?:r/[A-Za-z0-9_]+|user/[A-Za-z0-9_-]+)(?:/[^?#]*)?", parsed.path):
+    if not re.fullmatch(r"/(?:r/[A-Za-z0-9_]+|user/[A-Za-z0-9_-]+)(?:/[^?#]*)?|/mod/[A-Za-z0-9_]+/rules/?", parsed.path):
         raise BrowserStop("unsupported_reddit_url")
     return value
 
@@ -145,6 +138,11 @@ def read_identity(binding):
         raise BrowserStop("bound_tab_is_foreground")
     page = execute(binding, PAGE_JS)
     ensure_reddit_url(page.get("url", ""), for_identity=True)
+    if page.get("classicUsername"):
+        username = page["classicUsername"].lower()
+        if username != binding["account_id"]:
+            raise BrowserStop("wrong_visible_account")
+        return page, username
     if not page.get("loggedIn"):
         raise BrowserStop("not_logged_in")
     opening = execute(binding, OPEN_MENU_JS)
@@ -186,7 +184,8 @@ def bound_account(account):
         raise BrowserStop("account_not_bound")
     if binding.get("account_id") != account_id:
         raise BrowserStop("binding_account_mismatch")
-    if (not isinstance(binding.get("window_id"), str) or not ID_RE.fullmatch(binding["window_id"])
+    if (not isinstance(binding.get("browser_pid"), str) or not ID_RE.fullmatch(binding["browser_pid"])
+            or not isinstance(binding.get("window_id"), str) or not ID_RE.fullmatch(binding["window_id"])
             or not isinstance(binding.get("tab_id"), str) or not ID_RE.fullmatch(binding["tab_id"])
             or not isinstance(binding.get("profile_ref"), str) or not PROFILE_RE.fullmatch(binding["profile_ref"])):
         raise BrowserStop("invalid_binding_file")
@@ -194,40 +193,11 @@ def bound_account(account):
 
 
 def tab_rows():
-    source = '''if not (running of application id "com.brave.Browser") then error "brave_not_running"
-tell application id "com.brave.Browser"
-  set rows to {}
-  repeat with w in windows
-    if mode of w is "normal" then
-      repeat with t in tabs of w
-        set u to URL of t
-        if u starts with "https://www.reddit.com/" then
-          set end of rows to (id of w as text) & (character id 9) & (id of t as text) & (character id 9) & u
-        end if
-      end repeat
-    end if
-  end repeat
-  set AppleScript's text item delimiters to (character id 10)
-  return rows as text
-end tell'''
-    rows = []
-    for line in osa(source).splitlines()[:30]:
-        parts = line.split("\t", 2)
-        if len(parts) == 3 and ID_RE.fullmatch(parts[0]) and ID_RE.fullmatch(parts[1]):
-            rows.append({"window_id": parts[0], "tab_id": parts[1], "url": parts[2]})
-    return rows
+    return bridge("tabs")["tabs"]
 
 
 def foreground_target(binding):
-    try:
-        app = osa('tell application "System Events" to get name of first application process whose frontmost is true')
-        if app != "Brave Browser":
-            return False
-        raw = osa('if not (running of application id "com.brave.Browser") then error "brave_not_running"\n'
-                  'tell application id "com.brave.Browser" to return (id of front window as text) & ":" & (id of active tab of front window as text)')
-        return raw == binding["window_id"] + ":" + binding["tab_id"]
-    except BrowserStop:
-        raise BrowserStop("foreground_state_unknown")
+    return bridge("foreground", binding=binding)["foreground"]
 
 
 def navigate_tab(binding, url):
@@ -238,8 +208,9 @@ def navigate_tab(binding, url):
     if before.get("url") == url and before.get("ready") == "complete":
         read_identity(binding)
         return {**before, "navigation": "already_at_url"}
-    osa(tab_source(binding["window_id"], binding["tab_id"], "set URL of t to " + apple_string(url)))
+    bridge("navigate", binding=binding, url=url)
     expected = urlsplit(url)
+    rules = re.fullmatch(r"/r/([A-Za-z0-9_]+)/about/rules/?", expected.path)
     for _ in range(10):
         time.sleep(0.7)
         page = execute(binding, PAGE_JS)
@@ -247,7 +218,8 @@ def navigate_tab(binding, url):
         if (page.get("ready") == "complete"
                 and actual.scheme == expected.scheme
                 and actual.hostname == expected.hostname
-                and actual.path.rstrip("/") == expected.path.rstrip("/")
+                and (actual.path.rstrip("/") == expected.path.rstrip("/")
+                     or (rules and actual.path.rstrip("/") == "/mod/" + rules[1] + "/rules"))
                 and actual.query == expected.query):
             break
     else:
@@ -260,7 +232,7 @@ def output(account_id, data):
     print(json.dumps({"account_id": account_id, "observed_at": datetime.now(timezone.utc).isoformat(), **data}, ensure_ascii=False))
 
 
-def runx_argv():
+def runx_inputs():
     if len(sys.argv) > 1:
         return None
     raw = os.environ.get("RUNX_INPUTS_JSON")
@@ -268,7 +240,7 @@ def runx_argv():
     if not raw and path:
         try:
             source = Path(path)
-            if source.stat().st_size > 16000:
+            if source.stat().st_size > 128000:
                 raise BrowserStop("invalid_tool_inputs")
             raw = source.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as error:
@@ -281,6 +253,12 @@ def runx_argv():
         raise BrowserStop("invalid_tool_inputs") from error
     if not isinstance(data, dict) or not isinstance(data.get("operation"), str):
         raise BrowserStop("invalid_tool_inputs")
+    return data
+
+
+def runx_argv(data):
+    if data is None:
+        return None
     operation = data["operation"]
     if operation == "tabs":
         return [operation]
@@ -291,7 +269,7 @@ def runx_argv():
         raise BrowserStop("invalid_tool_inputs")
     argv = [operation, account]
     if operation == "bind":
-        for field in ("window_id", "tab_id", "profile_ref"):
+        for field in ("browser_pid", "window_id", "tab_id", "profile_ref"):
             if not isinstance(data.get(field), str):
                 raise BrowserStop("invalid_tool_inputs")
             argv.extend(["--" + field.replace("_", "-"), data[field]])
@@ -306,12 +284,49 @@ def runx_argv():
     return argv
 
 
-def main():
+def main(data):
+    if data and data["operation"] == "session":
+        parameters = data.get("parameters", {})
+        binding = bound_account(parameters.get("account", ""))
+        if binding["profile_ref"] != parameters.get("profile_ref"):
+            raise BrowserStop("wrong_browser_profile")
+        _, username = read_identity(binding)
+        print(json.dumps({"id": username, "login": username}))
+        return
+    if data and data.get("account") and data.get("session_account") != data["account"]:
+        raise BrowserStop("native_session_account_mismatch")
+    if data and data["operation"] in {"comment-create", "post-create", "upvote"}:
+        import publishing
+        data = {**data, "kind": {"comment-create": "comment", "post-create": "post", "upvote": "upvote"}[data["operation"]]}
+        if data.get("phase") not in {"perform", "readback"} or not data.get("idempotency_key"):
+            raise BrowserStop("native_mutation_protocol_required")
+        try:
+            ensure_brave_running()
+            binding = bound_account(data["account"])
+        except (BrowserStop, KeyError) as error:
+            if data["phase"] == "perform":
+                print(json.dumps({"refused": str(error)}))
+                return
+            raise
+        if data["phase"] == "perform":
+            try:
+                result = publishing.perform(sys.modules[__name__], binding, data)
+                print(json.dumps(result, ensure_ascii=False))
+            except EffectUnknown:
+                raise
+            except Exception as error:
+                # Once dispatched, unexpected failures are never safe refusals.
+                raise EffectUnknown("browser_mutation_failed_after_dispatch") from error
+        else:
+            result = publishing.readback(sys.modules[__name__], binding, data, data["acknowledgement"])
+            print(json.dumps(result, ensure_ascii=False))
+        return
     parser = argparse.ArgumentParser(description="Bound read-only Brave operator for the Runx Reddit skill")
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("tabs")
     bind = sub.add_parser("bind")
     bind.add_argument("account")
+    bind.add_argument("--browser-pid", required=True)
     bind.add_argument("--window-id", required=True)
     bind.add_argument("--tab-id", required=True)
     bind.add_argument("--profile-ref", required=True)
@@ -324,7 +339,7 @@ def main():
     comment.add_argument("account")
     comment.add_argument("url")
     comment.add_argument("--body-file", required=True)
-    args = parser.parse_args(runx_argv())
+    args = parser.parse_args(runx_argv(data))
     ensure_brave_running()
     if args.operation == "tabs":
         print(json.dumps({"tabs": tab_rows()}))
@@ -333,11 +348,11 @@ def main():
     if args.operation == "bind":
         if not PROFILE_RE.fullmatch(args.profile_ref):
             raise BrowserStop("invalid_profile_ref")
-        binding = {"account_id": account_id, "window_id": args.window_id, "tab_id": args.tab_id, "profile_ref": args.profile_ref}
+        binding = {"account_id": account_id, "browser_pid": args.browser_pid, "window_id": args.window_id, "tab_id": args.tab_id, "profile_ref": args.profile_ref}
         page, _ = read_identity(binding)
         data = read_bindings()
         for other, candidate in list(data.items()):
-            if isinstance(candidate, dict) and other != account_id and candidate.get("window_id") == args.window_id and candidate.get("tab_id") == args.tab_id:
+            if isinstance(candidate, dict) and other != account_id and candidate.get("browser_pid") == args.browser_pid and candidate.get("window_id") == args.window_id and candidate.get("tab_id") == args.tab_id:
                 del data[other]
         data[account_id] = binding
         write_bindings(data)
@@ -390,8 +405,8 @@ def main():
         output(account_id, {"status": "observed", **result})
     elif args.operation == "rules":
         result = execute(binding, RULES_JS)
-        if not result.get("rules"):
-            raise BrowserStop("rules_not_rendered")
+        if result.get("error") or not (result.get("rules") or result.get("text")):
+            raise BrowserStop(result.get("error", "rules_not_rendered"))
         output(account_id, {"status": "observed", **result})
     elif args.operation == "thread":
         result = execute(binding, THREAD_JS)
@@ -403,8 +418,10 @@ def main():
         output(account_id, {"status": "observed", **result})
 
 
-if __name__ == "__main__":
+def entry():
+    data = None
     try:
+        data = runx_inputs()
         BINDINGS_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         lock_path = BINDINGS_PATH.with_suffix(".lock")
         lock_descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
@@ -413,10 +430,19 @@ if __name__ == "__main__":
                 fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise BrowserStop("browser_operator_busy") from error
-            main()
-    except BrowserStop as error:
-        print(json.dumps({"status": "needs_browser", "reason": str(error)}))
-        sys.exit(2)
-    except OSError:
-        print(json.dumps({"status": "needs_browser", "reason": "binding_file_write_failed"}))
-        sys.exit(2)
+            main(data)
+        return 0
+    except EffectUnknown as error:
+        print(json.dumps({"status": "unknown", "reason": str(error)}))
+        return 2
+    except (BrowserStop, OSError, ValueError, TypeError) as error:
+        reason = str(error) if isinstance(error, BrowserStop) else "browser_startup_failed"
+        if data and data.get("phase") == "perform" and data.get("operation") in {"comment-create", "post-create", "upvote"}:
+            print(json.dumps({"refused": reason}))
+            return 0
+        print(json.dumps({"status": "needs_browser", "reason": reason}))
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(entry())

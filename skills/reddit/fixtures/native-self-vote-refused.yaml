@@ -1,0 +1,11 @@
+name: reddit-self-vote-refused
+kind: graph
+target: support/vote-admission.graph
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    vote:
+      subset:
+        result:
+          status: refused

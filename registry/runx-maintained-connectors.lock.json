@@ -102,8 +102,8 @@
     },
     {
       "ref": "reddit",
-      "version": "sha-34e80fff00f9",
-      "content_digest": "sha256:34e80fff00f910d02a7a84f27a70fc4b50dbf4e8b9dcf8ebe7cd78da4cd88f32"
+      "version": "sha-4b1737615c12",
+      "content_digest": "sha256:4b1737615c12c539dab2bacbac5c3cc29a064a88ab3d9496055d72ffc0dfc3f8"
     },
     {
       "ref": "scafld",
