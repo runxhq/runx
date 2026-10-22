@@ -301,12 +301,12 @@ diagnostics.
 With `agent.provider`, `agent.model` and a key configured, the CLI can resolve
 managed agent work directly. Deterministic tools, approvals, and required human
 inputs keep their existing local behavior. `anthropic`, `openai` and `gemini`
-are built-in providers, each reading its own key variable when `agent.api_key`
+are built-in providers, each reading its own key variable when `agent.secret`
 is unset; `openai` speaks OpenAI's Responses API. Runx names no model of its
 own: every provider sets `agent.model`, and a managed run refuses without one.
 Any other provider sets `agent.dialect` (`chat_completions`,
 `anthropic_messages` or `openai_responses`) and `agent.endpoint_url` too, and
-reads only `agent.api_key` or `RUNX_AGENT_API_KEY`; a local OpenAI-compatible
+reads only `agent.secret` or `RUNX_AGENT_API_KEY`; a local OpenAI-compatible
 server is such a provider, speaking `chat_completions`. A provider's refusal
 reaches the receipt as its status and its own error message, never its raw
 body or the key.
