@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   createRegistryTestSigningKey,
@@ -56,6 +57,7 @@ try {
       "",
     ].join("\n"),
   );
+  const quickstart = proveQuickstart();
   const nested = proveNestedRegistryExecution();
   const environment = proveDeclaredEnvironment();
   const context = proveOperatorContext();
@@ -68,6 +70,7 @@ try {
     version,
     checks: {
       adjacent_worker: true,
+      readme_quickstart: quickstart,
       nested_signed_registry: nested,
       declared_workspace_environment: environment,
       operator_context_digest: context,
@@ -78,6 +81,34 @@ try {
   })}\n`);
 } finally {
   rmSync(root, { recursive: true, force: true });
+}
+
+/**
+ * The README's first run, on every release platform: a checked-in Node.js
+ * command that starts with the platform's own environment (on Windows,
+ * node.exe aborts without SystemRoot) and seals the greeting it was given.
+ */
+function proveQuickstart() {
+  const example = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "examples", "hello-world");
+  const output = runJson([
+    "skill",
+    example,
+    "--run-id",
+    "first-run",
+    "-i",
+    "message=Hello, Runx.",
+    "--receipt-dir",
+    receipts,
+    "--json",
+  ]);
+  if (
+    output.status !== "sealed"
+    || output.result?.message !== "Hello, Runx."
+    || output.closure?.disposition !== "closed"
+  ) {
+    throw new Error(`the README quickstart did not seal its greeting: ${JSON.stringify(output)}`);
+  }
+  return true;
 }
 
 function proveNestedRegistryExecution() {
