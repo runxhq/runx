@@ -7,6 +7,7 @@ caller-supplied JavaScript, and never activates the browser.
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,8 @@ from urllib.parse import urlsplit
 
 
 BINDINGS_PATH = Path.home() / ".config" / "runx" / "reddit-brave-bindings.json"
+BRIDGE_SOURCE = Path(__file__).with_name("bridge.swift")
+BRIDGE_CACHE = Path.home() / "Library" / "Caches" / "runx" / "reddit-brave"
 ACCOUNT_RE = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
 ID_RE = re.compile(r"^[0-9]+$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
@@ -28,7 +31,7 @@ OPEN_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-
 READ_IDENTITY_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');const a=Array.from(document.querySelectorAll('#user-drawer-content a[href^=\"/user/\"]')).filter(x=>x.textContent.includes('View Profile'));return JSON.stringify({open:b?.getAttribute('aria-expanded')==='true',profiles:a.map(x=>x.getAttribute('href'))})})()"
 CLOSE_MENU_JS = "(function(){const b=document.querySelector('#expand-user-drawer-button');if(b?.getAttribute('aria-expanded')==='true')b.click();return JSON.stringify({closed:true})})()"
 FEED_JS = "JSON.stringify({url:location.href,posts:Array.from(document.querySelectorAll('shreddit-post')).slice(0,12).map(e=>({title:e.getAttribute('post-title'),score:e.getAttribute('score'),comments:e.getAttribute('comment-count'),created:e.getAttribute('created-timestamp'),permalink:e.getAttribute('permalink'),type:e.getAttribute('post-type'),author:e.getAttribute('author')}))})"
-RULES_JS = """JSON.stringify((function(){
+RULES_JS = r"""JSON.stringify((function(){
   if (!/^\/(?:r\/[A-Za-z0-9_]+\/about\/rules|mod\/[A-Za-z0-9_]+\/rules)\/?$/.test(location.pathname)) return {error:'not_rules_page'};
   const headings=Array.from(document.querySelectorAll('h2')).filter(e=>/^Rule [0-9]+:/.test(e.textContent.trim()));
   const rules=Array.from(document.querySelectorAll('[id^="rule-"]')).slice(0,20).map((e,i)=>({title:headings[i]?.textContent.trim()||'',body:e.textContent.trim().slice(0,1600)}));
@@ -51,10 +54,34 @@ class EffectUnknown(BrowserStop):
     pass
 
 
-def bridge(operation, **fields):
+def bridge_binary():
+    """The bridge, compiled once per source digest: `swift <source>` compiles on every call."""
     try:
-        result = subprocess.run(["swift", str(Path(__file__).with_name("bridge.swift")),
-                                 json.dumps({"operation": operation, **fields})],
+        binary = BRIDGE_CACHE / ("bridge-" + hashlib.sha256(BRIDGE_SOURCE.read_bytes()).hexdigest())
+        if binary.exists():
+            if binary.is_symlink() or binary.stat().st_uid != os.getuid() or binary.stat().st_mode & 0o022:
+                raise BrowserStop("browser_bridge_permissions")
+            return binary
+        BRIDGE_CACHE.mkdir(parents=True, exist_ok=True, mode=0o700)
+        building = binary.with_name(binary.name + ".building")
+        result = subprocess.run(["swiftc", "-O", str(BRIDGE_SOURCE), "-o", str(building)],
+                                capture_output=True, text=True, timeout=300, check=False)
+        if result.returncode:
+            raise BrowserStop("browser_bridge_build_failed")
+        os.chmod(building, 0o700)
+        os.replace(building, binary)
+        for stale in BRIDGE_CACHE.glob("bridge-*"):
+            if stale != binary:
+                stale.unlink(missing_ok=True)
+        return binary
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BrowserStop("browser_bridge_build_failed") from error
+
+
+def bridge(operation, **fields):
+    binary = bridge_binary()
+    try:
+        result = subprocess.run([str(binary), json.dumps({"operation": operation, **fields})],
                                 capture_output=True, text=True, timeout=25, check=False)
     except subprocess.TimeoutExpired as error:
         raise BrowserStop("apple_event_timeout") from error
