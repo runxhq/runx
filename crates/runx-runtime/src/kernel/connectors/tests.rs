@@ -166,8 +166,13 @@ operations:
 "#,
     )
     .unwrap();
+    let scope = ConnectorScope::at(&skill).unwrap();
     assert!(matches!(
-        ConnectorScope::at(&skill),
+        scope.connector("store"),
+        Err(ConnectorRegistryError::Shadowed { .. })
+    ));
+    assert!(matches!(
+        scope.connectors(),
         Err(ConnectorRegistryError::Shadowed { .. })
     ));
 }
@@ -497,6 +502,40 @@ fn a_plugin_connector_lives_in_the_directory_its_name_names() {
         Err(ConnectorRegistryError::InvalidManifest { message, .. })
             if message.contains("lives in connectors/acme-records/")
     ));
+}
+
+/// A run reads only the connectors it reaches: a plugin's connector that
+/// cannot be read fails what reaches it, and what needs every connector, such
+/// as the credentials a skill may not declare, never a connector beside it.
+#[test]
+fn a_connector_that_cannot_be_read_fails_only_what_reaches_it() {
+    let root = tempfile::tempdir().unwrap();
+    let skill = root.path().join("skills/records");
+    std::fs::create_dir_all(&skill).unwrap();
+    let connectors = root.path().join("connectors");
+    write_plugin_connector(&connectors, "acme");
+    // It names itself, and holds a field this runtime does not read.
+    let later = connectors.join("later");
+    std::fs::create_dir_all(&later).unwrap();
+    std::fs::write(
+        later.join("connector.yaml"),
+        "schema: runx.connector.v1\nid: later\nname: Later\ndescription: Newer than this runtime.\nnewer_field: true\n",
+    )
+    .unwrap();
+    let scope = ConnectorScope::at(&skill).unwrap();
+
+    assert_eq!(scope.connector("acme").unwrap().name.as_str(), "acme");
+    assert!(matches!(
+        scope.connector("later"),
+        Err(ConnectorRegistryError::InvalidManifest { path, .. })
+            if path.ends_with("later/connector.yaml")
+    ));
+    assert!(matches!(
+        scope.connectors(),
+        Err(ConnectorRegistryError::InvalidManifest { path, .. })
+            if path.ends_with("later/connector.yaml")
+    ));
+    assert!(scope.credential_variables().is_err());
 }
 
 /// A project install that does not load is skipped when the credential
