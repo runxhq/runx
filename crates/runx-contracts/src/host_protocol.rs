@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::paid_invocation::{
-    CurrencyCode, OfferRevisionRef, PortableAmountMinor, PrincipalReference, Sha256Digest,
+    CurrencyCode, OfferRevisionRef, PaidInvocationPaymentMethod, PaidInvocationPaymentOptionRef,
+    PortableAmountMinor, PrincipalReference, Sha256Digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{AgentContextEnvelope, JsonObject, JsonValue};
@@ -139,16 +140,24 @@ pub struct PurchaseRequest {
     pub methods: Vec<PurchaseMethod>,
 }
 
-/// The quote decided on: the paid invocation Cloud admitted for these
-/// inputs, what its x402 requirement pays, and when it expires.
+/// The quote decided on, including its protocol-owned display terms and the
+/// exact challenge binding. An absent network is not an EVM network default.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PurchaseQuote {
     pub invocation_id: NonEmptyString,
     pub expires_at: IsoDateTime,
-    pub network: NonEmptyString,
-    pub asset: NonEmptyString,
-    pub pay_to: NonEmptyString,
+    pub payment_options: Vec<PurchasePaymentOption>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PurchasePaymentOption {
+    pub option: PaidInvocationPaymentOptionRef,
+    pub expires_at: IsoDateTime,
+    pub quote_ref: crate::Reference,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<PaidInvocationPaymentMethod>,
 }
 
 /// What an answer's `choice` names to pay from the account's runx balance. No
@@ -156,7 +165,7 @@ pub struct PurchaseQuote {
 pub const PURCHASE_BALANCE_CHOICE: &str = "runx:balance";
 
 /// One way the payer can pay. An answer's `choice` names it: the balance by
-/// [`PURCHASE_BALANCE_CHOICE`], a payment grant by its instance id.
+/// [`PURCHASE_BALANCE_CHOICE`], a payment grant by the choice binding its instance and quoted option.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PurchaseMethod {
@@ -169,9 +178,11 @@ pub enum PurchaseMethod {
     /// A hosted payment grant whose connector pays on the quote's network
     /// and asset.
     Grant {
+        choice: NonEmptyString,
         instance_id: NonEmptyString,
         connector: NonEmptyString,
         total_minor: PortableAmountMinor,
+        option: PaidInvocationPaymentOptionRef,
     },
 }
 
@@ -181,7 +192,7 @@ impl PurchaseMethod {
     pub fn choice(&self) -> &str {
         match self {
             Self::Balance { .. } => PURCHASE_BALANCE_CHOICE,
-            Self::Grant { instance_id, .. } => instance_id.as_str(),
+            Self::Grant { choice, .. } => choice.as_str(),
         }
     }
 }

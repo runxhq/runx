@@ -159,7 +159,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             json!({
                 "status": "admitted",
                 "value": {
-                    "challenge": challenge(challenge_payload, challenge_digest),
+                    "payment_options": [challenge(challenge_payload, challenge_digest)],
                     "invocation": direct.clone()
                 }
             }),
@@ -172,7 +172,7 @@ fn vectors() -> io::Result<Vec<Vector>> {
             json!({
                 "status": "admitted",
                 "value": {
-                    "challenge": challenge(json!({"authorization": "opaque-provider-payload", "resource": "runx:offer:transcribe-v1"}), challenge_digest_for_default()?),
+                    "payment_options": [challenge(json!({"authorization": "opaque-provider-payload", "resource": "runx:offer:transcribe-v1"}), challenge_digest_for_default()?)],
                     "invocation": replay
                 }
             }),

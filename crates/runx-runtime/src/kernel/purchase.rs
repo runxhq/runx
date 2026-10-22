@@ -15,15 +15,18 @@
 //! returns the purchase as its buyer reads it, with what runx holds for it,
 //! never a held value.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use runx_contracts::{
-    InstanceAuthority, JsonObject, PaidInvocation, PaidInvocationOutcomeGate, PaidSkillOfferTerms,
-    Placement, PortableAmountMinor, Purchase, PurchaseMethod, PurchaseQuote, PurchaseRequest,
-    RUNX_BALANCE_SETTLEMENT_FAMILY, ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
+    InstanceAuthority, JsonObject, PaidInvocation, PaidInvocationExecutionState,
+    PaidInvocationOutcomeGate, PaidInvocationPaymentChallenge, PaidInvocationPaymentOptionRef,
+    PaidInvocationPaymentState, PaidSkillOfferTerms, Placement, PortableAmountMinor, Purchase,
+    PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest,
+    QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationResult, RUNX_BALANCE_SETTLEMENT_FAMILY,
+    ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
 };
 use serde::{Deserialize, Serialize};
 
@@ -162,15 +165,13 @@ impl StreamEvent for PurchaseEvent {
 }
 
 /// Cloud's quote for one call's inputs: the paid invocation it admitted, the
-/// x402 requirement that pays it, and what the account's balance holds when
+/// challenge that pays it, and what the account's balance holds when
 /// the purchase takes it.
 struct Quote {
     invocation: PaidInvocation,
-    network: String,
-    asset: String,
-    pay_to: String,
-    expires_at: String,
+    payment_options: Vec<PaidInvocationPaymentChallenge>,
     balance_micro: Option<u64>,
+    expires_at: runx_contracts::schema::IsoDateTime,
 }
 
 /// What pays a decided purchase, as the attempt records and sends it.
@@ -180,7 +181,10 @@ enum Paid {
     /// The account's runx balance.
     Balance,
     /// A hosted payment grant.
-    Grant { grant_id: String },
+    Grant {
+        grant_id: String,
+        option: PaidInvocationPaymentOptionRef,
+    },
 }
 
 /// A payment method the payer holds that can pay the quote.
@@ -270,8 +274,13 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         return Ok(refused(
             "payment_method_unavailable",
             format!(
-                "nothing this account holds pays {amount_micro} micro-USD: add funds to its runx balance, or connect a payment grant that pays on {}, such as `runx connector use wallet/evm --hosted`",
-                quote.network
+                "nothing this account holds pays {amount_micro} micro-USD through {}: add funds to its runx balance, or connect a compatible payment grant",
+                quote
+                    .payment_options
+                    .iter()
+                    .map(|option| option.settlement_family.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         ));
     }
@@ -366,7 +375,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
                 authority_term_id: PURCHASE_TERM,
                 mandate_ref: None,
                 idempotency_key: &purchase_key,
-                instance_binding: method.offered.choice(),
+                instance_binding: &session.identity_binding(),
                 attempt: 1,
                 approval: Some(&approval),
                 implementation_digest: None,
@@ -378,6 +387,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         )
         .map_err(state)?;
     let sent = Sent {
+        recovering: false,
         idempotency_key: purchase_key,
         invocation_id: quote.invocation.invocation_id.as_str().to_owned(),
         method: method.paid.clone(),
@@ -388,6 +398,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
 
 /// What an attempt sends, and what it reserved.
 struct Sent {
+    recovering: bool,
     idempotency_key: String,
     invocation_id: String,
     method: Paid,
@@ -405,6 +416,10 @@ fn recover(
     key: &str,
     pending: &Pending,
 ) -> Result<Bought, RuntimeError> {
+    if pending.instance_binding != session.identity_binding() {
+        return Err(unknown(pending,
+            "the current account and endpoint do not match the recorded purchase binding; the original attempt remains unresolved".to_owned()));
+    }
     let mut sent = None;
     let mut purchase_id = None;
     for recorded in store.read::<PurchaseEvent>(key).map_err(state)? {
@@ -416,6 +431,7 @@ fn recover(
                 spend,
             } if idempotency_key == pending.idempotency_key => {
                 sent = Some(Sent {
+                    recovering: true,
                     idempotency_key,
                     invocation_id,
                     method,
@@ -483,6 +499,7 @@ fn send(
         route,
         Some(body.to_string()),
         Some(&sent.idempotency_key),
+        "application/json",
     ) {
         Ok(response) => response,
         Err(error) => return Err(held(format!("the purchase may have been sent: {error}"))),
@@ -509,8 +526,27 @@ fn send(
             response.status
         ))),
         status => {
-            // runx answers a key it admitted with that purchase, so a refusal
-            // under the key proves nothing was paid under it.
+            if sent.recovering {
+                return Err(held(format!(
+                    "the purchase may already have paid; HTTP {status} on recovery cannot prove otherwise"
+                )));
+            }
+            // An HTTP failure can follow settlement. Release only after an
+            // independent read proves this account's exact invocation unpaid.
+            let observed = read(call, session, &sent.invocation_id).map_err(|_| {
+                held("the purchase refusal has no independent unpaid readback".to_owned())
+            })?;
+            if observed.invocation.invocation_id.as_str() != sent.invocation_id
+                || observed.invocation.principal.as_reference().uri.as_str()
+                    != session.principal_ref
+                || observed.invocation.payment_state != PaidInvocationPaymentState::Unpaid
+                || observed.invocation.execution_state != PaidInvocationExecutionState::Unstarted
+            {
+                return Err(held(
+                    "the purchase refusal does not prove that this invocation moved no money"
+                        .to_owned(),
+                ));
+            }
             let (code, reason) = api_refusal(status, &response.body);
             let release = sent
                 .spend
@@ -626,6 +662,7 @@ fn read(
             &format!("/v1/purchases/{}", url_segment(purchase_id)),
             None,
             None,
+            "application/json",
         )
         .map_err(|error| pending(format!("the purchase could not be read: {error}")))?;
     if !(200..=299).contains(&response.status) {
@@ -651,7 +688,13 @@ fn quote(
         object.insert("version".to_owned(), serde_json::json!(version));
     }
     let response = session
-        .exchange(HttpMethod::Post, route, Some(body.to_string()), Some(key))
+        .exchange(
+            HttpMethod::Post,
+            route,
+            Some(body.to_string()),
+            Some(key),
+            &format!("application/json; profile=\"{QUOTE_PAID_INVOCATION_RESULT_SCHEMA}\""),
+        )
         .map_err(|error| {
             refused(
                 "quote_unavailable",
@@ -668,48 +711,70 @@ fn quote(
         };
         return Err(Bought::Refused { code, reason });
     }
-    // runx answers an unpaid purchase with its x402 challenge for the
-    // invocation it quoted; the invocation, read as its buyer reads it,
-    // carries the offer, seller, price and expiry the person decides on.
-    let challenge: serde_json::Value = serde_json::from_str(&response.body).map_err(|error| {
-        refused(
-            "quote_invalid",
-            format!("the quote is not an x402 challenge: {error}"),
-        )
-    })?;
-    let requirement = challenge
-        .get("accepts")
-        .and_then(serde_json::Value::as_array)
-        .filter(|accepts| accepts.len() == 1)
-        .and_then(|accepts| accepts.first())
-        .ok_or_else(|| {
-            refused(
-                "quote_invalid",
-                "the quote names no single x402 requirement",
-            )
-        })?;
-    let field = |name: &str| {
-        requirement
-            .get(name)
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned)
-            .ok_or_else(|| {
-                refused(
-                    "quote_invalid",
-                    format!("the quote's requirement names no {name}"),
-                )
-            })
+    let result: QuotePaidInvocationResult = serde_json::from_str(&response.body)
+        .map_err(|error| refused("quote_invalid", format!("the quote is not runx's: {error}")))?;
+    let QuotePaidInvocationResult::Admitted { value } = result else {
+        return Err(refused(
+            "quote_unavailable",
+            "runx refused to quote this purchase",
+        ));
     };
-    let invocation_id = challenge
-        .pointer("/extensions/runx.invocation/info/invocation_id")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| refused("quote_invalid", "the quote names no runx invocation"))?;
+    let invocation = value.invocation;
+    let payment_options = value.payment_options.into_vec();
+    let moment = |value: &runx_contracts::schema::IsoDateTime| {
+        runx_core::policy::parse_rfc3339_moment(value.as_str())
+            .ok_or_else(|| refused("quote_invalid", "the quote has an invalid expiry"))
+    };
+    let mut identities = BTreeSet::new();
+    let mut latest_expiry = None;
+    for option in &payment_options {
+        if !invocation
+            .accepted_settlement_families
+            .accepts(option.settlement_family.as_str())
+            || option.payload_digest.as_str()
+                != sha256_prefixed(
+                    &runx_contracts::to_canonical_bytes(&option.payload).map_err(|_| {
+                        refused(
+                            "quote_invalid",
+                            "the payment option has no canonical payload",
+                        )
+                    })?,
+                )
+            || !identities.insert((
+                option.settlement_family.as_str(),
+                option.payload_digest.as_str(),
+            ))
+        {
+            return Err(refused(
+                "quote_invalid",
+                "the payment options are not uniquely bound to the quoted terms",
+            ));
+        }
+        let expiry = moment(&option.quote_expires_at)?;
+        latest_expiry = Some(latest_expiry.map_or(expiry, |latest| std::cmp::max(latest, expiry)));
+    }
+    if latest_expiry != Some(moment(&invocation.expires_at)?) {
+        return Err(refused(
+            "quote_invalid",
+            "the invocation expiry does not match its payment options",
+        ));
+    }
+    let now = moment(&crate::time::now_iso8601().into())?;
+    if latest_expiry.is_none_or(|expiry| expiry <= now) {
+        return Err(refused(
+            "quote_expired",
+            "the quoted payment options have expired",
+        ));
+    }
+    let expires_at = invocation.expires_at.clone();
+    let invocation_id = invocation.invocation_id.as_str();
     let response = session
         .exchange(
             HttpMethod::Get,
             &format!("/v1/purchases/{}", url_segment(invocation_id)),
             None,
             None,
+            "application/json",
         )
         .map_err(|error| {
             refused(
@@ -727,19 +792,22 @@ fn quote(
             format!("the quoted purchase is not runx's: {error}"),
         )
     })?;
+    if purchase.invocation != invocation {
+        return Err(refused(
+            "quote_changed",
+            "the purchase changed after it was quoted",
+        ));
+    }
     let balance_micro = purchase.balance_micro.filter(|_| {
-        purchase
-            .invocation
+        invocation
             .accepted_settlement_families
             .accepts(RUNX_BALANCE_SETTLEMENT_FAMILY)
     });
     Ok(Quote {
-        network: field("network")?,
-        asset: field("asset")?,
-        pay_to: field("payTo")?,
-        expires_at: purchase.invocation.expires_at.as_str().to_owned(),
-        invocation: purchase.invocation,
+        invocation,
+        payment_options,
         balance_micro,
+        expires_at,
     })
 }
 
@@ -787,6 +855,8 @@ fn methods(
         .list()
         .map_err(state)?;
     let scope = super::connectors::ConnectorScope::at(call.cwd).ok();
+    let now = runx_core::policy::parse_rfc3339_moment(&crate::time::now_iso8601())
+        .ok_or_else(|| engine("the current time cannot be read"))?;
     let mut methods = Vec::new();
     if let Some(available_micro) = quote
         .balance_micro
@@ -807,30 +877,67 @@ fn methods(
         else {
             continue;
         };
-        let pays = scope
+        let Some(pays) = scope
             .as_ref()
             .and_then(|scope| scope.connector(instance.connector.as_str()).ok())
             .and_then(|connector| connector.manifest.pays.clone())
-            .is_some_and(|pays| {
-                pays.x402
-                    .networks
-                    .iter()
-                    .any(|network| network.as_str() == quote.network)
-            });
-        if pays {
+        else {
+            continue;
+        };
+        for option in &quote.payment_options {
+            if !runx_core::policy::parse_rfc3339_moment(option.quote_expires_at.as_str())
+                .is_some_and(|expiry| expiry > now)
+            {
+                continue;
+            }
+            let terms = option.payment_method.as_ref();
+            let compatible = pays
+                .get(option.settlement_family.as_str())
+                .is_some_and(|method| {
+                    method.matches(
+                        terms.map(|terms| terms.method.as_str()),
+                        terms
+                            .and_then(|terms| terms.network.as_ref())
+                            .map(|network| network.as_str()),
+                        Some(quote.invocation.currency.as_str()),
+                    )
+                });
+            if !compatible {
+                continue;
+            }
+            let option = PaidInvocationPaymentOptionRef {
+                settlement_family: option.settlement_family.clone(),
+                payload_digest: option.payload_digest.clone(),
+            };
+            let choice = payment_choice(instance.instance_id.as_str(), &option)?;
             methods.push(Method {
                 offered: PurchaseMethod::Grant {
+                    choice: choice.into(),
                     instance_id: instance.instance_id.as_str().into(),
                     connector: instance.connector.as_str().into(),
+                    option: option.clone(),
                     total_minor: total,
                 },
                 paid: Paid::Grant {
                     grant_id: grant_id.as_str().to_owned(),
+                    option,
                 },
             });
         }
     }
     Ok(methods)
+}
+
+fn payment_choice(
+    instance_id: &str,
+    option: &PaidInvocationPaymentOptionRef,
+) -> Result<String, RuntimeError> {
+    let value = serde_json::to_value((instance_id, option))
+        .and_then(serde_json::from_value::<runx_contracts::JsonValue>)
+        .map_err(|error| RuntimeError::json("binding the payment choice", error))?;
+    let bytes =
+        runx_contracts::to_canonical_bytes(&value).map_err(|error| engine(&error.to_string()))?;
+    Ok(sha256_prefixed(&bytes))
 }
 
 fn purchase_request(
@@ -850,10 +957,16 @@ fn purchase_request(
         "input_digest": invocation.input_digest,
         "quote": PurchaseQuote {
             invocation_id: invocation.invocation_id.clone(),
-            expires_at: quote.expires_at.clone().into(),
-            network: quote.network.clone().into(),
-            asset: quote.asset.clone().into(),
-            pay_to: quote.pay_to.clone().into(),
+            expires_at: quote.expires_at.clone(),
+            payment_options: quote.payment_options.iter().map(|option| PurchasePaymentOption {
+                option: PaidInvocationPaymentOptionRef {
+                    settlement_family: option.settlement_family.clone(),
+                    payload_digest: option.payload_digest.clone(),
+                },
+                expires_at: option.quote_expires_at.clone(),
+                quote_ref: option.quote_ref.clone(),
+                payment_method: option.payment_method.clone(),
+            }).collect(),
         },
         "methods": methods
             .iter()

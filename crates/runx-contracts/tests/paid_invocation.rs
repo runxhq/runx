@@ -171,14 +171,15 @@ fn challenge_is_rail_neutral_and_digest_bound() -> Result<(), Box<dyn std::error
     let QuotePaidInvocationResult::Admitted { value } = result else {
         return Err("quote fixture must be admitted".into());
     };
-    let payload = serde_json::to_value(&value.challenge.payload)?;
+    let option = value
+        .payment_options
+        .first()
+        .ok_or("quote has no payment options")?;
+    let payload = serde_json::to_value(&option.payload)?;
     let bytes = serde_json::to_vec(&payload)?;
-    assert_eq!(
-        value.challenge.payload_digest.as_str(),
-        sha256_prefixed(&bytes)
-    );
+    assert_eq!(option.payload_digest.as_str(), sha256_prefixed(&bytes));
 
-    let challenge = serde_json::to_value(&value.challenge)?;
+    let challenge = serde_json::to_value(option)?;
     let keys = challenge
         .as_object()
         .ok_or("challenge must serialize as an object")?
@@ -197,7 +198,7 @@ fn challenge_is_rail_neutral_and_digest_bound() -> Result<(), Box<dyn std::error
             "settlement_family",
         ])
     );
-    assert!(matches!(value.challenge.payload, JsonValue::Object(_)));
+    assert!(matches!(option.payload, JsonValue::Object(_)));
     let source = include_str!("../src/paid_invocation.rs").to_ascii_lowercase();
     for forbidden in ["aws-sdk", "coinbase", "stripe", "wallet", "facilitator"] {
         assert!(

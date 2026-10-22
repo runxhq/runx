@@ -423,6 +423,93 @@ operations:
     );
 }
 
+#[test]
+fn oauth2_client_credentials_bind_both_endpoints_and_fields() {
+    let manifest = r#"
+schema: runx.connector.v1
+id: example
+name: Example
+description: App-authenticated API.
+runtime_capability: false
+auth:
+  credentials:
+    app:
+      kind: client_credentials
+      fields: [{name: client_id}, {name: client_secret}]
+      delivery: {env: EXAMPLE_APP}
+      audience: [api.example.test, auth.example.test]
+placements: {local: {auth: [credentials]}, hosted: {auth: credential, credential: app}}
+operations:
+  item.read:
+    description: Read one item.
+    verb: read
+    scopes: [item.read]
+    credentials: [app]
+    target: {template: "example://items"}
+    result_fields: [item]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [api.example.test, auth.example.test]
+        auth: {app: {type: oauth2_client_credentials, token_url: "https://auth.example.test/token", client_id: client_id, client_secret: client_secret}}
+        requests: [{id: item, method: GET, url: "https://api.example.test/items/1"}]
+"#;
+    validate(manifest).expect("local and hosted app credentials validate");
+    let dynamic = manifest.replace(
+        "\"https://auth.example.test/token\"",
+        "{$concat: [{$argument: /api_base_url}, /token]}",
+    );
+    validate(&dynamic).expect("admitted argument endpoints validate");
+    assert_rejects(
+        &dynamic.replace("$argument", "$parameter"),
+        "without instance parameters",
+    );
+    assert_rejects(
+        &dynamic.replace("{$argument: /api_base_url}", "{$response: token.endpoint}"),
+        "only admitted arguments",
+    );
+    for endpoint in [
+        "http://auth.example.test/token",
+        "https://attacker.test/token",
+        "https://user@auth.example.test/token",
+        "https://auth.example.test/token?secret=1",
+        "https://auth.example.test/token#part",
+        "https://auth.example.test:8443/token",
+    ] {
+        assert_rejects(
+            &manifest.replace("https://auth.example.test/token", endpoint),
+            "token endpoint",
+        );
+    }
+    assert_rejects(
+        &manifest.replace("client_secret: client_secret", "client_secret: undeclared"),
+        "declares no field undeclared",
+    );
+    assert_rejects(
+        &manifest.replace("client_secret: client_secret", "client_secret: client_id"),
+        "distinct declared fields",
+    );
+}
+
+#[test]
+fn financial_bindings_cannot_hide_unapproved_terms_inside_decimal_conversion() {
+    for source in ["$parameter", "$response", "$result", "$runx"] {
+        let reference = if source == "$response" {
+            "write.json.value"
+        } else if source == "$runx" {
+            "idempotency_key"
+        } else {
+            "/value"
+        };
+        let binding = serde_json::json!({"units":{"$minor_units":{"decimal":{source:reference},"scale":2}},"currency":"USD"});
+        let manifest = FORGE.replace(
+            "    verb: merge",
+            &format!("    verb: merge\n    amount: {}", binding),
+        );
+        assert_rejects(&manifest, "financial amount binds only provider inputs");
+    }
+}
+
 /// A user credential and an app credential, each presented its own way.
 const SOCIAL: &str = r#"
 schema: runx.connector.v1
@@ -1273,4 +1360,53 @@ operations:
         "audience: [api.example.com]\n      kind: password",
     ))
     .expect("a mixed credential retains its actual runtime HTTP audience");
+}
+
+#[test]
+fn managed_command_sessions_use_processes_without_exporting_credentials() {
+    let valid = r#"
+schema: runx.connector.v1
+id: fixture/account
+name: Account
+description: A CLI-owned session.
+runtime_capability: false
+auth:
+  session:
+    kind: managed_command
+    command: [account-cli, whoami, --json]
+    id: id
+    login: id
+placements:
+  local: {auth: [session]}
+operations:
+  account.read:
+    description: Read the pinned account.
+    verb: read
+    scopes: [account.read]
+    target: {template: "account://current"}
+    implementation: {process: {tool: fixture.account}}
+"#;
+    assert!(validate(valid).is_ok());
+    assert_rejects(
+        &valid.replace(
+            "implementation: {process: {tool: fixture.account}}",
+            "implementation: {process: {tool: fixture.account, result_from: readback}}",
+        ),
+        "requires a declared confirming readback",
+    );
+    assert_rejects(
+        &valid.replace(
+            "[account-cli, whoami, --json]",
+            "[/usr/bin/account-cli, whoami, --json]",
+        ),
+        "not a path",
+    );
+    assert_rejects(
+        &valid.replace(
+            "implementation: {process: {tool: fixture.account}}",
+            "implementation: {web: {}}",
+        ),
+        "managed-command session",
+    );
+    assert_rejects(&valid.replace("id: id", "id: ''"), "non-empty");
 }

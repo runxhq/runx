@@ -373,3 +373,18 @@ fn process_calls_are_bounded_and_exact_not_an_order_dependent_fallback()
     );
     Ok(())
 }
+
+#[test]
+fn exact_text_http_bodies_cover_forms_and_remain_byte_bounded() -> Result<(), HarnessFixtureError> {
+    let document = "name: form\nkind: skill\ntarget: ..\ncaller:\n  http_exchanges:\n    - request:\n        method: POST\n        url: https://provider.example/payment\n        body: {text: 'amount=150&currency=usd'}\n      response: {status: 200, body: '{}'}\n";
+    let fixture = parse_harness_fixture(document)?;
+    assert_eq!(
+        fixture.caller.http_exchanges[0].request.body,
+        HarnessHttpRequestBodyFixture::Text {
+            text: "amount=150&currency=usd".to_owned()
+        }
+    );
+    let oversized = document.replace("amount=150&currency=usd", &"é".repeat(524289));
+    assert!(parse_harness_fixture(&oversized).is_err());
+    Ok(())
+}

@@ -118,6 +118,7 @@ pub(crate) struct RuntimeHarnessHttpExchange {
 pub(crate) enum RuntimeHarnessHttpRequestBody {
     None,
     Json(JsonValue),
+    Text(String),
 }
 
 impl RuntimeHttpResponse {

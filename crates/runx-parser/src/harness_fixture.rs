@@ -76,12 +76,14 @@ pub struct HarnessHttpRequestFixture {
 }
 
 /// Exact body identity for a request-sensitive harness exchange. `none` is an
-/// absent body; `{ json: ... }` is one structural JSON value, including null.
+/// absent body; `{ json: ... }` is one structural JSON value, including null;
+/// `{ text: ... }` is an exact UTF-8 wire body, including a form or XML.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, untagged)]
 pub enum HarnessHttpRequestBodyFixture {
     None(String),
     Json { json: JsonValue },
+    Text { text: String },
 }
 
 /// One tool call the harness answers in place of an MCP server: the exact
@@ -636,7 +638,8 @@ fn validate_http_exchanges(
             HarnessHttpRequestBodyFixture::None(_) => {
                 return Err(HarnessFixtureError::Invalid {
                     field: format!("{request_field}.body"),
-                    message: "must be `none` or an object with one `json` field".to_owned(),
+                    message: "must be `none` or an object with one `json` or `text` field"
+                        .to_owned(),
                 });
             }
             HarnessHttpRequestBodyFixture::Json { json } => {
@@ -648,6 +651,16 @@ fn validate_http_exchanges(
                 if encoded.len() > MAX_REQUEST_BODY_BYTES {
                     return Err(HarnessFixtureError::Invalid {
                         field: format!("{request_field}.body.json"),
+                        message: format!(
+                            "must be no larger than {MAX_REQUEST_BODY_BYTES} UTF-8 bytes"
+                        ),
+                    });
+                }
+            }
+            HarnessHttpRequestBodyFixture::Text { text } => {
+                if text.len() > MAX_REQUEST_BODY_BYTES {
+                    return Err(HarnessFixtureError::Invalid {
+                        field: format!("{request_field}.body.text"),
                         message: format!(
                             "must be no larger than {MAX_REQUEST_BODY_BYTES} UTF-8 bytes"
                         ),

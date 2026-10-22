@@ -201,6 +201,40 @@ impl crate::http::RuntimeHttpTransport for Provider {
                 serde_json::json!({"status": "success", "grants": grants}).to_string(),
             ));
         }
+        if request.url == "https://api.forge.fixture.invalid/oauth/token" {
+            self.calls.lock().unwrap().push(
+                serde_json::from_value(serde_json::json!({"method": "POST", "url": request.url}))
+                    .unwrap(),
+            );
+            return Ok(RuntimeHttpResponse::new(
+                200,
+                r#"{"access_token":"oauth-access-must-not-persist","token_type":"Bearer","expires_in":3600}"#,
+            ));
+        }
+        if request.url == "https://api.forge.fixture.invalid/repos/acme/app/issues/7" {
+            self.calls.lock().unwrap().push(
+                serde_json::from_value(serde_json::json!({
+                    "method": request.method.as_str(), "url": request.url,
+                }))
+                .unwrap(),
+            );
+            return Ok(
+                if request.method == HttpMethod::Get
+                    && *self.answer.lock().unwrap() == Answer::TimeOut
+                {
+                    RuntimeHttpResponse::new(503, "{}")
+                } else {
+                    RuntimeHttpResponse::new(
+                        200,
+                        serde_json::json!({
+                            "number": 7, "title": "ready", "body": null, "state": "open",
+                            "client_secret": "provider-private-value-must-not-persist",
+                        })
+                        .to_string(),
+                    )
+                },
+            );
+        }
         let body: JsonObject =
             serde_json::from_str(request.body.as_deref().unwrap_or("{}")).unwrap();
         self.calls.lock().unwrap().push(body.clone());
@@ -455,7 +489,8 @@ impl Fixture {
     /// Store `value` as `connector`'s `credential` and select it, as
     /// `runx connector use --credential` would.
     fn set_credential(&self, connector: &str, credential: &str, value: &str) {
-        let connector = crate::kernel::connectors::fixture_scope()
+        let connector = crate::kernel::connectors::ConnectorScope::at(self.root.path())
+            .unwrap()
             .connector(connector)
             .unwrap();
         let instances = Instances::new(
@@ -569,6 +604,240 @@ impl Fixture {
         .map_err(|error| error.to_string())?;
         Ok((*admission, outcome, dispatched))
     }
+}
+
+#[test]
+fn a_projected_acknowledgement_survives_readback_recovery_without_persisting_the_private_response()
+{
+    assert_projected_acknowledgement_recovers(false);
+}
+
+#[test]
+fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_limit() {
+    let fixture = Fixture::for_connector("fixture/forge", &["repo.write"]);
+    let path = fixture
+        .root
+        .path()
+        .join("connectors/fixture/forge/connector.yaml");
+    let mut manifest = serde_json::to_value(
+        runx_parser::parse_connector_manifest(&std::fs::read_to_string(&path).unwrap()).unwrap(),
+    )
+    .unwrap();
+    let operation = &mut manifest["operations"]["issues.update"];
+    operation["approval"] = serde_json::json!("required");
+    operation["amount"] = serde_json::json!({"units":{"$argument":"/amount_minor"},"currency":{"$argument":"/currency"}});
+    operation["input_schema"]["properties"]["amount_minor"] =
+        serde_json::json!({"type":"integer","minimum":1});
+    operation["input_schema"]["properties"]["currency"] =
+        serde_json::json!({"type":"string","pattern":"^[a-z]{3}$"});
+    std::fs::write(path, serde_json::to_string(&manifest).unwrap()).unwrap();
+    fixture.set_credential("fixture/forge", "token", "forge-local-token");
+    let mut inputs: JsonObject = serde_json::from_value(serde_json::json!({
+        "input":{"repository":"acme/app","updates":[{"number":7,"patch":{"title":"ready"}}],"amount_minor":100,"currency":"usd"},
+        "idempotency_key":"bound-payment-1", "amount":{"units":1,"unit":"USD"},
+    })).unwrap();
+    let error = fixture
+        .admit_as("update", &inputs, Some(&limited(10_000)))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("bound provider inputs"),
+        "{error}"
+    );
+    inputs.insert(
+        "amount".to_owned(),
+        serde_json::from_value(serde_json::json!({"units":100,"unit":"EUR"})).unwrap(),
+    );
+    let error = fixture.admit("update", &inputs).unwrap_err();
+    assert!(
+        error.to_string().contains("bound provider inputs"),
+        "{error}"
+    );
+    inputs.insert(
+        "amount".to_owned(),
+        serde_json::from_value(serde_json::json!({"units":100,"unit":"USD"})).unwrap(),
+    );
+    let error = fixture
+        .admit_as("update", &inputs, Some(&limited(10_000)))
+        .unwrap_err();
+    assert!(
+        matches!(error, RuntimeEffectError::CostLimitExceeded { .. }),
+        "{error}"
+    );
+    let admission = fixture
+        .admit("update", &inputs)
+        .expect("matching terms admit for exact approval");
+    let context = admission.context::<OperationAdmission>().unwrap();
+    let explicit_intent = context.admitted.intent_digest().clone();
+    assert_eq!(
+        context.admitted.admission.disposition,
+        AdmissionDisposition::NeedsResolution,
+        "the connector floor requires a person even without step approval text"
+    );
+    inputs.remove("amount");
+    let derived = fixture
+        .admit("update", &inputs)
+        .expect("the provider input binding supplies the native amount");
+    assert_eq!(
+        derived
+            .context::<OperationAdmission>()
+            .unwrap()
+            .admitted
+            .intent_digest(),
+        &explicit_intent,
+        "an optional caller assertion cannot change the approved financial intent"
+    );
+    assert!(
+        matches!(
+            fixture.admit_as("update", &inputs, Some(&limited(10_000))),
+            Err(RuntimeEffectError::CostLimitExceeded { .. })
+        ),
+        "omitting a redundant amount must not omit its budget charge"
+    );
+    assert_eq!(
+        context.admitted.intent().amount.as_ref().unwrap().units,
+        100
+    );
+    assert_eq!(
+        context
+            .admitted
+            .intent()
+            .amount
+            .as_ref()
+            .unwrap()
+            .unit
+            .as_str(),
+        "USD"
+    );
+    assert_eq!(
+        fixture.provider.calls(),
+        0,
+        "no provider request leaves during amount admission"
+    );
+}
+
+#[test]
+fn an_oauth2_payment_transport_recovers_from_sqlite_without_repeating_the_write_or_retaining_tokens()
+ {
+    assert_projected_acknowledgement_recovers(true);
+}
+
+fn assert_projected_acknowledgement_recovers(oauth: bool) {
+    let mut fixture = Fixture::for_connector("fixture/forge", &["repo.write"]);
+    let path = fixture
+        .root
+        .path()
+        .join("connectors/fixture/forge/connector.yaml");
+    let mut manifest: serde_json::Value = serde_json::to_value(
+        runx_parser::parse_connector_manifest(&std::fs::read_to_string(&path).unwrap()).unwrap(),
+    )
+    .unwrap();
+    manifest["operations"]["issues.update"]["implementation"]["http"]["decode"] = serde_json::json!([
+        {"op": "auto_json"},
+        {"op": "project", "fields": {"number": "number", "title": "title", "body": "body", "state": "state"}},
+    ]);
+    if oauth {
+        manifest["auth"].as_object_mut().unwrap().remove("session");
+        manifest["auth"]
+            .as_object_mut()
+            .unwrap()
+            .remove("delegated");
+        manifest["placements"] = serde_json::json!({"local":{"auth":["credentials"]},"hosted":{"auth":"credential","credential":"token"}});
+        manifest["operations"]["issues.update"]["hosted"] = serde_json::json!({});
+        manifest["auth"]["credentials"]["token"]["kind"] = serde_json::json!("client_credentials");
+        manifest["auth"]["credentials"]["token"]["fields"] =
+            serde_json::json!([{"name":"client_id"},{"name":"client_secret"}]);
+        manifest["operations"]["issues.update"]["implementation"]["http"]["auth"]["token"] = serde_json::json!({"type":"oauth2_client_credentials", "token_url":"https://api.forge.fixture.invalid/oauth/token", "client_id":"client_id", "client_secret":"client_secret"});
+        // Keep this credential change scoped to the operation under test.
+        manifest["operations"]
+            .as_object_mut()
+            .unwrap()
+            .retain(|name, _| name == "issues.update");
+    }
+    std::fs::write(path, serde_json::to_string(&manifest).unwrap()).unwrap();
+    fixture.set_credential(
+        "fixture/forge",
+        "token",
+        if oauth {
+            r#"{"client_id":"fixture-app","client_secret":"oauth-app-secret-must-not-persist"}"#
+        } else {
+            "forge-local-token"
+        },
+    );
+    let inputs: JsonObject = serde_json::from_value(serde_json::json!({
+        "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
+        "idempotency_key": "projection-recovery-1",
+    })).unwrap();
+    fixture.provider.answer(Answer::TimeOut);
+    fixture
+        .run("update", &inputs, Some(ResolutionResponseActor::Human))
+        .expect_err("readback is not available yet");
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+        &fixture.env,
+        fixture.root.path(),
+    ))
+    .unwrap();
+    let connection = rusqlite::Connection::open_with_flags(
+        store.path(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap();
+    let mut statement = connection
+        .prepare("SELECT data FROM kernel_events UNION ALL SELECT data FROM kernel_blobs")
+        .unwrap();
+    let records = statement
+        .query_map([], |row| row.get::<_, Vec<u8>>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(
+        records
+            .iter()
+            .any(|record| String::from_utf8_lossy(record).contains("acknowledged")),
+        "the acknowledged write is durably recorded"
+    );
+    for record in records {
+        let text = String::from_utf8_lossy(&record);
+        assert!(!text.contains("provider-private-value-must-not-persist"));
+        assert!(!text.contains("client_secret"));
+        assert!(!text.contains("oauth-access-must-not-persist"));
+        assert!(!text.contains("oauth-app-secret-must-not-persist"));
+    }
+    // A new effect service reads the existing acknowledgement from SQLite.
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    fixture.provider.answer(Answer::Succeed);
+    let (_, outcome) = fixture
+        .run("update", &inputs, Some(ResolutionResponseActor::Human))
+        .expect("the original write reads back");
+    assert_eq!(packet(&outcome)["finality"].as_str(), Some("confirmed"));
+    let calls = sent(&fixture);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["method"] == "PATCH")
+            .count(),
+        1,
+        "the effect was submitted once"
+    );
+    assert_eq!(
+        calls.iter().filter(|call| call["method"] == "GET").count(),
+        2,
+        "recovery reads back without submitting again"
+    );
+    if oauth {
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| call["url"] == "https://api.forge.fixture.invalid/oauth/token")
+                .count(),
+            2,
+            "a restarted operation reacquires auth without replaying its acknowledged effect"
+        );
+    }
+    assert!(
+        !serde_json::to_string(packet(&outcome))
+            .unwrap()
+            .contains("provider-private-value-must-not-persist")
+    );
 }
 
 fn post(text: &str) -> JsonObject {
@@ -2020,4 +2289,134 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
         &operation("note.post"),
         Some(DuplicatePolicy::Visible)
     ));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
+    use std::cell::RefCell;
+    use std::os::unix::fs::PermissionsExt;
+    let mut fixture = Fixture::for_connector("fixture/forge", &["repo.read"]);
+    let root = fixture.root.path();
+    let bin = root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let probe = bin.join("account-cli");
+    std::fs::write(&probe, "#!/bin/sh\ncat \"$1\"\n").unwrap();
+    std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    fixture.env.insert(
+        "PATH".to_owned(),
+        format!("{}:/usr/bin:/bin", bin.display()),
+    );
+    fixture
+        .env
+        .insert("RUNX_CWD".to_owned(), root.display().to_string());
+    let account = root.join("account.json");
+    std::fs::write(&account, r#"{"id":"account-one"}"#).unwrap();
+    let directory = root.join("connectors/fixture/forge");
+    let manifest = serde_json::json!({
+        "schema":"runx.connector.v1", "id":"fixture/forge", "name":"Forge", "description":"A managed CLI account.", "runtime_capability":false,
+        "auth":{"session":{"kind":"managed_command","command":["account-cli",account.to_str().unwrap()],"id":"id","login":"id"}},
+        "placements":{"local":{"auth":["session"]}},
+        "operations":{"issues.read":{"description":"Read this account.","verb":"read","scopes":["repo.read"],"target":{"template":"forge://current"},
+            "input_schema":{"type":"object","properties":{},"additionalProperties":false},
+            "result_fields":["account_ref"],"implementation":{"process":{"tool":"fixture.account"}}}}
+    });
+    std::fs::write(directory.join("connector.yaml"), manifest.to_string()).unwrap();
+    let tool = directory.join("tools/fixture/account");
+    std::fs::create_dir_all(&tool).unwrap();
+    std::fs::write(tool.join("account.sh"), "#!/bin/sh\nexit 1\n").unwrap();
+    std::fs::write(tool.join("manifest.json"), serde_json::json!({
+        "schema":"runx.tool.manifest.v1","name":"fixture.account","version":"0.1.0","description":"Read a managed session account.",
+        "source":{"command":"sh","args":["./account.sh"],"input_mode":"stdin"},
+        "inputs":{"principal_ref":{"type":"string","required":true}}
+    }).to_string()).unwrap();
+    let connector = crate::kernel::connectors::ConnectorScope::at(root)
+        .unwrap()
+        .connector("fixture/forge")
+        .unwrap();
+    let store =
+        KernelStore::for_project(&crate::paths::RunxPaths::resolve(&fixture.env, root)).unwrap();
+    let instances = Instances::new(store);
+    assert!(
+        crate::kernel::setup::confirm_session_over(
+            &instances,
+            &connector,
+            &["unserved".to_owned()],
+            &fixture.provider,
+            &fixture.env,
+            root
+        )
+        .is_err()
+    );
+    let instance = crate::kernel::setup::confirm_session_over(
+        &instances,
+        &connector,
+        &["repo.read".to_owned()],
+        &fixture.provider,
+        &fixture.env,
+        root,
+    )
+    .unwrap();
+    assert_eq!(
+        instance.principal_ref.as_str(),
+        "runx:principal:fixture/forge:account-one"
+    );
+    assert!(
+        crate::kernel::instances::delivered_credential(&connector.manifest, &instance.authority)
+            .is_none()
+    );
+    struct Reader(RefCell<Vec<JsonObject>>);
+    impl ToolRunner for Reader {
+        fn run(
+            &self,
+            _: &str,
+            _: &std::path::Path,
+            inputs: JsonObject,
+            _: &[String],
+            _: &crate::credentials::CredentialDelivery,
+        ) -> Result<JsonValue, String> {
+            self.0.borrow_mut().push(inputs.clone());
+            Ok(JsonValue::Object(JsonObject::from([(
+                "account_ref".to_owned(),
+                inputs["principal_ref"].clone(),
+            )])))
+        }
+    }
+    let reader = Reader(RefCell::new(Vec::new()));
+    let inputs: JsonObject = serde_json::from_value(serde_json::json!({"input":{}})).unwrap();
+    let run = || {
+        let admission = fixture.admit("issues", &inputs).unwrap();
+        let mut host = Approver::new(None);
+        let admission = match fixture.prepare("issues", admission, &mut host).unwrap() {
+            EffectPreparationOutcome::Ready(admission) => Some(admission),
+            _ => None,
+        }
+        .expect("a read needs no approval");
+        execute(
+            admission.context::<OperationAdmission>().unwrap(),
+            "issues",
+            &fixture.env,
+            root,
+            &reader,
+            &mut None,
+        )
+    };
+    assert!(run().is_ok());
+    assert_eq!(
+        reader.0.borrow()[0]["principal_ref"].as_str(),
+        Some("runx:principal:fixture/forge:account-one")
+    );
+    std::fs::write(
+        &account,
+        r#"{"id":"account-two","secret":"must-not-leave-probe"}"#,
+    )
+    .unwrap();
+    let error = run().unwrap_err().to_string();
+    assert!(error.contains("another account"), "{error}");
+    assert!(!error.contains("must-not-leave-probe"));
+    assert_eq!(
+        reader.0.borrow().len(),
+        1,
+        "the changed session never reaches the process"
+    );
 }

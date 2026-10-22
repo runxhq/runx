@@ -56,6 +56,17 @@ carry credentials. Presented material is secret regardless of the header name.
 MCP accepts bearer and named headers; OAuth1 remains per-request HTTP signing.
 Query credentials and Basic authentication are not implemented.
 
+Declared HTTP operations can exchange a client ID and secret with
+`type: oauth2_client_credentials`. `token_url` accepts a literal or a template
+over admitted operation arguments and local instance parameters. The rendered
+endpoint must use HTTPS on an exact declared host and credential audience,
+without user information, a query, a fragment or a nonstandard port. This is
+checked before any app credential is sent. Hosted operations cannot bind local
+parameters. Exchange responses and other runtime outputs cannot select a token
+endpoint. Tokens remain private, have bounded cache lifetimes, and are forgotten
+after a provider rejects authentication; a failed mutation is never retried
+automatically with a fresh token.
+
 A provider whose secret is the endpoint itself, such as a webhook, presents
 the credential as the request URL:
 
@@ -101,6 +112,23 @@ machine that receives the credential in its environment, and Runx does not
 confine where it connects. Runx redacts the credential, and each of its fields,
 from everything that process prints. Bind a credential to a process connector
 only when you trust that program with the account.
+
+A CLI that keeps its own login can declare `auth.session.kind:
+managed_command`. Its fixed command returns public JSON; `id` and `login` name
+dot-separated paths in that answer, including numeric array segments. Binding
+with `--session` pins the stable principal and scopes. Native admission probes
+it again before every operation without reading, exporting or refreshing its
+token. Only process implementations may use this session. Their kernel-supplied
+`principal_ref` identifies the pinned account and cannot come from operation
+inputs. The trusted process must enforce that identity at credential use,
+including account ownership of any opaque provider reference. A preliminary
+account probe alone does not prevent a later account switch.
+
+Managed sessions do not make process output safe automatically: their process
+must project public results and suppress raw credential-bearing errors. Link's
+process leaves SPT retrieval inside its official CLI and returns only public
+spend and transaction references. Runx does not claim an OS sandbox around the
+CLI or manage a second copy of its session.
 
 The program is the one the connector ships: a process implementation's tool
 lives beside the connector's manifest, at `tools/<segment>/.../manifest.json`
@@ -167,7 +195,7 @@ Its manifest can come from the project, so runx neither runs the command to
 see whether you are signed in nor takes it by default: `use` lists
 `--session` with the command it would run, and only `--session` binds it.
 Each call through an instance bound that way runs the command again for a
-fresh token. `runx harness` runs the sessions its cases declare, as it runs
+fresh token, or the public identity of a managed session. `runx harness` runs the sessions its cases declare, as it runs
 the project's other programs.
 
 A variable that the environment and the workspace `.env` set to different

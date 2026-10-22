@@ -520,13 +520,16 @@ mod tests {
             "quote": {
                 "invocation_id": "paid-1",
                 "expires_at": "2026-10-16T00:05:00Z",
-                "network": "eip155:8453",
-                "asset": "usdc",
-                "pay_to": "0xacme",
+                "payment_options": [{
+                    "option": {"settlement_family": "x402", "payload_digest": digest('a')},
+                    "expires_at": "2026-10-16T00:05:00Z",
+                    "quote_ref": {"type": "receipt", "uri": "runx:receipt:quote-1"},
+                    "payment_method": {"method": "exact", "network": "eip155:8453", "asset": "usdc", "pay_to": "0xacme"}
+                }],
             },
             "methods": [
                 {"kind": "balance", "available_micro": 80000, "total_minor": 5},
-                {"kind": "grant", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5},
+                {"kind": "grant", "choice": "choice.wallet", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5, "option": {"settlement_family": "x402", "payload_digest": digest('a')}},
             ],
         }))
         .map_err(|error| error.to_string())?;
@@ -550,7 +553,7 @@ mod tests {
         };
         for decided in [
             serde_json::json!({"approved": true, "choice": "runx:balance"}),
-            serde_json::json!({"approved": true, "choice": "hosted.wallet"}),
+            serde_json::json!({"approved": true, "choice": "choice.wallet"}),
             serde_json::json!({"approved": false, "reason": "too dear"}),
         ] {
             assert!(check("approvals", decided.clone()).is_ok(), "{decided}");
@@ -570,7 +573,7 @@ mod tests {
             let error = check("approvals", refused.clone())
                 .err()
                 .ok_or(format!("{refused} is refused"))?;
-            assert!(error.contains("runx:balance, hosted.wallet"), "{error}");
+            assert!(error.contains("runx:balance, choice.wallet"), "{error}");
         }
         Ok(())
     }

@@ -139,9 +139,9 @@ can drive a representative composite flow, but must not duplicate the skill's
 full scenario matrix.
 
 Native HTTP scenarios declare `caller.http_exchanges`. Each exchange binds a
-response to the exact method, final URL, and explicit absent-or-JSON body, so a
+response to the exact method, final URL, and explicit absent, structural JSON, or exact UTF-8 text body, so a
 matched GET reads and a matched POST, PUT, PATCH, or DELETE proves a mutation
-without reaching the network. Fixture URLs are canonicalized like native final
+without reaching the network. Use `{text: "..."}` for an exact form, XML, or other text request body. Fixture URLs are canonicalized like native final
 URLs and reject credentials and fragments, which are not valid exchange
 identity. Any request no exchange matches is refused; a harness run never
 falls back to the live network. Fixture bytes
@@ -178,3 +178,16 @@ authoritative evidence.
 Fixtures are parity evidence. Do not regenerate fixtures merely to make a new
 implementation pass. Preserve semantic meaning, review diffs, and add negative
 fixtures when a contract rejects retired vocabulary or unsafe payloads.
+
+## Financial and process results
+
+A connector's bound financial amount is resolved from its admitted provider
+arguments. Native admission uses that value for authority, the intent, approval
+and run-budget reservation. A call may assert an amount, but it must equal the
+bound value; omitting that redundant assertion never omits the financial charge.
+
+A process write records its bounded acknowledgement before independent
+readback. `implementation.process.result_from: readback` returns that confirmed
+public answer; it requires a declared readback. The default remains the
+acknowledgement. Do not put extra provider reads before acknowledgement custody
+just to make the submission answer resemble the final result.

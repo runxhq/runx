@@ -2,4 +2,46 @@ name: refund-composes-in-graph
 kind: graph
 target: support/composed.graph
 expect:
-  status: policy_denied
+  status: sealed
+caller:
+  approvals:
+    refund#refund: true
+  provider_responses:
+    principal_id: refund-fixture
+    grant:
+      grant_id: refund-fixture
+      provider: coinbase/cdp
+      scopes:
+        - payment.x402.merchant.read
+        - payment.x402.merchant.write
+    operations:
+      - operation: payment.x402.merchant.refund
+        target: https://seller.example/v1/reports/launch
+        access: mutate
+        result:
+          refund_ref: x402refund_test_001
+          payment_ref: x402pay_test_001
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          status: settled
+          refund_settlement_ref: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          payer: "0x0000000000000000000000000000000000000002"
+          pay_to: "0x0000000000000000000000000000000000000001"
+          network: eip155:8453
+          settled_at: 2026-10-15T01:00:00.000Z
+      - operation: payment.x402.merchant.refund.read
+        target: https://seller.example/v1/reports/launch
+        access: read
+        result:
+          refund_ref: x402refund_test_001
+          payment_ref: x402pay_test_001
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          status: settled
+          refund_settlement_ref: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          payer: "0x0000000000000000000000000000000000000002"
+          pay_to: "0x0000000000000000000000000000000000000001"
+          network: eip155:8453
+          settled_at: 2026-10-15T01:00:00.000Z

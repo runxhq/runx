@@ -17,8 +17,8 @@
     },
     {
       "ref": "coinbase/cdp",
-      "version": "sha-96961c3e1f2c",
-      "content_digest": "sha256:96961c3e1f2cbaed7ecb526256b5dfbbc167f3488310569fddfa7ad20b0c5f6a"
+      "version": "sha-24b319ee8d69",
+      "content_digest": "sha256:24b319ee8d697550e8294b1f53021628a98edb96e2d0dabb3152aaa22315c2d1"
     },
     {
       "ref": "exa",
@@ -56,6 +56,11 @@
       "content_digest": "sha256:126048de638909318a5301646599c7c654647c854128e6f40652e6a7b1bc882e"
     },
     {
+      "ref": "link",
+      "version": "sha-f60bddc26335",
+      "content_digest": "sha256:f60bddc26335cbf8f81d98521a7a51d0ae9720ed3489c1f9c9edcc802adc310e"
+    },
+    {
       "ref": "moltbook",
       "version": "sha-1253ee8f0f4f",
       "content_digest": "sha256:1253ee8f0f4f114ce1459e2184a8b342db98554bb196ee283cdb439897be15fa"
@@ -84,6 +89,11 @@
       "ref": "osv",
       "version": "sha-dc8b55abb7c7",
       "content_digest": "sha256:dc8b55abb7c708d5e7f8d50908a05340b3c12c3f7e095575dbb65e228e1aa5ae"
+    },
+    {
+      "ref": "paypal",
+      "version": "sha-d9ab52043f9b",
+      "content_digest": "sha256:d9ab52043f9be38c7917a76b4ce8db10f9ce215003c2b89fe105385592db537f"
     },
     {
       "ref": "posthog",
@@ -121,14 +131,19 @@
       "content_digest": "sha256:b9364a332994b5ddd1adb1f4a40361c77cee214da70fb14cce8f614ba76f9bc3"
     },
     {
+      "ref": "stripe",
+      "version": "sha-4ccd30415d9c",
+      "content_digest": "sha256:4ccd30415d9cded9f43d6fc1bd64fb99c481c10425b90fc16d3713a99fe51d5e"
+    },
+    {
       "ref": "twitter",
       "version": "sha-0bf0f4a456d5",
       "content_digest": "sha256:0bf0f4a456d5def7e56cba033ac9bcefd8bfd39a769dc1f665638fd963a51682"
     },
     {
       "ref": "wallet/evm",
-      "version": "sha-32db0cb7f766",
-      "content_digest": "sha256:32db0cb7f76628572a87ba9a54a9eb4420ce1160733b68a5e9d647595cba271d"
+      "version": "sha-02ceb44e7982",
+      "content_digest": "sha256:02ceb44e798223ac2e06c4fb38c16e9926dfb5722aa471423251281f49b40309"
     },
     {
       "ref": "web",

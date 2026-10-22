@@ -524,8 +524,42 @@ fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<(
                 "  method {} (runx balance, {available_micro} micro-USD available)",
                 method.choice(),
             )?,
-            runx_contracts::PurchaseMethod::Grant { connector, .. } => {
-                writeln!(writer, "  method {} ({connector})", method.choice())?;
+            runx_contracts::PurchaseMethod::Grant {
+                connector, option, ..
+            } => {
+                let terms = purchase
+                    .get("quote")
+                    .and_then(JsonValue::as_object)
+                    .and_then(|quote| quote.get("payment_options"))
+                    .and_then(JsonValue::as_array)
+                    .into_iter()
+                    .flatten()
+                    .find_map(|value| {
+                        serde_json::to_value(value)
+                            .and_then(
+                                serde_json::from_value::<runx_contracts::PurchasePaymentOption>,
+                            )
+                            .ok()
+                            .filter(|quoted| &quoted.option == option)
+                    });
+                let detail = terms
+                    .and_then(|quoted| quoted.payment_method)
+                    .map(|terms| {
+                        let mut value = terms.method.as_str().to_owned();
+                        if let Some(network) = terms.network {
+                            value.push_str(&format!(" on {network}"));
+                        }
+                        if let Some(pay_to) = terms.pay_to {
+                            value.push_str(&format!(" to {pay_to}"));
+                        }
+                        value
+                    })
+                    .unwrap_or_else(|| option.settlement_family.as_str().to_owned());
+                writeln!(
+                    writer,
+                    "  method {} ({connector}, {detail})",
+                    method.choice()
+                )?;
             }
         }
     }
@@ -1054,7 +1088,7 @@ mod tests {
                 "quote": {"expires_at": "2026-10-15T00:00:00Z"},
                 "methods": [
                     {"kind": "balance", "available_micro": 80000, "total_minor": 5},
-                    {"kind": "grant", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5}
+                    {"kind": "grant", "choice": "choice.wallet", "instance_id": "hosted.wallet", "connector": "wallet/evm", "total_minor": 5, "option": {"settlement_family": "x402", "payload_digest": format!("sha256:{}", "a".repeat(64))}}
                 ]
             }
         });
@@ -1092,7 +1126,7 @@ mod tests {
             "{rendered}"
         );
         assert!(
-            rendered.contains("method hosted.wallet (wallet/evm)"),
+            rendered.contains("method choice.wallet (wallet/evm, x402)"),
             "{rendered}"
         );
     }

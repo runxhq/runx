@@ -51,10 +51,23 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type HttpAuth =
   | { readonly type: "bearer"; readonly field?: string }
   | { readonly type: "header"; readonly name: string; readonly field: string }
+  | { readonly type: "oauth2_client_credentials"; readonly token_url: Template; readonly client_id: string; readonly client_secret: string; readonly scope?: string }
   | { readonly type: "oauth1" }
   | { readonly type: "url"; readonly field: string }
   /** A credential field placed in the JSON body at an RFC 6901 pointer; local placement only. */
   | { readonly type: "body"; readonly field: string; readonly pointer: string };
+
+/** Public endpoint rendering only; app secrets and tokens stay in credential custody. */
+export function renderOAuth2TokenEndpoint(template: Template, inputs: TemplateInputs, allowedHosts: readonly string[]): string {
+  const value = renderTemplate(template, inputs);
+  if (typeof value !== "string") throw new TemplateError("OAuth2 token endpoint must render a string");
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new TemplateError("OAuth2 token endpoint is invalid"); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.port
+    || !allowedHosts.includes(url.hostname)) throw new TemplateError("OAuth2 token endpoint is outside its declared hosts");
+  return url.href;
+}
 
 export interface CredentialField {
   readonly name: string;
@@ -105,6 +118,7 @@ export interface HttpRequest {
   readonly query?: { readonly [name: string]: Template };
   readonly headers?: { readonly [name: string]: Template };
   readonly body?: Template;
+  readonly body_encoding?: "json" | "form";
   /** A local read answered in pages; runx Connect never pages. */
   readonly pages?: {
     readonly param: string;
@@ -123,7 +137,8 @@ export interface HttpReadback {
 
 export type DecodeStep =
   | { readonly op: "auto_json" | "text" | "status" | "parse_json" }
-  | { readonly op: "field" | "reject_true" | "reject_present"; readonly path: string };
+  | { readonly op: "field" | "reject_true" | "reject_present"; readonly path: string }
+  | { readonly op: "project"; readonly fields: { readonly [field: string]: string } };
 
 export interface HttpImplementation {
   readonly allowed_hosts: readonly string[];
@@ -149,7 +164,7 @@ export interface ConnectorOperation {
   readonly approval?: "none" | "required";
   readonly idempotency_key_format?: "runx" | "uuid";
   readonly guarantees?: JsonObject;
-  readonly amount?: "none" | "required";
+  readonly amount?: "none" | { readonly units: Template; readonly currency: Template };
   readonly input_schema?: JsonObject;
   readonly result_fields?: readonly string[];
   /**
@@ -164,11 +179,28 @@ export interface ConnectorOperation {
   readonly implementation?: {
     readonly http?: HttpImplementation;
     readonly mcp?: JsonObject;
-    readonly process?: JsonObject;
+    readonly process?: {
+      readonly tool: string;
+      readonly runtime_scopes?: readonly string[];
+      readonly readback?: { readonly matches: readonly JsonValue[] };
+      readonly result_from?: "acknowledgement" | "readback";
+    };
     readonly web?: JsonObject;
     readonly store?: JsonObject;
     readonly artifact?: JsonObject;
   };
+}
+
+/** The native admission amount, resolved from the same inputs sent to the
+ * provider. Currency/asset codes are canonical uppercase; no FX is implied. */
+export function operationAmount(operation: ConnectorOperation, arguments_: JsonObject): { readonly units: number; readonly unit: string } | undefined {
+  if (operation.amount === undefined || operation.amount === "none") return undefined;
+  const inputs = { arguments: arguments_ };
+  const units = renderTemplate(operation.amount.units, inputs);
+  const currency = renderTemplate(operation.amount.currency, inputs);
+  if (typeof units !== "number" || !Number.isSafeInteger(units) || units < 0) throw new TemplateError("the operation's amount units must be a portable nonnegative integer");
+  if (typeof currency !== "string" || !/^[A-Za-z][A-Za-z0-9]{2,15}$/.test(currency)) throw new TemplateError("the operation's amount currency must be an ASCII currency or asset code");
+  return { units, unit: currency.toUpperCase() };
 }
 
 /** The request that names whose authority a session or a delegated grant holds. */
@@ -212,7 +244,27 @@ export interface ConnectorManifest {
   readonly operations: { readonly [name: string]: ConnectorOperation };
   readonly references?: readonly ReferenceDeclaration[];
   /** What a payment connector pays in, so a purchase offers it only for a quote it can pay. */
-  readonly pays?: { readonly x402: { readonly networks: readonly string[] } };
+  readonly pays?: { readonly [family: string]: PaymentCompatibility };
+}
+
+/** Rust-owned connector payment compatibility, projected without provider names. */
+export interface PaymentCompatibility {
+  readonly methods?: readonly string[];
+  readonly networks?: readonly string[];
+  readonly currencies?: readonly string[];
+}
+
+/** Discovery only: the selected operation still admits the exact payment/account. */
+export function connectorPays(
+  connector: Pick<ConnectorManifest, "pays">,
+  terms: { readonly family: string; readonly method?: string; readonly network?: string; readonly currency?: string },
+): boolean {
+  if (connector.pays === undefined || !Object.hasOwn(connector.pays, terms.family)) return false;
+  const compatibility = connector.pays?.[terms.family];
+  if (!compatibility) return false;
+  return (compatibility.methods === undefined || (terms.method !== undefined && compatibility.methods.includes(terms.method)))
+    && (compatibility.networks === undefined || (terms.network !== undefined && compatibility.networks.includes(terms.network)))
+    && (compatibility.currencies === undefined || (terms.currency !== undefined && compatibility.currencies.includes(terms.currency)));
 }
 
 /** The external reference kinds a connector's locators may name. */
@@ -318,7 +370,7 @@ export interface TemplateInputs {
 
 const MAX_DEPTH = 32;
 const MAX_CONCAT_BYTES = 512;
-const BINDINGS = new Set(["$argument", "$parameter", "$response", "$item", "$result", "$runx", "$concat"]);
+const BINDINGS = new Set(["$argument", "$parameter", "$response", "$item", "$result", "$runx", "$concat", "$minor_units"]);
 
 export function renderTemplate(template: Template, inputs: TemplateInputs): JsonValue {
   return render(template, inputs, 0);
@@ -374,6 +426,20 @@ function renderBinding(key: string, argument: JsonValue, inputs: TemplateInputs,
       if (reference === "idempotency_key") return found(inputs.idempotencyKey);
       if (reference === "invocation") return found(inputs.invocationId);
       throw new TemplateError(`template binding $runx ${JSON.stringify(reference)} is not a runtime value`);
+    case "$minor_units": {
+      const invalid = () => new TemplateError("template $minor_units needs a canonical decimal, scale 0 to 18, and a portable integer result");
+      if (argument === null || typeof argument !== "object" || Array.isArray(argument)
+        || Object.keys(argument).length !== 2 || !Object.hasOwn(argument, "decimal") || !Object.hasOwn(argument, "scale")) throw invalid();
+      const fields = argument as JsonObject;
+      const decimal = render(fields.decimal!, inputs, depth + 1);
+      const scale = render(fields.scale!, inputs, depth + 1);
+      if (typeof decimal !== "string" || decimal.length > 64 || typeof scale !== "number" || !Number.isInteger(scale) || scale < 0 || scale > 18) throw invalid();
+      const pattern = scale === 0 ? /^(0|[1-9][0-9]*)$/ : new RegExp(`^(0|[1-9][0-9]*)\\.([0-9]{${scale}})$`);
+      if (!pattern.test(decimal)) throw invalid();
+      const units = BigInt(decimal.replace(".", ""));
+      if (units > BigInt(Number.MAX_SAFE_INTEGER)) throw invalid();
+      return Number(units);
+    }
     default: {
       let joined = "";
       for (const part of Array.isArray(argument) ? argument : []) {
@@ -431,7 +497,8 @@ export interface RenderedRequest {
   readonly method: HttpMethod;
   readonly url: string;
   readonly headers: { readonly [name: string]: string };
-  readonly body?: JsonValue;
+  /** Serialized wire bytes, whether JSON or form encoded. */
+  readonly body?: string;
 }
 
 export interface DeclaredRequestCall {
@@ -526,8 +593,22 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   }
   if (request.body === undefined) return { method: request.method, url: href, headers };
   const body = renderTemplate(request.body, inputs);
+  for (const name of Object.keys(headers)) {
+    if (name.toLowerCase() === "content-type") delete headers[name];
+  }
+  if (request.body_encoding === "form") {
+    if (body === null || typeof body !== "object" || Array.isArray(body)) throw new TemplateError("a form body must render to an object");
+    const form = new URLSearchParams();
+    for (const name of Object.keys(body).sort()) {
+      const value = (body as JsonObject)[name];
+      if ((typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") || (typeof value === "number" && !Number.isFinite(value))) throw new TemplateError("a form field must render to a string, number or boolean");
+      form.append(name, String(value));
+    }
+    headers["content-type"] = "application/x-www-form-urlencoded";
+    return { method: request.method, url: href, headers, body: form.toString() };
+  }
   headers["content-type"] = "application/json";
-  return { method: request.method, url: href, headers, body };
+  return { method: request.method, url: href, headers, body: JSON.stringify(body) };
 }
 
 /** An allowlist entry is a host, or `*.domain` for exactly one label under that domain. */

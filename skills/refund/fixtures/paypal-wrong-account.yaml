@@ -1,0 +1,53 @@
+name: refund-paypal-refuse-wrong-original-account
+kind: skill
+target: ..
+runner: refund
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - charge
+      - pay
+    request: Refund one dollar of this original Northstar collection.
+    expected_outcome: Approve the exact outgoing amount and independently confirm its original account,
+      payment and currency.
+setup:
+  credentials:
+    - paypal
+env:
+  PAYPAL_CLIENT_CREDENTIALS: '{"client_id":"fixture-app","client_secret":"fixture-secret"}'
+inputs:
+  connector: paypal
+  request:
+    api_host: api-m.sandbox.paypal.com
+    account_id: YXZY75W2GKDQE
+    payment_ref: CAPTURE42
+    amount_decimal: "1.00"
+    currency: USD
+    precision: 2
+    original_status: COMPLETED
+  idempotency_seed: northstar-refund-42
+caller:
+  approvals:
+    paypal: true
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api-m.sandbox.paypal.com/v1/oauth2/token
+        body:
+          text: grant_type=client_credentials
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"access_token":"fixture-private-token","token_type":"Bearer","expires_in":60}'
+    - request:
+        method: GET
+        url: https://api-m.sandbox.paypal.com/v2/payments/captures/CAPTURE42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"CAPTURE42","status":"COMPLETED","supplementary_data":{"related_ids":{"order_id":"ORDER42"}},"payee":{"merchant_id":"AAAAAAAAAAAAA"},"amount":{"value":"1.50","currency_code":"USD"}}'
+expect:
+  status: failure

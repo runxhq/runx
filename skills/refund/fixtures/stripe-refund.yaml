@@ -1,0 +1,68 @@
+name: refund-stripe-exact-original-payment
+kind: skill
+target: ..
+runner: refund
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - charge
+      - pay
+    request: Refund one dollar of this original Northstar collection.
+    expected_outcome: Approve the exact outgoing amount and independently confirm its original account,
+      payment and currency.
+setup:
+  credentials:
+    - stripe
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+inputs:
+  connector: stripe
+  request:
+    account_id: acct_northstar
+    payment_ref: pi_northstar
+    amount_minor: 100
+    currency: usd
+  idempotency_seed: northstar-refund-42
+caller:
+  approvals:
+    stripe: true
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/payment_intents/pi_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"pi_northstar","amount":150,"amount_received":150,"currency":"usd","status":"succeeded","latest_charge":"ch_northstar"}'
+    - request:
+        method: POST
+        url: https://api.stripe.com/v1/refunds
+        body:
+          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Aea7a3cf80378e74506c76e9dcfe5940140aab8031f9880f74ba06e88bbf5a20a&payment_intent=pi_northstar
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"re_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/refunds/re_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"re_northstar","payment_intent":"pi_northstar","amount":100,"currency":"usd","status":"succeeded"}'
+expect:
+  status: sealed

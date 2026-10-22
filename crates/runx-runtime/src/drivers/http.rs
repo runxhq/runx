@@ -7,7 +7,7 @@
 //! the manifest expects one. Every request is rendered from typed templates
 //! straight into the transport request.
 
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::{
@@ -25,6 +25,7 @@ use crate::kernel::operation::confirm::{Check, Driver, Observed, Unperformed, at
 use crate::kernel::operation::hosted::Gateway;
 
 pub(crate) mod auth;
+mod oauth2;
 
 /// The status a status-only checking read reports, for the kernel to match.
 pub(crate) const STATUS_FIELD: &str = "http_status";
@@ -56,6 +57,9 @@ pub(crate) struct Http<'a> {
     spec: &'a HttpImplementation,
     /// A repeated write's items, rendered once.
     items: OnceCell<Option<Vec<JsonValue>>>,
+    /// An app token is held only for this admitted operation's checks and
+    /// submission. A different call/account never inherits it.
+    oauth_token: RefCell<Option<oauth2::Token>>,
 }
 
 impl<'a> Http<'a> {
@@ -69,6 +73,7 @@ impl<'a> Http<'a> {
             call,
             spec,
             items: OnceCell::new(),
+            oauth_token: RefCell::new(None),
         }
     }
 }
@@ -307,7 +312,7 @@ impl Http<'_> {
         responses: Option<&BTreeMap<String, JsonObject>>,
         cursor: Option<&str>,
     ) -> Result<RuntimeHttpResponse, Unperformed> {
-        let rendered = self
+        let mut rendered = self
             .render(request, item.map(|(_, item)| item), responses, cursor)
             .map_err(not_sent)?;
         let transport = match self.egress {
@@ -316,6 +321,24 @@ impl Http<'_> {
                 return gateway.send(request.id.as_str(), item.map(|(index, _)| index), responses);
             }
         };
+        if let Some(secret) = self.call.credential
+            && let Some(presentation) = self.spec.auth.get(&secret.name)
+            && let Some(header) = oauth2::authorization(
+                presentation,
+                secret,
+                transport,
+                &self.oauth_token,
+                &TemplateInputs {
+                    arguments: Some(self.call.arguments),
+                    parameters: Some(self.call.parameters),
+                    ..TemplateInputs::default()
+                },
+                self.spec.allowed_hosts.as_slice(),
+            )
+            .map_err(not_sent)?
+        {
+            rendered.headers.push(header);
+        }
         // Sent once: a read's cost is not declared, so repeating it is not
         // free to assume. The transport repeats only what HTTP defines as
         // safe to repeat.
@@ -363,7 +386,16 @@ impl Http<'_> {
             400..=499 if mutation && response.status != 408 => Unperformed::Refused {
                 code: "provider_rejected",
                 reason,
-                answer: serde_json::from_str::<JsonValue>(&response.body).ok(),
+                answer: if self
+                    .spec
+                    .decode
+                    .iter()
+                    .any(|step| matches!(step, DecodeStep::Project { .. }))
+                {
+                    decode_body(response, &self.spec.decode).ok()
+                } else {
+                    serde_json::from_str::<JsonValue>(&response.body).ok()
+                },
             },
             _ => Unperformed::MaybeSent {
                 code: "invalid_response",
@@ -673,12 +705,39 @@ fn render_request(
     if let Some(instance) = instance {
         instance.credential_body(body.as_mut())?;
     }
-    let body = match body {
-        Some(value) => {
+    if body.is_some() {
+        headers.retain(|header| !header.name.eq_ignore_ascii_case("content-type"));
+    }
+    let body = match (body, request.body_encoding) {
+        (Some(JsonValue::Object(fields)), runx_contracts::connector::HttpBodyEncoding::Form) => {
+            let mut form = url::form_urlencoded::Serializer::new(String::new());
+            for (name, value) in fields {
+                let value = match value {
+                    JsonValue::String(value) => value,
+                    JsonValue::Number(value) => value.to_string(),
+                    JsonValue::Bool(value) => value.to_string(),
+                    _ => {
+                        return Err(
+                            "a form field must render to a string, number or boolean".to_owned()
+                        );
+                    }
+                };
+                form.append_pair(&name, &value);
+            }
+            headers.push(RuntimeHttpHeader::new(
+                "content-type",
+                "application/x-www-form-urlencoded",
+            ));
+            Some(form.finish())
+        }
+        (Some(_), runx_contracts::connector::HttpBodyEncoding::Form) => {
+            return Err("a form body must render to an object".to_owned());
+        }
+        (Some(value), runx_contracts::connector::HttpBodyEncoding::Json) => {
             headers.push(RuntimeHttpHeader::new("content-type", "application/json"));
             Some(serde_json::to_string(&value).map_err(|error| error.to_string())?)
         }
-        None => None,
+        (None, _) => None,
     };
     if let Some(instance) = instance
         && let Some(header) = instance.authorization(method, &url)?
@@ -740,6 +799,10 @@ fn decode(response: &RuntimeHttpResponse, steps: &[DecodeStep]) -> Result<JsonVa
     if !(200..300).contains(&response.status) {
         return Err(format!("the provider returned HTTP {}", response.status));
     }
+    decode_body(response, steps)
+}
+
+fn decode_body(response: &RuntimeHttpResponse, steps: &[DecodeStep]) -> Result<JsonValue, String> {
     let mut value = match steps.first() {
         Some(DecodeStep::Status) => JsonValue::Object(JsonObject::from([(
             "status".to_owned(),
@@ -761,6 +824,18 @@ fn decode(response: &RuntimeHttpResponse, steps: &[DecodeStep]) -> Result<JsonVa
             DecodeStep::ParseJson => {
                 serde_json::from_str::<JsonValue>(value.as_str().ok_or("parse_json needs text")?)
                     .map_err(|_| "the provider text is not valid JSON".to_owned())?
+            }
+            DecodeStep::Project { fields } => {
+                let projected = fields
+                    .iter()
+                    .map(|(field, path)| {
+                        at_path(&value, path)
+                            .cloned()
+                            .map(|value| (field.clone(), value))
+                            .ok_or_else(|| format!("decoded field {path} is missing"))
+                    })
+                    .collect::<Result<JsonObject, _>>()?;
+                JsonValue::Object(projected)
             }
             DecodeStep::RejectTrue { path } => {
                 if at_path(&value, path).and_then(JsonValue::as_bool) == Some(true) {
@@ -1341,7 +1416,16 @@ mod tests {
                 let body = rendered
                     .body
                     .as_deref()
-                    .map(serde_json::from_str::<serde_json::Value>)
+                    .map(|body| {
+                        if rendered.headers.iter().any(|header| {
+                            header.name.eq_ignore_ascii_case("content-type")
+                                && header.value == "application/x-www-form-urlencoded"
+                        }) {
+                            Ok(serde_json::Value::String(body.to_owned()))
+                        } else {
+                            serde_json::from_str::<serde_json::Value>(body)
+                        }
+                    })
                     .transpose()
                     .map_err(|error| error.to_string())?;
                 assert_eq!(rendered.method.as_str(), expected["method"], "{name} {by}");

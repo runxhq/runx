@@ -1,28 +1,48 @@
 ---
 name: refund
-description: Refund all or part of one settled payment on its original rail, with approval, idempotency, and readback.
+description: Refund one original Stripe, PayPal or x402 merchant payment with exact native approval and independently checked settlement.
 ---
 
 # Refund
 
-`refund` is the reversal contract. It returns all or part of one settled
-payment to its payer, on the rail the payment was settled on, then requires a
-readback of the same refund, settled for that amount against that payment,
-before the run closes.
+Use this when you are the merchant reversing all or part of a confirmed payment.
+Choose its original connector and account: Stripe, PayPal or Coinbase CDP for
+x402. A buyer paying a merchant uses `pay`; collecting a payment belongs to
+`charge`. A refund never changes processor to work around a failed readback.
 
-The payments `charge` settles are x402, through Coinbase CDP
-(`coinbase/cdp`), so their refunds are too. Runx Hosted resolves the original
-settlement, accounts for prior refunds, holds the CDP credential, broadcasts
-the reversal, and carries an ambiguous outcome to a terminal one. The amount
-the refund moves counts against the run's authority like any payment. OSS
-implements none of the rail; it governs the provider mutation and seals the
-returned evidence.
+Inspect `runx connector inspect <connector>` and use the refund operation's
+`input_schema` to construct `request`. Supply original account/payment identity,
+exact amount and currency, and a stable caller-owned `idempotency_seed`. PayPal
+also requires an explicit API host, canonical decimal precision and the original
+refundable capture status. Its sandbox host requires a matching sandbox app.
+Never put provider keys, wallet keys, card data or tokens in these inputs.
 
-## Operator guide
+## Confirm the original relationship
 
-Use this skill only for a payment `charge` settled. A hosted `coinbase/cdp`
-grant is required. Pass the paid resource, the payment's reference, the amount
-and currency, a reason, and a stable idempotency seed. Stop on an unknown
-payment, an amount over what remains refundable, currency drift, reused
-idempotency, or unavailable readback. Never accept raw provider credentials or
-claim a refund from a request acknowledgement alone.
+Native admission derives the outgoing amount from the exact provider request
+before budgeting and approval. There is no rounding or FX conversion. A USD
+limit refuses a currency it cannot count. The provider reads the original
+payment on its account and atomically enforces the remaining refundable amount,
+including prior or concurrent refunds. Local and hosted credential custody use
+the same declared connector contract.
+
+Stripe independently confirms the refund against the original PaymentIntent
+and currency. PayPal independently confirms the original capture and exact
+refund amount, currency and complete capture relationship. Coinbase CDP retains
+its original settlement evidence and separate refund readback. Only confirmed
+`succeeded`, `COMPLETED` or x402 `settled` evidence completes the respective
+lane. The result is that provider's bounded native packet, not a fabricated
+universal payment record.
+
+## Unknown and pending outcomes
+
+A provider acknowledgement or HTTP success is not a completed refund. Stop on
+unknown payment, wrong account/currency, excess remaining amount, denied
+approval, pending/refused refund or unavailable readback. Preserve the original
+provider reference, request key and native receipt. Resume the original effect
+at readback; do not submit a second refund under another key. An unknown write
+without an acknowledgement needs reconciliation, not a new financial action.
+
+A composed caller supplies the same original collection evidence and key. This
+skill does not collect again, replace the original payment, send a customer
+message or update a ledger on the caller's behalf.

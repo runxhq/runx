@@ -270,8 +270,18 @@ fn rail_neutral_challenge_detects_payload_tampering() -> Result<(), Box<dyn Erro
         payment_required
     );
 
+    let mut wrong_method = challenge.clone();
+    wrong_method
+        .payment_method
+        .as_mut()
+        .ok_or("missing method")?
+        .pay_to = Some(NonEmptyString::from("another-payee"));
+    assert_eq!(
+        payment_required_from_challenge(&wrong_method),
+        Err(X402PresentationError::RequirementMismatch)
+    );
     let mut wrong_kind = challenge.clone();
-    wrong_kind.protocol_version = NonEmptyString::from("3");
+    wrong_kind.protocol_version = Some(NonEmptyString::from("3"));
     assert_eq!(
         payment_required_from_challenge(&wrong_kind),
         Err(X402PresentationError::ChallengeKindMismatch)

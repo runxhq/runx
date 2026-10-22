@@ -527,7 +527,9 @@ fn verify(
     write: &JsonValue,
     observed: &JsonValue,
 ) -> Result<(), String> {
+    let responses = std::cell::OnceCell::new();
     for binding in matches {
+        let calculated;
         let expected = match &binding.expected {
             ReadbackExpected::Acknowledgement { path } => at_path(write, path)
                 .filter(|value| !matches!(value, JsonValue::Null))
@@ -544,6 +546,22 @@ fn verify(
                 }
             }
             ReadbackExpected::Literal { value } => value,
+            ReadbackExpected::Template { value } => {
+                let responses = responses.get_or_init(|| {
+                    std::collections::BTreeMap::from([(
+                        "write".to_owned(),
+                        JsonObject::from([("json".to_owned(), write.clone())]),
+                    )])
+                });
+                calculated = value
+                    .render(&runx_contracts::connector::TemplateInputs {
+                        arguments: Some(arguments),
+                        responses: Some(responses),
+                        ..runx_contracts::connector::TemplateInputs::default()
+                    })
+                    .map_err(|_| "the readback's expected terms cannot be resolved")?;
+                &calculated
+            }
         };
         if !observed_matches(observed, &binding.observed, expected) {
             return Err("the readback does not match the acknowledged write".to_owned());
@@ -631,6 +649,61 @@ mod tests {
     use super::super::Sealed;
     use super::*;
 
+    #[test]
+    fn structured_relationships_bind_the_original_resource_independently_of_link_order() {
+        let parse =
+            |value: serde_json::Value| serde_json::from_value::<JsonValue>(value).expect("JSON");
+        let expected: ReadbackMatch = serde_json::from_value(serde_json::json!({
+            "expected":{"source":"template","value":[
+                {"rel":"self","method":"GET","href":{"$concat":["https://api.example.test/refunds/",{"$response":"write.json.refund_ref"}]}},
+                {"rel":"up","method":"GET","href":{"$concat":["https://api.example.test/captures/",{"$argument":"/payment_ref"}]}}
+            ]},"observed":"relationships.*"
+        })).expect("match");
+        let arguments = parse(serde_json::json!({"payment_ref":"ORIGINAL"}));
+        let write = parse(serde_json::json!({"refund_ref":"REFUND1"}));
+        let self_link = serde_json::json!({"rel":"self","method":"GET","href":"https://api.example.test/refunds/REFUND1"});
+        let original_link = serde_json::json!({"rel":"up","method":"GET","href":"https://api.example.test/captures/ORIGINAL"});
+        let matching = parse(serde_json::json!({"relationships":[original_link, self_link]}));
+        assert!(
+            verify(
+                std::slice::from_ref(&expected),
+                &arguments,
+                None,
+                &write,
+                &matching
+            )
+            .is_ok()
+        );
+        for wrong in [
+            serde_json::json!({"rel":"up","method":"GET","href":"https://api.example.test/captures/OTHER"}),
+            serde_json::json!({"rel":"self","method":"GET","href":"https://api.example.test/captures/ORIGINAL"}),
+            serde_json::json!({"rel":"up","method":"POST","href":"https://api.example.test/captures/ORIGINAL"}),
+        ] {
+            let observed = parse(serde_json::json!({"relationships":[self_link,wrong]}));
+            assert!(
+                verify(
+                    std::slice::from_ref(&expected),
+                    &arguments,
+                    None,
+                    &write,
+                    &observed
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            verify(
+                &[expected],
+                &parse(serde_json::json!({})),
+                None,
+                &write,
+                &matching
+            )
+            .is_err(),
+            "missing approved terms are never skipped"
+        );
+    }
+
     struct Fake {
         performed: Cell<usize>,
         answer: fn() -> Result<Observed, Unperformed>,
@@ -698,6 +771,7 @@ mod tests {
             parameters: &parameters,
             idempotency_key: Some("key-1"),
             credential: None,
+            session_principal: None,
             env: &env,
             held: Vec::new(),
             access,
@@ -735,6 +809,7 @@ mod tests {
             parameters: &parameters,
             idempotency_key: Some("key-1"),
             credential: Some(&secret),
+            session_principal: None,
             env: &env,
             held: Vec::new(),
             access: OperationAccess::Mutate,

@@ -1,42 +1,173 @@
 skill: refund
-version: "0.7.0"
-catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
+version: 0.7.1
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  approval: required
+  category: payments
 connectors:
+  stripe:
+    operations:
+      - payment.stripe.refund
+  paypal:
+    operations:
+      - payment.paypal.refund
   coinbase/cdp:
-    operations: [payment.x402.merchant.refund, payment.x402.merchant.refund.read]
+    operations:
+      - payment.x402.merchant.refund
+      - payment.x402.merchant.refund.read
 runners:
   refund:
     default: true
+    description: Refund one original confirmed payment through its original merchant connector and
+      independently confirm the exact refund.
     inputs:
-      resource: { type: string, required: true, description: The HTTPS resource the original payment bought., schema: { format: uri, pattern: '^https://', maxLength: 2000 } }
-      payment_ref: { type: string, required: true, description: The settled payment's reference from its charge., schema: { minLength: 1, maxLength: 80 } }
-      amount_minor: { type: integer, required: true, description: "Refund amount in minor units, at most what was paid.", schema: { minimum: 1, maximum: 9007199254740991 } }
-      currency: { type: string, required: true, description: ISO 4217 code of the original payment., schema: { pattern: '^[A-Z]{3}$' } }
-      reason: { type: string, required: true, description: Why the payment is refunded., schema: { minLength: 1, maxLength: 500 } }
-      idempotency_seed: { type: string, required: true, description: Stable refund idempotency material., schema: { minLength: 16, maxLength: 200 } }
-    result_from: [readback]
+      connector:
+        type: string
+        required: true
+        description: Original payment connector; never choose another rail when reconciliation is uncertain.
+        schema:
+          enum:
+            - stripe
+            - paypal
+            - coinbase/cdp
+      request:
+        type: json
+        required: true
+        description: Exact public arguments from the original connector refund operation input_schema.
+          Inspect that connector; preserve original account, payment, amount and currency. No
+          credentials.
+      idempotency_seed:
+        type: string
+        required: true
+        description: Stable refund idempotency material.
+        schema:
+          minLength: 16
+          maxLength: 200
+    examples:
+      - connector: stripe
+        request:
+          account_id: acct_northstar
+          payment_ref: pi_northstar
+          amount_minor: 100
+          currency: usd
+        idempotency_seed: northstar-refund-42
+      - connector: paypal
+        request:
+          api_host: api-m.sandbox.paypal.com
+          account_id: YXZY75W2GKDQE
+          payment_ref: CAPTURE42
+          amount_decimal: "1.00"
+          currency: USD
+          precision: 2
+          original_status: COMPLETED
+        idempotency_seed: northstar-refund-42
+      - connector: coinbase/cdp
+        request:
+          resource: https://seller.example/v1/reports/launch
+          payment_ref: x402pay_test_001
+          amount_minor: 125
+          currency: USD
+          reason: The report was not delivered.
+        idempotency_seed: northstar-refund-42
+    result_from:
+      - stripe
+      - paypal
+      - readback
     steps:
+      - id: stripe
+        when:
+          value: $input.connector
+          equals: stripe
+        operation: stripe/payment.stripe.refund
+        input: $input.request
+        idempotency_key: $input.idempotency_seed
+        approval:
+          type: payment_refund
+          reason: Approve this exact refund against the original merchant payment.
+        result_fields:
+          - refund_ref
+          - payment_ref
+          - amount_minor
+          - currency
+          - status
+        expected_result:
+          status: succeeded
+      - id: paypal
+        when:
+          value: $input.connector
+          equals: paypal
+        operation: paypal/payment.paypal.refund
+        input: $input.request
+        idempotency_key: $input.idempotency_seed
+        approval:
+          type: payment_refund
+          reason: Approve this exact refund against the original merchant capture.
+        result_fields:
+          - refund_ref
+          - amount_decimal
+          - currency
+          - status
+          - relationships
+        expected_result:
+          status: COMPLETED
       - id: refund
         operation: coinbase/cdp/payment.x402.merchant.refund
         idempotency_key: $input.idempotency_seed
         approval:
           reason: Approve this exact refund against the original payment.
           type: payment_refund
-        amount: { units: $input.amount_minor, unit: $input.currency }
-        result_fields: [refund_ref, payment_ref, resource, amount_minor, currency, status, refund_settlement_ref, payer, pay_to, network, settled_at]
-        input: { resource: $input.resource, payment_ref: $input.payment_ref, amount_minor: $input.amount_minor, currency: $input.currency, reason: $input.reason }
+        amount:
+          units: $input.request.amount_minor
+          unit: $input.request.currency
+        result_fields:
+          - refund_ref
+          - payment_ref
+          - resource
+          - amount_minor
+          - currency
+          - status
+          - refund_settlement_ref
+          - payer
+          - pay_to
+          - network
+          - settled_at
+        input: $input.request
+        when:
+          value: $input.connector
+          equals: coinbase/cdp
       - id: readback
         operation: coinbase/cdp/payment.x402.merchant.refund.read
-        result_fields: [refund_ref, payment_ref, resource, amount_minor, currency, status, refund_settlement_ref, payer, pay_to, network, settled_at]
-        input: { resource: $input.resource, refund_ref: $steps.refund.provider_operation.result.refund_ref }
+        result_fields:
+          - refund_ref
+          - payment_ref
+          - resource
+          - amount_minor
+          - currency
+          - status
+          - refund_settlement_ref
+          - payer
+          - pay_to
+          - network
+          - settled_at
+        input:
+          resource: $input.request.resource
+          refund_ref: $steps.refund.provider_operation.result.refund_ref
         expected_result:
           refund_ref: $steps.refund.provider_operation.result.refund_ref
-          payment_ref: $input.payment_ref
-          resource: $input.resource
-          amount_minor: $input.amount_minor
-          currency: $input.currency
+          payment_ref: $input.request.payment_ref
+          resource: $input.request.resource
+          amount_minor: $input.request.amount_minor
+          currency: $input.request.currency
           status: settled
-
+        when:
+          value: $input.connector
+          equals: coinbase/cdp
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []

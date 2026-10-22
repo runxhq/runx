@@ -9,42 +9,179 @@ auth:
     wallet:
       kind: evm_private_key_v1
       fields:
-        - {name: address, label: EVM wallet address, secret: false}
-        - {name: private_key, label: EVM wallet private key}
+        - name: address
+          label: EVM wallet address
+          secret: false
+        - name: private_key
+          label: EVM wallet private key
       delivery:
         env: X402_WALLET
-      audience: [mainnet.base.org]
+      audience:
+        - mainnet.base.org
 placements:
   hosted:
     auth: credential
     credential: wallet
 pays:
   x402:
-    networks: ["eip155:8453"]
+    networks:
+      - eip155:8453
+    methods:
+      - exact
+    currencies:
+      - USD
 operations:
   payment.x402:
     description: Pay the x402 challenge of one HTTPS resource and return the paid result.
     verb: write
-    scopes: [payment.x402]
+    approval: required
+    scopes:
+      - payment.x402
     target:
-      template: {"$argument": "/payment_signal/resource/url"}
+      template:
+        $argument: /payment_signal/resource/url
     guarantees:
       provider_idempotency: enforced
-    amount: required
-    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number]
+    amount:
+      units:
+        $argument: /payment_signal/amount_minor
+      currency:
+        $argument: /parent_payment_authority/currency
+    result_fields:
+      - payment_ref
+      - challenge_id
+      - amount_minor
+      - currency
+      - status
+      - transaction
+      - network
+      - payer
+      - pay_to
+      - invocation_id
+      - payment_required_digest
+      - payment_response_digest
+      - resource_status
+      - resource_result
+      - finality
+      - block_number
     hosted: {}
+    input_schema:
+      type: object
+      required:
+        - payment_signal
+        - parent_payment_authority
+      additionalProperties: false
+      properties:
+        payment_signal:
+          additionalProperties: false
+          required:
+            - resource
+            - amount_minor
+          properties:
+            resource:
+              type: object
+              additionalProperties: false
+              required:
+                - url
+                - method
+                - body
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  pattern: ^https://
+                method:
+                  type: string
+                  const: POST
+                body:
+                  type: object
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    maxLength: 4096
+                timeout_ms:
+                  type: integer
+                  minimum: 1
+                  maximum: 120000
+                max_response_bytes:
+                  type: integer
+                  minimum: 1
+                  maximum: 26214400
+            amount_minor:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            pay_to:
+              type: string
+              pattern: ^0x[0-9a-fA-F]{40}$
+          type: object
+        parent_payment_authority:
+          additionalProperties: false
+          required:
+            - term_id
+            - currency
+            - max_amount_minor
+            - counterparty
+          properties:
+            term_id:
+              type: string
+              minLength: 1
+              maxLength: 256
+            currency:
+              type: string
+              const: USD
+            max_amount_minor:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            counterparty:
+              type: string
+              format: uri
+              maxLength: 2048
+          type: object
   payment.x402.read:
     description: Read back one x402 payment and its resource result.
     verb: read
-    scopes: [payment.x402.read]
+    scopes:
+      - payment.x402.read
     target:
-      template: {"$argument": "/resource_url"}
+      template:
+        $argument: /resource_url
     input_schema:
       type: object
-      required: [payment_ref, resource_url]
+      required:
+        - payment_ref
+        - resource_url
       additionalProperties: false
       properties:
-        payment_ref: {type: string, minLength: 1, maxLength: 300}
-        resource_url: {type: string, format: uri, pattern: "^https://", maxLength: 2048}
-    result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number, readback_status, resource_state]
+        payment_ref:
+          type: string
+          minLength: 1
+          maxLength: 300
+        resource_url:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+    result_fields:
+      - payment_ref
+      - challenge_id
+      - amount_minor
+      - currency
+      - status
+      - transaction
+      - network
+      - payer
+      - pay_to
+      - invocation_id
+      - payment_required_digest
+      - payment_response_digest
+      - resource_status
+      - resource_result
+      - finality
+      - block_number
+      - readback_status
+      - resource_state
     hosted: {}

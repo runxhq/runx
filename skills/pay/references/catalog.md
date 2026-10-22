@@ -1,5 +1,5 @@
 ---
 schema: runx.catalog-presentation.v1
 title: Pay
-summary: "Pay one external payment requirement with approval and confirm the paid resource."
+summary: Pay an exact resource with your held wallet and independently confirm the original payment.
 ---

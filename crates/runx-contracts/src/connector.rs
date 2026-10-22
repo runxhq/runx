@@ -63,11 +63,13 @@ macro_rules! single_key_enum {
     };
 }
 
+mod amount;
 mod cost;
 mod digest;
 mod ids;
 mod template;
 
+pub use amount::{AmountBinding, AmountRule};
 pub use cost::{CallCost, CostBasis, CostPayer, CostSource, OperationCost};
 pub use digest::{
     ConnectorDigestError, connector_digest, credential_declaration_digest, implementation_digest,
@@ -135,19 +137,45 @@ pub struct ConnectorManifest {
     pub pays: Option<ConnectorPays>,
 }
 
-/// The settlement families a payment connector pays in, each with the
-/// networks it pays on.
+/// The settlement families a connector can pay. Family names are extension
+/// identifiers, not a fixed list of first-party processors or protocols.
+pub type ConnectorPays = BTreeMap<crate::SettlementFamily, PaymentCompatibility>;
+
+/// Constraints on a candidate payment method. These declarations filter
+/// discovery; the selected operation still admits the exact payment and account.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ConnectorPays {
-    pub x402: X402Pays,
+pub struct PaymentCompatibility {
+    /// Protocol method identifiers, such as `stripe` or `tempo` for MPP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub methods: Option<NonEmptyVec<NonEmptyString>>,
+    /// Protocol network identifiers, such as the CAIP-2 `eip155:8453`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub networks: Option<NonEmptyVec<NonEmptyString>>,
+    /// Quoted currencies; an omitted restriction leaves validation to the
+    /// provider's exact operation, rather than inventing an FX conversion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currencies: Option<NonEmptyVec<crate::CurrencyCode>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct X402Pays {
-    /// CAIP-2 networks, such as `eip155:8453`.
-    pub networks: NonEmptyVec<NonEmptyString>,
+impl PaymentCompatibility {
+    /// Every declared restriction must match. An unknown term cannot satisfy
+    /// a restriction. An omitted restriction is not an execution grant.
+    #[must_use]
+    pub fn matches(
+        &self,
+        method: Option<&str>,
+        network: Option<&str>,
+        currency: Option<&str>,
+    ) -> bool {
+        self.methods.as_ref().is_none_or(|allowed| {
+            method.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
+        }) && self.networks.as_ref().is_none_or(|allowed| {
+            network.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
+        }) && self.currencies.as_ref().is_none_or(|allowed| {
+            currency.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
+        })
+    }
 }
 
 /// One kind of thing a connector's locators name.
@@ -296,6 +324,14 @@ pub enum SessionAuth {
         /// The request that names whose token it is.
         principal: PrincipalRequest,
     },
+    /// A CLI that keeps its own credential and refresh lifecycle. The command
+    /// returns only public account JSON; process implementations use that same
+    /// CLI and must enforce the pinned principal at credential use.
+    ManagedCommand {
+        command: NonEmptyVec<NonEmptyString>,
+        id: NonEmptyString,
+        login: NonEmptyString,
+    },
     /// A signed-in browser profile driven by a trusted host tool.
     HostBrowser {},
 }
@@ -305,6 +341,7 @@ impl SessionAuth {
     pub fn kind(&self) -> SessionKind {
         match self {
             Self::Command { .. } => SessionKind::Command,
+            Self::ManagedCommand { .. } => SessionKind::ManagedCommand,
             Self::HostBrowser {} => SessionKind::HostBrowser,
         }
     }
@@ -329,6 +366,7 @@ pub struct PrincipalRequest {
 #[serde(rename_all = "snake_case")]
 pub enum SessionKind {
     Command,
+    ManagedCommand,
     HostBrowser,
 }
 
@@ -337,6 +375,7 @@ impl SessionKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Command => "command",
+            Self::ManagedCommand => "managed_command",
             Self::HostBrowser => "host_browser",
         }
     }
@@ -759,15 +798,6 @@ pub enum ReadbackGuarantee {
     Unavailable,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AmountRule {
-    #[default]
-    None,
-    /// Every call carries a typed amount.
-    Required,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HostedImplementation {
@@ -904,6 +934,16 @@ pub enum HttpAuth {
         name: NonEmptyString,
         field: CredentialName,
     },
+    /// Exchange app credentials at a declared OAuth 2 token endpoint using
+    /// client_secret_basic, then present its short-lived bearer token.
+    /// Neither the credentials nor the token enter request templates/results.
+    Oauth2ClientCredentials {
+        token_url: Template,
+        client_id: CredentialName,
+        client_secret: CredentialName,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scope: Option<NonEmptyString>,
+    },
     /// OAuth 1.0a user context, signed with the credential's
     /// `consumer_key`, `consumer_secret`, `access_token` and `access_secret`.
     Oauth1,
@@ -934,6 +974,13 @@ impl HttpAuth {
                 vec![field.as_str()]
             }
             Self::Oauth1 => OAUTH1_FIELDS.to_vec(),
+            Self::Oauth2ClientCredentials {
+                client_id,
+                client_secret,
+                ..
+            } => {
+                vec![client_id.as_str(), client_secret.as_str()]
+            }
         }
     }
 
@@ -943,7 +990,9 @@ impl HttpAuth {
     pub fn header_name(&self) -> Option<&str> {
         match self {
             Self::Header { name, .. } => Some(name.as_str()),
-            Self::Bearer { .. } | Self::Oauth1 => Some("authorization"),
+            Self::Bearer { .. } | Self::Oauth1 | Self::Oauth2ClientCredentials { .. } => {
+                Some("authorization")
+            }
             Self::Url { .. } | Self::Body { .. } => None,
         }
     }
@@ -1035,12 +1084,24 @@ pub struct HttpRequest {
     pub query: BTreeMap<String, Template>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub headers: BTreeMap<String, Template>,
-    /// A JSON body, sent as `application/json`.
+    /// The body template; JSON unless `body_encoding` declares a form.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<Template>,
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub body_encoding: HttpBodyEncoding,
     /// A read whose answer comes in pages.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<HttpPages>,
+}
+
+/// The wire representation of a request's body. Forms render a flat object
+/// of string, number and boolean values; nested form names are literal keys.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpBodyEncoding {
+    #[default]
+    Json,
+    Form,
 }
 
 impl HttpRequest {
@@ -1098,10 +1159,21 @@ pub enum DecodeStep {
     AutoJson,
     Text,
     Status,
-    Field { path: NonEmptyString },
+    Field {
+        path: NonEmptyString,
+    },
     ParseJson,
-    RejectTrue { path: NonEmptyString },
-    RejectPresent { path: NonEmptyString },
+    /// Keep only this bounded evidence before acknowledgement custody. Each
+    /// result member reads one path from the decoded provider response.
+    Project {
+        fields: BTreeMap<String, NonEmptyString>,
+    },
+    RejectTrue {
+        path: NonEmptyString,
+    },
+    RejectPresent {
+        path: NonEmptyString,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -1132,6 +1204,12 @@ pub enum ReadbackExpected {
     },
     Literal {
         value: crate::JsonValue,
+    },
+    /// An exact expected value rendered from approved arguments and the
+    /// projected acknowledgement (`$response: write.json.<path>`). Useful
+    /// for provider resource locators and structured relationship evidence.
+    Template {
+        value: Template,
     },
 }
 
@@ -1178,6 +1256,18 @@ pub struct ProcessImplementation {
     /// readback` and the acknowledgement, and what it observes must match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub readback: Option<ProcessReadback>,
+    /// The bounded public answer to return after confirmation. A durable
+    /// acknowledgement can remain just an opaque provider reference.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub result_from: ProcessResultSource,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessResultSource {
+    #[default]
+    Acknowledgement,
+    Readback,
 }
 
 /// What a process tool's readback must match.

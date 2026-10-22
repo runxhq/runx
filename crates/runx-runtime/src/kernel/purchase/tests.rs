@@ -32,9 +32,9 @@ fn fixture(name: &str) -> Value {
         .clone()
 }
 
-/// runx's x402 challenge for the invocation it quoted.
+/// A canonical Runx quote whose opaque payload happens to use x402.
 fn quote(network: &str, amount: u64) -> Value {
-    json!({
+    let payload = json!({
         "x402Version": 2,
         "resource": {"url": ROUTE},
         "accepts": [{
@@ -47,6 +47,27 @@ fn quote(network: &str, amount: u64) -> Value {
         }],
         "extensions": {
             "runx.invocation": {"info": {"purpose": "invocation", "invocation_id": "paid_1"}}
+        }
+    });
+    json!({
+        "status": "admitted",
+        "value": {
+            "invocation": quoted(amount, None)["invocation"],
+            "payment_options": [{
+                "settlement_family": "x402",
+                "protocol_version": "2",
+                "media_type": "application/json",
+                "payload_digest": runx_contracts::sha256_prefixed(
+                    &runx_contracts::to_canonical_bytes(&serde_json::from_value::<runx_contracts::JsonValue>(payload.clone()).unwrap()).unwrap()
+                ),
+                "payload": payload,
+                "quote_ref": {"type": "receipt", "uri": "runx:receipt:quote:paid_1"},
+                "quote_expires_at": "2099-01-01T00:00:00Z",
+                "payment_method": {
+                    "method": "exact", "network": network,
+                    "asset": "USDC", "pay_to": "0x00000000000000000000000000000000000000aa"
+                }
+            }]
         }
     })
 }
@@ -63,6 +84,8 @@ fn quoted(amount: u64, balance_micro: Option<u64>) -> Value {
     invocation["invocation_id"] = json!("paid_1");
     invocation["amount_minor"] = json!(amount);
     invocation["currency"] = json!("USD");
+    invocation["expires_at"] = json!("2099-01-01T00:00:00Z");
+    invocation["accepted_settlement_families"] = json!(["x402"]);
     invocation["payment_state"] = json!("unpaid");
     invocation["execution_state"] = json!("unstarted");
     invocation["outcome_gate"] = json!("open");
@@ -107,6 +130,7 @@ fn purchase(outcome: &str) -> Value {
 /// (a quote without a payment, a purchase with one) and the purchase read.
 #[derive(Clone, Default)]
 struct Runx {
+    principal: Arc<Mutex<String>>,
     quote: Arc<Mutex<Value>>,
     /// What the buyer's runx balance holds, when the purchase takes it.
     balance_micro: Arc<Mutex<Option<u64>>>,
@@ -115,21 +139,28 @@ struct Runx {
     /// What each paid purchase answers, in order; the last repeats.
     bought: Arc<Mutex<Vec<(u16, Value)>>>,
     sent: Arc<Mutex<Vec<RuntimeHttpRequest>>>,
+    read_invocation: Arc<Mutex<Option<Value>>>,
+    after_submission_invocation: Arc<Mutex<Option<Value>>>,
 }
 
 impl Runx {
     fn new(quote: Value, bought: Vec<(u16, Value)>) -> Self {
         Self {
+            principal: Arc::new(Mutex::new("buyer-1".to_owned())),
             quote: Arc::new(Mutex::new(quote)),
             balance_micro: Arc::default(),
             paid: Arc::default(),
             bought: Arc::new(Mutex::new(bought)),
             sent: Arc::default(),
+            read_invocation: Arc::default(),
+            after_submission_invocation: Arc::default(),
         }
     }
 
     fn with_balance(self, balance_micro: u64) -> Self {
         *self.balance_micro.lock().unwrap() = Some(balance_micro);
+        self.quote.lock().unwrap()["value"]["invocation"]["accepted_settlement_families"] =
+            json!(["x402", "runx_balance"]);
         self
     }
 
@@ -161,14 +192,31 @@ impl RuntimeHttpTransport for Runx {
         Ok(match (request.method, request.url.as_str()) {
             (HttpMethod::Get, url) if url == format!("{BASE_URL}/v1/me") => body(
                 200,
-                &json!({"status": "success", "principal": {"principal_id": "buyer-1"}}),
+                &json!({"status": "success", "principal": {"principal_id": self.principal.lock().unwrap().clone()}}),
             ),
             (HttpMethod::Post, ROUTE) => {
                 let sent: Value =
                     serde_json::from_str(request.body.as_deref().unwrap_or("{}")).unwrap();
                 if sent.get("account_payment").is_none() {
+                    assert_eq!(
+                        request
+                            .headers
+                            .iter()
+                            .find(|h| h.name == "accept")
+                            .unwrap()
+                            .value,
+                        format!(
+                            "application/json; profile=\"{}\"",
+                            runx_contracts::QUOTE_PAID_INVOCATION_RESULT_SCHEMA
+                        )
+                    );
                     body(402, &self.quote.lock().unwrap())
                 } else {
+                    if let Some(invocation) =
+                        self.after_submission_invocation.lock().unwrap().clone()
+                    {
+                        *self.read_invocation.lock().unwrap() = Some(invocation);
+                    }
                     let mut bought = self.bought.lock().unwrap();
                     let (status, value) = if bought.len() > 1 {
                         bought.remove(0)
@@ -185,12 +233,18 @@ impl RuntimeHttpTransport for Runx {
                 if *self.paid.lock().unwrap() {
                     body(200, &purchase("fulfilled"))
                 } else {
-                    let amount = self.quote.lock().unwrap()["accepts"][0]["amount"]
-                        .as_str()
-                        .and_then(|amount| amount.parse::<u64>().ok())
-                        .unwrap_or_default()
-                        / 10_000;
-                    body(200, &quoted(amount, *self.balance_micro.lock().unwrap()))
+                    let quoted = self.quote.lock().unwrap();
+                    let invocation = self
+                        .read_invocation
+                        .lock()
+                        .unwrap()
+                        .clone()
+                        .unwrap_or_else(|| quoted["value"]["invocation"].clone());
+                    let mut view = json!({"invocation": invocation});
+                    if let Some(balance) = *self.balance_micro.lock().unwrap() {
+                        view["balance_micro"] = json!(balance);
+                    }
+                    return Ok(body(200, &view));
                 }
             }
             _ => body(404, &json!({"code": "not_found"})),
@@ -251,8 +305,23 @@ struct Project {
 
 impl Project {
     fn new() -> Self {
+        Self::with_pays(None)
+    }
+
+    fn with_pays(pays: Option<&str>) -> Self {
         let root = tempfile::tempdir().unwrap();
         crate::kernel::connectors::plugin_with_fixture_connectors(root.path(), &["fixture/wallet"]);
+        if let Some(pays) = pays {
+            let path = root.path().join("connectors/fixture/wallet/connector.yaml");
+            let manifest = std::fs::read_to_string(&path).unwrap();
+            let start = manifest.find("pays:\n").unwrap();
+            let end = manifest[start..].find("operations:\n").unwrap() + start;
+            std::fs::write(
+                path,
+                format!("{}{}{}", &manifest[..start], pays, &manifest[end..]),
+            )
+            .unwrap();
+        }
         let env = BTreeMap::from([
             (
                 crate::HOSTED_API_BASE_URL_ENV.to_owned(),
@@ -339,10 +408,23 @@ impl Project {
             .committed_usd_micro
     }
 
+    fn choice(&self, quote: &Value, index: usize) -> String {
+        let option = &quote["value"]["payment_options"][index];
+        super::payment_choice(
+            &self.wallet,
+            &serde_json::from_value(json!({
+                "settlement_family": option["settlement_family"],
+                "payload_digest": option["payload_digest"],
+            }))
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
     fn approve(&self) -> Buyer {
         Buyer::answering(
             ResolutionResponseActor::Human,
-            json!({"approved": true, "choice": self.wallet}),
+            json!({"approved": true, "choice": self.choice(&quote(NETWORK, 5), 0)}),
         )
     }
 }
@@ -381,12 +463,23 @@ fn a_purchase_waits_on_its_buyer_with_the_quote_and_each_method_that_pays_it() {
     assert_eq!(id.as_str(), "purchase");
     assert_eq!(purchase.amount_minor.get(), 5);
     assert_eq!(purchase.quote.invocation_id.as_str(), "paid_1");
-    assert_eq!(purchase.quote.network.as_str(), NETWORK);
+    assert_eq!(
+        purchase.quote.payment_options[0]
+            .payment_method
+            .as_ref()
+            .unwrap()
+            .network
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        NETWORK
+    );
     assert_eq!(purchase.methods.len(), 1);
     let PurchaseMethod::Grant {
         instance_id,
         connector,
         total_minor,
+        ..
     } = &purchase.methods[0]
     else {
         panic!("the method is the hosted payment grant");
@@ -394,7 +487,10 @@ fn a_purchase_waits_on_its_buyer_with_the_quote_and_each_method_that_pays_it() {
     assert_eq!(instance_id.as_str(), project.wallet);
     assert_eq!(connector.as_str(), "fixture/wallet");
     assert_eq!(total_minor.get(), 5);
-    assert_eq!(purchase.methods[0].choice(), project.wallet);
+    assert_eq!(
+        purchase.methods[0].choice(),
+        project.choice(&quote(NETWORK, 5), 0)
+    );
     assert!(
         runx.purchases().is_empty(),
         "nothing is bought before the decision"
@@ -430,7 +526,7 @@ fn an_approved_purchase_reserves_its_amount_and_buys_from_the_chosen_method() {
     assert_eq!(body["version"], "1.0.0");
     assert_eq!(
         body["account_payment"],
-        json!({"invocation_id": "paid_1", "method": "grant", "grant_id": "grant_wallet"})
+        json!({"invocation_id": "paid_1", "method": "grant", "grant_id": "grant_wallet", "option": {"settlement_family": "x402", "payload_digest": quote(NETWORK, 5)["value"]["payment_options"][0]["payload_digest"]}})
     );
     assert!(key.is_some(), "a purchase is sent under its key");
     assert_eq!(project.committed(), 50_000, "five cents is reserved");
@@ -472,7 +568,7 @@ fn an_agent_never_decides_a_purchase() {
     let runx = Runx::new(quote(NETWORK, 5), vec![(201, purchase("fulfilled"))]);
     let mut agent = Buyer::answering(
         ResolutionResponseActor::Agent,
-        json!({"approved": true, "choice": project.wallet}),
+        json!({"approved": true, "choice": project.choice(&quote(NETWORK, 5), 0)}),
     );
     let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut agent, None) else {
         panic!("an agent's answer buys nothing");
@@ -623,7 +719,10 @@ fn a_balance_that_covers_the_price_is_offered_first() {
         }
     );
     assert_eq!(purchase.methods[0].choice(), PURCHASE_BALANCE_CHOICE);
-    assert_eq!(purchase.methods[1].choice(), project.wallet);
+    assert_eq!(
+        purchase.methods[1].choice(),
+        project.choice(&quote(NETWORK, 5), 0)
+    );
 }
 
 #[test]
@@ -640,7 +739,10 @@ fn a_balance_short_of_the_price_is_not_offered() {
         panic!("the request is a purchase");
     };
     assert_eq!(purchase.methods.len(), 1);
-    assert_eq!(purchase.methods[0].choice(), project.wallet);
+    assert_eq!(
+        purchase.methods[0].choice(),
+        project.choice(&quote(NETWORK, 5), 0)
+    );
 }
 
 #[test]
@@ -686,4 +788,342 @@ fn a_balance_alone_pays_where_no_grant_does() {
     };
     assert_eq!(purchase.methods.len(), 1);
     assert_eq!(purchase.methods[0].choice(), PURCHASE_BALANCE_CHOICE);
+}
+
+#[test]
+fn a_non_x402_quote_offers_a_compatible_grant_without_evm_terms() {
+    let project = Project::with_pays(Some(
+        "pays:\n  mpp:\n    methods: [stripe]\n    currencies: [USD]\n",
+    ));
+    let mut offered = quote(NETWORK, 5);
+    offered["value"]["invocation"]["accepted_settlement_families"] = json!(["mpp"]);
+    let challenge = &mut offered["value"]["payment_options"][0];
+    challenge["settlement_family"] = json!("mpp");
+    challenge
+        .as_object_mut()
+        .unwrap()
+        .remove("protocol_version");
+    challenge["payment_method"] = json!({"method": "stripe", "pay_to": "acct_merchant"});
+    challenge["payload"] = json!({"opaque_protocol_request": "signed-challenge"});
+    challenge["payload_digest"] = json!(runx_contracts::sha256_prefixed(
+        &runx_contracts::to_canonical_bytes(
+            &serde_json::from_value::<runx_contracts::JsonValue>(challenge["payload"].clone())
+                .unwrap()
+        )
+        .unwrap()
+    ));
+    let expected_digest = challenge["payload_digest"].clone();
+    let runx = Runx::new(offered, vec![]);
+    let mut buyer = Buyer::pending();
+    let Err(RuntimeError::ResolutionPending { request, .. }) = project.buy(&runx, &mut buyer, None)
+    else {
+        panic!("a compatible non-x402 quote waits on its buyer");
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("a purchase decision")
+    };
+    assert_eq!(
+        purchase.quote.payment_options[0]
+            .option
+            .settlement_family
+            .as_str(),
+        "mpp"
+    );
+    assert_eq!(
+        purchase.quote.payment_options[0]
+            .option
+            .payload_digest
+            .as_str(),
+        expected_digest.as_str().unwrap()
+    );
+    assert!(
+        purchase.quote.payment_options[0]
+            .payment_method
+            .as_ref()
+            .unwrap()
+            .network
+            .is_none()
+    );
+    assert_eq!(purchase.methods.len(), 1);
+    let PurchaseMethod::Grant { option, .. } = &purchase.methods[0] else {
+        panic!("grant")
+    };
+    assert_eq!(
+        option.payload_digest.as_str(),
+        expected_digest.as_str().unwrap()
+    );
+    assert!(runx.purchases().is_empty());
+    assert_eq!(project.committed(), 0);
+}
+
+#[test]
+fn unknown_network_terms_do_not_satisfy_a_restricted_grant() {
+    let project = Project::new();
+    let mut offered = quote(NETWORK, 5);
+    offered["value"]["payment_options"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("payment_method");
+    let runx = Runx::new(offered, vec![]);
+    let mut buyer = Buyer::pending();
+    let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut buyer, None) else {
+        panic!("unknown terms refuse")
+    };
+    assert_eq!(code, "payment_method_unavailable");
+    assert!(buyer.asked.is_empty());
+    assert_eq!(project.committed(), 0);
+}
+
+#[test]
+fn an_altered_challenge_or_unaccepted_family_refuses_before_any_decision() {
+    for field in ["payload", "settlement_family"] {
+        let project = Project::new();
+        let mut offered = quote(NETWORK, 5);
+        offered["value"]["payment_options"][0][field] = json!("altered");
+        let runx = Runx::new(offered, vec![]);
+        let mut buyer = Buyer::pending();
+        let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut buyer, None) else {
+            panic!("an altered challenge refuses")
+        };
+        assert_eq!(code, "quote_invalid");
+        assert!(buyer.asked.is_empty());
+        assert_eq!(project.committed(), 0);
+    }
+}
+
+#[test]
+fn a_changed_purchase_read_refuses_before_asking_or_reserving_money() {
+    let project = Project::new();
+    let offered = quote(NETWORK, 5);
+    let mut changed = offered["value"]["invocation"].clone();
+    changed["amount_minor"] = json!(10);
+    let runx = Runx::new(offered, vec![]);
+    *runx.read_invocation.lock().unwrap() = Some(changed);
+    let mut buyer = Buyer::pending();
+    let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut buyer, None) else {
+        panic!("a changed quote refuses")
+    };
+    assert_eq!(code, "quote_changed");
+    assert!(buyer.asked.is_empty());
+    assert!(runx.purchases().is_empty());
+    assert_eq!(project.committed(), 0);
+}
+
+#[test]
+fn multiple_options_for_one_grant_have_distinct_choices_and_recovery_keeps_the_selection() {
+    let project = Project::new();
+    let mut offered = quote(NETWORK, 5);
+    let mut second = offered["value"]["payment_options"][0].clone();
+    second["payload"]["accepts"][0]["payTo"] = json!("0x00000000000000000000000000000000000000bb");
+    second["payment_method"]["pay_to"] = json!("0x00000000000000000000000000000000000000bb");
+    second["payload_digest"] = json!(runx_contracts::sha256_prefixed(
+        &runx_contracts::to_canonical_bytes(
+            &serde_json::from_value::<runx_contracts::JsonValue>(second["payload"].clone())
+                .unwrap()
+        )
+        .unwrap()
+    ));
+    offered["value"]["payment_options"]
+        .as_array_mut()
+        .unwrap()
+        .push(second.clone());
+    let selected = project.choice(&offered, 1);
+    let runx = Runx::new(
+        offered.clone(),
+        vec![
+            (503, json!({"code": "unavailable"})),
+            (201, purchase("fulfilled")),
+        ],
+    );
+    let Err(RuntimeError::ResolutionPending { request, .. }) =
+        project.buy(&runx, &mut Buyer::pending(), Some(1_000_000))
+    else {
+        panic!("decision required")
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("purchase")
+    };
+    assert_eq!(purchase.quote.payment_options.len(), 2);
+    assert_eq!(purchase.methods.len(), 2);
+    assert_ne!(purchase.methods[0].choice(), purchase.methods[1].choice());
+    assert_eq!(purchase.methods[1].choice(), selected);
+    let mut buyer = Buyer::answering(
+        ResolutionResponseActor::Human,
+        json!({"approved": true, "choice": selected}),
+    );
+    assert!(matches!(
+        project.buy(&runx, &mut buyer, Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    // Reopen the real SQLite store and discard the host's decision. Recovery
+    // reads the durable method, even if the current quote order changes.
+    let reopened = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+        &project.env,
+        project.root.path(),
+    ))
+    .unwrap();
+    assert_eq!(
+        spend::status(&reopened, "run_1")
+            .unwrap()
+            .committed_usd_micro,
+        50_000
+    );
+    runx.quote.lock().unwrap()["value"]["payment_options"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    assert!(matches!(
+        project.buy(&runx, &mut Buyer::pending(), Some(1_000_000)),
+        Ok(Bought::Fulfilled { .. })
+    ));
+    let sent = runx.purchases();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[0], sent[1]);
+    assert_eq!(
+        sent[0].0["account_payment"]["option"]["payload_digest"],
+        second["payload_digest"]
+    );
+    assert_eq!(project.committed(), 50_000);
+}
+
+#[test]
+fn duplicate_payment_options_are_refused_before_asking_or_reserving() {
+    let project = Project::new();
+    let mut offered = quote(NETWORK, 5);
+    let option = offered["value"]["payment_options"][0].clone();
+    offered["value"]["payment_options"]
+        .as_array_mut()
+        .unwrap()
+        .push(option);
+    let runx = Runx::new(offered, vec![]);
+    let mut buyer = Buyer::pending();
+    let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut buyer, Some(1_000_000)) else {
+        panic!("duplicate refused")
+    };
+    assert_eq!(code, "quote_invalid");
+    assert!(buyer.asked.is_empty());
+    assert_eq!(project.committed(), 0);
+}
+
+#[test]
+fn expired_options_are_not_offered_even_when_another_option_keeps_the_invocation_open() {
+    let project = Project::new();
+    let mut offered = quote(NETWORK, 5);
+    let mut current = offered["value"]["payment_options"][0].clone();
+    current["payload"]["accepts"][0]["payTo"] = json!("0x00000000000000000000000000000000000000bb");
+    current["payment_method"]["pay_to"] = json!("0x00000000000000000000000000000000000000bb");
+    current["payload_digest"] = json!(runx_contracts::sha256_prefixed(
+        &runx_contracts::to_canonical_bytes(
+            &serde_json::from_value::<runx_contracts::JsonValue>(current["payload"].clone())
+                .unwrap(),
+        )
+        .unwrap(),
+    ));
+    offered["value"]["payment_options"][0]["quote_expires_at"] = json!("2020-01-01T00:00:00Z");
+    offered["value"]["payment_options"]
+        .as_array_mut()
+        .unwrap()
+        .push(current.clone());
+    let runx = Runx::new(offered, vec![]);
+    let Err(RuntimeError::ResolutionPending { request, .. }) =
+        project.buy(&runx, &mut Buyer::pending(), None)
+    else {
+        panic!("the current option waits on its buyer");
+    };
+    let ResolutionRequest::Purchase { purchase, .. } = *request else {
+        panic!("purchase");
+    };
+    assert_eq!(purchase.methods.len(), 1);
+    let PurchaseMethod::Grant { option, .. } = &purchase.methods[0] else {
+        panic!("grant");
+    };
+    assert_eq!(
+        option.payload_digest.as_str(),
+        current["payload_digest"].as_str().unwrap()
+    );
+    assert!(runx.purchases().is_empty());
+}
+
+#[test]
+fn an_expired_invocation_refuses_before_a_decision_or_reservation() {
+    let project = Project::new();
+    let mut offered = quote(NETWORK, 5);
+    offered["value"]["payment_options"][0]["quote_expires_at"] = json!("2020-01-01T00:00:00Z");
+    offered["value"]["invocation"]["expires_at"] = json!("2020-01-01T00:00:00Z");
+    let runx = Runx::new(offered, vec![]);
+    let mut buyer = Buyer::pending();
+    let Ok(Bought::Refused { code, .. }) = project.buy(&runx, &mut buyer, None) else {
+        panic!("expired quote");
+    };
+    assert_eq!(code, "quote_expired");
+    assert!(buyer.asked.is_empty());
+    assert!(runx.purchases().is_empty());
+    assert_eq!(project.committed(), 0);
+}
+
+#[test]
+fn a_later_refusal_cannot_release_what_a_purchase_may_have_paid() {
+    let project = Project::new();
+    let runx = Runx::new(
+        quote(NETWORK, 5),
+        vec![
+            (503, json!({"code":"unavailable"})),
+            (409, json!({"code":"quote_unavailable"})),
+        ],
+    );
+    assert!(matches!(
+        project.buy(&runx, &mut project.approve(), Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    assert!(matches!(
+        project.buy(&runx, &mut Buyer::pending(), Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    assert_eq!(project.committed(), 50_000);
+    assert_eq!(runx.purchases().len(), 2);
+    assert_eq!(runx.purchases()[0], runx.purchases()[1]);
+}
+
+#[test]
+fn an_account_switch_cannot_resend_an_unresolved_purchase() {
+    let project = Project::new();
+    let runx = Runx::new(
+        quote(NETWORK, 5),
+        vec![(503, json!({"code":"unavailable"}))],
+    );
+    assert!(matches!(
+        project.buy(&runx, &mut project.approve(), Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    *runx.principal.lock().unwrap() = "buyer-2".to_owned();
+    assert!(matches!(
+        project.buy(&runx, &mut Buyer::pending(), Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    assert_eq!(
+        runx.purchases().len(),
+        1,
+        "no purchase reaches the replacement account"
+    );
+    assert_eq!(project.committed(), 50_000);
+}
+
+#[test]
+fn even_a_first_http_refusal_requires_independent_unpaid_readback() {
+    let project = Project::new();
+    let offered = quote(NETWORK, 5);
+    let mut settling = offered["value"]["invocation"].clone();
+    settling["payment_state"] = json!("settling");
+    settling["settlement_family"] = json!("x402");
+    settling["payment_ref"] = json!({"type":"event","uri":"runx:payment:original"});
+    let runx = Runx::new(
+        offered,
+        vec![(409, json!({"code":"paid_invocation_binding_mismatch"}))],
+    );
+    *runx.after_submission_invocation.lock().unwrap() = Some(settling);
+    assert!(matches!(
+        project.buy(&runx, &mut project.approve(), Some(1_000_000)),
+        Err(RuntimeError::ProviderEffectUnknown { .. })
+    ));
+    assert_eq!(project.committed(), 50_000);
 }

@@ -166,6 +166,8 @@ impl RunxSchema for CurrencyCode {
 pub const RUNX_BALANCE_SETTLEMENT_FAMILY: &str = "runx_balance";
 
 /// A bounded, provider-neutral settlement-family identifier.
+pub const SETTLEMENT_FAMILY_PATTERN: &str = "^[a-z0-9][a-z0-9._-]{0,63}$";
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct SettlementFamily(String);
@@ -188,6 +190,16 @@ impl SettlementFamily {
     }
 }
 
+impl std::borrow::Borrow<str> for SettlementFamily {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl crate::schema::SchemaMapKey for SettlementFamily {
+    const PATTERN: Option<&'static str> = Some(SETTLEMENT_FAMILY_PATTERN);
+}
+
 impl<'de> Deserialize<'de> for SettlementFamily {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -204,7 +216,7 @@ impl RunxSchema for SettlementFamily {
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "pattern": SETTLEMENT_FAMILY_PATTERN,
         })
     }
 }
@@ -507,16 +519,43 @@ pub struct PaidInvocation {
     pub updated_at: IsoDateTime,
 }
 
+/// Protocol-owned discovery and display terms. These do not authorize a
+/// payment: the settlement executor verifies the complete challenge itself.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PaidInvocationPaymentMethod {
+    pub method: NonEmptyString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<NonEmptyString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset: Option<NonEmptyString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pay_to: Option<NonEmptyString>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidInvocationPaymentChallenge {
     pub settlement_family: SettlementFamily,
-    pub protocol_version: NonEmptyString,
+    /// Present only when the payment protocol carries a version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol_version: Option<NonEmptyString>,
     pub media_type: NonEmptyString,
     pub payload: JsonValue,
     pub payload_digest: Sha256Digest,
     pub quote_ref: Reference,
     pub quote_expires_at: IsoDateTime,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<PaidInvocationPaymentMethod>,
+}
+
+/// One exact quoted option. Its provider attempt retains this binding through
+/// settlement and recovery; this is not another payment or purchase identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PaidInvocationPaymentOptionRef {
+    pub settlement_family: SettlementFamily,
+    pub payload_digest: Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -562,7 +601,7 @@ pub struct QuotePaidInvocationRequest {
 #[serde(deny_unknown_fields)]
 pub struct QuotePaidInvocationAdmission {
     pub invocation: PaidInvocation,
-    pub challenge: PaidInvocationPaymentChallenge,
+    pub payment_options: crate::schema::NonEmptyVec<PaidInvocationPaymentChallenge>,
 }
 
 impl RunxSchema for QuotePaidInvocationAdmission {
@@ -571,8 +610,8 @@ impl RunxSchema for QuotePaidInvocationAdmission {
             vec![
                 Property::new("invocation", PaidInvocation::json_schema(), true),
                 Property::new(
-                    "challenge",
-                    json!({ "$ref": "#/$defs/PaidInvocationPaymentChallenge" }),
+                    "payment_options",
+                    json!({ "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/PaidInvocationPaymentChallenge" } }),
                     true,
                 ),
             ],
@@ -616,7 +655,8 @@ impl RunxSchema for QuotePaidInvocationResult {
             object.insert(
                 "$defs".to_owned(),
                 json!({
-                    "PaidInvocationPaymentChallenge": PaidInvocationPaymentChallenge::json_schema()
+                    "PaidInvocationPaymentChallenge": PaidInvocationPaymentChallenge::json_schema(),
+                    "PaidInvocationPaymentOptionRef": PaidInvocationPaymentOptionRef::json_schema()
                 }),
             );
         }

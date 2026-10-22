@@ -2,4 +2,56 @@ name: invoice-pay-composes-in-graph
 kind: graph
 target: support/composed.graph
 expect:
-  status: policy_denied
+  status: sealed
+caller:
+  approvals:
+    invoice-pay/settle/settle#pay: true
+  provider_responses:
+    principal_id: invoice-pay-fixture
+    grant:
+      grant_id: invoice-pay-fixture
+      provider: wallet/evm
+      scopes:
+        - payment.x402
+        - payment.x402.read
+    operations:
+      - operation: payment.x402
+        target: https://payee.example/v1/invoices/pay
+        access: mutate
+        result:
+          payment_ref: payment_x402_inv_001
+          challenge_id: ch_inv_001
+          amount_minor: 4200
+          currency: USD
+          status: settled
+          transaction: "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          network: eip155:8453
+          payer: "0x0000000000000000000000000000000000000001"
+          pay_to: "0x00000000000000000000000000000000000000a1"
+          invocation_id: invoice-inv-2026-0042
+          payment_required_digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+          payment_response_digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
+          resource_status: 202
+      - operation: payment.x402.read
+        target: https://payee.example/v1/invoices/pay
+        access: read
+        result:
+          payment_ref: payment_x402_inv_001
+          challenge_id: ch_inv_001
+          amount_minor: 4200
+          currency: USD
+          status: settled
+          transaction: "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          network: eip155:8453
+          payer: "0x0000000000000000000000000000000000000001"
+          pay_to: "0x00000000000000000000000000000000000000a1"
+          invocation_id: invoice-inv-2026-0042
+          payment_required_digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+          payment_response_digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
+          resource_status: 200
+          resource_result:
+            invoice_ref: INV-2026-0042
+            state: paid
+          readback_status: complete
+          finality: confirmed
+          block_number: "456"

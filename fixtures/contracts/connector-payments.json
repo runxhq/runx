@@ -1,0 +1,22 @@
+{
+  "pays": {
+    "x402": { "networks": ["eip155:8453"] },
+    "mpp": { "methods": ["stripe"], "currencies": ["USD", "EUR"] },
+    "vendor-method": { "methods": ["bank"], "networks": ["vendor:test"], "currencies": ["AUD"] },
+    "paypal": {}
+  },
+  "cases": [
+    { "name": "retain the existing x402 network declaration", "terms": { "family": "x402", "method": "exact", "network": "eip155:8453", "currency": "USD" }, "expected": true },
+    { "name": "reject another x402 network", "terms": { "family": "x402", "network": "eip155:84532" }, "expected": false },
+    { "name": "an unknown network cannot satisfy a network restriction", "terms": { "family": "x402" }, "expected": false },
+    { "name": "MPP matches the supported method and currency", "terms": { "family": "mpp", "method": "stripe", "currency": "EUR" }, "expected": true },
+    { "name": "MPP does not imply support for every method", "terms": { "family": "mpp", "method": "tempo", "currency": "USD" }, "expected": false },
+    { "name": "unknown MPP method does not satisfy a restriction", "terms": { "family": "mpp", "currency": "USD" }, "expected": false },
+    { "name": "a currency restriction is exact", "terms": { "family": "mpp", "method": "stripe", "currency": "AUD" }, "expected": false },
+    { "name": "unknown currency does not satisfy a restriction", "terms": { "family": "mpp", "method": "stripe" }, "expected": false },
+    { "name": "a third party family needs no runtime provider branch", "terms": { "family": "vendor-method", "method": "bank", "network": "vendor:test", "currency": "AUD" }, "expected": true },
+    { "name": "no family is inferred from another family", "terms": { "family": "stripe-spt", "method": "stripe", "currency": "USD" }, "expected": false },
+    { "name": "a method can have no protocol network constraint", "terms": { "family": "paypal", "currency": "USD" }, "expected": true },
+    { "name": "unknown family is unavailable", "terms": { "family": "unknown" }, "expected": false }
+  ]
+}

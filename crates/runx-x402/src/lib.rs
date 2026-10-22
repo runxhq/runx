@@ -4,11 +4,12 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use runx_contracts::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use runx_contracts::{
-    JsonObject, JsonValue, PaidInvocationPaymentChallenge, RUNX_INVOCATION_EXTENSION_KEY,
-    Reference, RunxX402InvocationExtension, RunxX402InvocationExtensionInfo, SettlementFamily,
-    X402_PROTOCOL_VERSION, X402AcceptedRequirements, X402PaymentPayload, X402PaymentRequired,
-    X402PaymentRequirements, X402ResourceInfo, X402SettleResponse, X402Version2,
-    parse_runx_invocation_extension, runx_invocation_extension_value, sha256_prefixed,
+    JsonObject, JsonValue, PaidInvocationPaymentChallenge, PaidInvocationPaymentMethod,
+    RUNX_INVOCATION_EXTENSION_KEY, Reference, RunxX402InvocationExtension,
+    RunxX402InvocationExtensionInfo, SettlementFamily, X402_PROTOCOL_VERSION,
+    X402AcceptedRequirements, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
+    X402ResourceInfo, X402SettleResponse, X402Version2, parse_runx_invocation_extension,
+    runx_invocation_extension_value, sha256_prefixed,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -116,13 +117,26 @@ pub fn bind_payment_required_challenge(
 
     Ok(PaidInvocationPaymentChallenge {
         settlement_family,
-        protocol_version,
+        protocol_version: Some(protocol_version),
         media_type,
         payload,
         payload_digest,
         quote_ref,
         quote_expires_at,
+        payment_method: payment_method(&payment_required.accepts),
     })
+}
+
+fn payment_method(accepts: &X402AcceptedRequirements) -> Option<PaidInvocationPaymentMethod> {
+    match accepts.as_slice() {
+        [requirement] => Some(PaidInvocationPaymentMethod {
+            method: requirement.scheme.clone(),
+            network: Some(requirement.network.as_str().into()),
+            asset: Some(requirement.asset.clone()),
+            pay_to: Some(requirement.pay_to.clone()),
+        }),
+        _ => None,
+    }
 }
 
 /// Recover and verify the external declaration carried by a rail-neutral
@@ -131,7 +145,11 @@ pub fn payment_required_from_challenge(
     challenge: &PaidInvocationPaymentChallenge,
 ) -> Result<X402PaymentRequired, X402PresentationError> {
     if challenge.settlement_family.as_str() != X402_SETTLEMENT_FAMILY
-        || challenge.protocol_version.as_str() != X402_PROTOCOL_VERSION.to_string()
+        || challenge
+            .protocol_version
+            .as_ref()
+            .map(NonEmptyString::as_str)
+            != Some(X402_PROTOCOL_VERSION.to_string().as_str())
         || challenge.media_type.as_str() != X402_JSON_MEDIA_TYPE
     {
         return Err(X402PresentationError::ChallengeKindMismatch);
@@ -141,11 +159,17 @@ pub fn payment_required_from_challenge(
     if sha256_prefixed(&canonical) != challenge.payload_digest.as_str() {
         return Err(X402PresentationError::ChallengeDigestMismatch);
     }
-    challenge
+    let payload: X402PaymentRequired = challenge
         .payload
         .clone()
         .deserialize_into()
-        .map_err(|_| X402PresentationError::InvalidPayload)
+        .map_err(|_| X402PresentationError::InvalidPayload)?;
+    if let Some(declared) = &challenge.payment_method
+        && Some(declared) != payment_method(&payload.accepts).as_ref()
+    {
+        return Err(X402PresentationError::RequirementMismatch);
+    }
+    Ok(payload)
 }
 
 /// Validate only immutable presentation commitments. This performs no payment

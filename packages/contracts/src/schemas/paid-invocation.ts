@@ -190,15 +190,38 @@ export type PaidInvocationContract = DeepReadonly<{
   updated_at: string;
 }>;
 
+export type PaidInvocationPaymentMethodContract = DeepReadonly<{
+  method: string;
+  network?: string;
+  asset?: string;
+  pay_to?: string;
+}>;
+
 export type PaidInvocationPaymentChallengeContract = DeepReadonly<{
   settlement_family: SettlementFamilyContract;
-  protocol_version: string;
+  protocol_version?: string;
   media_type: string;
   payload: unknown;
   payload_digest: Sha256DigestContract;
   quote_ref: ReferenceContract;
   quote_expires_at: string;
+  payment_method?: PaidInvocationPaymentMethodContract;
 }>;
+
+export type PaidInvocationPaymentOptionRefContract = DeepReadonly<{
+  settlement_family: SettlementFamilyContract;
+  payload_digest: Sha256DigestContract;
+}>;
+
+/** Resolve an exact quoted option; ambiguous or absent identities never select a default. */
+export function selectPaidInvocationPaymentOption(
+  options: readonly PaidInvocationPaymentChallengeContract[],
+  selected: PaidInvocationPaymentOptionRefContract,
+): PaidInvocationPaymentChallengeContract | undefined {
+  const matches = options.filter((option) => option.settlement_family === selected.settlement_family
+    && option.payload_digest === selected.payload_digest);
+  return matches.length === 1 ? matches[0] : undefined;
+}
 
 export type QuotePaidInvocationRequestContract = DeepReadonly<{
   principal: PrincipalReferenceContract;
@@ -232,7 +255,7 @@ export type QuotePaidInvocationResultContract =
       status: "admitted";
       value: {
         invocation: PaidInvocationContract;
-        challenge: PaidInvocationPaymentChallengeContract;
+        payment_options: readonly PaidInvocationPaymentChallengeContract[];
       };
     }>
   | PaidInvocationRefusalContract;
@@ -309,6 +332,9 @@ export const quotePaidInvocationRequestV1Schema =
   generatedSchema<QuotePaidInvocationRequestContract>("quote-paid-invocation-request.schema.json");
 export const quotePaidInvocationResultV1Schema =
   generatedSchema<QuotePaidInvocationResultContract>("quote-paid-invocation-result.schema.json");
+/** Explicit content negotiation for the canonical quote, rather than a rail's wire projection. */
+export const quotePaidInvocationMediaType =
+  `application/json; profile="${quotePaidInvocationResultV1Schema.$id}"`;
 export const executePaidInvocationRequestV1Schema =
   generatedSchema<ExecutePaidInvocationRequestContract>("execute-paid-invocation-request.schema.json");
 export const executePaidInvocationResultV1Schema =
@@ -335,6 +361,13 @@ export const paidInvocationPaymentChallengeSchema =
     quotePaidInvocationResultV1Schema,
     ["$defs", "PaidInvocationPaymentChallenge"],
     "quote_paid_invocation_result.$defs.PaidInvocationPaymentChallenge",
+  );
+
+export const paidInvocationPaymentOptionRefSchema =
+  generatedSchemaAt<PaidInvocationPaymentOptionRefContract>(
+    quotePaidInvocationResultV1Schema,
+    ["$defs", "PaidInvocationPaymentOptionRef"],
+    "quote_paid_invocation_result.$defs.PaidInvocationPaymentOptionRef",
   );
 
 const RUNX_PRINCIPAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
@@ -402,6 +435,10 @@ export function validatePaymentIdempotencyBindingContract(value: unknown, label 
 
 export function validatePaidInvocationPaymentChallengeContract(value: unknown, label = "challenge") {
   return validateContractSchema(paidInvocationPaymentChallengeSchema, value, label);
+}
+
+export function validatePaidInvocationPaymentOptionRefContract(value: unknown, label = "payment_option") {
+  return validateContractSchema(paidInvocationPaymentOptionRefSchema, value, label);
 }
 
 export function validateQuotePaidInvocationRequestContract(value: unknown, label = "request") {

@@ -899,10 +899,10 @@ fn write_graph_receipts(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "agent")]
+    use runx_contracts::ClosureDisposition;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
-
-    use runx_contracts::ClosureDisposition;
 
     use super::*;
 

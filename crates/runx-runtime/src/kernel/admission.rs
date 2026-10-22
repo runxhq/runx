@@ -13,15 +13,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use runx_contracts::connector::{
-    AmountRule, ApprovalFloor, ConnectorOperation, Digest, OperationAccess, OperationName,
-    Placement, TemplateInputs, credential_declaration_digest, stable_digest,
+    ApprovalFloor, ConnectorOperation, Digest, OperationAccess, OperationName, Placement,
+    TemplateInputs, credential_declaration_digest, stable_digest,
 };
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AdmissionCheck, AdmissionReason, AuthorityApproval, AuthorityBounds, AuthorityDerivation,
     AuthorityEvidence, AuthorityEvidenceKind, AuthorityResourceFamily, AuthorityTerm,
-    AuthorityUseLimit, CheckOutcome, ConnectorInstance, JsonObject, JsonValue, OperationIntent,
-    Readiness, Reference, ReferenceType,
+    AuthorityUseLimit, CheckOutcome, ConnectorInstance, JsonObject, JsonValue, OperationAmount,
+    OperationIntent, Readiness, Reference, ReferenceType,
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
@@ -306,7 +306,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // are the caller's errors, refused before any evidence is read.
     let access = operation_spec.access();
     let shape = call_shape(evaluation, operation_spec, &instance);
-    let (target, request_key) = match shape {
+    let (target, request_key, amount) = match shape {
         Ok(shape) => shape,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
@@ -316,7 +316,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         .run_authority
         .and_then(|authority| authority.max_cost_micro);
     let charge = limit
-        .map(|_| spend::charge(operation_spec, call.amount.as_ref()))
+        .map(|_| spend::charge(operation_spec, amount.as_ref()))
         .transpose()
         .map(|charge| charge.filter(|charge| charge.usd_micro > 0));
 
@@ -399,7 +399,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             target: NonEmptyString::from(target.as_str()),
             payload_digest,
             request_key_digest: request_key.as_deref().map(|key| Digest::of(key.as_bytes())),
-            amount: call.amount.clone(),
+            amount,
             approval_digest,
             act_digest,
         };
@@ -1165,7 +1165,7 @@ fn call_shape(
     evaluation: &Evaluation<'_>,
     operation: &ConnectorOperation,
     instance: &ConnectorInstance,
-) -> Result<(String, Option<String>), String> {
+) -> Result<(String, Option<String>, Option<OperationAmount>), String> {
     let call = evaluation.call;
     let access = operation.access();
     input_conforms(operation, &call.input)?;
@@ -1206,15 +1206,20 @@ fn call_shape(
             None
         }
     };
-    match (operation.amount, &call.amount) {
-        (AmountRule::Required, None) => return Err("the operation requires an amount".to_owned()),
-        (AmountRule::None, Some(_)) => return Err("the operation takes no amount".to_owned()),
+    let expected_amount = operation.amount.resolve(&arguments)?;
+    match (&expected_amount, &call.amount) {
+        (None, Some(_)) => return Err("the operation takes no amount".to_owned()),
+        (Some(expected), Some(actual)) if expected != actual => {
+            return Err(
+                "the declared amount must match the operation's bound provider inputs".to_owned(),
+            );
+        }
         _ => {}
     }
     if call.readback_of.is_some() && access != OperationAccess::Read {
         return Err("readback_of applies only to reads".to_owned());
     }
-    Ok((target, request_key))
+    Ok((target, request_key, expected_amount))
 }
 
 /// The call's input against the schema the operation declares. Every bound a

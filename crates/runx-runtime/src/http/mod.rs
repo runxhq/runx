@@ -383,6 +383,7 @@ fn harness_request_body_matches(
         RuntimeHarnessHttpRequestBody::Json(expected) => actual
             .and_then(|body| serde_json::from_str::<runx_contracts::JsonValue>(body).ok())
             .is_some_and(|actual| actual == *expected),
+        RuntimeHarnessHttpRequestBody::Text(expected) => actual == Some(expected.as_str()),
     }
 }
 
@@ -1107,6 +1108,48 @@ mod tests {
         assert_eq!(transport.send(read())?.body, "after");
         // The last answer stands for every later repeat.
         assert_eq!(transport.send(read())?.body, "after");
+        assert!(exchanges.unrequested()?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn harness_text_exchanges_match_the_exact_form_and_refuse_changed_amounts()
+    -> Result<(), RuntimeHttpTestError> {
+        let url = "https://provider.example/payment";
+        let body = "amount=150&currency=usd";
+        let exchanges = HarnessExchanges::new(vec![RuntimeHarnessHttpExchange {
+            method: HttpMethod::Post,
+            url: url.to_owned(),
+            body: RuntimeHarnessHttpRequestBody::Text(body.to_owned()),
+            response: RuntimeHttpResponse::new(200, "confirmed"),
+        }]);
+        for changed in [
+            None,
+            Some("amount=151&currency=usd"),
+            Some("currency=usd&amount=150"),
+        ] {
+            assert!(
+                exchanges
+                    .send(RuntimeHttpRequest {
+                        method: HttpMethod::Post,
+                        url: url.to_owned(),
+                        headers: Vec::new(),
+                        body: changed.map(str::to_owned)
+                    })
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            exchanges
+                .send(RuntimeHttpRequest {
+                    method: HttpMethod::Post,
+                    url: url.to_owned(),
+                    headers: Vec::new(),
+                    body: Some(body.to_owned())
+                })?
+                .body,
+            "confirmed"
+        );
         assert!(exchanges.unrequested()?.is_empty());
         Ok(())
     }

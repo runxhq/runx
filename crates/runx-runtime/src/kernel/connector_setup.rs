@@ -193,11 +193,17 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
             match auth {
                 LocalAuth::None => {}
                 LocalAuth::Session => {
-                    if let Some(session) = super::session::CommandSession::of(manifest) {
+                    let runs = super::session::CommandSession::of(manifest)
+                        .map(|session| session.command_line())
+                        .or_else(|| {
+                            super::session::ManagedCommandSession::of(manifest)
+                                .map(|session| session.command_line())
+                        });
+                    if let Some(runs) = runs {
                         forms.push(SetupForm {
                             command: format!("{use_} --session"),
                             variable: None,
-                            runs: Some(session.command_line()),
+                            runs: Some(runs),
                         });
                     }
                 }
@@ -1003,7 +1009,13 @@ fn command_session(connector: &LoadedConnector) -> bool {
         .auth
         .session
         .as_ref()
-        .is_some_and(|session| session.kind() == runx_contracts::connector::SessionKind::Command)
+        .is_some_and(|session| {
+            matches!(
+                session.kind(),
+                runx_contracts::connector::SessionKind::Command
+                    | runx_contracts::connector::SessionKind::ManagedCommand
+            )
+        })
 }
 
 /// A Connect session left waiting for a credential: a new one sends it.

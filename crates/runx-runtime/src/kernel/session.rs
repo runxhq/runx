@@ -1,4 +1,4 @@
-//! Local sessions that print a token: authority the person already holds in a
+//! Local command sessions: authority the person already holds in a
 //! command-line tool they are signed into, such as `gh`.
 //!
 //! The token is read from the tool when an instance is confirmed and before
@@ -158,6 +158,92 @@ impl<'a> CommandSession<'a> {
         Ok(Principal {
             id: field(self.principal.id.as_str())?,
             login: field(self.principal.login.as_str())?,
+        })
+    }
+}
+
+/// A CLI-owned session. The runtime never reads or stores its bearer material.
+pub(crate) struct ManagedCommandSession<'a> {
+    connector: &'a str,
+    command: &'a [NonEmptyString],
+    id: &'a str,
+    login: &'a str,
+}
+
+impl<'a> ManagedCommandSession<'a> {
+    pub(crate) fn of(manifest: &'a ConnectorManifest) -> Option<Self> {
+        let SessionAuth::ManagedCommand { command, id, login } = manifest.auth.session.as_ref()?
+        else {
+            return None;
+        };
+        Some(Self {
+            connector: manifest.id.as_str(),
+            command,
+            id: id.as_str(),
+            login: login.as_str(),
+        })
+    }
+
+    pub(crate) fn command_line(&self) -> String {
+        self.command
+            .iter()
+            .map(NonEmptyString::as_str)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    pub(crate) fn principal(
+        &self,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<Principal, String> {
+        let (program, args) = self
+            .command
+            .split_first()
+            .ok_or("the session command is empty")?;
+        let outcome = run_process(
+            ProcessSpec::new("session principal", program.as_str(), TOKEN_OUTPUT_BYTES)
+                .args(
+                    args.iter()
+                        .map(|argument| argument.as_str().to_owned())
+                        .collect(),
+                )
+                .cwd(
+                    crate::RunxPaths::resolve(env, cwd)
+                        .workspace()
+                        .to_path_buf(),
+                )
+                .env(
+                    crate::process_invocation::process_base_environment(env)
+                        .map_err(|error| error.to_string())?,
+                )
+                .timeout(Some(TOKEN_TIMEOUT)),
+        )
+        .map_err(|_| format!("{}'s session account probe could not run", self.connector))?;
+        if outcome.timed_out || !outcome.status.success() || outcome.stdout.truncated {
+            return Err(format!(
+                "{}'s session account probe failed; sign in to its CLI and retry",
+                self.connector
+            ));
+        }
+        let value: JsonValue = serde_json::from_slice(&outcome.stdout.bytes)
+            .map_err(|_| "the session account probe did not return public JSON".to_owned())?;
+        let field = |path: &str| {
+            super::operation::confirm::at_path(&value, path)
+                .and_then(JsonValue::as_str)
+                .filter(|value| {
+                    !value.trim().is_empty()
+                        && value.len() <= 200
+                        && !value.chars().any(char::is_control)
+                })
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    format!("the session account probe has no bounded identity at {path}")
+                })
+        };
+        Ok(Principal {
+            id: field(self.id)?,
+            login: field(self.login)?,
         })
     }
 }

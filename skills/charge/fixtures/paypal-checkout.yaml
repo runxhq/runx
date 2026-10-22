@@ -1,0 +1,78 @@
+kind: skill
+target: ..
+runner: checkout
+setup:
+  credentials:
+    - paypal
+env:
+  PAYPAL_CLIENT_CREDENTIALS: '{"client_id":"fixture-app","client_secret":"fixture-secret"}'
+inputs:
+  request:
+    api_host: api-m.sandbox.paypal.com
+    account_id: YXZY75W2GKDQE
+    amount_decimal: "1.50"
+    currency: USD
+    precision: 2
+    reference: invoice-42
+    return_url: https://northstar.example/payments/return
+    cancel_url: https://northstar.example/payments/cancel
+  idempotency_seed: northstar-checkout-42
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - pay
+      - refund
+    request: Collect the buyer-approved Northstar PayPal order.
+    expected_outcome: Approve the exact sandbox account and terms, capture once and independently
+      confirm both original order and capture.
+name: charge-paypal-checkout-is-not-payment
+caller:
+  approvals:
+    checkout: true
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api-m.sandbox.paypal.com/v1/oauth2/token
+        body:
+          text: grant_type=client_credentials
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"access_token":"fixture-private-token","token_type":"Bearer","expires_in":60}'
+    - request:
+        method: POST
+        url: https://api-m.sandbox.paypal.com/v2/checkout/orders
+        body:
+          json:
+            intent: CAPTURE
+            purchase_units:
+              - reference_id: invoice-42
+                custom_id: d55d9bc3-5aa5-4ddb-8c30-04e370d5721a
+                payee:
+                  merchant_id: YXZY75W2GKDQE
+                amount:
+                  value: "1.50"
+                  currency_code: USD
+            payment_source:
+              paypal:
+                experience_context:
+                  return_url: https://northstar.example/payments/return
+                  cancel_url: https://northstar.example/payments/cancel
+                  user_action: PAY_NOW
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"ORDER42"}'
+    - request:
+        method: GET
+        url: https://api-m.sandbox.paypal.com/v2/checkout/orders/ORDER42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"ORDER42","status":"PAYER_ACTION_REQUIRED","intent":"CAPTURE","purchase_units":[{"reference_id":"invoice-42","payee":{"merchant_id":"YXZY75W2GKDQE"},"amount":{"value":"1.50","currency_code":"USD"}}],"links":[{"rel":"payer-action","href":"https://www.sandbox.paypal.com/checkoutnow?token=ORDER42","method":"GET"}]}'
+expect:
+  status: sealed

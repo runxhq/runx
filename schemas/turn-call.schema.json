@@ -1347,6 +1347,10 @@
                                 {
                                   "additionalProperties": false,
                                   "properties": {
+                                    "choice": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
                                     "connector": {
                                       "minLength": 1,
                                       "type": "string"
@@ -1359,6 +1363,26 @@
                                       "const": "grant",
                                       "type": "string"
                                     },
+                                    "option": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "payload_digest": {
+                                          "pattern": "^sha256:[0-9a-f]{64}$",
+                                          "type": "string"
+                                        },
+                                        "settlement_family": {
+                                          "maxLength": 64,
+                                          "minLength": 1,
+                                          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "settlement_family",
+                                        "payload_digest"
+                                      ],
+                                      "type": "object"
+                                    },
                                     "total_minor": {
                                       "maximum": 9007199254740991,
                                       "minimum": 1,
@@ -1367,9 +1391,11 @@
                                   },
                                   "required": [
                                     "kind",
+                                    "choice",
                                     "instance_id",
                                     "connector",
-                                    "total_minor"
+                                    "total_minor",
+                                    "option"
                                   ],
                                   "type": "object"
                                 }
@@ -1420,10 +1446,6 @@
                           "quote": {
                             "additionalProperties": false,
                             "properties": {
-                              "asset": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
                               "expires_at": {
                                 "minLength": 1,
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
@@ -1433,21 +1455,149 @@
                                 "minLength": 1,
                                 "type": "string"
                               },
-                              "network": {
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "pay_to": {
-                                "minLength": 1,
-                                "type": "string"
+                              "payment_options": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expires_at": {
+                                      "minLength": 1,
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                      "type": "string"
+                                    },
+                                    "option": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "payload_digest": {
+                                          "pattern": "^sha256:[0-9a-f]{64}$",
+                                          "type": "string"
+                                        },
+                                        "settlement_family": {
+                                          "maxLength": 64,
+                                          "minLength": 1,
+                                          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "settlement_family",
+                                        "payload_digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "payment_method": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "asset": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "method": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "network": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "pay_to": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "method"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "quote_ref": {
+                                      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "label": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "locator": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "observed_at": {
+                                          "minLength": 1,
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                                          "type": "string"
+                                        },
+                                        "proof_kind": {
+                                          "enum": [
+                                            "effect_evidence",
+                                            "effect_finality",
+                                            "credential_resolution"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "provider": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "type": {
+                                          "enum": [
+                                            "thread",
+                                            "comment",
+                                            "event",
+                                            "tracking_item",
+                                            "change_request",
+                                            "repository",
+                                            "signal",
+                                            "run",
+                                            "act",
+                                            "receipt",
+                                            "artifact",
+                                            "verification",
+                                            "harness",
+                                            "host",
+                                            "surface",
+                                            "target",
+                                            "skill_binding",
+                                            "principal",
+                                            "scope_admission",
+                                            "grant",
+                                            "mandate",
+                                            "credential",
+                                            "webhook_delivery",
+                                            "redaction_policy",
+                                            "external_url",
+                                            "connector_instance",
+                                            "connector_operation"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "uri": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "uri"
+                                      ],
+                                      "type": "object",
+                                      "x-runx-schema": "runx.reference.v1"
+                                    }
+                                  },
+                                  "required": [
+                                    "option",
+                                    "expires_at",
+                                    "quote_ref"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               }
                             },
                             "required": [
                               "invocation_id",
                               "expires_at",
-                              "network",
-                              "asset",
-                              "pay_to"
+                              "payment_options"
                             ],
                             "type": "object"
                           },

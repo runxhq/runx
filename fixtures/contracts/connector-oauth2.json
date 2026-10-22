@@ -1,0 +1,237 @@
+{
+  "credential": {
+    "client_id": "app:id +",
+    "client_secret": "private:secret +"
+  },
+  "presentation": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://auth.example.test/token",
+    "client_id": "client_id",
+    "client_secret": "client_secret",
+    "scope": "payments.read payments.write"
+  },
+  "request": {
+    "method": "POST",
+    "url": "https://auth.example.test/token",
+    "body": "grant_type=client_credentials&scope=payments.read+payments.write",
+    "basic_plaintext": "app%3Aid+%2B:private%3Asecret+%2B"
+  },
+  "cases": [
+    {
+      "name": "bearer",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "Bearer",
+        "expires_in": 3600
+      },
+      "accept": true
+    },
+    {
+      "name": "case insensitive bearer",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "bearer",
+        "expires_in": 1
+      },
+      "accept": true
+    },
+    {
+      "name": "missing expiry",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "Bearer"
+      },
+      "accept": false
+    },
+    {
+      "name": "zero expiry",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "Bearer",
+        "expires_in": 0
+      },
+      "accept": false
+    },
+    {
+      "name": "wrong token kind",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "MAC",
+        "expires_in": 3600
+      },
+      "accept": false
+    },
+    {
+      "name": "header injection",
+      "status": 200,
+      "body": {
+        "access_token": "private-access-token\r\nx-other: value",
+        "token_type": "Bearer",
+        "expires_in": 3600
+      },
+      "accept": false
+    },
+    {
+      "name": "empty token",
+      "status": 200,
+      "body": {
+        "access_token": "",
+        "token_type": "Bearer",
+        "expires_in": 3600
+      },
+      "accept": false
+    },
+    {
+      "name": "refused",
+      "status": 401,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "Bearer",
+        "expires_in": 3600
+      },
+      "accept": false
+    },
+    {
+      "name": "redirect",
+      "status": 302,
+      "body": {
+        "access_token": "private-access-token",
+        "token_type": "Bearer",
+        "expires_in": 3600
+      },
+      "accept": false
+    }
+  ],
+  "endpoint_cases": [
+    {
+      "name": "literal",
+      "template": "https://auth.example.test/token",
+      "expected": "https://auth.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "live",
+      "template": {
+        "$concat": [
+          {
+            "$argument": "/base"
+          },
+          "/token"
+        ]
+      },
+      "arguments": {
+        "base": "https://auth.example.test"
+      },
+      "expected": "https://auth.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "sandbox",
+      "template": {
+        "$concat": [
+          {
+            "$argument": "/base"
+          },
+          "/token"
+        ]
+      },
+      "arguments": {
+        "base": "https://auth.sandbox.example.test"
+      },
+      "expected": "https://auth.sandbox.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "local instance parameter",
+      "template": {
+        "$parameter": "/token_url"
+      },
+      "parameters": {
+        "token_url": "https://auth.example.test/token"
+      },
+      "expected": "https://auth.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "missing argument",
+      "template": {
+        "$concat": [
+          {
+            "$argument": "/base"
+          },
+          "/token"
+        ]
+      },
+      "arguments": {},
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "unadmitted host",
+      "template": "https://other.example/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "userinfo",
+      "template": "https://client:secret@auth.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "query",
+      "template": "https://auth.example.test/token?secret=value",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "fragment",
+      "template": "https://auth.example.test/token#key",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "custom port",
+      "template": "https://auth.example.test:8443/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    },
+    {
+      "name": "plaintext",
+      "template": "http://auth.example.test/token",
+      "allowed_hosts": [
+        "auth.example.test",
+        "auth.sandbox.example.test"
+      ]
+    }
+  ]
+}

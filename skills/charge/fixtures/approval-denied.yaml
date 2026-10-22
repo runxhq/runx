@@ -1,0 +1,54 @@
+name: charge-approval-denied
+kind: skill
+target: ..
+runner: charge
+operator_journeys:
+  - mode: refusal
+    request: Do not collect the payment.
+    expected_outcome: Refuse before calling the merchant provider.
+inputs:
+  connector: coinbase/cdp
+  request:
+    resource: https://seller.example/v1/reports/launch
+    amount_minor: 125
+    currency: USD
+    payment_payload:
+      x402Version: 2
+      accepted:
+        scheme: exact
+        network: eip155:8453
+        amount: "1250000"
+        payTo: "0x0000000000000000000000000000000000000002"
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        maxTimeoutSeconds: 300
+      resource:
+        url: https://seller.example/v1/reports/launch
+      payload:
+        signature: 0xsigned
+        authorization:
+          from: "0x0000000000000000000000000000000000000001"
+          to: "0x0000000000000000000000000000000000000002"
+          value: "1250000"
+    payment_requirements:
+      scheme: exact
+      network: eip155:8453
+      amount: "1250000"
+      payTo: "0x0000000000000000000000000000000000000002"
+      asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      maxTimeoutSeconds: 300
+    request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  idempotency_seed: charge-test-0000001
+caller:
+  approvals:
+    settle: false
+  provider_responses:
+    principal_id: charge-fixture
+    grant:
+      grant_id: charge-fixture
+      provider: coinbase/cdp
+      scopes:
+        - payment.x402.merchant.read
+        - payment.x402.merchant.write
+    operations: []
+expect:
+  status: policy_denied

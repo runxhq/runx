@@ -24,11 +24,14 @@ operations:
   payment.x402:
     description: Pay the x402 challenge of one HTTPS resource and return the paid result.
     verb: write
+    approval: required
     scopes: [payment.x402]
     target:
       template: {"$argument": "/payment_signal/resource/url"}
     guarantees:
       provider_idempotency: enforced
-    amount: required
+    amount:
+      units: {"$argument": "/payment_signal/amount_minor"}
+      currency: {"$argument": "/parent_payment_authority/currency"}
     result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, invocation_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number]
     hosted: {}
