@@ -415,15 +415,11 @@ fn flag_value<'a>(contents: &'a str, flag: &str) -> Result<&'a str, Box<dyn std:
 }
 
 #[test]
-fn explicit_ref_exports_runx_maintained_source_skill() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = ExportFixture::new("runx-export-runx-maintained-ref")?;
-    let runx_maintained_root =
-        fixture.write_runx_maintained_skill_with_runner_inputs("code-plan")?;
+fn a_skill_in_a_skill_root_exports_by_its_name() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-skill-root-ref")?;
+    let skill_root = fixture.write_skill_root_skill_with_runner_inputs("code-plan")?;
     let mut env = fixture.env.clone();
-    env.insert(
-        "RUNX_SKILL_ROOTS".to_owned(),
-        path_string(&runx_maintained_root)?,
-    );
+    env.insert("RUNX_SKILL_ROOTS".to_owned(), path_string(&skill_root)?);
 
     let report = run_export_command(
         &ExportPlan {
@@ -816,7 +812,7 @@ impl ExportFixture {
         Ok(())
     }
 
-    fn write_runx_maintained_skill_with_runner_inputs(
+    fn write_skill_root_skill_with_runner_inputs(
         &self,
         name: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {

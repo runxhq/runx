@@ -325,12 +325,10 @@ pub struct ConnectorScope {
     /// The connectors runx added to the project (`RunxPaths::added_connectors`),
     /// whose versions (`<name>/<version>/`) are read only for a connector named
     /// exactly: by a requirement's manifest pin, an operator's `name@version`,
-    /// or an operator naming a connector of which one version is installed.
+    /// or an operator naming a connector of which one version is installed. A
+    /// runtime capability is seeded into it and read back from it (core-shape
+    /// §6.5). None for a bundle.
     installed: Option<PathBuf>,
-    /// The same directory, which a runtime capability is seeded into and read
-    /// back from (core-shape §6.5). None for the runx-maintained source plugin
-    /// itself and for a bundle.
-    seeds: Option<PathBuf>,
 }
 
 /// A plugin's connectors, by name. A source plugin's are each read when
@@ -414,20 +412,14 @@ impl ConnectorScope {
     /// (core-shape §6.5): those of [`Self::at`], and the versions runx added
     /// to the project, into which it seeds the runtime capabilities it
     /// resolves. A skill runx added to the project directory has no plugin of
-    /// its own: its plugin is the project's, the user's connectors. The
-    /// runx-maintained source project is those connectors' source, so nothing
-    /// is seeded for it. A bundled package stays isolated: it carries every
-    /// connector it binds.
+    /// its own: its plugin is the project's, the user's connectors. A bundled
+    /// package stays isolated: it carries every connector it binds.
     pub fn in_project(dir: &Path, paths: &RunxPaths) -> Result<Self, ConnectorRegistryError> {
         let mut scope = Self::scoped(dir, Some(paths))?;
         if scope.isolated() {
             return Ok(scope);
         }
-        let added = paths.added_connectors();
-        scope.seeds = runx_maintained_source(&added)
-            .is_none()
-            .then(|| added.clone());
-        scope.installed = Some(added);
+        scope.installed = Some(paths.added_connectors());
         Ok(scope)
     }
 
@@ -501,7 +493,6 @@ impl ConnectorScope {
                 })),
                 searched: Some(dir),
                 installed: None,
-                seeds: None,
             });
         }
         // A skill runx added to the project directory has the project's plugin.
@@ -524,7 +515,6 @@ impl ConnectorScope {
             plugin,
             searched: Some(dir),
             installed: None,
-            seeds: None,
         })
     }
 
@@ -536,7 +526,7 @@ impl ConnectorScope {
         &self,
         connector: &Arc<LoadedConnector>,
     ) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
-        let Some(root) = &self.seeds else {
+        let Some(root) = &self.installed else {
             return Ok(Arc::clone(connector));
         };
         let directory =
@@ -785,7 +775,6 @@ impl ConnectorScope {
             plugin: None,
             searched: None,
             installed: None,
-            seeds: None,
         })
     }
 
@@ -1150,19 +1139,6 @@ pub(crate) fn embedded_asset(connector: &LoadedConnector, path: &str) -> Option<
         .iter()
         .find(|(id, file, _)| *id == connector.manifest.id.as_str() && *file == path)
         .map(|(_, _, document)| document.as_bytes())
-}
-
-/// The lock of the runx-maintained skills, which only their source tree holds.
-pub(crate) const RUNX_MAINTAINED_LOCK: &str = "skills/runx-maintained.lock.json";
-
-/// The runx-maintained source tree `dir` lies in: the nearest ancestor
-/// holding the runx-maintained skill lock. Its own skills and connectors are
-/// the runx-maintained ones, so nothing is seeded into it.
-#[must_use]
-pub fn runx_maintained_source(dir: &Path) -> Option<PathBuf> {
-    dir.ancestors()
-        .find(|ancestor| ancestor.join(RUNX_MAINTAINED_LOCK).is_file())
-        .map(Path::to_path_buf)
 }
 
 /// A manifest's text, refused past 256 KiB.

@@ -181,12 +181,8 @@ operations:
 fn files_beside_a_plugins_connectors_are_not_connectors() {
     let root = tempfile::tempdir().unwrap();
     write_plugin_connector(&root.path().join("connectors"), "acme-weather");
-    // A lock, a readme and a desktop file beside the connector directories.
-    std::fs::write(
-        root.path().join("connectors/runx-maintained.lock.json"),
-        "{}",
-    )
-    .unwrap();
+    // A data file, a readme and a desktop file beside the connector directories.
+    std::fs::write(root.path().join("connectors/taxonomy.json"), "{}").unwrap();
     std::fs::write(root.path().join("connectors/README.md"), "# Connectors\n").unwrap();
     std::fs::write(root.path().join("connectors/.DS_Store"), [0u8; 8]).unwrap();
     let scope = ConnectorScope::at(&root.path().join("connectors/acme-weather")).unwrap();
