@@ -85,7 +85,11 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
     let unnamed = write_with(serde_json::json!({}), WorkspaceBounds::Agent)
         .err()
         .unwrap_or_default();
-    assert!(unnamed.contains("expected_digest"), "{unnamed}");
+    // A change that names no digest is told so, and what to name.
+    assert!(
+        unnamed.contains("names no expected_digest") && unnamed.contains("content_digest"),
+        "{unnamed}"
+    );
     let stale = write_with(
         serde_json::json!({"expected_digest": digest("other\n")}),
         WorkspaceBounds::Agent,

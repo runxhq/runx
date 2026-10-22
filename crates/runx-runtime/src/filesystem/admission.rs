@@ -55,7 +55,7 @@ fn admit_expected(
         )),
         (Some(super::Expected::Absent), None) | (None, None) => Ok(()),
         (None, Some(_)) if bounds == WorkspaceBounds::Agent => refused(format!(
-            "{named} exists: an agent's change names the expected_digest of the content it read"
+            "{named} exists and this change names no expected_digest: read it, then name the content_digest the read returned"
         )),
         (None, Some(_)) => Ok(()),
     }
