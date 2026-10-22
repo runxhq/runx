@@ -28,8 +28,8 @@
     }
   },
   "dependencies": {
-    "@langchain/core": "^1.2.10",
-    "zod": "^4.6.1",
+    "@langchain/core": "^1.2.18",
+    "zod": "^4.6.7",
     "@runxhq/client": "workspace:^"
   }
 }
