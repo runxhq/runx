@@ -1,0 +1,49 @@
+name: refund-stripe-refuse-wrong-currency
+kind: skill
+target: ..
+runner: refund
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - charge
+      - pay
+    request: Refund one dollar of this original Northstar collection.
+    expected_outcome: Approve the exact outgoing amount and independently confirm its original account,
+      payment and currency.
+setup:
+  credentials:
+    - stripe
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+inputs:
+  connector: stripe
+  request:
+    account_id: acct_northstar
+    payment_ref: pi_northstar
+    amount_minor: 100
+    currency: usd
+  idempotency_seed: northstar-refund-42
+caller:
+  approvals:
+    stripe: true
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/payment_intents/pi_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"pi_northstar","amount":150,"amount_received":150,"currency":"eur","status":"succeeded","latest_charge":"ch_northstar"}'
+expect:
+  status: failure

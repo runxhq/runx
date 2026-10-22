@@ -1,0 +1,42 @@
+name: refund-denied-approval
+kind: skill
+target: ..
+runner: refund
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - charge
+      - pay
+    request: Refund this settled charge.
+    expected_outcome: Use the original merchant account and payment, approve the exact refund and
+      independently confirm settlement.
+  - mode: composed
+    request: Continue this admitted refund.
+    expected_outcome: Reuse the supplied payment reference and refund idempotency evidence.
+    prior_evidence:
+      - The settled payment reference supplied by the caller.
+    must_not_repeat:
+      - Do not refund a second time under a new identity.
+inputs:
+  connector: coinbase/cdp
+  request:
+    resource: https://seller.example/v1/reports/launch
+    payment_ref: x402pay_test_001
+    amount_minor: 125
+    currency: USD
+    reason: The report was not delivered.
+  idempotency_seed: refund-test-0000001
+caller:
+  approvals:
+    refund: false
+  provider_responses:
+    principal_id: refund-fixture
+    grant:
+      grant_id: refund-fixture
+      provider: coinbase/cdp
+      scopes:
+        - payment.x402.merchant.read
+        - payment.x402.merchant.write
+    operations: []
+expect:
+  status: policy_denied

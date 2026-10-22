@@ -1,0 +1,41 @@
+name: invoice-pay-refuse-payee
+kind: skill
+target: ..
+runner: invoice-pay
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - pay
+      - purchase-policy-check
+    request: Pay this invoice.
+    expected_outcome: Check the invoice against the authority and pay it through pay with resource readback.
+  - mode: composed
+    request: Continue settling this admitted invoice.
+    expected_outcome: Reuse the supplied invoice, authority and retry identity.
+    prior_evidence:
+      - The invoice and payment authority supplied by the caller.
+    must_not_repeat:
+      - Do not pay the invoice a second time under a new identity.
+inputs:
+  invoice_ref: INV-2026-0042
+  amount_minor: 4200
+  currency: USD
+  payee:
+    payment_url: https://other.example/invoice
+  parent_payment_authority:
+    term_id: invoice-authority-1
+    currency: USD
+    max_amount_minor: 5000
+    counterparty: https://payee.example/v1/invoices/pay
+  idempotency_seed: invoice-pay-test-0042
+  connector: wallet/evm
+  request:
+    resource:
+      url: https://payee.example/v1/invoices/pay
+      method: POST
+      body:
+        invoice_ref: INV-2026-0042
+    amount_minor: 4200
+    pay_to: "0x00000000000000000000000000000000000000a1"
+expect:
+  status: failure

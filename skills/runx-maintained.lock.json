@@ -25,9 +25,9 @@
   },
   {
     "skill_id": "runx/charge",
-    "version": "sha-a3abd2aed17d",
-    "digest": "b3c8fc154ef057879933a32ef8ed465d932b819c69d736c5cd1785301dc9f480",
-    "content_digest": "sha256:a3abd2aed17d9373b9b2988c8ca2af9a399d4009b623bb4b070c5ae53513a608",
+    "version": "sha-e04e6b88ad00",
+    "digest": "02799976a42c10854f35caeb33f72be0e5d5be704f250bd7be58aafbf734784d",
+    "content_digest": "sha256:e04e6b88ad00c118e95a5bd1149eb26967ac3f7ff56ea3467fdade9f9286b95d",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -193,9 +193,9 @@
   },
   {
     "skill_id": "runx/invoice-pay",
-    "version": "sha-e8087ccf966c",
-    "digest": "3c38cf38cb8d7c98a82976c6440d7f3a8fa89dc65b61c6251410286f5916022e",
-    "content_digest": "sha256:e8087ccf966c6203debb0ccd7b2d826a639c6f95e973d04bc49e6ea4245003db",
+    "version": "sha-282fd754f482",
+    "digest": "a9cd73e3963f0d4b558799a23898efd0c584256d5d0caa68837f75ff334db0f1",
+    "content_digest": "sha256:282fd754f482ddeeb600f21bd91de49396f379042c77d20634fcb1bfb90d179c",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -281,9 +281,9 @@
   },
   {
     "skill_id": "runx/pay",
-    "version": "sha-1c2106ddd34e",
-    "digest": "fcc45ac5f7ab1cdd51977b8879c33b4f5df3ad1bf255973cbbd44e1774ae0224",
-    "content_digest": "sha256:1c2106ddd34e39a73af598962ee5e24ebd61479e1b1818d01a6a79671931e0ce",
+    "version": "sha-0d9098c6a568",
+    "digest": "57c46274d978612d1f8a2051e853b222b044140565e81051f64e470a5ee249bd",
+    "content_digest": "sha256:0d9098c6a568e800f6e28dfeec1900ec81d2d1e79f902bf54c06f23461440609",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },
@@ -369,9 +369,9 @@
   },
   {
     "skill_id": "runx/refund",
-    "version": "sha-fe8f81604a61",
-    "digest": "35facc8c0e2f960985913c9d6146bc121c61be1771ff6c7bbca3cc94e9bc4d1b",
-    "content_digest": "sha256:282f0d70c078176ed0f8093530b20d95eb404182548dfb62bb6070885ff17e4a",
+    "version": "sha-e20432e69fe8",
+    "digest": "eaf626cd2b5144283a028e0ed867f2f2f1f329df1da503856983d35256ec8330",
+    "content_digest": "sha256:e20432e69fe80de81bedd8e024013cf62b5ca4cea526e4d312d610c5136b30cd",
     "catalog_visibility": "public",
     "catalog_role": "canonical"
   },

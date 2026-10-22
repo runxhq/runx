@@ -62,6 +62,17 @@ pub(crate) struct HostedSession {
 }
 
 impl HostedSession {
+    /// The same account on the same service, independent of token refresh.
+    pub(crate) fn identity_binding(&self) -> String {
+        runx_contracts::sha256_prefixed(
+            format!(
+                "runx:hosted-account:v1\0{}\0{}",
+                self.environment.base_url(),
+                self.principal_ref
+            )
+            .as_bytes(),
+        )
+    }
     /// One runx Connect request as the session's principal.
     pub(crate) fn connect(
         &self,
@@ -83,6 +94,7 @@ impl HostedSession {
         path: &str,
         body: Option<String>,
         idempotency_key: Option<&str>,
+        accept: &str,
     ) -> Result<crate::http::RuntimeHttpResponse, crate::http::RuntimeHttpError> {
         crate::hosted_api::request::exchange(
             self.transport.as_ref(),
@@ -92,6 +104,7 @@ impl HostedSession {
             path,
             body,
             idempotency_key,
+            accept,
         )
     }
 

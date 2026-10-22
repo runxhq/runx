@@ -286,6 +286,18 @@ describe("x402 v2 TypeScript facade", () => {
       "2026-08-24T10:00:00Z",
     );
     expect(x402PaymentRequiredFromChallenge(challenge)).toBe(official);
+    expect(challenge.payment_method).toEqual({
+      method: official.accepts[0]!.scheme,
+      network: official.accepts[0]!.network,
+      asset: official.accepts[0]!.asset,
+      pay_to: official.accepts[0]!.payTo,
+    });
+    for (const field of ["method", "network", "asset", "pay_to"] as const) {
+      expect(presentationErrorCode(() => x402PaymentRequiredFromChallenge({
+        ...challenge,
+        payment_method: { ...challenge.payment_method!, [field]: "altered" },
+      }))).toBe("requirement_mismatch");
+    }
 
     expect(presentationErrorCode(() => x402PaymentRequiredFromChallenge({
       ...challenge,

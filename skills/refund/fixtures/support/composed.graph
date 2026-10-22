@@ -4,11 +4,13 @@ steps:
     skill: ../..
     runner: refund
     inputs:
-      resource: https://seller.example/v1/reports/launch
-      payment_ref: x402pay_test_001
-      amount_minor: 125
-      currency: USD
-      reason: The report was not delivered.
+      connector: coinbase/cdp
+      request:
+        resource: https://seller.example/v1/reports/launch
+        payment_ref: x402pay_test_001
+        amount_minor: 125
+        currency: USD
+        reason: The report was not delivered.
       idempotency_seed: refund-test-0000001
   - id: digest
     tool: data.digest

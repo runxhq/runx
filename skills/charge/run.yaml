@@ -1,73 +1,319 @@
 skill: charge
-version: "0.7.1"
-catalog: { kind: graph, audience: operator, visibility: public, role: canonical, execution: execute, completion: provider_readback, approval: required, category: payments }
+version: 0.7.2
+catalog:
+  kind: graph
+  audience: operator
+  visibility: public
+  role: canonical
+  execution: execute
+  completion: provider_readback
+  approval: required
+  category: payments
 input_definitions:
   resource:
     type: string
     required: true
     description: Exact HTTPS resource the payment buys.
-    schema: { format: uri, pattern: '^https://', maxLength: 2000 }
+    schema:
+      format: uri
+      pattern: ^https://
+      maxLength: 2000
   amount_minor:
     type: integer
     required: true
     description: Price in the currency's minor units.
-    schema: { minimum: 1, maximum: 9007199254740991 }
+    schema:
+      minimum: 1
+      maximum: 9007199254740991
   currency:
     type: string
     required: true
     description: ISO 4217 code of the price.
-    schema: { pattern: '^[A-Z]{3}$' }
+    schema:
+      pattern: ^[A-Z]{3}$
 connectors:
   coinbase/cdp:
-    operations: [payment.x402.merchant.quote, payment.x402.merchant.settle, payment.x402.merchant.read]
+    operations:
+      - payment.x402.merchant.quote
+      - payment.x402.merchant.settle
+      - payment.x402.merchant.read
+  paypal:
+    operations:
+      - payment.paypal
+      - payment.paypal.order.create
+  stripe:
+    operations:
+      - payment.stripe
 runners:
   charge:
-    description: Verify and settle one buyer's x402 payment against the quote it answers, then read the settlement back.
+    description: Collect one exact payment on the explicitly selected merchant connector, requiring
+      native approval and independently checked provider evidence.
     default: true
     inputs:
-      resource: { definition: resource }
-      amount_minor: { definition: amount_minor }
-      currency: { definition: currency }
-      payment_payload: { type: json, required: true, description: "The buyer's x402 payment payload, exactly as it arrived." }
-      payment_requirements: { type: json, required: true, description: The quoted payment requirements the payload answers. }
-      request_binding_digest: { type: string, required: true, description: Digest binding the paid request to this settlement., schema: { pattern: '^sha256:[0-9a-f]{64}$' } }
-      idempotency_seed: { type: string, required: true, description: Stable caller-owned idempotency material., schema: { minLength: 16, maxLength: 200 } }
-    result_from: [readback]
+      connector:
+        type: string
+        required: true
+        description: The merchant connector whose selected account receives the payment.
+        schema:
+          enum:
+            - stripe
+            - paypal
+            - coinbase/cdp
+      request:
+        type: json
+        required: true
+        description: Exact public arguments of the selected connector operation. Run `runx connector inspect
+          <connector>` for its owning input_schema. Supply identifiers and terms, never provider
+          keys, card data, SPTs or bearer credentials.
+      idempotency_seed:
+        type: string
+        required: true
+        description: Stable caller-owned key for this unchanged payment or checkout.
+        schema:
+          minLength: 16
+          maxLength: 200
+    examples:
+      - connector: stripe
+        request:
+          account_id: acct_northstar
+          amount_minor: 150
+          currency: usd
+          payment_method_ref: pm_northstar
+          reference: invoice-42
+        idempotency_seed: northstar-invoice-42
+      - connector: paypal
+        request:
+          api_host: api-m.sandbox.paypal.com
+          account_id: YXZY75W2GKDQE
+          order_ref: ORDER42
+          amount_decimal: "1.50"
+          currency: USD
+          precision: 2
+          reference: invoice-42
+        idempotency_seed: northstar-invoice-42
+      - connector: coinbase/cdp
+        request:
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          payment_payload:
+            x402Version: 2
+            accepted:
+              scheme: exact
+              network: eip155:8453
+              amount: "1250000"
+              payTo: "0x0000000000000000000000000000000000000002"
+              asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+              maxTimeoutSeconds: 300
+            resource:
+              url: https://seller.example/v1/reports/launch
+            payload:
+              signature: 0xsigned
+              authorization:
+                from: "0x0000000000000000000000000000000000000001"
+                to: "0x0000000000000000000000000000000000000002"
+                value: "1250000"
+          payment_requirements:
+            scheme: exact
+            network: eip155:8453
+            amount: "1250000"
+            payTo: "0x0000000000000000000000000000000000000002"
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+            maxTimeoutSeconds: 300
+          request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+        idempotency_seed: northstar-resource-42
+    result_from:
+      - stripe
+      - paypal
+      - readback
     steps:
+      - id: stripe
+        when:
+          value: $input.connector
+          equals: stripe
+        operation: stripe/payment.stripe
+        input: $input.request
+        idempotency_key: $input.idempotency_seed
+        approval:
+          reason: Approve collecting this exact payment on the selected merchant account.
+          type: payment_charge
+        result_fields:
+          - payment_ref
+          - amount_minor
+          - amount_received
+          - currency
+          - status
+          - charge_ref
+          - reference
+        expected_result:
+          status: succeeded
+      - id: paypal
+        when:
+          value: $input.connector
+          equals: paypal
+        operation: paypal/payment.paypal
+        input: $input.request
+        idempotency_key: $input.idempotency_seed
+        approval:
+          reason: Approve capturing this exact buyer-approved order on the selected merchant account.
+          type: payment_charge
+        result_fields:
+          - payment_ref
+          - order_ref
+          - account_id
+          - amount_decimal
+          - currency
+          - status
+          - reference
+        expected_result:
+          status: COMPLETED
       - id: settle
         operation: coinbase/cdp/payment.x402.merchant.settle
         idempotency_key: $input.idempotency_seed
         approval:
           reason: Approve settling this exact payment before the paid resource is released.
           type: payment_charge
-        result_fields: [payment_ref, resource, amount_minor, currency, status, settlement_ref, payer, pay_to, network, asset, settled_at]
-        input: { request_binding_digest: $input.request_binding_digest, resource: $input.resource, amount_minor: $input.amount_minor, currency: $input.currency, payment_payload: $input.payment_payload, payment_requirements: $input.payment_requirements }
+        result_fields:
+          - payment_ref
+          - resource
+          - amount_minor
+          - currency
+          - status
+          - settlement_ref
+          - payer
+          - pay_to
+          - network
+          - asset
+          - settled_at
+        input: $input.request
+        when:
+          value: $input.connector
+          equals: coinbase/cdp
+        expected_result:
+          status: settled
+          resource: $input.request.resource
+          amount_minor: $input.request.amount_minor
+          currency: $input.request.currency
       - id: readback
         operation: coinbase/cdp/payment.x402.merchant.read
-        result_fields: [payment_ref, resource, amount_minor, currency, status, settlement_ref, payer, pay_to, network, asset, settled_at]
-        input: { resource: $input.resource, payment_ref: $steps.settle.provider_operation.result.payment_ref }
+        result_fields:
+          - payment_ref
+          - resource
+          - amount_minor
+          - currency
+          - status
+          - settlement_ref
+          - payer
+          - pay_to
+          - network
+          - asset
+          - settled_at
+        input:
+          resource: $input.request.resource
+          payment_ref: $steps.settle.provider_operation.result.payment_ref
         expected_result:
           payment_ref: $steps.settle.provider_operation.result.payment_ref
-          resource: $input.resource
-          amount_minor: $input.amount_minor
-          currency: $input.currency
+          resource: $input.request.resource
+          amount_minor: $input.request.amount_minor
+          currency: $input.request.currency
           status: settled
+        when:
+          value: $input.connector
+          equals: coinbase/cdp
   quote:
     description: Quote the x402 payment a buyer must make for a resource, before any payment is taken.
     inputs:
-      resource: { definition: resource }
-      amount_minor: { definition: amount_minor }
-      currency: { definition: currency }
-      description: { type: string, required: false, description: What the buyer is paying for., schema: { maxLength: 499 } }
-      max_timeout_seconds: { type: integer, required: false, description: How long the buyer has to pay., schema: { minimum: 1, maximum: 86400 } }
-    result_from: [quote]
+      resource:
+        definition: resource
+      amount_minor:
+        definition: amount_minor
+      currency:
+        definition: currency
+      description:
+        type: string
+        required: false
+        description: What the buyer is paying for.
+        schema:
+          maxLength: 499
+      max_timeout_seconds:
+        type: integer
+        required: false
+        description: How long the buyer has to pay.
+        schema:
+          minimum: 1
+          maximum: 86400
+    result_from:
+      - quote
     steps:
       - id: quote
         operation: coinbase/cdp/payment.x402.merchant.quote
-        result_fields: [quote_contract, resource, amount_minor, currency, accepts, quote_digest]
-        input: { resource: $input.resource, description: $input.description, amount_minor: $input.amount_minor, currency: $input.currency, max_timeout_seconds: $input.max_timeout_seconds }
-        expected_result: { resource: $input.resource, amount_minor: $input.amount_minor, currency: $input.currency }
-
+        result_fields:
+          - quote_contract
+          - resource
+          - amount_minor
+          - currency
+          - accepts
+          - quote_digest
+        input:
+          resource: $input.resource
+          description: $input.description
+          amount_minor: $input.amount_minor
+          currency: $input.currency
+          max_timeout_seconds: $input.max_timeout_seconds
+        expected_result:
+          resource: $input.resource
+          amount_minor: $input.amount_minor
+          currency: $input.currency
+    examples:
+      - resource: https://seller.example/v1/reports/launch
+        amount_minor: 125
+        currency: USD
+        description: Launch report
+  checkout:
+    description: Create and independently read one PayPal checkout order. The returned links ask the
+      buyer to approve; no payment has been captured.
+    inputs:
+      request:
+        type: json
+        required: true
+        description: Exact public arguments of paypal/payment.paypal.order.create from native connector
+          inspection; includes merchant, decimal amount, currency, precision, reference and
+          return/cancel URLs.
+      idempotency_seed:
+        type: string
+        required: true
+        description: Stable caller-owned key for this unchanged payment or checkout.
+        schema:
+          minLength: 16
+          maxLength: 200
+    examples:
+      - request:
+          api_host: api-m.sandbox.paypal.com
+          account_id: YXZY75W2GKDQE
+          amount_decimal: "1.50"
+          currency: USD
+          precision: 2
+          reference: invoice-42
+          return_url: https://northstar.example/payments/return
+          cancel_url: https://northstar.example/payments/cancel
+        idempotency_seed: northstar-checkout-42
+    result_from:
+      - checkout
+    steps:
+      - id: checkout
+        operation: paypal/payment.paypal.order.create
+        input: $input.request
+        idempotency_key: $input.idempotency_seed
+        result_fields:
+          - order_ref
+          - order_status
+          - intent
+          - account_id
+          - amount_decimal
+          - currency
+          - reference
+          - links
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []

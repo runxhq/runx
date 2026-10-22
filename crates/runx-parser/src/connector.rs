@@ -13,8 +13,8 @@ use runx_contracts::connector::{
     CredentialDeclaration, CredentialName, Digest, HoldAction, HostedAuth, HttpAuth,
     HttpImplementation, HttpMethod, HttpReadback, HttpRequest, Implementation, LocalAuth,
     McpServer, OperationAccess, OperationName, OperationVerb, PrincipalRequest,
-    ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReferenceDeclaration, SessionAuth,
-    Template, manifest_digest, operation_digest,
+    ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReadbackMatch, ReferenceDeclaration,
+    SessionAuth, Template, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -287,6 +287,14 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
                     errors,
                 ),
             }
+            if server_auth.values().any(|presentation| {
+                matches!(presentation, HttpAuth::Oauth2ClientCredentials { .. })
+            }) {
+                errors.push(
+                    "placements.local.mcp_server.auth",
+                    "OAuth2 app-token exchange is implemented only by declared HTTP requests",
+                );
+            }
             validate_template_headers(
                 server_auth,
                 headers,
@@ -296,7 +304,10 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
             for (credential, presentation) in server_auth {
                 if matches!(
                     presentation,
-                    HttpAuth::Oauth1 | HttpAuth::Url { .. } | HttpAuth::Body { .. }
+                    HttpAuth::Oauth1
+                        | HttpAuth::Oauth2ClientCredentials { .. }
+                        | HttpAuth::Url { .. }
+                        | HttpAuth::Body { .. }
                 ) {
                     errors.push(
                         &format!("placements.local.mcp_server.auth.{credential}"),
@@ -378,6 +389,27 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
     }) = &auth.session
     {
         validate_command_session(auth, command, credential, principal, errors);
+    }
+    if let Some(SessionAuth::ManagedCommand { command, .. }) = &auth.session {
+        if command
+            .first()
+            .is_some_and(|program| program.as_str().contains(['/', '\\']))
+        {
+            errors.push(
+                "auth.session.command",
+                "the program is a name found on PATH, not a path",
+            );
+        }
+        for (name, operation) in &manifest.operations {
+            if operation
+                .implementation
+                .as_ref()
+                .is_some_and(|implementation| !matches!(implementation, Implementation::Process(_)))
+                || !operation.credentials.is_empty()
+            {
+                errors.push(&format!("operations.{name}"), "a managed-command session serves only credential-free process implementations; its CLI owns the credential");
+            }
+        }
     }
 }
 
@@ -599,8 +631,23 @@ fn validate_operation(
                 "a read cannot require approval",
             );
         }
-        if operation.amount == AmountRule::Required {
+        if operation.amount.requires_amount() {
             errors.push(&format!("{field}.amount"), "a read carries no amount");
+        }
+    }
+
+    if let AmountRule::Bound(binding) = &operation.amount {
+        for (name, expression) in [("units", &binding.units), ("currency", &binding.currency)] {
+            if expression.binds_parameter()
+                || expression.binds_exchange()
+                || expression.binds_result()
+                || expression.binds_runx()
+            {
+                errors.push(
+                    &format!("{field}.amount.{name}"),
+                    "a financial amount binds only provider inputs or literal terms",
+                );
+            }
         }
     }
 
@@ -693,6 +740,45 @@ fn validate_operation(
     let Some(implementation) = &operation.implementation else {
         return;
     };
+    let validate_expected = |matches: &[ReadbackMatch], errors: &mut Errors| {
+        for binding in matches {
+            if let ReadbackExpected::Template { value } = &binding.expected
+                && (value.binds_parameter()
+                    || value.binds_result()
+                    || value.binds_runx()
+                    || value.binds_item()
+                    || value.responses().iter().any(|name| *name != "write"))
+            {
+                errors.push(&format!("{field}.implementation.matches"), "expected templates bind only approved arguments and the projected write acknowledgement");
+            }
+        }
+    };
+    match implementation {
+        Implementation::Http(http) => {
+            for check in http.preconditions.iter().chain(&http.readbacks) {
+                validate_expected(&check.matches, errors);
+            }
+        }
+        Implementation::Mcp(mcp) => {
+            if let Some(check) = &mcp.readback {
+                validate_expected(&check.matches, errors);
+            }
+        }
+        Implementation::Process(process) => {
+            if process.result_from == runx_contracts::connector::ProcessResultSource::Readback
+                && process.readback.is_none()
+            {
+                errors.push(
+                    &format!("{field}.implementation.process.result_from"),
+                    "a readback result requires a declared confirming readback",
+                );
+            }
+            if let Some(check) = &process.readback {
+                validate_expected(check.matches.as_slice(), errors);
+            }
+        }
+        _ => {}
+    }
     if let (Some(_), Some(placement)) = (&operation.hosted, &manifest.placements.hosted)
         && let Implementation::Http(http) = implementation
     {
@@ -728,7 +814,7 @@ fn validate_operation(
         if !supported {
             errors.push(
                 &format!("{field}.implementation.http.auth"),
-                "hosted delegated requests use bearer auth; stored credentials use bearer or declared header auth",
+                "hosted delegated requests use bearer auth; stored credentials use bearer, declared header or OAuth2 client credentials auth",
             );
         }
         if http
@@ -760,6 +846,7 @@ fn validate_operation(
                 .map(|check| &check.request),
         );
         if requests.into_iter().any(binds_parameter) || operation.target.template.binds_parameter()
+            || http.auth.values().any(|auth| matches!(auth, HttpAuth::Oauth2ClientCredentials { token_url, .. } if token_url.binds_parameter()))
         {
             errors.push(
                 &format!("{field}.implementation.http"),
@@ -1386,6 +1473,53 @@ fn validate_auth(
             errors.push(&field, format!("credential {credential} is not declared"));
             continue;
         };
+        if let HttpAuth::Oauth2ClientCredentials {
+            token_url,
+            client_id,
+            client_secret,
+            ..
+        } = presentation
+        {
+            if token_url.binds_exchange()
+                || token_url.binds_item()
+                || token_url.binds_runx()
+                || token_url.binds_result()
+            {
+                errors.push(&field, "an OAuth2 token endpoint may bind only admitted arguments and instance parameters");
+            }
+            let rendered = token_url.render_string(&Default::default()).ok();
+            let endpoint = rendered
+                .as_deref()
+                .and_then(|value| url::Url::parse(value).ok())
+                .filter(|url| {
+                    url.scheme() == "https"
+                        && url.username().is_empty()
+                        && url.password().is_none()
+                        && url.query().is_none()
+                        && url.fragment().is_none()
+                        && url.port().is_none()
+                });
+            if token_url.is_literal()
+                && !endpoint
+                    .as_ref()
+                    .and_then(url::Url::host_str)
+                    .is_some_and(|host| {
+                        hosts.contains(&host)
+                            && declaration
+                                .audience
+                                .iter()
+                                .any(|allowed| allowed.as_str() == host)
+                    })
+            {
+                errors.push(&field, "an OAuth2 token endpoint must be an allowed https URL inside the credential's audience, without userinfo, query, fragment or a custom port");
+            }
+            if client_id == client_secret {
+                errors.push(
+                    &field,
+                    "OAuth2 client id and secret must name distinct declared fields",
+                );
+            }
+        }
         for name in presentation.fields() {
             if !declaration
                 .fields
@@ -1544,12 +1678,47 @@ fn validate_http(
         .chain(http.preconditions.iter().map(|readback| &readback.request))
         .chain(http.readbacks.iter().map(|readback| &readback.request))
     {
+        if request.body_encoding == runx_contracts::connector::HttpBodyEncoding::Form {
+            if request.body.is_none() {
+                errors.push(
+                    &format!("{field}.{}.body_encoding", request.id),
+                    "a form encoding needs a body",
+                );
+            }
+            if http
+                .auth
+                .values()
+                .any(|auth| matches!(auth, HttpAuth::Body { .. }))
+            {
+                errors.push(
+                    &format!("{field}.auth"),
+                    "body credentials require JSON encoding",
+                );
+            }
+        }
         validate_template_headers(
             &http.auth,
             &request.headers,
             &format!("{field}.{}.headers", request.id),
             errors,
         );
+    }
+    for step in http.decode.iter().chain(
+        http.preconditions
+            .iter()
+            .chain(&http.readbacks)
+            .flat_map(|check| check.decode.iter().flatten()),
+    ) {
+        if let runx_contracts::connector::DecodeStep::Project { fields } = step
+            && (fields.is_empty()
+                || fields.len() > MAX_HTTP_RESULT_PATHS
+                || fields.keys().any(|field| field.is_empty()))
+        {
+            errors.push(
+                &format!("{field}.decode"),
+                format!("a projection names one to {MAX_HTTP_RESULT_PATHS} nonempty fields"),
+            );
+        }
     }
     for host in http.allowed_hosts.iter() {
         let domain = host.as_str().strip_prefix("*.").unwrap_or(host.as_str());

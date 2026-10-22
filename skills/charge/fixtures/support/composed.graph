@@ -4,12 +4,36 @@ steps:
     skill: ../..
     runner: charge
     inputs:
-      resource: https://seller.example/v1/reports/launch
-      amount_minor: 125
-      currency: USD
-      payment_payload: { x402Version: 2, scheme: exact, network: "eip155:8453", payload: { signature: "0xsigned" } }
-      payment_requirements: { scheme: exact, network: "eip155:8453", amount: "1250000", payTo: "0x0000000000000000000000000000000000000002" }
-      request_binding_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+      connector: coinbase/cdp
+      request:
+        resource: https://seller.example/v1/reports/launch
+        amount_minor: 125
+        currency: USD
+        payment_payload:
+          x402Version: 2
+          accepted:
+            scheme: exact
+            network: eip155:8453
+            amount: "1250000"
+            payTo: "0x0000000000000000000000000000000000000002"
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+            maxTimeoutSeconds: 300
+          resource:
+            url: https://seller.example/v1/reports/launch
+          payload:
+            signature: 0xsigned
+            authorization:
+              from: "0x0000000000000000000000000000000000000001"
+              to: "0x0000000000000000000000000000000000000002"
+              value: "1250000"
+        payment_requirements:
+          scheme: exact
+          network: eip155:8453
+          amount: "1250000"
+          payTo: "0x0000000000000000000000000000000000000002"
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          maxTimeoutSeconds: 300
+        request_binding_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
       idempotency_seed: charge-test-0000001
   - id: digest
     tool: data.digest

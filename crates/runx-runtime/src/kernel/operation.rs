@@ -193,6 +193,8 @@ pub(crate) struct AdmittedCall<'a> {
     pub parameters: &'a JsonObject,
     pub idempotency_key: Option<&'a str>,
     pub credential: Option<&'a credentials::CredentialSecret>,
+    /// Kernel-pinned identity for a CLI that keeps its own authentication.
+    pub session_principal: Option<&'a str>,
     pub env: &'a BTreeMap<String, String>,
     /// Where the write's answer holds what a purchase bought: runx Connect
     /// answers with the hold's evidence there, never the value.
@@ -222,6 +224,7 @@ impl<'a> AdmittedCall<'a> {
             parameters,
             idempotency_key: Some("key-1"),
             credential: None,
+            session_principal: None,
             env,
             held: Vec::new(),
             access,
@@ -1094,6 +1097,21 @@ fn prepare(
                 session: runx_contracts::connector::SessionKind::Command,
                 ..
             } => signed_in(context, env, cwd).map(|secret| Session::Local(Some(secret))),
+            InstanceAuthority::Session {
+                session: runx_contracts::connector::SessionKind::ManagedCommand,
+                ..
+            } => {
+                let managed =
+                    super::session::ManagedCommandSession::of(&admitted.connector.manifest)
+                        .ok_or("the connector no longer declares its managed-command session")?;
+                let principal = managed.principal(env, cwd)?;
+                if principal.principal_ref(admitted.connector.manifest.id.as_str())
+                    != instance.principal_ref.as_str()
+                {
+                    return Err("the CLI is signed in as another account; confirm the connector session again".to_owned());
+                }
+                Ok(Session::Local(None))
+            }
             _ => match admitted.operation().implementation {
                 Some(Implementation::Artifact(_)) => context
                     .placements
@@ -1217,6 +1235,14 @@ fn dispatch(
         parameters: &admitted.instance.parameters,
         idempotency_key: provider_key.as_deref(),
         credential: secret.as_ref(),
+        session_principal: matches!(
+            admitted.instance.authority,
+            InstanceAuthority::Session {
+                session: runx_contracts::connector::SessionKind::ManagedCommand,
+                ..
+            }
+        )
+        .then_some(admitted.instance.principal_ref.as_str()),
         env,
         held: operation
             .holds
@@ -1381,6 +1407,7 @@ fn dispatch(
                 None => local.tools,
             };
             let driver = crate::drivers::process::Process {
+                result_from: spec.result_from,
                 tools,
                 tool: spec.tool.as_str(),
                 manifest: tool,
@@ -1600,6 +1627,7 @@ fn mcp(
                 if matches!(
                     presentation,
                     runx_contracts::connector::HttpAuth::Oauth1
+                        | runx_contracts::connector::HttpAuth::Oauth2ClientCredentials { .. }
                         | runx_contracts::connector::HttpAuth::Url { .. }
                         | runx_contracts::connector::HttpAuth::Body { .. }
                 ) {

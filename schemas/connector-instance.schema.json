@@ -156,6 +156,7 @@
             "session": {
               "enum": [
                 "command",
+                "managed_command",
                 "host_browser"
               ],
               "type": "string"

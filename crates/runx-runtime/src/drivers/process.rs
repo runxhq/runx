@@ -45,6 +45,7 @@ impl ToolRunner for StandIn<'_> {
 }
 
 pub(crate) struct Process<'a> {
+    pub result_from: runx_contracts::connector::ProcessResultSource,
     pub tools: &'a dyn ToolRunner,
     pub tool: &'a str,
     /// The installed manifest of the connector's tool.
@@ -89,7 +90,7 @@ impl Driver for Process<'_> {
     fn result(
         &self,
         write: &JsonValue,
-        _confirmed: &[JsonValue],
+        confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
         // A write is identified by the key it was sent with, which is stable
         // for its intent. Its answer cannot identify it: two different writes
@@ -103,7 +104,13 @@ impl Driver for Process<'_> {
             )),
             false => None,
         };
-        Ok((write.clone(), operation_id))
+        let result = match self.result_from {
+            runx_contracts::connector::ProcessResultSource::Acknowledgement => write,
+            runx_contracts::connector::ProcessResultSource::Readback => confirmed
+                .first()
+                .ok_or("the process has no confirmed readback result")?,
+        };
+        Ok((result.clone(), operation_id))
     }
 }
 
@@ -114,6 +121,15 @@ impl Process<'_> {
             JsonValue::Object(arguments) => arguments.clone(),
             _ => JsonObject::new(),
         };
+        if let Some(principal) = self.call.session_principal {
+            if inputs.contains_key("principal_ref") {
+                return Err("principal_ref is kernel-supplied process context".to_owned());
+            }
+            inputs.insert(
+                "principal_ref".to_owned(),
+                JsonValue::String(principal.to_owned()),
+            );
+        }
         if self.call.mutation() {
             inputs.insert("phase".to_owned(), JsonValue::String(phase.to_owned()));
             if let Some(key) = self.call.idempotency_key {
@@ -209,6 +225,7 @@ mod tests {
             let call =
                 AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Mutate);
             let driver = Process {
+                result_from: Default::default(),
                 tools: &tool,
                 tool: "git.push",
                 manifest,
@@ -236,6 +253,7 @@ mod tests {
         let feature = arguments("feature");
         let call = AdmittedCall::for_tests(&feature, &parameters, &env, OperationAccess::Mutate);
         let driver = Process {
+            result_from: Default::default(),
             tools: &tool,
             tool: "git.push",
             manifest,
@@ -246,6 +264,18 @@ mod tests {
         let answer = performed.map_err(Unperformed::reason)?.value;
         let (_, operation_id) = driver.result(&answer, &[])?;
         assert_eq!(operation_id.as_deref(), Some("process:key-1"));
+        let confirmed = JsonValue::String("confirmed-public-result".to_owned());
+        let from_readback = Process {
+            result_from: runx_contracts::connector::ProcessResultSource::Readback,
+            ..driver
+        };
+        assert_eq!(
+            from_readback
+                .result(&answer, std::slice::from_ref(&confirmed))?
+                .0,
+            confirmed
+        );
+        assert!(from_readback.result(&answer, &[]).is_err());
         let runs = tool.runs.borrow().clone();
         assert_eq!(
             runs[0].get("phase"),
@@ -272,6 +302,7 @@ mod tests {
         let arguments = arguments("feature");
         let call = AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Read);
         let read = Process {
+            result_from: Default::default(),
             tools: &tool,
             tool: "git.push",
             manifest,

@@ -1,41 +1,60 @@
 ---
 name: pay
-description: Pay one external payment requirement within exact parent authority, through a payment method the payer holds, and read the paid resource back.
+description: Pay one exact resource with your held x402 wallet or approved Link MPP authorization, within the supplied terms and native authority.
 ---
 
 # Pay
 
-`pay` is the buyer contract. `settle` pays the exact requirement once, and
-`readback` performs one observation of that durable payment and the resource it
-paid for. The default `pay` runner composes both and requires immediate terminal
-readback, while durable callers compose `settle` once and re-enter `readback`
-through Runx's external-job scheduler.
+Use this when you are the buyer paying a known merchant resource. Choose the held
+connector explicitly: `wallet/evm` pays external x402 V2 with USDC on Base;
+`link` pays a Stripe MPP charge using an already approved one-time Link spend
+request. Stripe and PayPal merchant app credentials cannot spend as a buyer.
+Missing authority never selects another wallet or method.
 
-The payment method is a connector the payer holds. Today that is `wallet/evm`:
-an x402 V2 challenge on an HTTPS resource, paid from the payer's EVM wallet in
-USDC on Base. Other methods join as connectors when they are implemented.
+Inspect the selected connector to construct its public `request`: the wallet's
+`payment_signal`, or Link's `payment.mpp` arguments. Supply the parent mandate's
+original term reference, exact resource URL, currency and maximum, plus a stable
+`idempotency_seed`. These purchase terms are checked before financial dispatch;
+they do not grant native authority. The native kernel still admits capability,
+run budget, human approval and the exact effect. No rounding or FX is implied.
 
-Runx Hosted owns challenge validation, authority attenuation and reservation,
-wallet credentials, payload signing, settlement recovery, finality, and the
-private ledger. The connector never sleeps or polls; durable continuation
-cadence belongs to Runx scheduling. `pay` never buys a runx paid skill: a
-paid skill is bought by running it, and the kernel asks its buyer for that
-purchase itself.
+## x402 resource payment
 
-## Operator guide
+The default composes `settle` once, `readback` and the terminal evidence check.
+The hosted wallet owns private signing, staged-byte recovery, on-chain finality
+and the paid resource result. A complete outcome requires a confirmed chain
+transaction and the resource's 2xx response; the resource's own product lifecycle
+may continue afterwards. Pending, failed or mismatched evidence never reports a
+completed purchase. Durable callers may use the x402-specific `settle` and
+`readback` runners separately and schedule later observations externally.
 
-Use this skill for one exact HTTPS resource already named by a hosted wallet
-grant. The resource request carries bounded inline control data or artifact
-references; large documents and media never travel as oversized graph values.
-The hosted payer accepts external x402 V2 only, signs and stages the payload
-before the paid POST, and reuses those exact bytes after an uncertain response.
+## Link authorization and MPP payment
 
-Stop on malformed or expired requirements, amount, currency, payee or resource
-drift, incomplete authority, missing approval, or inconsistent paid-resource
-readback. Never pass wallet keys, seed phrases, bearer tokens, or facilitator
-credentials in skill input. A 2xx response is not finality: a complete readback
-needs the transaction confirmed on chain and a 2xx answer from the resource. It
-never waits on the resource's own product state.
+Install the pinned official Link CLI and bind the intended signed-in account
+with `runx connector use link --session`. Run `authorize` with the connector's
+`spend.request` arguments to request exact one-time wallet consent. Its approval
+URL/status is authorization evidence only; it does not prove payment. The connector binds consent to the original URL, method, body and challenge in
+Link metadata; an unrelated or unbound authorization is refused. Complete
+the wallet's approval, then supply that original spend request ID and original
+provider-issued MPP challenge to the default Link payment lane.
 
-Use `charge` to take a payment as the seller, `refund` to reverse one, and
-`invoice-pay` when an invoice needs validating before it is paid.
+The connector pins and rechecks the account, amount/currency, payment method,
+merchant network and challenge. Only the official CLI retrieves the SPT; it
+never enters graph inputs, results or receipts. Independent original spend
+request readback must confirm the exact paid amount and transaction. This lane
+returns payment evidence, not the merchant HTTP body or delivery proof. Read a
+merchant artifact through its declared provider operation when needed. Link is
+not yet a selectable native paid-skill purchase method.
+
+## Continue the original effect
+
+Stop on missing bindings, changed account/terms, denied approval or uncertain
+readback. Preserve the original effect, request key and provider references.
+Resume acknowledged effects at readback; never replace an ambiguous payment
+with another spend request, challenge, key or method. A refund already observed
+on Link cannot be presented as a fresh successful purchase.
+
+Do not put wallet keys, SPTs, bearer tokens or card data in skill inputs. A paid
+Runx skill is bought by running that skill through the native purchase boundary;
+this job does not replace it. Use `charge` as the merchant, `refund` for an
+original collection's reversal, and `invoice-pay` to bind an invoice before pay.

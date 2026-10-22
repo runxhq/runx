@@ -1,0 +1,76 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "link.payment",
+  "version": "0.1.0",
+  "description": "Use the official Link CLI for account-bound spend requests and MPP payments without exporting credentials.",
+  "source": {
+    "command": "node",
+    "args": [
+      "./link.mjs"
+    ],
+    "input_mode": "stdin",
+    "timeout_seconds": 90
+  },
+  "inputs": {
+    "action": {
+      "type": "string",
+      "required": true
+    },
+    "principal_ref": {
+      "type": "string",
+      "required": true
+    },
+    "phase": {
+      "type": "string",
+      "required": false
+    },
+    "idempotency_key": {
+      "type": "string",
+      "required": false
+    },
+    "acknowledgement": {
+      "type": "object",
+      "required": false
+    },
+    "spend_request_id": {
+      "type": "string",
+      "required": false
+    },
+    "amount_minor": {
+      "type": "integer",
+      "required": false
+    },
+    "currency": {
+      "type": "string",
+      "required": false
+    },
+    "payment_method_id": {
+      "type": "string",
+      "required": false
+    },
+    "network_id": {
+      "type": "string",
+      "required": false
+    },
+    "context": {
+      "type": "string",
+      "required": false
+    },
+    "resource_url": {
+      "type": "string",
+      "required": false
+    },
+    "challenge": {
+      "type": "string",
+      "required": false
+    },
+    "method": {
+      "type": "string",
+      "required": false
+    },
+    "body": {
+      "type": "string",
+      "required": false
+    }
+  }
+}

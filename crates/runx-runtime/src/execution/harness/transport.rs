@@ -74,6 +74,9 @@ pub(super) fn harness_transport(
                     HarnessHttpRequestBodyFixture::Json { json } => {
                         RuntimeHarnessHttpRequestBody::Json(json.clone())
                     }
+                    HarnessHttpRequestBodyFixture::Text { text } => {
+                        RuntimeHarnessHttpRequestBody::Text(text.clone())
+                    }
                 },
                 response: runtime_response(&exchange.response),
             })

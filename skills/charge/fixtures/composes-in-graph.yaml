@@ -1,5 +1,60 @@
 name: charge-composes-in-graph
 kind: graph
 target: support/composed.graph
+operator_journeys:
+  - mode: composed
+    exercises_runner: charge
+    request: Collect this already quoted and authorized payment without preparing another checkout.
+    expected_outcome: Reuse the supplied quote, buyer authorization and original payment identity, and
+      return settlement readback.
+    prior_evidence:
+      - The original x402 requirements, buyer payload and caller request key.
+    must_not_repeat:
+      - Do not create another quote or checkout.
+      - Do not charge again under a new payment identity.
+caller:
+  approvals:
+    charge#settle: true
+  provider_responses:
+    principal_id: charge-fixture
+    grant:
+      grant_id: charge-fixture
+      provider: coinbase/cdp
+      scopes:
+        - payment.x402.merchant.read
+        - payment.x402.merchant.write
+    operations:
+      - operation: payment.x402.merchant.settle
+        target: https://seller.example/v1/reports/launch
+        access: mutate
+        result:
+          payment_ref: x402pay_test_001
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          status: settled
+          settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          payer: "0x0000000000000000000000000000000000000001"
+          pay_to: "0x0000000000000000000000000000000000000002"
+          network: eip155:8453
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          settled_at: 2026-10-15T00:00:00.000Z
+      - operation: payment.x402.merchant.read
+        target: https://seller.example/v1/reports/launch
+        access: read
+        result:
+          payment_ref: x402pay_test_001
+          resource: https://seller.example/v1/reports/launch
+          amount_minor: 125
+          currency: USD
+          status: settled
+          settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          payer: "0x0000000000000000000000000000000000000001"
+          pay_to: "0x0000000000000000000000000000000000000002"
+          network: eip155:8453
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          settled_at: 2026-10-15T00:00:00.000Z
 expect:
-  status: policy_denied
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

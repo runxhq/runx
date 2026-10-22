@@ -1,0 +1,324 @@
+{
+  "binding": {
+    "units": {
+      "$argument": "/amount_minor"
+    },
+    "currency": {
+      "$argument": "/currency"
+    }
+  },
+  "cases": [
+    {
+      "name": "USD cents",
+      "arguments": {
+        "amount_minor": 1250,
+        "currency": "usd"
+      },
+      "expected": {
+        "units": 1250,
+        "unit": "USD"
+      }
+    },
+    {
+      "name": "non USD is not converted",
+      "arguments": {
+        "amount_minor": 1250,
+        "currency": "AUD"
+      },
+      "expected": {
+        "units": 1250,
+        "unit": "AUD"
+      }
+    },
+    {
+      "name": "USDC integer base units",
+      "arguments": {
+        "amount_minor": 12500000,
+        "currency": "USDC"
+      },
+      "expected": {
+        "units": 12500000,
+        "unit": "USDC"
+      }
+    },
+    {
+      "name": "zero is exact",
+      "arguments": {
+        "amount_minor": 0,
+        "currency": "USD"
+      },
+      "expected": {
+        "units": 0,
+        "unit": "USD"
+      }
+    },
+    {
+      "name": "portable upper bound",
+      "arguments": {
+        "amount_minor": 9007199254740991,
+        "currency": "USD"
+      },
+      "expected": {
+        "units": 9007199254740991,
+        "unit": "USD"
+      }
+    },
+    {
+      "name": "fraction refuses",
+      "arguments": {
+        "amount_minor": 1.25,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "negative refuses",
+      "arguments": {
+        "amount_minor": -1,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "string amount refuses",
+      "arguments": {
+        "amount_minor": "1250",
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "overflow refuses",
+      "arguments": {
+        "amount_minor": 9007199254740992,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "missing amount refuses",
+      "arguments": {
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "missing currency refuses",
+      "arguments": {
+        "amount_minor": 1250
+      },
+      "error": true
+    },
+    {
+      "name": "currency injection refuses",
+      "arguments": {
+        "amount_minor": 1250,
+        "currency": "USD\n"
+      },
+      "error": true
+    },
+    {
+      "name": "USD decimal",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.50",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "expected": {
+        "units": 150,
+        "unit": "USD"
+      }
+    },
+    {
+      "name": "zero-decimal currency",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "150",
+        "precision": 0,
+        "currency": "JPY"
+      },
+      "expected": {
+        "units": 150,
+        "unit": "JPY"
+      }
+    },
+    {
+      "name": "three-decimal currency",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.250",
+        "precision": 3,
+        "currency": "KWD"
+      },
+      "expected": {
+        "units": 1250,
+        "unit": "KWD"
+      }
+    },
+    {
+      "name": "stablecoin precision",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "0.000001",
+        "precision": 6,
+        "currency": "USDC"
+      },
+      "expected": {
+        "units": 1,
+        "unit": "USDC"
+      }
+    },
+    {
+      "name": "eighteen-decimal asset",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "0.000000000000000001",
+        "precision": 18,
+        "currency": "ETH"
+      },
+      "expected": {
+        "units": 1,
+        "unit": "ETH"
+      }
+    },
+    {
+      "name": "decimal portable upper bound",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "90071992547409.91",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "expected": {
+        "units": 9007199254740991,
+        "unit": "USD"
+      }
+    },
+    {
+      "name": "decimal overflow",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "90071992547409.92",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "no rounding",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.501",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "missing precision",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.5",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "negative decimal",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "-1.50",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "leading zero",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "01.50",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "trailing decimal point",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.",
+        "precision": 0,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "exponent decimal",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1e2",
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "numeric decimal",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": 1.5,
+        "precision": 2,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "negative scale",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.50",
+        "precision": -1,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "fractional scale",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "1.50",
+        "precision": 1.5,
+        "currency": "USD"
+      },
+      "error": true
+    },
+    {
+      "name": "excess scale",
+      "decimal": true,
+      "arguments": {
+        "amount_decimal": "0.0000000000000000001",
+        "precision": 19,
+        "currency": "USD"
+      },
+      "error": true
+    }
+  ],
+  "decimal_binding": {
+    "units": {
+      "$minor_units": {
+        "decimal": {
+          "$argument": "/amount_decimal"
+        },
+        "scale": {
+          "$argument": "/precision"
+        }
+      }
+    },
+    "currency": {
+      "$argument": "/currency"
+    }
+  }
+}

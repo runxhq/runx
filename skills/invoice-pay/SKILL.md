@@ -1,21 +1,30 @@
 ---
 name: invoice-pay
-description: Check one invoice against the authority that may pay it, then pay it through pay with approval and readback.
+description: Bind one invoice to exact buyer payment terms, then use pay with native authority, approval and independent readback.
 ---
 
 # Invoice Pay
 
-`invoice-pay` turns one invoice into one bounded payment. It checks the
-invoice first: a positive amount in minor units, a currency a payment method
-settles, the payee's exact HTTPS payment endpoint and address, and a parent
-authority that covers the amount and names that payee. Only then does it
-compose `pay`, which settles the payment once and reads the paid resource
-back.
+Use this for an invoice whose reference, payee, amount and currency are already
+known. Choose a held buyer connector: `wallet/evm` for its supported x402 method,
+or `link` for a Stripe MPP charge with an approved one-time spend request.
+There is no universal EVM address requirement, USD conversion or implicit
+provider selection. Each method must actually support the invoice currency.
 
-The check is deterministic and runs before anything is approved or paid. A
-payment method settles USD today, so an invoice in another currency is refused,
-never converted. Everything after the check is `pay`'s: hosted wallet custody,
-approval, idempotency, recovery and finality.
+Supply `invoice_ref`, positive whole `amount_minor`, explicit `currency`,
+`payee.payment_url`, the selected connector's public `request`, the original
+`parent_payment_authority` and a stable `idempotency_seed`. Inspect the connector
+to construct the exact request. For x402 the request is its `payment_signal`;
+for Link it is the `payment.mpp` input with the original challenge and approved
+spend request. Put wallet keys, SPTs, card data and bearer tokens in none of these
+fields; credential custody belongs to the connector.
+
+The deterministic invoice check binds the requested amount, currency and exact
+payment URL to the supplied invoice. `pay` then checks its parent mandate and
+owns payment execution. Native admission remains authoritative for capability,
+run budget, human approval, effect custody and provider confirmation. A supplied
+invoice or mandate never creates permission to spend. Invoice authenticity and
+procurement approval must come from the caller's evidence or procurement lane.
 
 ## Composes
 
@@ -23,12 +32,18 @@ approval, idempotency, recovery and finality.
 
 - `pay#pay`
 
-## Operator guide
+## Completion and recovery
 
-Pass the invoice reference, the amount and currency due, the payee's
-`payment_url` and `pay_to`, the parent's authority, and a stable idempotency
-seed. Stop on malformed invoice data, a non-positive amount, an unsupported
-currency, a payee the authority does not name, an amount over the authority,
-missing approval, or inconsistent readback. Accept the payee's public payment
-endpoint and address only; never account, routing, card, wallet, or provider
-credential material.
+The result is `pay`'s original payment evidence. For x402, completion includes
+confirmed payment and the paid resource's 2xx response. For Link, it confirms
+the exact original paid amount and transaction; it does not publish a merchant
+HTTP body or prove delivery. The outer receipt binds this evidence to the
+caller-supplied invoice reference, not a claim that the processor authenticated
+the invoice or fulfilled a separate contract.
+
+Stop on mismatched invoice terms, unsupported method/currency, missing wallet
+authority, denied approval or uncertain readback. Reuse the original invoice,
+provider identifiers and request key. Resume the original effect or schedule its
+readback; never pay again under a new identity. This skill does not mark an
+accounting record paid, send a message or approve a purchase on the caller's
+behalf. Those remain separate governed actions.

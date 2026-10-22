@@ -1,55 +1,29 @@
-const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
-const HTTPS = /^https:\/\/[^\s/?#]+[^\s]*$/u;
-
-/**
- * One invoice, checked against the authority that may pay it, as the exact
- * payment `pay` makes: its payee's x402 endpoint, its amount, its payee
- * address. Today `pay` pays in USD only, so an invoice in another currency is
- * refused rather than converted.
- */
-export function admitInvoice(inputs) {
-  const invoiceRef = text(inputs.invoice_ref, "invoice_ref", 256);
-  const amountMinor = inputs.amount_minor;
-  if (!Number.isSafeInteger(amountMinor) || amountMinor < 1) {
-    throw new Error("Invoice amount must be a positive whole number of minor units.");
+/** Bind caller-supplied invoice terms; this does not authenticate the invoice. */
+export function admitInvoice(input) {
+  const reference = input.invoice_ref;
+  if (typeof reference !== "string" || !reference.trim() || reference !== reference.trim() || reference.length > 256) {
+    throw new Error("Invalid invoice reference.");
   }
-  if (inputs.currency !== "USD") {
-    throw new Error(`Invoice currency ${JSON.stringify(inputs.currency)} has no payment method; pay settles USD.`);
+  if (!Number.isSafeInteger(input.amount_minor) || input.amount_minor < 1) {
+    throw new Error("Invoice amount must be positive whole minor units.");
   }
-  const payee = record(inputs.payee, "payee");
-  const paymentUrl = text(payee.payment_url, "payee.payment_url", 2048);
-  if (!HTTPS.test(paymentUrl)) throw new Error("payee.payment_url must be the payee's exact HTTPS payment endpoint.");
-  const payTo = text(payee.pay_to, "payee.pay_to", 42);
-  if (!ADDRESS.test(payTo)) throw new Error("payee.pay_to must be an EVM address.");
-
-  const authority = record(inputs.parent_payment_authority, "parent_payment_authority");
-  if (authority.currency !== "USD") throw new Error("The payment authority must be in USD.");
-  if (!Number.isSafeInteger(authority.max_amount_minor) || authority.max_amount_minor < amountMinor) {
-    throw new Error("The invoice amount exceeds the payment authority.");
+  if (typeof input.currency !== "string" || !/^[A-Z]{3}$/.test(input.currency)) {
+    throw new Error("Invoice currency must be an explicit ISO code.");
   }
-  if (authority.counterparty !== paymentUrl) {
-    throw new Error("The payment authority does not name this invoice's payee.");
+  const request = record(input.request, "request");
+  const payee = record(input.payee, "payee");
+  const link = input.connector === "link";
+  if (!link && input.connector !== "wallet/evm") throw new Error("Unsupported buyer connector.");
+  const target = link ? request.resource_url : record(request.resource, "request.resource").url;
+  if (typeof payee.payment_url !== "string" || !/^https:\/\/[^\s/?#@]+[^\s]*$/.test(payee.payment_url) || target !== payee.payment_url) {
+    throw new Error("The payment target must be the invoice payee exact HTTPS endpoint.");
   }
-
-  return {
-    payment_signal: Object.freeze({
-      resource: Object.freeze({ url: paymentUrl, method: "POST", body: Object.freeze({ invoice_ref: invoiceRef }) }),
-      amount_minor: amountMinor,
-      pay_to: payTo,
-    }),
-  };
-}
-
-function text(value, field, maxLength) {
-  if (typeof value !== "string" || !value.trim() || value !== value.trim() || value.length > maxLength) {
-    throw new Error(`${field} is invalid.`);
-  }
-  return value;
+  if (request.amount_minor !== input.amount_minor) throw new Error("Payment amount differs from the invoice.");
+  if ((link ? request.currency : "USD") !== input.currency) throw new Error("Payment currency differs from the invoice; no FX is implied.");
+  return { payment_request: request };
 }
 
 function record(value, label) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object.`);
   return value;
 }

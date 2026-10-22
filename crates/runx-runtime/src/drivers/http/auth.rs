@@ -29,7 +29,9 @@ pub(crate) fn credential_header(
         return Ok(None);
     };
     let value = match presentation {
-        HttpAuth::Url { .. } | HttpAuth::Body { .. } => return Ok(None),
+        HttpAuth::Url { .. } | HttpAuth::Body { .. } | HttpAuth::Oauth2ClientCredentials { .. } => {
+            return Ok(None);
+        }
         HttpAuth::Bearer { field } => format!("Bearer {}", credential.field(field.as_str())?),
         HttpAuth::Header { field, .. } => credential.field(field.as_str())?.to_owned(),
         HttpAuth::Oauth1 => {

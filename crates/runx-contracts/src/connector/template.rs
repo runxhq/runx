@@ -17,6 +17,9 @@
 //!   authenticates; the kernel never does, so anywhere else it is unavailable
 //!   and the call fails closed.
 //! - `{"$concat": [part, ...]}`: one to eight scalar parts joined into a string.
+//! - `{"$minor_units": {"decimal": part, "scale": part}}`: an exact
+//!   canonical decimal string converted to integer smallest units, with no
+//!   rounding, float arithmetic or currency inference.
 //!
 //! Everything else is literal. Structure is validated on deserialization, so a
 //! malformed binding never reaches a manifest; rendering is bounded in depth
@@ -44,6 +47,7 @@ const RUNX: &str = "$runx";
 const IDEMPOTENCY_KEY: &str = "idempotency_key";
 const INVOCATION: &str = "invocation";
 const CONCAT: &str = "$concat";
+const MINOR_UNITS: &str = "$minor_units";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
@@ -88,6 +92,10 @@ pub enum TemplateError {
     ConcatPart,
     #[error("template $concat exceeds {MAX_CONCAT_BYTES} bytes")]
     ConcatTooLong,
+    #[error(
+        "template $minor_units needs a canonical decimal, scale 0 to 18, and a portable integer result"
+    )]
+    MinorUnits,
     #[error("template rendered a {found} where a string was required")]
     NotAString { found: &'static str },
 }
@@ -293,7 +301,7 @@ fn binding(object: &JsonObject) -> Option<(&str, &JsonValue)> {
     let (key, value) = object.iter().next()?;
     matches!(
         key.as_str(),
-        ARGUMENT | PARAMETER | RESPONSE | ITEM | RESULT | RUNX | CONCAT
+        ARGUMENT | PARAMETER | RESPONSE | ITEM | RESULT | RUNX | CONCAT | MINOR_UNITS
     )
     .then_some((key.as_str(), value))
 }
@@ -353,6 +361,19 @@ fn validate_binding(key: &str, argument: &JsonValue, depth: usize) -> Result<(),
                 reason: "the runtime values are idempotency_key and invocation",
             }),
         },
+        MINOR_UNITS => {
+            let Some(fields) = argument.as_object().filter(|fields| {
+                fields.len() == 2 && fields.contains_key("decimal") && fields.contains_key("scale")
+            }) else {
+                return Err(TemplateError::Malformed {
+                    binding: MINOR_UNITS,
+                    reason: "expected decimal and scale templates",
+                });
+            };
+            fields
+                .values()
+                .try_for_each(|value| validate(value, depth + 1))
+        }
         _ => match argument.as_array() {
             Some(parts) if (1..=MAX_CONCAT_PARTS).contains(&parts.len()) => {
                 parts.iter().try_for_each(|part| validate(part, depth + 1))
@@ -451,6 +472,25 @@ fn render_binding(
         }
         .map(|value| JsonValue::String(value.to_owned()))
         .ok_or_else(unavailable),
+        MINOR_UNITS => {
+            let fields = argument.as_object().ok_or(TemplateError::MinorUnits)?;
+            let decimal = render(
+                fields.get("decimal").ok_or(TemplateError::MinorUnits)?,
+                inputs,
+                depth + 1,
+            )?;
+            let scale = render(
+                fields.get("scale").ok_or(TemplateError::MinorUnits)?,
+                inputs,
+                depth + 1,
+            )?;
+            let units = decimal
+                .as_str()
+                .zip(scale.as_u64())
+                .and_then(|(value, scale)| decimal_units(value, scale))
+                .ok_or(TemplateError::MinorUnits)?;
+            Ok(JsonValue::Number(crate::JsonNumber::from(units)))
+        }
         _ => {
             let mut joined = String::new();
             for part in argument.as_array().into_iter().flatten() {
@@ -533,6 +573,9 @@ fn binds_matching(value: &JsonValue, matches: &dyn Fn(&str, &JsonValue) -> bool)
                 .into_iter()
                 .flatten()
                 .any(|part| binds_matching(part, matches)),
+            Some((MINOR_UNITS, fields)) => fields
+                .as_object()
+                .is_some_and(|fields| fields.values().any(|part| binds_matching(part, matches))),
             Some(_) => false,
             None => object.values().any(|value| binds_matching(value, matches)),
         },
@@ -549,6 +592,15 @@ fn argument_pointers<'a>(value: &'a JsonValue, pointers: &mut BTreeSet<&'a str>)
             }
             Some((CONCAT, parts)) => {
                 for part in parts.as_array().into_iter().flatten() {
+                    argument_pointers(part, pointers);
+                }
+            }
+            Some((MINOR_UNITS, fields)) => {
+                for part in fields
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|fields| fields.values())
+                {
                     argument_pointers(part, pointers);
                 }
             }
@@ -579,6 +631,15 @@ fn response_ids<'a>(value: &'a JsonValue, ids: &mut BTreeSet<&'a str>) {
                     response_ids(part, ids);
                 }
             }
+            Some((MINOR_UNITS, fields)) => {
+                for part in fields
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|fields| fields.values())
+                {
+                    response_ids(part, ids);
+                }
+            }
             Some(_) => {}
             None => {
                 for value in object.values() {
@@ -605,6 +666,33 @@ fn contains_binding(value: &JsonValue) -> bool {
     }
 }
 
+fn decimal_units(value: &str, scale: u64) -> Option<u64> {
+    if scale > 18 || value.len() > 64 {
+        return None;
+    }
+    let (whole, fraction) = match value.split_once('.') {
+        Some((whole, fraction)) if scale > 0 && !fraction.is_empty() => (whole, fraction),
+        Some(_) => return None,
+        None => (value, ""),
+    };
+    if whole.is_empty()
+        || (whole.len() > 1 && whole.starts_with('0'))
+        || fraction.len() as u64 != scale
+    {
+        return None;
+    }
+    let units = whole
+        .bytes()
+        .chain(fraction.bytes())
+        .try_fold(0_u64, |value, digit| {
+            digit
+                .is_ascii_digit()
+                .then_some(digit)
+                .and_then(|digit| value.checked_mul(10)?.checked_add(u64::from(digit - b'0')))
+        })?;
+    (units <= crate::MAX_PORTABLE_INTEGER).then_some(units)
+}
+
 fn static_key(key: &str) -> &'static str {
     match key {
         ARGUMENT => ARGUMENT,
@@ -613,6 +701,7 @@ fn static_key(key: &str) -> &'static str {
         ITEM => ITEM,
         RESULT => RESULT,
         RUNX => RUNX,
+        MINOR_UNITS => MINOR_UNITS,
         _ => CONCAT,
     }
 }

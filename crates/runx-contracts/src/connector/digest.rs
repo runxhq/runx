@@ -56,7 +56,7 @@ struct OperationAuthority<'a> {
     approval: ApprovalFloor,
     idempotency_key_format: IdempotencyKeyFormat,
     guarantees: &'a OperationGuarantees,
-    amount: AmountRule,
+    amount: &'a AmountRule,
     input_schema_digest: Option<Digest>,
     /// A price is what the operation means: a changed price or basis is
     /// confirmed again; where it was read is not. Absent, it leaves every
@@ -86,7 +86,7 @@ pub fn operation_digest(
         approval: operation.approval,
         idempotency_key_format: operation.idempotency_key_format,
         guarantees: &operation.guarantees,
-        amount: operation.amount,
+        amount: &operation.amount,
         input_schema_digest: input_schema_digest(operation.input_schema.as_ref())?,
         cost: operation.cost.as_ref().map(|cost: &OperationCost| Price {
             usd_micro: cost.usd_micro,

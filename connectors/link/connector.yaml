@@ -1,0 +1,300 @@
+schema: runx.connector.v1
+id: link
+name: Link
+description: Authorize one-time wallet spending and pay MPP resources through your local Link
+  session. Tokens remain inside the official Link CLI.
+category: payments
+runtime_capability: false
+auth:
+  session:
+    kind: managed_command
+    command:
+      - link-cli
+      - user-info
+      - retrieve
+      - --format
+      - json
+    id: 0.id
+    login: 0.id
+placements:
+  local:
+    auth:
+      - session
+pays:
+  mpp:
+    methods:
+      - stripe
+operations:
+  account.read:
+    description: Read the pinned local Link account without returning personal information.
+    verb: read
+    scopes:
+      - payment.link.account
+    target:
+      template: link://account
+    input_schema:
+      type: object
+      required:
+        - action
+      additionalProperties: false
+      properties:
+        action:
+          const: account
+    result_fields:
+      - account_ref
+      - resource_binding
+    implementation:
+      process:
+        tool: link.payment
+  spend.request:
+    description: Request one-time wallet authorization bound to the original resource, method, body and
+      MPP challenge. Approval is not payment.
+    verb: create
+    scopes:
+      - payment.link.request
+    target:
+      template:
+        $argument: /resource_url
+    input_schema:
+      type: object
+      required:
+        - action
+        - amount_minor
+        - currency
+        - payment_method_id
+        - network_id
+        - context
+        - resource_url
+        - challenge
+        - method
+      additionalProperties: false
+      properties:
+        action:
+          const: request
+        amount_minor:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        payment_method_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,200}$
+        network_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+        context:
+          type: string
+          minLength: 100
+          maxLength: 2000
+        resource_url:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        challenge:
+          type: string
+          minLength: 1
+          maxLength: 16384
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+        body:
+          type: string
+          maxLength: 65536
+    result_fields:
+      - spend_request_id
+      - amount_minor
+      - currency
+      - status
+      - payment_method_id
+      - network_id
+      - approval_url
+      - transaction_ref
+      - payment_outcome
+      - paid_amount_minor
+      - paid_currency
+      - refund_amount_minor
+      - refund_currency
+      - refund_status
+      - resource_binding
+    implementation:
+      process:
+        tool: link.payment
+        readback:
+          matches:
+            - expected:
+                source: acknowledgement
+                path: spend_request_id
+              observed: spend_request_id
+            - expected:
+                source: argument
+                path: amount_minor
+              observed: amount_minor
+            - expected:
+                source: argument
+                path: currency
+              observed: currency
+            - expected:
+                source: argument
+                path: payment_method_id
+              observed: payment_method_id
+            - expected:
+                source: argument
+                path: network_id
+              observed: network_id
+        result_from: readback
+  spend.read:
+    description: Read the original spend request without retrieving a token.
+    verb: read
+    scopes:
+      - payment.link.read
+    target:
+      template:
+        $argument: /spend_request_id
+    input_schema:
+      type: object
+      required:
+        - action
+        - spend_request_id
+      additionalProperties: false
+      properties:
+        action:
+          const: read
+        spend_request_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,200}$
+    result_fields:
+      - spend_request_id
+      - amount_minor
+      - currency
+      - status
+      - payment_method_id
+      - network_id
+      - approval_url
+      - transaction_ref
+      - payment_outcome
+      - paid_amount_minor
+      - paid_currency
+      - refund_amount_minor
+      - refund_currency
+      - refund_status
+      - resource_binding
+    implementation:
+      process:
+        tool: link.payment
+  payment.mpp:
+    description: Pay one pinned Stripe MPP charge with an approved Link spend request, then
+      independently read its payment outcome.
+    verb: write
+    scopes:
+      - payment.link.pay
+    target:
+      template:
+        $argument: /resource_url
+    input_schema:
+      type: object
+      required:
+        - action
+        - amount_minor
+        - currency
+        - payment_method_id
+        - network_id
+        - spend_request_id
+        - resource_url
+        - challenge
+        - method
+      additionalProperties: false
+      properties:
+        action:
+          const: pay
+        amount_minor:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        payment_method_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,200}$
+        network_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+        spend_request_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,200}$
+        resource_url:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        challenge:
+          type: string
+          minLength: 1
+          maxLength: 16384
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+        body:
+          type: string
+          maxLength: 65536
+    result_fields:
+      - spend_request_id
+      - amount_minor
+      - currency
+      - status
+      - payment_method_id
+      - network_id
+      - approval_url
+      - transaction_ref
+      - payment_outcome
+      - paid_amount_minor
+      - paid_currency
+      - refund_amount_minor
+      - refund_currency
+      - refund_status
+      - resource_binding
+    implementation:
+      process:
+        tool: link.payment
+        readback:
+          matches:
+            - expected:
+                source: argument
+                path: spend_request_id
+              observed: spend_request_id
+            - expected:
+                source: argument
+                path: amount_minor
+              observed: amount_minor
+            - expected:
+                source: argument
+                path: currency
+              observed: currency
+            - expected:
+                source: literal
+                value: settled
+              observed: status
+            - expected:
+                source: argument
+                path: payment_method_id
+              observed: payment_method_id
+            - expected:
+                source: argument
+                path: network_id
+              observed: network_id
+        result_from: readback
+    approval: required
+    amount:
+      units:
+        $argument: /amount_minor
+      currency:
+        $argument: /currency

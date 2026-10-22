@@ -1,5 +1,5 @@
 ---
 schema: runx.catalog-presentation.v1
-title: Invoice settlement
-summary: "Validate and pay one invoice with approval and the provider's confirmation."
+title: Invoice pay
+summary: Bind an invoice to exact payment terms and confirm its original buyer payment.
 ---

@@ -1,0 +1,742 @@
+schema: runx.connector.v1
+id: stripe
+name: Stripe
+description: Collect and refund payments on your Stripe account, with exact terms and independent processor readback.
+category: payments
+runtime_capability: false
+auth:
+  credentials:
+    key:
+      kind: api_key
+      fields:
+      - name: api_key
+        label: Stripe secret or restricted key
+        prefixes:
+        - sk_test_
+        - sk_live_
+        - rk_test_
+        - rk_live_
+      delivery:
+        env: STRIPE_API_KEY
+      audience:
+      - api.stripe.com
+placements:
+  hosted:
+    auth: credential
+    credential: key
+  local:
+    auth:
+    - credentials
+operations:
+  account.read:
+    description: Read the account this credential belongs to.
+    verb: read
+    scopes:
+    - payment.account.read
+    credentials:
+    - key
+    target:
+      template: stripe://account
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    result_fields:
+    - account_ref
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: account
+          method: GET
+          url: https://api.stripe.com/v1/account
+          headers:
+            stripe-version: 2026-09-30.endive
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            account_ref: id
+        preconditions: []
+        result_paths:
+          account_ref: acknowledgement.account_ref
+  payment.stripe:
+    description: Collect one exact payment using an existing Stripe payment method. Only a succeeded PaymentIntent
+      independently read back with the approved terms confirms collection.
+    verb: write
+    approval: required
+    scopes:
+    - payment.stripe
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /collections/
+        - $argument: /reference
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - amount_minor
+      - currency
+      - payment_method_ref
+      - reference
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        amount_minor:
+          type: integer
+          minimum: 1
+          maximum: 99999999
+        currency:
+          type: string
+          pattern: ^[a-z]{3}$
+        payment_method_ref:
+          type: string
+          pattern: ^pm_[A-Za-z0-9_]{1,128}$
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$
+    result_fields:
+    - payment_ref
+    - amount_minor
+    - amount_received
+    - currency
+    - status
+    - charge_ref
+    - reference
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: collect
+          method: POST
+          url: https://api.stripe.com/v1/payment_intents
+          headers: &id002
+            stripe-version: 2026-09-30.endive
+            idempotency-key:
+              $runx: idempotency_key
+            stripe-account:
+              $argument: /account_id
+          body_encoding: form
+          body:
+            amount:
+              $argument: /amount_minor
+            currency:
+              $argument: /currency
+            payment_method:
+              $argument: /payment_method_ref
+            confirm: true
+            automatic_payment_methods[enabled]: true
+            automatic_payment_methods[allow_redirects]: never
+            metadata[runx_reference]:
+              $argument: /reference
+            metadata[runx_effect_key]:
+              $runx: idempotency_key
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            payment_ref: id
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: &id001
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        operation_id_path: payment_ref
+        readbacks:
+        - request:
+            id: payment
+            method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/payment_intents/
+              - $response: write.json.payment_ref
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              payment_ref: id
+              amount_minor: amount
+              amount_received: amount_received
+              currency: currency
+              status: status
+              charge_ref: latest_charge
+              reference: metadata.runx_reference
+          matches:
+          - expected:
+              source: acknowledgement
+              path: payment_ref
+            observed: payment_ref
+          - expected:
+              source: argument
+              path: amount_minor
+            observed: amount_minor
+          - expected:
+              source: argument
+              path: amount_minor
+            observed: amount_received
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
+          - expected:
+              source: argument
+              path: reference
+            observed: reference
+          - expected:
+              source: literal
+              value: succeeded
+            observed: status
+        result_paths:
+          payment_ref: readbacks.0.payment_ref
+          amount_minor: readbacks.0.amount_minor
+          amount_received: readbacks.0.amount_received
+          currency: readbacks.0.currency
+          status: readbacks.0.status
+          charge_ref: readbacks.0.charge_ref
+          reference: readbacks.0.reference
+  payment.stripe.read:
+    description: Read one PaymentIntent without exposing its client secret or customer payment details.
+    verb: read
+    scopes:
+    - payment.stripe.read
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /payments/
+        - $argument: /payment_ref
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - payment_ref
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        payment_ref:
+          type: string
+          pattern: ^pi_[A-Za-z0-9]{1,128}$
+    result_fields:
+    - payment_ref
+    - amount_minor
+    - amount_received
+    - currency
+    - status
+    - charge_ref
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: payment
+          method: GET
+          url:
+            $concat:
+            - https://api.stripe.com/v1/payment_intents/
+            - $argument: /payment_ref
+          headers: *id001
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            payment_ref: id
+            amount_minor: amount
+            amount_received: amount_received
+            currency: currency
+            status: status
+            charge_ref: latest_charge
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        result_paths:
+          payment_ref: acknowledgement.payment_ref
+          amount_minor: acknowledgement.amount_minor
+          amount_received: acknowledgement.amount_received
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+          charge_ref: acknowledgement.charge_ref
+  payment.stripe.lookup:
+    description: 'Find one PaymentIntent by the native effect key recorded for the attempted collection. Search
+      is eventually consistent: absence never proves a payment was not submitted. Multiple matches refuse.'
+    verb: read
+    scopes:
+    - payment.stripe.read
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /effects/
+        - $argument: /effect_key
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - effect_key
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        effect_key:
+          type: string
+          pattern: ^[A-Za-z0-9_:-]{1,200}$
+    result_fields:
+    - payment_ref
+    - amount_minor
+    - amount_received
+    - currency
+    - status
+    - charge_ref
+    - reference
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: lookup
+          method: GET
+          url: https://api.stripe.com/v1/payment_intents/search
+          query:
+            query:
+              $concat:
+              - metadata['runx_effect_key']:'
+              - $argument: /effect_key
+              - ''''
+            limit: 2
+          headers: *id001
+        decode:
+        - op: auto_json
+        - op: reject_present
+          path: data.1
+        - op: field
+          path: data.0
+        - op: project
+          fields:
+            payment_ref: id
+            amount_minor: amount
+            amount_received: amount_received
+            currency: currency
+            status: status
+            charge_ref: latest_charge
+            reference: metadata.runx_reference
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        result_paths:
+          payment_ref: acknowledgement.payment_ref
+          amount_minor: acknowledgement.amount_minor
+          amount_received: acknowledgement.amount_received
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+          charge_ref: acknowledgement.charge_ref
+          reference: acknowledgement.reference
+  payment.stripe.refund:
+    description: Refund one original PaymentIntent on its account and currency. Stripe atomically enforces its remaining
+      refundable amount, including concurrent partial refunds.
+    verb: write
+    approval: required
+    scopes:
+    - payment.stripe.refund
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /payments/
+        - $argument: /payment_ref
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - payment_ref
+      - amount_minor
+      - currency
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        payment_ref:
+          type: string
+          pattern: ^pi_[A-Za-z0-9]{1,128}$
+        amount_minor:
+          type: integer
+          minimum: 1
+          maximum: 99999999
+        currency:
+          type: string
+          pattern: ^[a-z]{3}$
+    result_fields:
+    - refund_ref
+    - payment_ref
+    - amount_minor
+    - currency
+    - status
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: refund
+          method: POST
+          url: https://api.stripe.com/v1/refunds
+          headers: *id002
+          body_encoding: form
+          body:
+            payment_intent:
+              $argument: /payment_ref
+            amount:
+              $argument: /amount_minor
+            metadata[runx_effect_key]:
+              $runx: idempotency_key
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            refund_ref: id
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        - request:
+            id: original
+            method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/payment_intents/
+              - $argument: /payment_ref
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              payment_ref: id
+              amount_minor: amount
+              amount_received: amount_received
+              currency: currency
+              status: status
+              charge_ref: latest_charge
+          matches:
+          - expected:
+              source: argument
+              path: payment_ref
+            observed: payment_ref
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
+          - expected:
+              source: literal
+              value: succeeded
+            observed: status
+        operation_id_path: refund_ref
+        readbacks:
+        - request:
+            id: refund_read
+            method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/refunds/
+              - $response: write.json.refund_ref
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              refund_ref: id
+              payment_ref: payment_intent
+              amount_minor: amount
+              currency: currency
+              status: status
+          matches:
+          - expected:
+              source: acknowledgement
+              path: refund_ref
+            observed: refund_ref
+          - expected:
+              source: argument
+              path: payment_ref
+            observed: payment_ref
+          - expected:
+              source: argument
+              path: amount_minor
+            observed: amount_minor
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
+          - expected:
+              source: literal
+              value: succeeded
+            observed: status
+        result_paths:
+          refund_ref: readbacks.0.refund_ref
+          payment_ref: readbacks.0.payment_ref
+          amount_minor: readbacks.0.amount_minor
+          currency: readbacks.0.currency
+          status: readbacks.0.status
+    amount:
+      units:
+        $argument: /amount_minor
+      currency:
+        $argument: /currency
+  payment.stripe.refund.read:
+    description: Read a Stripe refund and its actual processor status.
+    verb: read
+    scopes:
+    - payment.stripe.refund.read
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /refunds/
+        - $argument: /refund_ref
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - refund_ref
+      additionalProperties: false
+      properties:
+        account_id: &id003
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        refund_ref:
+          type: string
+          pattern: ^re_[A-Za-z0-9]{1,128}$
+    result_fields:
+    - refund_ref
+    - payment_ref
+    - amount_minor
+    - currency
+    - status
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: refund
+          method: GET
+          url:
+            $concat:
+            - https://api.stripe.com/v1/refunds/
+            - $argument: /refund_ref
+          headers: *id001
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            refund_ref: id
+            payment_ref: payment_intent
+            amount_minor: amount
+            currency: currency
+            status: status
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        result_paths:
+          refund_ref: acknowledgement.refund_ref
+          payment_ref: acknowledgement.payment_ref
+          amount_minor: acknowledgement.amount_minor
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+  payment.stripe.charge.read:
+    description: Read the original charge and its cumulative refunded amount before planning another partial refund.
+    verb: read
+    scopes:
+    - payment.stripe.read
+    credentials:
+    - key
+    target:
+      template:
+        $concat:
+        - stripe://
+        - $argument: /account_id
+        - /charges/
+        - $argument: /charge_ref
+    input_schema:
+      type: object
+      required:
+      - account_id
+      - charge_ref
+      additionalProperties: false
+      properties:
+        account_id: *id003
+        charge_ref:
+          type: string
+          pattern: ^ch_[A-Za-z0-9]{1,128}$
+    result_fields:
+    - charge_ref
+    - payment_ref
+    - amount_minor
+    - amount_refunded
+    - currency
+    - status
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+        - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+        - id: charge
+          method: GET
+          url:
+            $concat:
+            - https://api.stripe.com/v1/charges/
+            - $argument: /charge_ref
+          headers: *id001
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            charge_ref: id
+            payment_ref: payment_intent
+            amount_minor: amount
+            amount_refunded: amount_refunded
+            currency: currency
+            status: status
+        preconditions:
+        - request:
+            id: account
+            method: GET
+            url: https://api.stripe.com/v1/account
+            headers: *id001
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_ref: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_ref
+        result_paths:
+          charge_ref: acknowledgement.charge_ref
+          payment_ref: acknowledgement.payment_ref
+          amount_minor: acknowledgement.amount_minor
+          amount_refunded: acknowledgement.amount_refunded
+          currency: acknowledgement.currency
+          status: acknowledgement.status

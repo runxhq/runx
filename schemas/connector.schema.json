@@ -181,6 +181,38 @@
             {
               "additionalProperties": false,
               "properties": {
+                "command": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "managed_command",
+                  "type": "string"
+                },
+                "login": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "command",
+                "id",
+                "login"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "kind": {
                   "const": "host_browser",
                   "type": "string"
@@ -218,10 +250,26 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "enum": [
-              "required"
-            ],
-            "type": "string"
+            "not": {
+              "const": "none"
+            },
+            "oneOf": [
+              {
+                "const": "none"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "currency": {},
+                  "units": {}
+                },
+                "required": [
+                  "units",
+                  "currency"
+                ],
+                "type": "object"
+              }
+            ]
           },
           "approval": {
             "enum": [
@@ -438,6 +486,37 @@
                             {
                               "additionalProperties": false,
                               "properties": {
+                                "client_id": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "client_secret": {
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                  "type": "string"
+                                },
+                                "scope": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "token_url": {},
+                                "type": {
+                                  "const": "oauth2_client_credentials",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "token_url",
+                                "client_id",
+                                "client_secret"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
                                 "type": {
                                   "const": "oauth1",
                                   "type": "string"
@@ -575,6 +654,27 @@
                             {
                               "additionalProperties": false,
                               "properties": {
+                                "fields": {
+                                  "additionalProperties": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
+                                "op": {
+                                  "const": "project",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "op",
+                                "fields"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
                                 "op": {
                                   "const": "reject_true",
                                   "type": "string"
@@ -696,6 +796,27 @@
                                   {
                                     "additionalProperties": false,
                                     "properties": {
+                                      "fields": {
+                                        "additionalProperties": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
+                                      "op": {
+                                        "const": "project",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "fields"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
                                       "op": {
                                         "const": "reject_true",
                                         "type": "string"
@@ -811,6 +932,21 @@
                                           "value"
                                         ],
                                         "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "source": {
+                                            "const": "template",
+                                            "type": "string"
+                                          },
+                                          "value": {}
+                                        },
+                                        "required": [
+                                          "source",
+                                          "value"
+                                        ],
+                                        "type": "object"
                                       }
                                     ]
                                   },
@@ -832,6 +968,12 @@
                               "additionalProperties": false,
                               "properties": {
                                 "body": {},
+                                "body_encoding": {
+                                  "enum": [
+                                    "form"
+                                  ],
+                                  "type": "string"
+                                },
                                 "each": {},
                                 "headers": {
                                   "additionalProperties": {},
@@ -991,6 +1133,27 @@
                                   {
                                     "additionalProperties": false,
                                     "properties": {
+                                      "fields": {
+                                        "additionalProperties": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
+                                      "op": {
+                                        "const": "project",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "op",
+                                      "fields"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
                                       "op": {
                                         "const": "reject_true",
                                         "type": "string"
@@ -1106,6 +1269,21 @@
                                           "value"
                                         ],
                                         "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "source": {
+                                            "const": "template",
+                                            "type": "string"
+                                          },
+                                          "value": {}
+                                        },
+                                        "required": [
+                                          "source",
+                                          "value"
+                                        ],
+                                        "type": "object"
                                       }
                                     ]
                                   },
@@ -1127,6 +1305,12 @@
                               "additionalProperties": false,
                               "properties": {
                                 "body": {},
+                                "body_encoding": {
+                                  "enum": [
+                                    "form"
+                                  ],
+                                  "type": "string"
+                                },
                                 "each": {},
                                 "headers": {
                                   "additionalProperties": {},
@@ -1198,6 +1382,12 @@
                           "additionalProperties": false,
                           "properties": {
                             "body": {},
+                            "body_encoding": {
+                              "enum": [
+                                "form"
+                              ],
+                              "type": "string"
+                            },
                             "each": {},
                             "headers": {
                               "additionalProperties": {},
@@ -1363,6 +1553,21 @@
                                         "value"
                                       ],
                                       "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "template",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
                                     }
                                   ]
                                 },
@@ -1503,6 +1708,21 @@
                                         "value"
                                       ],
                                       "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "template",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
                                     }
                                   ]
                                 },
@@ -1525,6 +1745,12 @@
                           "matches"
                         ],
                         "type": "object"
+                      },
+                      "result_from": {
+                        "enum": [
+                          "readback"
+                        ],
+                        "type": "string"
                       },
                       "runtime_scopes": {
                         "items": {
@@ -1662,29 +1888,39 @@
       "type": "object"
     },
     "pays": {
-      "additionalProperties": false,
-      "properties": {
-        "x402": {
-          "additionalProperties": false,
-          "properties": {
-            "networks": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "currencies": {
+            "items": {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
           },
-          "required": [
-            "networks"
-          ],
-          "type": "object"
-        }
+          "methods": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "networks": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
       },
-      "required": [
-        "x402"
-      ],
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      },
       "type": "object"
     },
     "placements": {
@@ -1779,6 +2015,37 @@
                               "type",
                               "name",
                               "field"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "client_id": {
+                                "maxLength": 64,
+                                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                "type": "string"
+                              },
+                              "client_secret": {
+                                "maxLength": 64,
+                                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                                "type": "string"
+                              },
+                              "scope": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "token_url": {},
+                              "type": {
+                                "const": "oauth2_client_credentials",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "token_url",
+                              "client_id",
+                              "client_secret"
                             ],
                             "type": "object"
                           },

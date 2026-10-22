@@ -16,6 +16,31 @@
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
+        "payment_method": {
+          "additionalProperties": false,
+          "properties": {
+            "asset": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "network": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "pay_to": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "method"
+          ],
+          "type": "object"
+        },
         "protocol_version": {
           "minLength": 1,
           "type": "string"
@@ -108,12 +133,31 @@
       },
       "required": [
         "settlement_family",
-        "protocol_version",
         "media_type",
         "payload",
         "payload_digest",
         "quote_ref",
         "quote_expires_at"
+      ],
+      "type": "object"
+    },
+    "PaidInvocationPaymentOptionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "payload_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "settlement_family": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "settlement_family",
+        "payload_digest"
       ],
       "type": "object"
     }
@@ -129,9 +173,6 @@
         "value": {
           "additionalProperties": false,
           "properties": {
-            "challenge": {
-              "$ref": "#/$defs/PaidInvocationPaymentChallenge"
-            },
             "invocation": {
               "$id": "https://schemas.runx.ai/runx/payment/paid-invocation/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -696,11 +737,18 @@
               ],
               "type": "object",
               "x-runx-schema": "runx.payment.paid_invocation.v1"
+            },
+            "payment_options": {
+              "items": {
+                "$ref": "#/$defs/PaidInvocationPaymentChallenge"
+              },
+              "minItems": 1,
+              "type": "array"
             }
           },
           "required": [
             "invocation",
-            "challenge"
+            "payment_options"
           ],
           "type": "object"
         }

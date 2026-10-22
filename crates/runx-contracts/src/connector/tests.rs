@@ -41,6 +41,146 @@ fn slack() -> ConnectorManifest {
 }
 
 #[test]
+fn financial_amounts_bind_provider_inputs_and_match_the_shared_corpus() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/contracts/connector-amount.json"
+    ))
+    .unwrap();
+    let rule: AmountRule = serde_json::from_value(corpus["binding"].clone()).unwrap();
+    for case in corpus["cases"].as_array().unwrap() {
+        let rule = if case["decimal"] == true {
+            serde_json::from_value(corpus["decimal_binding"].clone()).unwrap()
+        } else {
+            rule.clone()
+        };
+        let arguments: JsonValue = serde_json::from_value(case["arguments"].clone()).unwrap();
+        let resolved = rule.resolve(&arguments);
+        if case["error"] == true {
+            assert!(resolved.is_err(), "{}", case["name"]);
+        } else {
+            assert_eq!(
+                serde_json::to_value(resolved.unwrap().unwrap()).unwrap(),
+                case["expected"],
+                "{}",
+                case["name"]
+            );
+        }
+    }
+    let schema = AmountRule::json_schema();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&corpus["binding"]));
+    assert_eq!(
+        serde_json::to_value(AmountRule::None).unwrap(),
+        json!("none")
+    );
+    for unsafe_rule in [
+        json!("required"),
+        json!({"units":1}),
+        json!({"units":1,"currency":"USD","extra":"term"}),
+    ] {
+        assert!(!validator.is_valid(&unsafe_rule));
+        assert!(serde_json::from_value::<AmountRule>(unsafe_rule).is_err());
+    }
+}
+
+#[test]
+fn decimal_bindings_preserve_template_authority_and_dependency_analysis() {
+    let template: Template = serde_json::from_value(
+        json!({"$minor_units":{"decimal":{"$argument":"/value"},"scale":{"$argument":"/scale"}}}),
+    )
+    .unwrap();
+    assert!(template.binds_argument());
+    assert_eq!(
+        template.argument_pointers(),
+        std::collections::BTreeSet::from(["/value", "/scale"])
+    );
+    let response: Template = serde_json::from_value(
+        json!({"$minor_units":{"decimal":{"$response":"write.json.amount"},"scale":2}}),
+    )
+    .unwrap();
+    assert!(response.binds_exchange());
+    assert_eq!(
+        response.responses(),
+        std::collections::BTreeSet::from(["write"])
+    );
+    for malformed in [
+        json!({"$minor_units":{}}),
+        json!({"$minor_units":{"decimal":"1.50"}}),
+        json!({"$minor_units":{"decimal":"1.50","scale":2,"extra":true}}),
+    ] {
+        assert!(serde_json::from_value::<Template>(malformed).is_err());
+    }
+}
+
+#[test]
+fn payment_compatibility_is_family_neutral_and_matches_each_declared_restriction() {
+    #[derive(Deserialize)]
+    struct Corpus {
+        pays: ConnectorPays,
+        cases: Vec<Case>,
+    }
+    #[derive(Deserialize)]
+    struct Terms {
+        family: String,
+        method: Option<String>,
+        network: Option<String>,
+        currency: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct Case {
+        name: String,
+        terms: Terms,
+        expected: bool,
+    }
+    let corpus: Corpus = serde_json::from_str(include_str!(
+        "../../../../fixtures/contracts/connector-payments.json"
+    ))
+    .unwrap();
+    for case in corpus.cases {
+        let matches = corpus
+            .pays
+            .get(case.terms.family.as_str())
+            .is_some_and(|method| {
+                method.matches(
+                    case.terms.method.as_deref(),
+                    case.terms.network.as_deref(),
+                    case.terms.currency.as_deref(),
+                )
+            });
+        assert_eq!(matches, case.expected, "{}", case.name);
+    }
+}
+
+#[test]
+fn payment_families_and_constraints_have_the_same_rust_and_schema_shape() {
+    let schema = <ConnectorPays as RunxSchema>::json_schema();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for (value, accepted) in [
+        (
+            json!({"mpp": {"methods": ["stripe"], "currencies": ["USD"]}}),
+            true,
+        ),
+        (
+            json!({"vendor-method": {"networks": ["vendor:test"]}}),
+            true,
+        ),
+        (json!({"x402": {"networks": ["eip155:8453"]}}), true),
+        (json!({"bad/family": {}}), false),
+        (json!({"mpp": {"methods": []}}), false),
+        (json!({"mpp": {"networks": []}}), false),
+        (json!({"mpp": {"currencies": ["usd"]}}), false),
+        (json!({"mpp": {"anything": true}}), false),
+    ] {
+        assert_eq!(
+            serde_json::from_value::<ConnectorPays>(value.clone()).is_ok(),
+            accepted,
+            "Rust: {value}"
+        );
+        assert_eq!(validator.is_valid(&value), accepted, "schema: {value}");
+    }
+}
+
+#[test]
 fn identifiers_follow_their_grammar() {
     assert!(is_operation_name("channel.post"));
     assert!(is_operation_name("reports.run_realtime"));

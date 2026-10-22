@@ -1,0 +1,1205 @@
+schema: runx.connector.v1
+id: paypal
+name: PayPal
+description: Create checkout orders, collect approved payments and refund original captures with
+  exact merchant binding and independent processor readback.
+category: payments
+runtime_capability: false
+auth:
+  credentials:
+    app:
+      kind: client_credentials
+      fields:
+        - name: client_id
+          label: PayPal REST app client ID
+          secret: false
+        - name: client_secret
+          label: PayPal REST app client secret
+      delivery:
+        env: PAYPAL_CLIENT_CREDENTIALS
+      audience:
+        - api-m.paypal.com
+        - api-m.sandbox.paypal.com
+placements:
+  hosted:
+    auth: credential
+    credential: app
+  local:
+    auth:
+      - credentials
+operations:
+  payment.paypal.order.create:
+    description: Create one merchant checkout order and read its exact terms back. Creating an order
+      does not approve or collect a payment; return the provider approval link to the buyer.
+    verb: write
+    scopes:
+      - payment.paypal.order.create
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://
+          - $argument: /api_host
+          - /
+          - $argument: /account_id
+          - /orders/
+          - $argument: /reference
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - account_id
+        - amount_decimal
+        - currency
+        - precision
+        - reference
+        - return_url
+        - cancel_url
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^[A-Z0-9]{13}$
+        amount_decimal:
+          type: string
+          minLength: 1
+          maxLength: 16
+          not:
+            pattern: ^0(?:\.0+)?$
+        currency:
+          type: string
+          enum:
+            - AUD
+            - BRL
+            - CAD
+            - CNY
+            - CZK
+            - DKK
+            - EUR
+            - HKD
+            - HUF
+            - ILS
+            - JPY
+            - MYR
+            - MXN
+            - TWD
+            - NZD
+            - NOK
+            - PHP
+            - PLN
+            - GBP
+            - RUB
+            - SGD
+            - SEK
+            - CHF
+            - THB
+            - USD
+        precision:
+          type: integer
+          enum:
+            - 0
+            - 2
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]{0,126}$
+        return_url:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        cancel_url:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+      allOf:
+        - if:
+            properties:
+              currency:
+                enum:
+                  - HUF
+                  - JPY
+                  - TWD
+            required:
+              - currency
+          then:
+            properties:
+              precision:
+                const: 0
+              amount_decimal:
+                pattern: ^[1-9][0-9]{0,13}$
+          else:
+            properties:
+              precision:
+                const: 2
+              amount_decimal:
+                pattern: ^(?:0|[1-9][0-9]{0,11})\.[0-9]{2}$
+    result_fields:
+      - order_ref
+      - order_status
+      - intent
+      - account_id
+      - amount_decimal
+      - currency
+      - reference
+      - links
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: order
+            method: POST
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/checkout/orders
+            headers:
+              prefer: return=representation
+              paypal-request-id:
+                $runx: idempotency_key
+            body:
+              intent: CAPTURE
+              purchase_units:
+                - reference_id:
+                    $argument: /reference
+                  custom_id:
+                    $runx: idempotency_key
+                  payee:
+                    merchant_id:
+                      $argument: /account_id
+                  amount:
+                    currency_code:
+                      $argument: /currency
+                    value:
+                      $argument: /amount_decimal
+              payment_source:
+                paypal:
+                  experience_context:
+                    return_url:
+                      $argument: /return_url
+                    cancel_url:
+                      $argument: /cancel_url
+                    user_action: PAY_NOW
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              order_ref: id
+        operation_id_path: order_ref
+        readbacks:
+          - request:
+              id: order_read
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/checkout/orders/
+                  - $response: write.json.order_ref
+            decode:
+              - op: auto_json
+              - op: reject_present
+                path: purchase_units.1
+              - op: project
+                fields:
+                  order_ref: id
+                  order_status: status
+                  intent: intent
+                  account_id: purchase_units.0.payee.merchant_id
+                  amount_decimal: purchase_units.0.amount.value
+                  currency: purchase_units.0.amount.currency_code
+                  reference: purchase_units.0.reference_id
+                  links: links
+            matches:
+              - expected:
+                  source: acknowledgement
+                  path: order_ref
+                observed: order_ref
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: amount_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: reference
+                observed: reference
+        result_paths:
+          order_ref: readbacks.0.order_ref
+          order_status: readbacks.0.order_status
+          intent: readbacks.0.intent
+          account_id: readbacks.0.account_id
+          amount_decimal: readbacks.0.amount_decimal
+          currency: readbacks.0.currency
+          reference: readbacks.0.reference
+          links: readbacks.0.links
+    approval: required
+    idempotency_key_format: uuid
+  payment.paypal.order.read:
+    description: Read the state, merchant and exact terms of one single-unit order. An order awaiting
+      buyer action is not payment confirmation.
+    verb: read
+    scopes:
+      - payment.paypal.order.read
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://orders/
+          - $argument: /order_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - order_ref
+      additionalProperties: false
+      properties:
+        order_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+    result_fields:
+      - order_ref
+      - order_status
+      - intent
+      - account_id
+      - amount_decimal
+      - currency
+      - reference
+      - links
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: order
+            method: GET
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/checkout/orders/
+                - $argument: /order_ref
+        decode:
+          - op: auto_json
+          - op: reject_present
+            path: purchase_units.1
+          - op: project
+            fields:
+              order_ref: id
+              order_status: status
+              intent: intent
+              account_id: purchase_units.0.payee.merchant_id
+              amount_decimal: purchase_units.0.amount.value
+              currency: purchase_units.0.amount.currency_code
+              reference: purchase_units.0.reference_id
+              links: links
+        result_paths:
+          order_ref: acknowledgement.order_ref
+          order_status: acknowledgement.order_status
+          intent: acknowledgement.intent
+          account_id: acknowledgement.account_id
+          amount_decimal: acknowledgement.amount_decimal
+          currency: acknowledgement.currency
+          reference: acknowledgement.reference
+          links: acknowledgement.links
+  payment.paypal:
+    description: Capture one buyer-approved, single-unit order on the selected merchant. Confirmation
+      requires independent order and capture reads matching the approved identity, amount and
+      currency.
+    verb: write
+    scopes:
+      - payment.paypal
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://
+          - $argument: /api_host
+          - /
+          - $argument: /account_id
+          - /orders/
+          - $argument: /order_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - account_id
+        - order_ref
+        - amount_decimal
+        - currency
+        - precision
+        - reference
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^[A-Z0-9]{13}$
+        order_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        amount_decimal:
+          type: string
+          minLength: 1
+          maxLength: 16
+          not:
+            pattern: ^0(?:\.0+)?$
+        currency:
+          type: string
+          enum:
+            - AUD
+            - BRL
+            - CAD
+            - CNY
+            - CZK
+            - DKK
+            - EUR
+            - HKD
+            - HUF
+            - ILS
+            - JPY
+            - MYR
+            - MXN
+            - TWD
+            - NZD
+            - NOK
+            - PHP
+            - PLN
+            - GBP
+            - RUB
+            - SGD
+            - SEK
+            - CHF
+            - THB
+            - USD
+        precision:
+          type: integer
+          enum:
+            - 0
+            - 2
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]{0,126}$
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+      allOf:
+        - if:
+            properties:
+              currency:
+                enum:
+                  - HUF
+                  - JPY
+                  - TWD
+            required:
+              - currency
+          then:
+            properties:
+              precision:
+                const: 0
+              amount_decimal:
+                pattern: ^[1-9][0-9]{0,13}$
+          else:
+            properties:
+              precision:
+                const: 2
+              amount_decimal:
+                pattern: ^(?:0|[1-9][0-9]{0,11})\.[0-9]{2}$
+    result_fields:
+      - payment_ref
+      - order_ref
+      - account_id
+      - amount_decimal
+      - currency
+      - status
+      - reference
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: capture
+            method: POST
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/checkout/orders/
+                - $argument: /order_ref
+                - /capture
+            headers:
+              prefer: return=representation
+              paypal-request-id:
+                $runx: idempotency_key
+            body: {}
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              order_ref: id
+              payment_ref: purchase_units.0.payments.captures.0.id
+        preconditions:
+          - request:
+              id: approved_order
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/checkout/orders/
+                  - $argument: /order_ref
+            decode:
+              - op: auto_json
+              - op: reject_present
+                path: purchase_units.1
+              - op: project
+                fields:
+                  order_ref: id
+                  order_status: status
+                  intent: intent
+                  account_id: purchase_units.0.payee.merchant_id
+                  amount_decimal: purchase_units.0.amount.value
+                  currency: purchase_units.0.amount.currency_code
+                  reference: purchase_units.0.reference_id
+            matches:
+              - expected:
+                  source: argument
+                  path: order_ref
+                observed: order_ref
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: amount_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: reference
+                observed: reference
+              - expected:
+                  source: literal
+                  value: APPROVED
+                observed: order_status
+              - expected:
+                  source: literal
+                  value: CAPTURE
+                observed: intent
+        operation_id_path: payment_ref
+        readbacks:
+          - request:
+              id: captured_order
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/checkout/orders/
+                  - $argument: /order_ref
+            decode:
+              - op: auto_json
+              - op: reject_present
+                path: purchase_units.1
+              - op: reject_present
+                path: purchase_units.0.payments.captures.1
+              - op: project
+                fields:
+                  order_ref: id
+                  order_status: status
+                  account_id: purchase_units.0.payee.merchant_id
+                  amount_decimal: purchase_units.0.amount.value
+                  currency: purchase_units.0.amount.currency_code
+                  reference: purchase_units.0.reference_id
+                  payment_ref: purchase_units.0.payments.captures.0.id
+                  status: purchase_units.0.payments.captures.0.status
+                  captured_decimal: purchase_units.0.payments.captures.0.amount.value
+                  captured_currency: purchase_units.0.payments.captures.0.amount.currency_code
+            matches:
+              - expected:
+                  source: argument
+                  path: order_ref
+                observed: order_ref
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: amount_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: reference
+                observed: reference
+              - expected:
+                  source: acknowledgement
+                  path: payment_ref
+                observed: payment_ref
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: captured_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: captured_currency
+              - expected:
+                  source: literal
+                  value: COMPLETED
+                observed: order_status
+              - expected:
+                  source: literal
+                  value: COMPLETED
+                observed: status
+              - expected:
+                  source: acknowledgement
+                  path: order_ref
+                observed: order_ref
+          - request:
+              id: capture_read
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/payments/captures/
+                  - $response: write.json.payment_ref
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  payment_ref: id
+                  order_ref: supplementary_data.related_ids.order_id
+                  account_id: payee.merchant_id
+                  amount_decimal: amount.value
+                  currency: amount.currency_code
+                  status: status
+            matches:
+              - expected:
+                  source: acknowledgement
+                  path: payment_ref
+                observed: payment_ref
+              - expected:
+                  source: argument
+                  path: order_ref
+                observed: order_ref
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: amount_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: literal
+                  value: COMPLETED
+                observed: status
+        result_paths:
+          payment_ref: readbacks.1.payment_ref
+          order_ref: readbacks.1.order_ref
+          account_id: readbacks.1.account_id
+          amount_decimal: readbacks.1.amount_decimal
+          currency: readbacks.1.currency
+          status: readbacks.1.status
+          reference: readbacks.0.reference
+    approval: required
+    idempotency_key_format: uuid
+  payment.paypal.read:
+    description: Read one capture and report its actual merchant, order, amount, currency and processor
+      state without payer details.
+    verb: read
+    scopes:
+      - payment.paypal.read
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://captures/
+          - $argument: /payment_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - payment_ref
+      additionalProperties: false
+      properties:
+        payment_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+    result_fields:
+      - payment_ref
+      - order_ref
+      - account_id
+      - amount_decimal
+      - currency
+      - status
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: capture
+            method: GET
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/payments/captures/
+                - $argument: /payment_ref
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              payment_ref: id
+              order_ref: supplementary_data.related_ids.order_id
+              account_id: payee.merchant_id
+              amount_decimal: amount.value
+              currency: amount.currency_code
+              status: status
+        result_paths:
+          payment_ref: acknowledgement.payment_ref
+          order_ref: acknowledgement.order_ref
+          account_id: acknowledgement.account_id
+          amount_decimal: acknowledgement.amount_decimal
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+  payment.paypal.refund:
+    description: Refund an original capture on its merchant and currency. PayPal enforces the remaining
+      balance; independent readback must confirm the refund terms and its exact original-capture
+      relationship.
+    verb: write
+    scopes:
+      - payment.paypal.refund
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://
+          - $argument: /api_host
+          - /
+          - $argument: /account_id
+          - /captures/
+          - $argument: /payment_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - account_id
+        - payment_ref
+        - amount_decimal
+        - currency
+        - precision
+        - original_status
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^[A-Z0-9]{13}$
+        payment_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        amount_decimal:
+          type: string
+          minLength: 1
+          maxLength: 16
+          not:
+            pattern: ^0(?:\.0+)?$
+        currency:
+          type: string
+          enum:
+            - AUD
+            - BRL
+            - CAD
+            - CNY
+            - CZK
+            - DKK
+            - EUR
+            - HKD
+            - HUF
+            - ILS
+            - JPY
+            - MYR
+            - MXN
+            - TWD
+            - NZD
+            - NOK
+            - PHP
+            - PLN
+            - GBP
+            - RUB
+            - SGD
+            - SEK
+            - CHF
+            - THB
+            - USD
+        precision:
+          type: integer
+          enum:
+            - 0
+            - 2
+        original_status:
+          type: string
+          enum:
+            - COMPLETED
+            - PARTIALLY_REFUNDED
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 255
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+      allOf:
+        - if:
+            properties:
+              currency:
+                enum:
+                  - HUF
+                  - JPY
+                  - TWD
+            required:
+              - currency
+          then:
+            properties:
+              precision:
+                const: 0
+              amount_decimal:
+                pattern: ^[1-9][0-9]{0,13}$
+          else:
+            properties:
+              precision:
+                const: 2
+              amount_decimal:
+                pattern: ^(?:0|[1-9][0-9]{0,11})\.[0-9]{2}$
+    result_fields:
+      - refund_ref
+      - amount_decimal
+      - currency
+      - status
+      - relationships
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: refund
+            method: POST
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/payments/captures/
+                - $argument: /payment_ref
+                - /refund
+            headers:
+              prefer: return=representation
+              paypal-request-id:
+                $runx: idempotency_key
+            body:
+              amount:
+                value:
+                  $argument: /amount_decimal
+                currency_code:
+                  $argument: /currency
+              custom_id:
+                $runx: idempotency_key
+              note_to_payer:
+                $argument: /reason
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              refund_ref: id
+        preconditions:
+          - request:
+              id: original_capture
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/payments/captures/
+                  - $argument: /payment_ref
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  payment_ref: id
+                  order_ref: supplementary_data.related_ids.order_id
+                  account_id: payee.merchant_id
+                  amount_decimal: amount.value
+                  currency: amount.currency_code
+                  status: status
+            matches:
+              - expected:
+                  source: argument
+                  path: payment_ref
+                observed: payment_ref
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: original_status
+                observed: status
+        operation_id_path: refund_ref
+        readbacks:
+          - request:
+              id: refund_read
+              method: GET
+              url:
+                $concat:
+                  - https://
+                  - $argument: /api_host
+                  - /v2/payments/refunds/
+                  - $response: write.json.refund_ref
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  refund_ref: id
+                  amount_decimal: amount.value
+                  currency: amount.currency_code
+                  status: status
+                  relationships: links
+            matches:
+              - expected:
+                  source: acknowledgement
+                  path: refund_ref
+                observed: refund_ref
+              - expected:
+                  source: argument
+                  path: amount_decimal
+                observed: amount_decimal
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: literal
+                  value: COMPLETED
+                observed: status
+              - expected:
+                  source: template
+                  value:
+                    - rel: self
+                      method: GET
+                      href:
+                        $concat:
+                          - https://
+                          - $argument: /api_host
+                          - /v2/payments/refunds/
+                          - $response: write.json.refund_ref
+                    - rel: up
+                      method: GET
+                      href:
+                        $concat:
+                          - https://
+                          - $argument: /api_host
+                          - /v2/payments/captures/
+                          - $argument: /payment_ref
+                observed: relationships.*
+        result_paths:
+          refund_ref: readbacks.0.refund_ref
+          amount_decimal: readbacks.0.amount_decimal
+          currency: readbacks.0.currency
+          status: readbacks.0.status
+          relationships: readbacks.0.relationships
+    approval: required
+    idempotency_key_format: uuid
+    amount:
+      units:
+        $minor_units:
+          decimal:
+            $argument: /amount_decimal
+          scale:
+            $argument: /precision
+      currency:
+        $argument: /currency
+  payment.paypal.refund.read:
+    description: Read one refund, its processor state and original-capture relationship. A pending
+      refund is not completed.
+    verb: read
+    scopes:
+      - payment.paypal.refund.read
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://refunds/
+          - $argument: /refund_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - refund_ref
+      additionalProperties: false
+      properties:
+        refund_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+    result_fields:
+      - refund_ref
+      - amount_decimal
+      - currency
+      - status
+      - relationships
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: refund
+            method: GET
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/payments/refunds/
+                - $argument: /refund_ref
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              refund_ref: id
+              amount_decimal: amount.value
+              currency: amount.currency_code
+              status: status
+              relationships: links
+        result_paths:
+          refund_ref: acknowledgement.refund_ref
+          amount_decimal: acknowledgement.amount_decimal
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+          relationships: acknowledgement.relationships
+  payment.paypal.lookup:
+    description: Observe the capture already recorded on one single-unit order after an uncertain
+      submission. A missing capture never proves the order was not captured; this operation never
+      submits a payment.
+    verb: read
+    scopes:
+      - payment.paypal.lookup
+    credentials:
+      - app
+    target:
+      template:
+        $concat:
+          - paypal://orders/
+          - $argument: /order_ref
+    input_schema:
+      type: object
+      required:
+        - api_host
+        - order_ref
+      additionalProperties: false
+      properties:
+        order_ref:
+          type: string
+          pattern: ^[A-Z0-9]{1,64}$
+        api_host:
+          type: string
+          enum:
+            - api-m.paypal.com
+            - api-m.sandbox.paypal.com
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
+            implicit live fallback.
+    result_fields:
+      - order_ref
+      - order_status
+      - account_id
+      - payment_ref
+      - amount_decimal
+      - currency
+      - status
+      - reference
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api-m.paypal.com
+          - api-m.sandbox.paypal.com
+        auth:
+          app:
+            type: oauth2_client_credentials
+            token_url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v1/oauth2/token
+            client_id: client_id
+            client_secret: client_secret
+        requests:
+          - id: order
+            method: GET
+            url:
+              $concat:
+                - https://
+                - $argument: /api_host
+                - /v2/checkout/orders/
+                - $argument: /order_ref
+        decode:
+          - op: auto_json
+          - op: reject_present
+            path: purchase_units.1
+          - op: reject_present
+            path: purchase_units.0.payments.captures.1
+          - op: project
+            fields:
+              order_ref: id
+              order_status: status
+              account_id: purchase_units.0.payee.merchant_id
+              payment_ref: purchase_units.0.payments.captures.0.id
+              amount_decimal: purchase_units.0.payments.captures.0.amount.value
+              currency: purchase_units.0.payments.captures.0.amount.currency_code
+              status: purchase_units.0.payments.captures.0.status
+              reference: purchase_units.0.reference_id
+        result_paths:
+          order_ref: acknowledgement.order_ref
+          order_status: acknowledgement.order_status
+          account_id: acknowledgement.account_id
+          payment_ref: acknowledgement.payment_ref
+          amount_decimal: acknowledgement.amount_decimal
+          currency: acknowledgement.currency
+          status: acknowledgement.status
+          reference: acknowledgement.reference

@@ -11,7 +11,7 @@ use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::connector::{AmountRule, OperationAccess, OperationName};
+use runx_contracts::connector::{OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AgentActInvocation, AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject,
@@ -1658,7 +1658,7 @@ pub(super) fn operation_descriptor(
         .any(|(_, operation)| operation.access() == OperationAccess::Mutate);
     let amount = described
         .iter()
-        .any(|(_, operation)| operation.amount == AmountRule::Required);
+        .any(|(_, operation)| operation.amount.requires_amount());
     let input = match described {
         [(_, operation)] => operation.input_schema.clone().map_or_else(
             || JsonValue::Object(object_schema([], &[])),

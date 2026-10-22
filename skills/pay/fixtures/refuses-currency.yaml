@@ -1,0 +1,39 @@
+name: pay-refuse-currency
+kind: skill
+target: ..
+runner: pay
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - charge
+      - invoice-pay
+    request: Pay this exact x402 resource.
+    expected_outcome: Require hosted wallet authority and return provider plus resource readback.
+  - mode: composed
+    request: Continue this admitted payment.
+    expected_outcome: Reuse supplied resource terms, authority, and retry identity.
+    prior_evidence:
+      - The admitted x402 resource terms supplied by the caller.
+    must_not_repeat:
+      - Do not mint a second x402 payment identity.
+inputs:
+  connector: wallet/evm
+  request:
+    resource:
+      url: https://vendor.example/v1/invocations
+      method: POST
+      body:
+        offer_id: document-ocr
+        input:
+          artifact_ref: runx:artifact:document-1
+      max_response_bytes: 26214400
+    amount_minor: 25
+    pay_to: "0x0000000000000000000000000000000000000002"
+  parent_payment_authority:
+    term_id: authority-test-1
+    currency: EUR
+    max_amount_minor: 25
+    counterparty: https://vendor.example/v1/invocations
+  idempotency_seed: pay-test-payment-001
+expect:
+  status: failure

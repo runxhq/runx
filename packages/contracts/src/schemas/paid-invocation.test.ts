@@ -190,11 +190,11 @@ describe("paid-invocation V1 contract facade", () => {
     };
     const result = fixturePayload("quote-direct-admission.json") as {
       readonly status: string;
-      readonly value: { readonly challenge: unknown };
+      readonly value: { readonly payment_options: readonly unknown[] };
     };
     expect(validatePaymentIdempotencyBindingContract(request.idempotency)).toBe(request.idempotency);
-    expect(validatePaidInvocationPaymentChallengeContract(result.value.challenge))
-      .toBe(result.value.challenge);
+    expect(validatePaidInvocationPaymentChallengeContract(result.value.payment_options[0]))
+      .toBe(result.value.payment_options[0]);
     expect(() => validatePaymentIdempotencyBindingContract({
       ...(request.idempotency as object),
       unknown_key: "not-accepted",

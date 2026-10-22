@@ -303,6 +303,7 @@ export function bindX402PaymentRequiredChallenge(
     payload_digest: sha256Prefixed(canonicalJsonStringify(payload)),
     quote_ref: quoteRef,
     quote_expires_at: quoteExpiresAt,
+    ...(x402PaymentMethod(payload) ? { payment_method: x402PaymentMethod(payload) } : {}),
   });
 }
 
@@ -325,11 +326,22 @@ export function x402PaymentRequiredFromChallenge(
   if (actualDigest !== challenge.payload_digest) {
     throw new X402PresentationError("challenge_digest_mismatch");
   }
+  let payload: X402PaymentRequiredContract;
   try {
-    return validateX402PaymentRequiredContract(challenge.payload);
+    payload = validateX402PaymentRequiredContract(challenge.payload);
   } catch {
     throw new X402PresentationError("invalid_payload");
   }
+  if (challenge.payment_method !== undefined && !jsonEquals(challenge.payment_method, x402PaymentMethod(payload))) {
+    throw new X402PresentationError("requirement_mismatch");
+  }
+  return payload;
+}
+
+function x402PaymentMethod(required: X402PaymentRequiredContract) {
+  if (required.accepts.length !== 1) return undefined;
+  const requirement = required.accepts[0]!;
+  return { method: requirement.scheme, network: requirement.network, asset: requirement.asset, pay_to: requirement.payTo };
 }
 
 /**

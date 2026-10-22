@@ -79,6 +79,50 @@ pub(crate) fn confirm_session_over(
                 },
             )
         }
+        SessionKind::ManagedCommand => {
+            let session = super::session::ManagedCommandSession::of(manifest)
+                .ok_or("the connector declares no managed-command session")?;
+            let servable = manifest
+                .operations
+                .values()
+                .filter(|operation| {
+                    matches!(
+                        operation.implementation,
+                        Some(runx_contracts::connector::Implementation::Process(_))
+                    )
+                })
+                .flat_map(|operation| {
+                    operation
+                        .scopes
+                        .iter()
+                        .map(|scope| scope.as_str().to_owned())
+                })
+                .collect::<BTreeSet<_>>();
+            if scopes.iter().any(|scope| !servable.contains(scope)) {
+                return Err("the requested scope is not served by this CLI session".to_owned());
+            }
+            let granted = if scopes.is_empty() {
+                servable
+            } else {
+                scopes.iter().cloned().collect()
+            };
+            let principal = session.principal(env, cwd)?;
+            pinned(
+                connector,
+                super::instances::instance_id(&[
+                    "session",
+                    connector.name.as_str(),
+                    &principal.id,
+                ])?,
+                Placement::Local,
+                principal.principal_ref(manifest.id.as_str()),
+                Some(principal.login),
+                InstanceAuthority::Session {
+                    session: SessionKind::ManagedCommand,
+                    scopes: granted.into_iter().map(Into::into).collect(),
+                },
+            )
+        }
         SessionKind::HostBrowser => {
             return Err(format!(
                 "connector {}'s host browser session names no account the runtime can pin",
