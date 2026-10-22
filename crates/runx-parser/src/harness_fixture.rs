@@ -259,9 +259,12 @@ pub struct HarnessFixture {
     pub metadata: JsonObject,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HarnessSetup {
+    /// Parameters pinned when the fixture confirms a session or credential instance.
+    #[serde(default)]
+    pub parameters: BTreeMap<String, JsonObject>,
     #[serde(default)]
     pub receipts: Vec<String>,
     /// Connectors whose local session the case confirms and selects before
@@ -823,6 +826,14 @@ fn validate_setup(setup: HarnessSetup) -> Result<HarnessSetup, HarnessFixtureErr
             return Err(HarnessFixtureError::Invalid {
                 field,
                 message: "must not duplicate another receipt path".to_owned(),
+            });
+        }
+    }
+    for connector in setup.parameters.keys() {
+        if !setup.sessions.contains(connector) && !setup.credentials.contains(connector) {
+            return Err(HarnessFixtureError::Invalid {
+                field: "setup.parameters".to_owned(),
+                message: "must name an explicitly configured session or credential".to_owned(),
             });
         }
     }

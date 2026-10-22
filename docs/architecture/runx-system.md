@@ -209,6 +209,23 @@ a new trait, or an extra hot-path dispatch.
 
 ## Effect and finality boundary
 
+A local `host_browser` connector session declares its identity probe using the
+same `process` binding as an operation (`tool` and `runtime_scopes`, without a
+mutation readback). The installed, digest-checked tool receives
+`{operation: "session", parameters: <instance parameters>}` and returns the
+rendered account as `{id, login}`. Connector parameters select the intended
+binding; they contain no cookies or credentials. `connector use --session`
+validates these parameters and pins the returned principal and account.
+Every operation probes again before dispatch and refuses a changed identity.
+The process driver injects the pinned `session_account` and instance `parameters`,
+overriding caller claims. Browser adapters must check it against the account they actually drive.
+This is trusted host execution, not browser sandboxing or independent DOM
+attestation. It adds no browser lifecycle, secret export or effect ledger.
+
+The native harness uses the same confirmation path. A fixture explicitly
+declares its `setup.sessions`, per-connector `setup.parameters` and exact
+`caller.process_calls`; it never borrows a live browser or saved account.
+
 The registered native capability owns the effect classification, admission,
 approval policy, execution boundary, and finality preparation. Graph, skill,
 runner, and tool manifests do not redeclare `mutation`, `mutating`, or an

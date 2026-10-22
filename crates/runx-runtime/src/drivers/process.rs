@@ -29,11 +29,29 @@ impl ToolRunner for StandIn<'_> {
     fn run(
         &self,
         tool: &str,
-        _manifest: &Path,
+        manifest: &Path,
         inputs: JsonObject,
-        _scopes: &[String],
+        scopes: &[String],
         _delivery: &CredentialDelivery,
     ) -> Result<JsonValue, String> {
+        let declared =
+            crate::tool_catalogs::manifest::read(manifest).map_err(|error| error.to_string())?;
+        crate::capability::enforce_required_scopes(
+            tool,
+            declared
+                .execution_requirements()
+                .scopes
+                .iter()
+                .map(String::as_str),
+            scopes,
+        )
+        .map_err(|error| error.to_string())?;
+        let inputs = crate::input_contract::materialize_tool_inputs(
+            &declared.inputs,
+            &inputs,
+            &JsonObject::new(),
+        )
+        .map_err(|error| error.to_string())?;
         self.calls
             .iter()
             .find(|call| call.tool == tool && call.arguments == inputs)
@@ -46,6 +64,7 @@ impl ToolRunner for StandIn<'_> {
 
 pub(crate) struct Process<'a> {
     pub result_from: runx_contracts::connector::ProcessResultSource,
+    pub session_account: Option<&'a str>,
     pub tools: &'a dyn ToolRunner,
     pub tool: &'a str,
     /// The installed manifest of the connector's tool.
@@ -128,6 +147,16 @@ impl Process<'_> {
             inputs.insert(
                 "principal_ref".to_owned(),
                 JsonValue::String(principal.to_owned()),
+            );
+        }
+        if let Some(account) = self.session_account {
+            inputs.insert(
+                "session_account".to_owned(),
+                JsonValue::String(account.to_owned()),
+            );
+            inputs.insert(
+                "parameters".to_owned(),
+                JsonValue::Object(self.call.parameters.clone()),
             );
         }
         if self.call.mutation() {
@@ -226,6 +255,7 @@ mod tests {
                 AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Mutate);
             let driver = Process {
                 result_from: Default::default(),
+                session_account: None,
                 tools: &tool,
                 tool: "git.push",
                 manifest,
@@ -254,6 +284,7 @@ mod tests {
         let call = AdmittedCall::for_tests(&feature, &parameters, &env, OperationAccess::Mutate);
         let driver = Process {
             result_from: Default::default(),
+            session_account: None,
             tools: &tool,
             tool: "git.push",
             manifest,
@@ -266,6 +297,7 @@ mod tests {
         assert_eq!(operation_id.as_deref(), Some("process:key-1"));
         let confirmed = JsonValue::String("confirmed-public-result".to_owned());
         let from_readback = Process {
+            session_account: None,
             result_from: runx_contracts::connector::ProcessResultSource::Readback,
             ..driver
         };
@@ -303,6 +335,7 @@ mod tests {
         let call = AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Read);
         let read = Process {
             result_from: Default::default(),
+            session_account: None,
             tools: &tool,
             tool: "git.push",
             manifest,
@@ -317,6 +350,43 @@ mod tests {
                 .borrow()
                 .last()
                 .is_some_and(|inputs| inputs.contains_key("phase"))
+        );
+        Ok(())
+    }
+    #[test]
+    fn browser_session_account_is_native_context_not_a_caller_claim() -> Result<(), String> {
+        let tool = Tool {
+            runs: RefCell::new(Vec::new()),
+        };
+        let mut arguments = match arguments("feature") {
+            JsonValue::Object(value) => value,
+            _ => unreachable!(),
+        };
+        arguments.insert(
+            "session_account".to_owned(),
+            JsonValue::String("forged".to_owned()),
+        );
+        let arguments = JsonValue::Object(arguments);
+        let parameters = JsonObject::new();
+        let env = BTreeMap::new();
+        let call = AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Read);
+        Process {
+            result_from: Default::default(),
+            session_account: Some("pinned"),
+            tools: &tool,
+            tool: "browser.probe",
+            manifest: Path::new("manifest.json"),
+            call: &call,
+            scopes: &[],
+            delivery: &CredentialDelivery::none(),
+        }
+        .perform(None)
+        .map_err(Unperformed::reason)?;
+        assert_eq!(
+            tool.runs.borrow()[0]
+                .get("session_account")
+                .and_then(JsonValue::as_str),
+            Some("pinned")
         );
         Ok(())
     }

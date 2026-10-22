@@ -414,7 +414,11 @@ operations:
                 &instances,
                 &connector,
                 scopes,
-                &Account,
+                runx_contracts::JsonObject::new(),
+                &crate::kernel::setup::AccountReaders {
+                    transport: &Account,
+                    tools: &crate::kernel::operation::NoTools,
+                },
                 &env,
                 root.path(),
             )

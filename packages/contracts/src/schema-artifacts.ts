@@ -7326,10 +7326,153 @@ export const runxSchemaArtifacts = {
                   "kind": {
                     "const": "host_browser",
                     "type": "string"
+                  },
+                  "process": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "readback": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "matches": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expected": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "acknowledgement",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "argument",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "path": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "const": "item",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "source",
+                                        "path"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "literal",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "source": {
+                                          "const": "template",
+                                          "type": "string"
+                                        },
+                                        "value": {}
+                                      },
+                                      "required": [
+                                        "source",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "observed": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "expected",
+                                "observed"
+                              ],
+                              "type": "object"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "matches"
+                        ],
+                        "type": "object"
+                      },
+                      "result_from": {
+                        "enum": [
+                          "readback"
+                        ],
+                        "type": "string"
+                      },
+                      "runtime_scopes": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "tool": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "tool"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
-                  "kind"
+                  "kind",
+                  "process"
                 ],
                 "type": "object"
               }

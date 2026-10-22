@@ -1,0 +1,1 @@
+{"schema":"runx.tool.manifest.v1","name":"browser.probe","version":"0.1.0","description":"Fixture-only account proof.","source":{"command":"sh","args":["./probe.sh"]},"inputs":{"operation":{"type":"string","required":true},"parameters":{"type":"json","required":false},"session_account":{"type":"string","required":false}}}

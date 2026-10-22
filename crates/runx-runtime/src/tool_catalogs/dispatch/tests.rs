@@ -337,3 +337,36 @@ fn process_env() -> BTreeMap<String, String> {
     .filter_map(|key| std::env::var(key).ok().map(|value| (key.to_owned(), value)))
     .collect()
 }
+
+#[test]
+fn process_protocol_fields_survive_production_input_materialization()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    write_catalog_tool(
+        &temp.path().join("tools/test/process-protocol"),
+        r#"{
+      "schema":"runx.tool.manifest.v1","name":"test.process-protocol",
+      "source":{"command":"/bin/sh","args":["./run.sh"],"input_mode":"stdin"},
+      "inputs":{"operation":{"type":"string","required":true},"phase":{"type":"string","required":false},"idempotency_key":{"type":"string","required":false},"session_account":{"type":"string","required":false}},
+      "scopes":["test.process-protocol"]
+    }"#,
+        "cat\n",
+    )?;
+    let inputs: JsonObject = serde_json::from_str(
+        r#"{"operation":"comment-create","phase":"perform","idempotency_key":"native-provider-key","session_account":"pinned-account"}"#,
+    )?;
+    let output = invoke_in_directory(
+        "test.process-protocol",
+        inputs.clone(),
+        temp.path().to_path_buf(),
+        tool_root_env(temp.path()),
+    )?;
+    assert_eq!(
+        output.status,
+        InvocationStatus::Success,
+        "{}",
+        diagnostic(&output)
+    );
+    assert_eq!(output.value, JsonValue::Object(inputs));
+    Ok(())
+}

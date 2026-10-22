@@ -205,6 +205,15 @@ pub fn setup_forms(connector: &LoadedConnector) -> Vec<SetupForm> {
                             variable: None,
                             runs: Some(runs),
                         });
+                    } else if let Some(runx_contracts::connector::SessionAuth::HostBrowser {
+                        process,
+                    }) = &manifest.auth.session
+                    {
+                        forms.push(SetupForm {
+                            command: format!("{use_} --session"),
+                            variable: None,
+                            runs: Some(process.tool.to_string()),
+                        });
                     }
                 }
                 LocalAuth::Credentials => {
@@ -309,23 +318,29 @@ impl<'a> ConnectorSetup<'a> {
         match request {
             UseRequest::Default => self.default_path(connector, options),
             UseRequest::Existing(name) => self.existing(connector, name, options),
-            UseRequest::Session => {
-                no_parameters(options, "a session")?;
-                match &self.transport {
-                    Some(transport) => setup::confirm_session_over(
-                        self.instances,
-                        connector,
-                        &options.scopes,
-                        transport.as_ref(),
-                        env,
-                        cwd,
-                    ),
-                    None => {
-                        setup::confirm_session(self.instances, connector, &options.scopes, env, cwd)
-                    }
-                }
-                .map(selected)
+            UseRequest::Session => match &self.transport {
+                Some(transport) => setup::confirm_session_over(
+                    self.instances,
+                    connector,
+                    &options.scopes,
+                    options.parameters.clone(),
+                    &setup::AccountReaders {
+                        transport: transport.as_ref(),
+                        tools: &setup::SetupTools { env },
+                    },
+                    env,
+                    cwd,
+                ),
+                None => setup::confirm_session(
+                    self.instances,
+                    connector,
+                    &options.scopes,
+                    options.parameters.clone(),
+                    env,
+                    cwd,
+                ),
             }
+            .map(selected),
             UseRequest::Credential {
                 credential,
                 profile,

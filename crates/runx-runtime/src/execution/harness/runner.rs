@@ -533,13 +533,22 @@ fn seed_harness_instances(
         }
         .map_err(|error| failed(error.to_string()))
     };
+    // A fixture's sessions read their accounts as its calls do: through its
+    // transport and its recorded process calls.
+    let readers = crate::kernel::setup::AccountReaders {
+        transport,
+        tools: &crate::drivers::process::StandIn {
+            calls: &fixture.caller.process_calls,
+        },
+    };
     for key in &setup.sessions {
         let connector = connector(key)?;
         crate::kernel::setup::confirm_session_over(
             &instances,
             &connector,
             &[],
-            transport,
+            setup.parameters.get(key).cloned().unwrap_or_default(),
+            &readers,
             &env,
             skill_dir,
         )
@@ -571,7 +580,7 @@ fn seed_harness_instances(
             &connector,
             name,
             &[],
-            runx_contracts::JsonObject::new(),
+            setup.parameters.get(key).cloned().unwrap_or_default(),
             &workspace,
         )
         .map_err(failed)?;

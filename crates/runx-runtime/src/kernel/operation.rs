@@ -917,7 +917,17 @@ pub(crate) fn execute(
         },
         false => failed(context, reason),
     };
-    let session = prepare(context, env, cwd).map_err(preflight)?;
+    // A fixture's recorded process calls stand in for the step's tools, for
+    // a browser session's account check and the call alike.
+    let stand_in;
+    let tools: &dyn ToolRunner = match context.placements.process_calls.as_deref() {
+        Some(calls) => {
+            stand_in = crate::drivers::process::StandIn { calls };
+            &stand_in
+        }
+        None => tools,
+    };
+    let session = prepare(context, env, cwd, tools).map_err(preflight)?;
     let tool = context.process_tool(env, cwd).map_err(preflight)?;
     if let Some(custody) = &context.admitted.custody {
         record_attempt(
@@ -1053,6 +1063,7 @@ fn prepare(
     context: &OperationAdmission,
     env: &BTreeMap<String, String>,
     cwd: &Path,
+    tools: &dyn ToolRunner,
 ) -> Result<Session, String> {
     let admitted = &context.admitted;
     let instance = &admitted.instance;
@@ -1110,6 +1121,13 @@ fn prepare(
                 {
                     return Err("the CLI is signed in as another account; confirm the connector session again".to_owned());
                 }
+                Ok(Session::Local(None))
+            }
+            InstanceAuthority::Session {
+                session: runx_contracts::connector::SessionKind::HostBrowser,
+                ..
+            } => {
+                super::session::browser::verify(&admitted.connector, instance, env, cwd, tools)?;
                 Ok(Session::Local(None))
             }
             _ => match admitted.operation().implementation {
@@ -1398,17 +1416,20 @@ fn dispatch(
                     "the connector's tool was not installed".to_owned(),
                 )
             })?;
-            let stand_in;
-            let tools: &dyn ToolRunner = match context.placements.process_calls.as_deref() {
-                Some(calls) => {
-                    stand_in = crate::drivers::process::StandIn { calls };
-                    &stand_in
-                }
-                None => local.tools,
-            };
             let driver = crate::drivers::process::Process {
                 result_from: spec.result_from,
-                tools,
+                session_account: match &admitted.instance.authority {
+                    InstanceAuthority::Session {
+                        session: runx_contracts::connector::SessionKind::HostBrowser,
+                        ..
+                    } => admitted
+                        .instance
+                        .account_ref
+                        .as_ref()
+                        .map(|value| value.as_str()),
+                    _ => None,
+                },
+                tools: local.tools,
                 tool: spec.tool.as_str(),
                 manifest: tool,
                 call: &call,

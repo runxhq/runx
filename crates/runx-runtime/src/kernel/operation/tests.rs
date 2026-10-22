@@ -2337,14 +2337,19 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     let store =
         KernelStore::for_project(&crate::paths::RunxPaths::resolve(&fixture.env, root)).unwrap();
     let instances = Instances::new(store);
+    let readers = crate::kernel::setup::AccountReaders {
+        transport: &fixture.provider,
+        tools: &crate::kernel::operation::NoTools,
+    };
     assert!(
         crate::kernel::setup::confirm_session_over(
             &instances,
             &connector,
             &["unserved".to_owned()],
-            &fixture.provider,
+            JsonObject::new(),
+            &readers,
             &fixture.env,
-            root
+            root,
         )
         .is_err()
     );
@@ -2352,7 +2357,8 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
         &instances,
         &connector,
         &["repo.read".to_owned()],
-        &fixture.provider,
+        JsonObject::new(),
+        &readers,
         &fixture.env,
         root,
     )

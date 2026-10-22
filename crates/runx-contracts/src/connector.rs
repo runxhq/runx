@@ -198,7 +198,7 @@ impl ConnectorManifest {
 
 /// How a principal's authority over the provider is held. Every key is an
 /// alternative; placements say which ones they accept.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectorAuth {
     /// A hosted grant brokered by runx Connect. Valid only on the hosted
@@ -308,7 +308,7 @@ pub struct CredentialDelivery {
 }
 
 /// A local session: authority the person already holds on this machine.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SessionAuth {
     /// A token printed by a command-line tool the person is signed into, such
@@ -332,8 +332,10 @@ pub enum SessionAuth {
         id: NonEmptyString,
         login: NonEmptyString,
     },
-    /// A signed-in browser profile driven by a trusted host tool.
-    HostBrowser {},
+    /// A signed-in browser profile. Its installed tool receives
+    /// `operation: session` and the instance parameters and returns the
+    /// rendered account as `{id, login}`. No session secret is exported.
+    HostBrowser { process: ProcessImplementation },
 }
 
 impl SessionAuth {
@@ -342,7 +344,7 @@ impl SessionAuth {
         match self {
             Self::Command { .. } => SessionKind::Command,
             Self::ManagedCommand { .. } => SessionKind::ManagedCommand,
-            Self::HostBrowser {} => SessionKind::HostBrowser,
+            Self::HostBrowser { .. } => SessionKind::HostBrowser,
         }
     }
 }

@@ -243,6 +243,18 @@ fn process_tools(manifest: &ConnectorManifest) -> impl Iterator<Item = &str> {
             }
             _ => None,
         })
+        .chain(
+            manifest
+                .auth
+                .session
+                .as_ref()
+                .and_then(|session| match session {
+                    runx_contracts::connector::SessionAuth::HostBrowser { process } => {
+                        Some(process.tool.as_str())
+                    }
+                    _ => None,
+                }),
+        )
         .collect::<BTreeSet<_>>()
         .into_iter()
 }

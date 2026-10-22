@@ -17,6 +17,8 @@ use runx_contracts::schema::NonEmptyString;
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};
 use crate::process::{ProcessSpec, run_process};
 
+pub(crate) mod browser;
+
 /// A tool that prints more than this is not printing a token.
 const TOKEN_OUTPUT_BYTES: usize = 64 * 1024;
 const TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
@@ -38,6 +40,34 @@ pub(crate) struct Principal {
 impl Principal {
     pub(crate) fn principal_ref(&self, connector: &str) -> String {
         format!("runx:principal:{connector}:{}", self.id)
+    }
+
+    /// Who `answer`, from `source`, names at its `id` and `login` paths:
+    /// each a number, or a non-empty string on one line with no control
+    /// character, since it is recorded and shown.
+    pub(crate) fn read(
+        answer: &JsonValue,
+        id: &str,
+        login: &str,
+        source: &str,
+    ) -> Result<Self, String> {
+        let field = |path: &str| {
+            super::operation::confirm::at_path(answer, path)
+                .and_then(|value| match value {
+                    JsonValue::String(value)
+                        if !value.is_empty() && !value.contains(char::is_control) =>
+                    {
+                        Some(value.clone())
+                    }
+                    JsonValue::Number(value) => Some(value.to_string()),
+                    _ => None,
+                })
+                .ok_or_else(|| format!("{source} has no {path}"))
+        };
+        Ok(Self {
+            id: field(id)?,
+            login: field(login)?,
+        })
     }
 }
 
@@ -146,19 +176,12 @@ impl<'a> CommandSession<'a> {
         }
         let answer = serde_json::from_str::<JsonValue>(&response.body)
             .map_err(|_| "the session's account answer is not JSON".to_owned())?;
-        let field = |path: &str| {
-            super::operation::confirm::at_path(&answer, path)
-                .and_then(|value| match value {
-                    JsonValue::String(value) if !value.is_empty() => Some(value.clone()),
-                    JsonValue::Number(value) => Some(value.to_string()),
-                    _ => None,
-                })
-                .ok_or_else(|| format!("the session's account answer has no {path}"))
-        };
-        Ok(Principal {
-            id: field(self.principal.id.as_str())?,
-            login: field(self.principal.login.as_str())?,
-        })
+        Principal::read(
+            &answer,
+            self.principal.id.as_str(),
+            self.principal.login.as_str(),
+            "the session's account answer",
+        )
     }
 }
 

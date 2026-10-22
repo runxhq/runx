@@ -7,8 +7,10 @@
 //! reads the same source again on every call and refuses when it no longer
 //! matches the pin.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::time::Instant;
 
 use runx_contracts::connector::credential_declaration_digest;
 use runx_contracts::connector::{
@@ -18,7 +20,7 @@ use runx_contracts::{ConnectorInstance, InstanceAuthority, JsonObject, sha256_pr
 
 use super::connectors::LoadedConnector;
 use super::instances::{Instances, check_supported, pinned};
-use super::operation::{credentials, hosted::HostedClient};
+use super::operation::{ToolRunner, credentials, hosted::HostedClient};
 use crate::config::{load_local_credential_secret, load_runx_config_file};
 use crate::credential_profiles::set_local_credential_profile;
 use crate::services::WorkspaceEnv;
@@ -30,6 +32,7 @@ pub(crate) fn confirm_session(
     instances: &Instances,
     connector: &LoadedConnector,
     scopes: &[String],
+    parameters: JsonObject,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
@@ -37,16 +40,75 @@ pub(crate) fn confirm_session(
         crate::hosted_private_network_allowed(false, env),
     )
     .map_err(|error| error.to_string())?;
-    confirm_session_over(instances, connector, scopes, &transport, env, cwd)
+    let readers = AccountReaders {
+        transport: &transport,
+        tools: &SetupTools { env },
+    };
+    confirm_session_over(instances, connector, scopes, parameters, &readers, env, cwd)
 }
 
-/// [`confirm_session`], reading a command session's account through
-/// `transport`.
+/// What a session's account is read through: a command session's principal
+/// request over `transport`, a browser session's installed tool through
+/// `tools`.
+pub(crate) struct AccountReaders<'a> {
+    pub transport: &'a dyn crate::http::RuntimeHttpTransport,
+    pub tools: &'a dyn ToolRunner,
+}
+
+/// Setup's runner for a connector's installed tool. Setup is outside any
+/// run, so the tool runs with no run's artifacts or bounds.
+pub(crate) struct SetupTools<'a> {
+    pub env: &'a BTreeMap<String, String>,
+}
+
+impl ToolRunner for SetupTools<'_> {
+    fn run(
+        &self,
+        tool: &str,
+        manifest: &Path,
+        inputs: JsonObject,
+        scopes: &[String],
+        delivery: &crate::credentials::CredentialDelivery,
+    ) -> Result<runx_contracts::JsonValue, String> {
+        let directory = manifest
+            .parent()
+            .ok_or_else(|| format!("tool {tool} has no directory"))?;
+        let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
+            manifest,
+            &crate::tool_catalogs::dispatch::ToolDispatchRequest {
+                tool_ref: Cow::Borrowed(tool),
+                inputs: Cow::Owned(inputs),
+                resolved_inputs: Cow::Owned(JsonObject::new()),
+                scopes,
+                env: self.env,
+                skill_directory: directory,
+                credential_delivery: delivery,
+                local_artifacts: &crate::services::LocalArtifactService::default(),
+                skill_name: tool,
+                allow_explicit_manifest_path: false,
+                effect_admission: None,
+                bounds: crate::services::WorkspaceBounds::of(None),
+                call: None,
+            },
+            Instant::now(),
+        )
+        .map_err(|error| error.to_string())?;
+        match output.succeeded() {
+            true => Ok(output.value),
+            false => Err(output
+                .failure_message()
+                .unwrap_or_else(|| format!("tool {tool} failed"))),
+        }
+    }
+}
+
+/// [`confirm_session`], reading the session's account through `readers`.
 pub(crate) fn confirm_session_over(
     instances: &Instances,
     connector: &LoadedConnector,
     scopes: &[String],
-    transport: &dyn crate::http::RuntimeHttpTransport,
+    parameters: JsonObject,
+    readers: &AccountReaders<'_>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ConnectorInstance, String> {
@@ -58,11 +120,14 @@ pub(crate) fn confirm_session_over(
         .ok_or_else(|| format!("connector {} declares no local session", manifest.id))?;
     let instance = match session.kind() {
         SessionKind::Command => {
+            if !parameters.is_empty() {
+                return Err("a command session declares no instance parameters".to_owned());
+            }
             let session = super::session::CommandSession::of(manifest)
                 .ok_or_else(|| format!("connector {} declares no command session", manifest.id))?;
             let scopes = served_scopes(connector, session.credential, scopes)?;
             let token = session.token(env, cwd)?;
-            let principal = session.principal(&token, transport)?;
+            let principal = session.principal(&token, readers.transport)?;
             pinned(
                 connector,
                 super::instances::instance_id(&[
@@ -82,30 +147,7 @@ pub(crate) fn confirm_session_over(
         SessionKind::ManagedCommand => {
             let session = super::session::ManagedCommandSession::of(manifest)
                 .ok_or("the connector declares no managed-command session")?;
-            let servable = manifest
-                .operations
-                .values()
-                .filter(|operation| {
-                    matches!(
-                        operation.implementation,
-                        Some(runx_contracts::connector::Implementation::Process(_))
-                    )
-                })
-                .flat_map(|operation| {
-                    operation
-                        .scopes
-                        .iter()
-                        .map(|scope| scope.as_str().to_owned())
-                })
-                .collect::<BTreeSet<_>>();
-            if scopes.iter().any(|scope| !servable.contains(scope)) {
-                return Err("the requested scope is not served by this CLI session".to_owned());
-            }
-            let granted = if scopes.is_empty() {
-                servable
-            } else {
-                scopes.iter().cloned().collect()
-            };
+            let granted = tool_scopes(connector, scopes, "this CLI session")?;
             let principal = session.principal(env, cwd)?;
             pinned(
                 connector,
@@ -124,10 +166,32 @@ pub(crate) fn confirm_session_over(
             )
         }
         SessionKind::HostBrowser => {
-            return Err(format!(
-                "connector {}'s host browser session names no account the runtime can pin",
-                manifest.id
-            ));
+            let parameters = instance_parameters(connector, parameters)?;
+            let granted = tool_scopes(connector, scopes, "the browser session")?;
+            let principal = super::session::browser::principal(
+                connector,
+                &parameters,
+                env,
+                cwd,
+                readers.tools,
+            )?;
+            let mut instance = pinned(
+                connector,
+                super::instances::instance_id(&[
+                    "session",
+                    connector.name.as_str(),
+                    &principal.id,
+                ])?,
+                Placement::Local,
+                principal.principal_ref(manifest.id.as_str()),
+                Some(principal.login),
+                InstanceAuthority::Session {
+                    session: SessionKind::HostBrowser,
+                    scopes: granted.into_iter().map(Into::into).collect(),
+                },
+            );
+            instance.parameters = parameters;
+            instance
         }
     };
     confirm(instances, connector, instance)
@@ -448,11 +512,50 @@ fn served_scopes(
     credential: &CredentialName,
     scopes: &[String],
 ) -> Result<BTreeSet<String>, String> {
-    let manifest = &connector.manifest;
-    let servable = manifest
+    granted_scopes(
+        connector,
+        |operation| operation.credentials.contains(credential),
+        scopes,
+        &format!(
+            "credential {credential} of connector {}",
+            connector.manifest.id
+        ),
+    )
+}
+
+/// What a session that exports no token serves: the operations its
+/// connector's installed tools run.
+fn tool_scopes(
+    connector: &LoadedConnector,
+    scopes: &[String],
+    session: &str,
+) -> Result<BTreeSet<String>, String> {
+    granted_scopes(
+        connector,
+        |operation| {
+            matches!(
+                operation.implementation,
+                Some(runx_contracts::connector::Implementation::Process(_))
+            )
+        },
+        scopes,
+        session,
+    )
+}
+
+/// The scopes `scopes` grants of the operations `serves` admits: each one
+/// such an operation declares, or all of theirs when none is named.
+fn granted_scopes(
+    connector: &LoadedConnector,
+    serves: impl Fn(&runx_contracts::connector::ConnectorOperation) -> bool,
+    scopes: &[String],
+    what: &str,
+) -> Result<BTreeSet<String>, String> {
+    let servable = connector
+        .manifest
         .operations
         .values()
-        .filter(|operation| operation.credentials.contains(credential))
+        .filter(|operation| serves(operation))
         .flat_map(|operation| {
             operation
                 .scopes
@@ -464,10 +567,7 @@ fn served_scopes(
         .iter()
         .find(|scope| !servable.contains(scope.as_str()))
     {
-        return Err(format!(
-            "credential {credential} of connector {} serves no operation with scope {scope}",
-            manifest.id
-        ));
+        return Err(format!("{what} serves no operation with scope {scope}"));
     }
     Ok(if scopes.is_empty() {
         servable

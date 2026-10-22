@@ -1,0 +1,25 @@
+schema: runx.connector.v1
+id: fixture/browser
+name: Fixture Browser
+description: Account-bound local browser identity and process execution fixture.
+runtime_capability: false
+auth:
+  session:
+    kind: host_browser
+    process: {tool: browser.probe}
+parameters:
+  type: object
+  additionalProperties: false
+  required: [account]
+  properties:
+    account: {type: string, minLength: 1}
+placements:
+  local: {auth: [session]}
+operations:
+  account.inspect:
+    description: Read one bound account.
+    verb: read
+    scopes: [browser.read]
+    target: {template: 'browser://account'}
+    implementation:
+      process: {tool: browser.probe}

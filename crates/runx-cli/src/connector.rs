@@ -279,7 +279,7 @@ pub fn parse_connector_plan(args: &[OsString]) -> Result<ConnectorPlan, String> 
                 .transpose()?;
             let choice = match (positionals.as_slice(), session, hosted) {
                 ([_, existing], false, false) if credential.is_none() && from.is_none() => UseChoice::Existing(existing.clone()),
-                ([_], true, false) if credential.is_none() && from.is_none() && parameters.is_empty() => UseChoice::Session,
+                ([_], true, false) if credential.is_none() && from.is_none() => UseChoice::Session,
                 ([_], false, true) if profile.is_none() => UseChoice::Hosted { target, from },
                 ([_], false, false) => match (credential, from) {
                     (credential, Some(reference)) => UseChoice::Reference { credential, reference },
@@ -783,6 +783,30 @@ mod tests {
 
     fn plan(args: &[&str]) -> Result<ConnectorPlan, String> {
         parse_connector_plan(&args.iter().map(OsString::from).collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn session_parameters_reach_native_confirmation() -> Result<(), String> {
+        let parsed = plan(&[
+            "connector",
+            "use",
+            "reddit",
+            "--session",
+            "--parameter",
+            "account=example_builder",
+        ])?;
+        let ConnectorAction::Use {
+            choice, parameters, ..
+        } = parsed.action
+        else {
+            return Err("expected connector setup".to_owned());
+        };
+        assert_eq!(choice, UseChoice::Session);
+        assert_eq!(
+            parameters.get("account").map(String::as_str),
+            Some("example_builder")
+        );
+        Ok(())
     }
 
     #[test]

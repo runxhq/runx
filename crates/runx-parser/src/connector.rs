@@ -411,6 +411,37 @@ fn validate_auth_and_placements(manifest: &ConnectorManifest, errors: &mut Error
             }
         }
     }
+    if let Some(SessionAuth::HostBrowser { process }) = &auth.session {
+        validate_process_binding(process, "auth.session.process", errors);
+        if process.readback.is_some() {
+            errors.push(
+                "auth.session.process.readback",
+                "an identity probe is a read and declares no mutation readback",
+            );
+        }
+    }
+}
+
+fn validate_process_binding(
+    process: &runx_contracts::connector::ProcessImplementation,
+    field: &str,
+    errors: &mut Errors,
+) {
+    if !whole_match(PROCESS_TOOL_PATTERN).is_ok_and(|tool| tool.is_match(&process.tool)) {
+        errors.push(
+            &format!("{field}.tool"),
+            "a process tool is a dotted name of lowercase segments, such as git.push",
+        );
+    }
+    let mut seen = BTreeSet::new();
+    for scope in &process.runtime_scopes {
+        if !seen.insert(scope.as_str()) {
+            errors.push(
+                &format!("{field}.runtime_scopes"),
+                format!("duplicate runtime scope {scope}"),
+            );
+        }
+    }
 }
 
 /// Which boundary presents a credential. A trusted process owns its further
@@ -893,14 +924,7 @@ fn validate_operation(
             }
         }
         Implementation::Process(process) => {
-            // The tool ships beside the connector, at tools/<segment>/...
-            // named by the reference, so it is a dotted name and never a path.
-            if !whole_match(PROCESS_TOOL_PATTERN).is_ok_and(|tool| tool.is_match(&process.tool)) {
-                errors.push(
-                    &format!("{field}.implementation.process.tool"),
-                    "a process tool is a dotted name of lowercase segments, such as git.push",
-                );
-            }
+            validate_process_binding(process, &format!("{field}.implementation.process"), errors);
             match (operation.access(), &process.readback, acknowledged) {
                 (OperationAccess::Read, Some(_), _) => errors.push(
                     &format!("{field}.implementation.process.readback"),
@@ -915,15 +939,6 @@ fn validate_operation(
                     "a write the provider cannot read back declares no readback",
                 ),
                 _ => {}
-            }
-            let mut seen = BTreeSet::new();
-            for scope in &process.runtime_scopes {
-                if !seen.insert(scope.as_str()) {
-                    errors.push(
-                        &format!("{field}.implementation.process.runtime_scopes"),
-                        format!("duplicate runtime scope {scope}"),
-                    );
-                }
             }
         }
         Implementation::Store(_) => {
