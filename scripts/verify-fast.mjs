@@ -50,7 +50,7 @@ if (rustBuild.status === 0) {
       step("core skill version drift", "node", ["scripts/check-skill-version-drift.mjs", "--core-only"]),
       step("bundled core skills", "pnpm", ["bundled-skills:check"]),
       step("native capability snapshot", "pnpm", ["capabilities:snapshot:check"]),
-      step("runx-maintained connectors", "pnpm", ["runx-maintained-connectors:check"]),
+      step("runtime capabilities", "pnpm", ["runtime-capabilities:check"]),
       step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
       step("extension SDK package contract", "node", ["scripts/check-extension-sdk-package-contract.mjs"]),

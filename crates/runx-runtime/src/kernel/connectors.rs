@@ -314,50 +314,6 @@ pub(crate) fn operation_digest_entries<'a>(
         .collect()
 }
 
-/// Every runx-maintained connector under `connectors_dir`, validated, beside
-/// its manifest digest and each operation's operation and implementation
-/// digests, the tool packages its process operations run read the way the
-/// runtime reads a plugin's. `scripts/generate-runx-maintained-connectors.mjs`
-/// reads it to embed the runtime capabilities; digests are computed in Rust
-/// only.
-pub fn runx_maintained_connectors_contract(
-    connectors_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    let named = connector_directories(connectors_dir).map_err(|error| error.to_string())?;
-    let mut connectors = Vec::with_capacity(named.len());
-    for (id, directory) in named {
-        let source = read_bounded(&directory.join(MANIFEST_FILE))?;
-        let validated = parse_connector_manifest(&source)
-            .map_err(|error| error.to_string())
-            .and_then(|manifest| {
-                validate_connector_manifest(manifest).map_err(|errors| format!("{errors:?}"))
-            })
-            .map_err(|message| format!("connectors/{id}: {message}"))?;
-        let manifest = &validated.manifest;
-        let tools = process_tools(manifest)
-            .map(|tool| {
-                ConnectorTool::in_plugin(&directory, tool).map(|loaded| (tool, loaded.digest))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(|message| format!("connectors/{id}: {message}"))?;
-        let digests = operation_digest_entries(manifest, &validated.operation_digests, |tool| {
-            tools.get(tool)
-        })
-        .map_err(|message| format!("connectors/{id}: {message}"))?;
-        connectors.push(serde_json::json!({
-            "connector_binding": runx_contracts::connector::ConnectorBinding {
-                connector: manifest.id.clone(),
-                manifest_digest: validated.manifest_digest.clone(),
-                connector_digest: connector_digest(&validated.manifest_digest, tools.iter().map(|(name, digest)| (*name, digest))).map_err(|error| error.to_string())?,
-            },
-            "manifest_digest": validated.manifest_digest.as_str(),
-            "digests": serde_json::to_value(&digests).map_err(|error| error.to_string())?,
-            "manifest": serde_json::to_value(manifest).map_err(|error| error.to_string())?,
-        }));
-    }
-    Ok(serde_json::Value::Array(connectors))
-}
-
 /// The connectors one skill may use: the runtime capabilities, its plugin's,
 /// and the project's installed versions it pins by manifest digest.
 #[derive(Clone)]
@@ -1011,7 +967,7 @@ fn plugin_index(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError>
 /// connector of the directory, and a namespace holding both a connector and
 /// surfaces is refused. A directory without `connectors/` holds none; one
 /// that cannot be read is an error.
-pub fn connector_directories(
+fn connector_directories(
     directory: &Path,
 ) -> Result<Vec<(ConnectorName, PathBuf)>, ConnectorRegistryError> {
     let mut found = Vec::new();

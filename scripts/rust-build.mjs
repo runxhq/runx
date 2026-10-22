@@ -28,7 +28,6 @@ const EXAMPLES = [
   "runx-schema-artifacts",
   "runx-paid-invocation-fixtures",
   "runx-principal-id-fixtures",
-  "runx-maintained-connectors",
   "kernel_eval_batch",
   "parser_eval",
   "runx-x402-fixtures",
@@ -65,5 +64,4 @@ export const prebuiltBinEnv = {
   RUNX_PAID_INVOCATION_FIXTURES_BIN: examplePath("runx-paid-invocation-fixtures"),
   RUNX_PRINCIPAL_ID_FIXTURES_BIN: examplePath("runx-principal-id-fixtures"),
   RUNX_X402_FIXTURES_BIN: examplePath("runx-x402-fixtures"),
-  RUNX_OFFICIAL_CONNECTORS_BIN: examplePath("runx-maintained-connectors"),
 };
